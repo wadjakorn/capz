@@ -1,4 +1,6 @@
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
+#[cfg(not(target_os = "macos"))]
+use tauri::{LogicalPosition, LogicalSize};
 
 use crate::services::monitor_service;
 
@@ -19,14 +21,15 @@ pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     .visible(true)
     .build()?;
     #[cfg(debug_assertions)]
-    if let Some(win) = app.get_webview_window("settings") {
-        win.open_devtools();
-    }
+    // if let Some(win) = app.get_webview_window("settings") {
+    //     win.open_devtools();
+    // }
     Ok(())
 }
 
-/// Spawn transparent fullscreen overlay over the primary monitor.
-/// v1: single-monitor area selection only.
+/// Spawn transparent overlay over the primary monitor.
+/// v1: single-monitor area selection per PLAN.md §5.2.
+/// On macOS we raise NSWindow level above the menu bar so the entire screen is selectable.
 pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window("overlay") {
         win.show()?;
@@ -40,11 +43,11 @@ pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .find(|m| m.is_primary)
         .or_else(|| mons.first())
         .ok_or_else(|| tauri::Error::Anyhow(anyhow::anyhow!("no monitors")))?;
-    let scale = primary.scale_factor.max(1.0);
-    let logical_w = primary.width as f64 / scale as f64;
-    let logical_h = primary.height as f64 / scale as f64;
-    let logical_x = primary.x as f64 / scale as f64;
-    let logical_y = primary.y as f64 / scale as f64;
+    let scale = primary.scale_factor.max(1.0) as f64;
+    let logical_w = primary.width as f64 / scale;
+    let logical_h = primary.height as f64 / scale;
+    let logical_x = primary.x as f64 / scale;
+    let logical_y = primary.y as f64 / scale;
     let url = format!("overlay/?monitor={}", primary.id);
 
     let win = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App(url.into()))
@@ -57,13 +60,51 @@ pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .shadow(false)
         .inner_size(logical_w, logical_h)
         .position(logical_x, logical_y)
-        .visible(true)
+        .visible(false)
         .build()?;
-    win.set_position(LogicalPosition::new(logical_x, logical_y))?;
-    win.set_size(LogicalSize::new(logical_w, logical_h))?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        win.set_position(LogicalPosition::new(logical_x, logical_y))?;
+        win.set_size(LogicalSize::new(logical_w, logical_h))?;
+    }
+
+    win.show()?;
     win.set_focus()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::{class, msg_send, runtime::AnyObject};
+        use objc2_foundation::NSRect;
+
+        let ns_window = win.ns_window()? as *mut AnyObject;
+        unsafe {
+            // NSScreenSaverWindowLevel = 1000; above menu bar / dock.
+            let _: () = msg_send![ns_window, setLevel: 1000_i64];
+            // CanJoinAllSpaces | FullScreenAuxiliary
+            let behavior: u64 = (1u64 << 0) | (1u64 << 8);
+            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+
+            // Force frame to primary screen (NSScreen.screens[0]) — full incl. menu bar + dock.
+            // Done AFTER show() so Tauri's internal show logic can't undo it.
+            let screens: *mut AnyObject = msg_send![class!(NSScreen), screens];
+            if !screens.is_null() {
+                let screen: *mut AnyObject = msg_send![screens, firstObject];
+                if !screen.is_null() {
+                    let frame: NSRect = msg_send![screen, frame];
+                    log::info!(
+                        "overlay primary screen frame: origin=({}, {}) size=({}, {})",
+                        frame.origin.x,
+                        frame.origin.y,
+                        frame.size.width,
+                        frame.size.height
+                    );
+                    let _: () = msg_send![ns_window, setFrame: frame, display: true];
+                }
+            }
+        }
+    }
     #[cfg(debug_assertions)]
-    win.open_devtools();
+    // win.open_devtools();
     Ok(())
 }
 

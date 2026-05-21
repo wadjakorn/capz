@@ -15,6 +15,7 @@ pub fn run() {
             commands::capture::capture_full_command,
             commands::capture::capture_monitor_command,
             commands::capture::capture_region_command,
+            commands::overlay::close_overlay_command,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -32,6 +33,13 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+                if code.is_none() {
+                    api.prevent_exit();
+                }
+            }
+        });
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 type Point = { x: number; y: number };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -16,6 +15,12 @@ function normalize(a: Point, b: Point): Rect {
   return { x, y, w, h };
 }
 
+function closeOverlay() {
+  invoke("close_overlay_command").catch((e) => {
+    console.error("close_overlay_command failed", e);
+  });
+}
+
 function OverlayInner() {
   const params = useSearchParams();
   const monitorId = Number(params.get("monitor") ?? "0");
@@ -23,12 +28,12 @@ function OverlayInner() {
   const [start, setStart] = useState<Point | null>(null);
   const [end, setEnd] = useState<Point | null>(null);
   const [busy, setBusy] = useState(false);
-  const winRef = useRef(getCurrentWebviewWindow());
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        winRef.current.close().catch(() => {});
+        e.preventDefault();
+        closeOverlay();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -59,7 +64,10 @@ function OverlayInner() {
     const rect = normalize(start, end);
     setStart(null);
     setEnd(null);
-    if (rect.w < 4 || rect.h < 4) return;
+    if (rect.w < 4 || rect.h < 4) {
+      closeOverlay();
+      return;
+    }
     setBusy(true);
     try {
       const path = await invoke<string>("capture_region_command", {
@@ -73,7 +81,7 @@ function OverlayInner() {
     } catch (e) {
       console.error("capture_region failed", e);
     } finally {
-      await winRef.current.close().catch(() => {});
+      closeOverlay();
     }
   };
 
