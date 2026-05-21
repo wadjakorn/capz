@@ -1,3 +1,5 @@
+mod commands;
+mod services;
 mod shortcuts;
 mod tray;
 mod windows;
@@ -7,7 +9,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![shortcuts::reregister_shortcuts])
+        .invoke_handler(tauri::generate_handler![
+            shortcuts::reregister_shortcuts,
+            commands::capture::list_monitors_command,
+            commands::capture::capture_full_command,
+            commands::capture::capture_monitor_command,
+            commands::capture::capture_region_command,
+        ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
