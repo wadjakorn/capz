@@ -6,7 +6,7 @@ pub fn show_settings(app: &AppHandle) -> tauri::Result<()> {
         win.set_focus()?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
+    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings/index.html".into()))
         .title("Shotr — Settings")
         .inner_size(720.0, 520.0)
         .resizable(true)

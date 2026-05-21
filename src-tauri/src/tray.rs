@@ -7,7 +7,13 @@ use tauri::{
 use crate::windows;
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let capture_full = MenuItem::with_id(app, "capture_full", "Capture Full Screen", true, None::<&str>)?;
+    let capture_full = MenuItem::with_id(
+        app,
+        "capture_full",
+        "Capture Full Screen",
+        true,
+        None::<&str>,
+    )?;
     let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
