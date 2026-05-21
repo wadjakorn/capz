@@ -3,6 +3,9 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 
+use crate::services::{capture_service, image_service};
+use crate::windows;
+
 const STORE_FILE: &str = "config.json";
 const STORE_KEY: &str = "app";
 
@@ -96,5 +99,22 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
     log::info!("shortcut triggered: {kind_str}");
     if let Err(e) = app.emit("shortcut://triggered", ShortcutPayload { kind }) {
         log::warn!("emit shortcut://triggered failed: {e}");
+    }
+    match kind {
+        CaptureKind::Full => {
+            tauri::async_runtime::spawn_blocking(|| {
+                match capture_service::capture_primary()
+                    .and_then(|img| image_service::write_temp_png(&img))
+                {
+                    Ok(path) => log::info!("hotkey capture_full → {}", path.display()),
+                    Err(e) => log::error!("hotkey capture_full failed: {e}"),
+                }
+            });
+        }
+        CaptureKind::Area => {
+            if let Err(e) = windows::show_overlay(app) {
+                log::error!("show_overlay failed: {e}");
+            }
+        }
     }
 }

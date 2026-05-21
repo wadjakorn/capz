@@ -33,10 +33,21 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture_full" => {
-                log::info!("tray: capture_full (stub)");
+                let app2 = app.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    match crate::services::capture_service::capture_primary()
+                        .and_then(|img| crate::services::image_service::write_temp_png(&img))
+                    {
+                        Ok(path) => log::info!("tray capture_full → {}", path.display()),
+                        Err(e) => log::error!("tray capture_full failed: {e}"),
+                    }
+                    let _ = app2;
+                });
             }
             "capture_area" => {
-                log::info!("tray: capture_area (stub)");
+                if let Err(e) = windows::show_overlay(app) {
+                    log::error!("show_overlay failed: {e}");
+                }
             }
             "settings" => {
                 if let Err(e) = windows::show_settings(app) {
