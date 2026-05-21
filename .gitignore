@@ -1,0 +1,31 @@
+# Node
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
+
+# Env
+.env
+.env.local
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Tauri build artifacts
+src-tauri/Cargo.lock.bak
