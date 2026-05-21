@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -8,6 +9,18 @@ import { Input } from "@/components/ui/input";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { useSettings } from "@/stores/settings";
+
+async function applyHotkey(
+  update: ReturnType<typeof useSettings.getState>["update"],
+  patch: { captureFull?: string; captureArea?: string },
+) {
+  await update("hotkeys", patch);
+  try {
+    await invoke("reregister_shortcuts");
+  } catch (e) {
+    console.error("reregister_shortcuts failed", e);
+  }
+}
 
 export default function SettingsPage() {
   const { config, ready, init, update } = useSettings();
@@ -40,14 +53,14 @@ export default function SettingsPage() {
             <Label>Capture full screen</Label>
             <HotkeyRecorder
               value={config.hotkeys.captureFull}
-              onChange={(v) => update("hotkeys", { captureFull: v })}
+              onChange={(v) => applyHotkey(update, { captureFull: v })}
             />
           </div>
           <div className="grid gap-2">
             <Label>Capture area</Label>
             <HotkeyRecorder
               value={config.hotkeys.captureArea}
-              onChange={(v) => update("hotkeys", { captureArea: v })}
+              onChange={(v) => applyHotkey(update, { captureArea: v })}
             />
           </div>
         </TabsContent>
