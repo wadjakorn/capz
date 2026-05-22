@@ -102,11 +102,21 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
     }
     match kind {
         CaptureKind::Full => {
-            tauri::async_runtime::spawn_blocking(|| {
+            let app2 = app.clone();
+            tauri::async_runtime::spawn_blocking(move || {
                 match capture_service::capture_primary()
                     .and_then(|img| image_service::write_temp_png(&img))
                 {
-                    Ok(path) => log::info!("hotkey capture_full → {}", path.display()),
+                    Ok(path) => {
+                        log::info!("hotkey capture_full → {}", path.display());
+                        let path_str = path.to_string_lossy().into_owned();
+                        let app3 = app2.clone();
+                        let _ = app2.run_on_main_thread(move || {
+                            if let Err(e) = windows::show_editor(&app3, &path_str) {
+                                log::error!("show_editor: {e}");
+                            }
+                        });
+                    }
                     Err(e) => log::error!("hotkey capture_full failed: {e}"),
                 }
             });

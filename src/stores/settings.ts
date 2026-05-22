@@ -20,11 +20,21 @@ function getStore(): Promise<Store> {
 
 function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppConfig {
   if (!partial) return base;
+  const t = partial.tools;
   return {
     hotkeys: { ...base.hotkeys, ...partial.hotkeys },
     output: { ...base.output, ...partial.output },
     pins: { ...base.pins, ...partial.pins },
     general: { ...base.general, ...partial.general },
+    tools: {
+      ...base.tools,
+      ...t,
+      rect: { ...base.tools.rect, ...t?.rect },
+      arrow: { ...base.tools.arrow, ...t?.arrow },
+      text: { ...base.tools.text, ...t?.text },
+      blur: { ...base.tools.blur, ...t?.blur },
+      sticker: { ...base.tools.sticker, ...t?.sticker },
+    },
   };
 }
 

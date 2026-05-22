@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
@@ -24,10 +24,34 @@ async function applyHotkey(
 
 export default function SettingsPage() {
   const { config, ready, init, update } = useSettings();
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<number | null>(null);
+  const configSig = JSON.stringify(config);
+  const firstSig = useRef<string | null>(null);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (firstSig.current === null) {
+      firstSig.current = configSig;
+      return;
+    }
+    if (configSig === firstSig.current) return;
+    firstSig.current = configSig;
+    setFlash("Saved");
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(null), 1400);
+  }, [configSig, ready]);
+
+  useEffect(
+    () => () => {
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    },
+    [],
+  );
 
   if (!ready) {
     return (
@@ -39,12 +63,20 @@ export default function SettingsPage() {
 
   return (
     <main className="mx-auto max-w-2xl p-6">
-      <h1 className="text-xl font-semibold mb-4">Settings</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Settings</h1>
+        {flash && (
+          <span className="rounded bg-emerald-600/20 px-2 py-0.5 text-xs text-emerald-300 ring-1 ring-emerald-500/40">
+            {flash}
+          </span>
+        )}
+      </div>
       <Tabs defaultValue="shortcuts">
-        <TabsList>
+        <TabsList className="flex flex-wrap">
           <TabsTrigger value="shortcuts">Shortcuts</TabsTrigger>
           <TabsTrigger value="output">Output</TabsTrigger>
           <TabsTrigger value="pins">Pins</TabsTrigger>
+          <TabsTrigger value="tools">Tools</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
@@ -115,6 +147,93 @@ export default function SettingsPage() {
               max={128}
               value={config.pins.defaultSize}
               onChange={(e) => update("pins", { defaultSize: Number(e.target.value) })}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="tools" className="grid gap-4 pt-4">
+          <div className="grid gap-2">
+            <Label>Default stroke color (rect, arrow)</Label>
+            <Input
+              type="color"
+              value={config.tools.strokeColor}
+              onChange={(e) => update("tools", { strokeColor: e.target.value })}
+              className="h-10 w-20 p-1"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Rect stroke width (px)</Label>
+            <Input
+              type="number"
+              min={1}
+              max={32}
+              value={config.tools.rect.strokeWidth}
+              onChange={(e) =>
+                update("tools", { rect: { strokeWidth: Number(e.target.value) } })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Arrow stroke width (px)</Label>
+            <Input
+              type="number"
+              min={1}
+              max={32}
+              value={config.tools.arrow.strokeWidth}
+              onChange={(e) =>
+                update("tools", { arrow: { strokeWidth: Number(e.target.value) } })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Text font size (px)</Label>
+            <Input
+              type="number"
+              min={8}
+              max={128}
+              value={config.tools.text.fontSize}
+              onChange={(e) =>
+                update("tools", {
+                  text: { fontSize: Number(e.target.value), color: config.tools.text.color },
+                })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Text color</Label>
+            <Input
+              type="color"
+              value={config.tools.text.color}
+              onChange={(e) =>
+                update("tools", {
+                  text: { fontSize: config.tools.text.fontSize, color: e.target.value },
+                })
+              }
+              className="h-10 w-20 p-1"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Blur radius (px)</Label>
+            <Input
+              type="number"
+              min={2}
+              max={64}
+              value={config.tools.blur.blurRadius}
+              onChange={(e) =>
+                update("tools", { blur: { blurRadius: Number(e.target.value) } })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Sticker size (px)</Label>
+            <Input
+              type="number"
+              min={12}
+              max={256}
+              value={config.tools.sticker.fontSize}
+              onChange={(e) =>
+                update("tools", { sticker: { fontSize: Number(e.target.value) } })
+              }
             />
           </div>
         </TabsContent>

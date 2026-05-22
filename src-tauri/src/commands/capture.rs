@@ -1,6 +1,7 @@
 use tauri::{AppHandle, Runtime};
 
 use crate::services::{capture_service, image_service, monitor_service};
+use crate::windows;
 
 #[tauri::command]
 pub async fn list_monitors_command() -> Result<Vec<monitor_service::MonitorInfo>, String> {
@@ -11,7 +12,7 @@ pub async fn list_monitors_command() -> Result<Vec<monitor_service::MonitorInfo>
 }
 
 #[tauri::command]
-pub async fn capture_full_command<R: Runtime>(_app: AppHandle<R>) -> Result<String, String> {
+pub async fn capture_full_command<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let path = tokio::task::spawn_blocking(|| -> anyhow::Result<std::path::PathBuf> {
         let img = capture_service::capture_primary()?;
         image_service::write_temp_png(&img)
@@ -19,13 +20,17 @@ pub async fn capture_full_command<R: Runtime>(_app: AppHandle<R>) -> Result<Stri
     .await
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| e.to_string())?;
-    log::info!("capture_full → {}", path.display());
-    Ok(path.to_string_lossy().into_owned())
+    let path_str = path.to_string_lossy().into_owned();
+    log::info!("capture_full → {path_str}");
+    if let Err(e) = windows::show_editor(&app, &path_str) {
+        log::error!("show_editor: {e}");
+    }
+    Ok(path_str)
 }
 
 #[tauri::command]
 pub async fn capture_monitor_command<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     monitor_id: u32,
 ) -> Result<String, String> {
     let path = tokio::task::spawn_blocking(move || -> anyhow::Result<std::path::PathBuf> {
@@ -35,13 +40,17 @@ pub async fn capture_monitor_command<R: Runtime>(
     .await
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| e.to_string())?;
-    log::info!("capture_monitor({monitor_id}) → {}", path.display());
-    Ok(path.to_string_lossy().into_owned())
+    let path_str = path.to_string_lossy().into_owned();
+    log::info!("capture_monitor({monitor_id}) → {path_str}");
+    if let Err(e) = windows::show_editor(&app, &path_str) {
+        log::error!("show_editor: {e}");
+    }
+    Ok(path_str)
 }
 
 #[tauri::command]
 pub async fn capture_region_command<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     monitor_id: u32,
     x: i32,
     y: i32,
@@ -55,9 +64,10 @@ pub async fn capture_region_command<R: Runtime>(
     .await
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| e.to_string())?;
-    log::info!(
-        "capture_region(mon={monitor_id}, {x},{y} {w}x{h}) → {}",
-        path.display()
-    );
-    Ok(path.to_string_lossy().into_owned())
+    let path_str = path.to_string_lossy().into_owned();
+    log::info!("capture_region(mon={monitor_id}, {x},{y} {w}x{h}) → {path_str}");
+    if let Err(e) = windows::show_editor(&app, &path_str) {
+        log::error!("show_editor: {e}");
+    }
+    Ok(path_str)
 }

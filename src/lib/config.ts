@@ -22,6 +22,14 @@ export type AppConfig = {
     playSoundOnCapture: boolean;
     copyToClipboardAfterSave: boolean;
   };
+  tools: {
+    strokeColor: string;
+    rect: { strokeWidth: number };
+    arrow: { strokeWidth: number };
+    text: { fontSize: number; color: string };
+    blur: { blurRadius: number };
+    sticker: { fontSize: number };
+  };
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -47,6 +55,14 @@ export const DEFAULT_CONFIG: AppConfig = {
     autostart: false,
     playSoundOnCapture: false,
     copyToClipboardAfterSave: false,
+  },
+  tools: {
+    strokeColor: "#ef4444",
+    rect: { strokeWidth: 3 },
+    arrow: { strokeWidth: 3 },
+    text: { fontSize: 24, color: "#ef4444" },
+    blur: { blurRadius: 16 },
+    sticker: { fontSize: 48 },
   },
 };
 

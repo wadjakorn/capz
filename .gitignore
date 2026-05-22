@@ -4,6 +4,7 @@ node_modules/
 .next/
 out/
 dist/
+*.tsbuildinfo
 
 # Rust / Tauri
 src-tauri/target/

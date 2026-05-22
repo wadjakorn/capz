@@ -108,6 +108,25 @@ pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+pub fn show_editor<R: Runtime>(app: &AppHandle<R>, file_path: &str) -> tauri::Result<()> {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let label = format!("editor-{ts}");
+    let encoded = urlencoding::encode(file_path);
+    let url = format!("editor/?file={encoded}");
+
+    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
+        .title("Shotr — Editor")
+        .inner_size(1100.0, 760.0)
+        .min_inner_size(640.0, 480.0)
+        .resizable(true)
+        .visible(true)
+        .build()?;
+    Ok(())
+}
+
 #[allow(dead_code)]
 pub fn close_overlay<R: Runtime>(app: &AppHandle<R>) {
     if let Some(win) = app.get_webview_window("overlay") {
