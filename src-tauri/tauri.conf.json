@@ -16,7 +16,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$TEMP/**", "**/capz-temp-*.png"]
+        "scope": ["$TEMP/**", "**/capz-temp-*.jpg", "**/capz-temp-*.png"]
       }
     }
   },
