@@ -16,10 +16,6 @@ pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .resizable(true)
         .visible(true)
         .build()?;
-    #[cfg(debug_assertions)]
-    // if let Some(win) = app.get_webview_window("settings") {
-    //     win.open_devtools();
-    // }
     Ok(())
 }
 
@@ -99,8 +95,6 @@ pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             }
         }
     }
-    #[cfg(debug_assertions)]
-    // win.open_devtools();
     Ok(())
 }
 

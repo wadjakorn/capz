@@ -70,6 +70,7 @@ export function EditorStage({ src }: Props) {
 
   const settingsReady = useSettings((s) => s.ready);
   const initSettings = useSettings((s) => s.init);
+  const updateSettings = useSettings((s) => s.update);
   const pinsCfg = useSettings((s) => s.config.pins);
   const toolsCfg = useSettings((s) => s.config.tools);
   const STROKE = toolsCfg.strokeColor;
@@ -192,15 +193,17 @@ export function EditorStage({ src }: Props) {
       return;
     }
     if (tool === "pin") {
+      const n = nextPinNumber;
       add({
         id: uid(),
         type: "pin",
         x: p.x,
         y: p.y,
-        number: nextPinNumber,
+        number: n,
         color: pinsCfg.defaultColor,
         size: pinsCfg.defaultSize,
       });
+      void updateSettings("pins", { lastUsedNumber: n });
       return;
     }
     if (tool === "text") {
