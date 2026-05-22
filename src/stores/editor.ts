@@ -187,7 +187,6 @@ export const useEditor = create<State>((set, get) => ({
       selectedId: null,
       past: [],
       future: [],
-      nextPinNumber: 1,
     }),
 
   undo: () => {

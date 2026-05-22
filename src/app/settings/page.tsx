@@ -153,11 +153,13 @@ export default function SettingsPage() {
 
         <TabsContent value="tools" className="grid gap-4 pt-4">
           <div className="grid gap-2">
-            <Label>Default stroke color (rect, arrow)</Label>
+            <Label>Rect stroke color</Label>
             <Input
               type="color"
-              value={config.tools.strokeColor}
-              onChange={(e) => update("tools", { strokeColor: e.target.value })}
+              value={config.tools.rect.strokeColor}
+              onChange={(e) =>
+                update("tools", { rect: { strokeColor: e.target.value, strokeWidth: config.tools.rect.strokeWidth } })
+              }
               className="h-10 w-20 p-1"
             />
           </div>
@@ -169,8 +171,19 @@ export default function SettingsPage() {
               max={32}
               value={config.tools.rect.strokeWidth}
               onChange={(e) =>
-                update("tools", { rect: { strokeWidth: Number(e.target.value) } })
+                update("tools", { rect: { strokeColor: config.tools.rect.strokeColor, strokeWidth: Number(e.target.value) } })
               }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Arrow stroke color</Label>
+            <Input
+              type="color"
+              value={config.tools.arrow.strokeColor}
+              onChange={(e) =>
+                update("tools", { arrow: { strokeColor: e.target.value, strokeWidth: config.tools.arrow.strokeWidth } })
+              }
+              className="h-10 w-20 p-1"
             />
           </div>
           <div className="grid gap-2">
@@ -181,7 +194,7 @@ export default function SettingsPage() {
               max={32}
               value={config.tools.arrow.strokeWidth}
               onChange={(e) =>
-                update("tools", { arrow: { strokeWidth: Number(e.target.value) } })
+                update("tools", { arrow: { strokeColor: config.tools.arrow.strokeColor, strokeWidth: Number(e.target.value) } })
               }
             />
           </div>

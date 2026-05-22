@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
+import { useSettings } from "@/stores/settings";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -32,10 +33,15 @@ export default function EditorPage() {
     }
     const { convertFileSrc } = await import("@tauri-apps/api/core");
     setFile(path);
-    // Cache-bust so a replaced temp file at the same path reloads.
     setSrc(`${convertFileSrc(path)}?t=${Date.now()}`);
-    // Fresh image = fresh annotation stack.
     resetEditor();
+    await useSettings.getState().init();
+    const pins = useSettings.getState().config.pins;
+    const start =
+      pins.continuityMode === "continue"
+        ? Math.max(pins.lastUsedNumber + 1, pins.defaultStartNumber)
+        : pins.defaultStartNumber;
+    useEditor.getState().setNextPinNumber(start);
   }, [resetEditor]);
 
   // Initial load: pull whatever is in Rust state (covers cold-start with prior capture).

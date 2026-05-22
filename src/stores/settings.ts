@@ -15,29 +15,59 @@ type State = {
 
 let storePromise: Promise<Store> | null = null;
 function getStore(): Promise<Store> {
-  if (!storePromise) storePromise = load(CONFIG_STORE_FILE, { autoSave: true, defaults: {} });
+  if (!storePromise) storePromise = load(CONFIG_STORE_FILE, { autoSave: false, defaults: {} });
   return storePromise;
+}
+
+function isPlainLastUsed(v: unknown): v is NonNullable<AppConfig["lastUsed"]> {
+  if (!v || typeof v !== "object") return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    "rect" in obj ||
+    "arrow" in obj ||
+    "text" in obj ||
+    "blur" in obj ||
+    "sticker" in obj ||
+    "pin" in obj ||
+    "tool" in obj ||
+    "stickerEmoji" in obj
+  );
+}
+
+function migrateLastUsed(v: unknown): AppConfig["lastUsed"] | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if ("color" in o || "strokeWidth" in o || "fontSize" in o || "stickerFontSize" in o) {
+    return undefined;
+  }
+  if (isPlainLastUsed(v)) return v;
+  return undefined;
+}
+
+function mergeTools(
+  base: AppConfig["tools"],
+  partial: Partial<AppConfig["tools"]> | undefined,
+): AppConfig["tools"] {
+  const t = partial;
+  return {
+    rect: { ...base.rect, ...t?.rect },
+    arrow: { ...base.arrow, ...t?.arrow },
+    text: { ...base.text, ...t?.text },
+    blur: { ...base.blur, ...t?.blur },
+    sticker: { ...base.sticker, ...t?.sticker },
+  };
 }
 
 function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppConfig {
   if (!partial) return base;
-  const t = partial.tools;
   return {
     hotkeys: { ...base.hotkeys, ...partial.hotkeys },
     output: { ...base.output, ...partial.output },
     pins: { ...base.pins, ...partial.pins },
     general: { ...base.general, ...partial.general },
-    tools: {
-      ...base.tools,
-      ...t,
-      rect: { ...base.tools.rect, ...t?.rect },
-      arrow: { ...base.tools.arrow, ...t?.arrow },
-      text: { ...base.tools.text, ...t?.text },
-      blur: { ...base.tools.blur, ...t?.blur },
-      sticker: { ...base.tools.sticker, ...t?.sticker },
-    },
+    tools: mergeTools(base.tools, partial.tools as Partial<AppConfig["tools"]> | undefined),
     capture: { ...base.capture, ...partial.capture },
-    lastUsed: partial.lastUsed ?? base.lastUsed,
+    lastUsed: migrateLastUsed(partial.lastUsed) ?? base.lastUsed,
   };
 }
 
@@ -51,20 +81,28 @@ export const useSettings = create<State>((set, get) => ({
     set({ config: merge(DEFAULT_CONFIG, persisted), ready: true });
   },
   update: async (section, patch) => {
-    const next = { ...get().config, [section]: { ...get().config[section], ...patch } };
+    const cur = get().config;
+    const nextSection =
+      section === "tools"
+        ? mergeTools(cur.tools, patch as Partial<AppConfig["tools"]>)
+        : { ...cur[section], ...patch };
+    const next = { ...cur, [section]: nextSection };
     set({ config: next });
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, next);
+    await store.save();
   },
   setLastUsed: async (v) => {
     const next = { ...get().config, lastUsed: v };
     set({ config: next });
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, next);
+    await store.save();
   },
   reset: async () => {
     set({ config: DEFAULT_CONFIG });
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, DEFAULT_CONFIG);
+    await store.save();
   },
 }));

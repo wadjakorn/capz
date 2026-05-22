@@ -26,7 +26,7 @@ import {
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { setStage } from "@/lib/stageBridge";
-import { effectiveTools } from "@/lib/config";
+import { effectiveTools, type AppConfig } from "@/lib/config";
 
 type Props = { src: string };
 
@@ -48,15 +48,34 @@ function uid() {
   return crypto.randomUUID();
 }
 
+function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
+  switch (a.type) {
+    case "rect":
+      return { rect: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+    case "arrow":
+      return { arrow: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+    case "text":
+      return { text: { color: a.fill, fontSize: a.fontSize } };
+    case "blur":
+      return { blur: { blurRadius: a.blurRadius } };
+    case "sticker":
+      return { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
+    case "pin":
+      return { pin: { color: a.color, size: a.size } };
+  }
+}
+
 export function EditorStage({ src }: Props) {
   const [image, status] = useImage(src, "anonymous");
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
+  const hoverTrRef = useRef<Konva.Transformer>(null);
   const nodeRefs = useRef(new Map<string, Konva.Node>());
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const tool = useEditor((s) => s.tool);
@@ -71,18 +90,10 @@ export function EditorStage({ src }: Props) {
 
   const settingsReady = useSettings((s) => s.ready);
   const initSettings = useSettings((s) => s.init);
-  const updateSettings = useSettings((s) => s.update);
   const setLastUsed = useSettings((s) => s.setLastUsed);
   const config = useSettings((s) => s.config);
   const pinsCfg = config.pins;
   const toolsCfg = effectiveTools(config);
-  const STROKE = toolsCfg.strokeColor;
-  const RECT_W = toolsCfg.rect.strokeWidth;
-  const ARROW_W = toolsCfg.arrow.strokeWidth;
-  const TEXT_SIZE = toolsCfg.text.fontSize;
-  const TEXT_COLOR = toolsCfg.text.color;
-  const BLUR_RADIUS = toolsCfg.blur.blurRadius;
-  const STICKER_SIZE = toolsCfg.sticker.fontSize;
 
   const setTool = useEditor((s) => s.setTool);
   const setStickerChar = useEditor((s) => s.setStickerChar);
@@ -91,26 +102,33 @@ export function EditorStage({ src }: Props) {
     if (!settingsReady || lastUsedInit.current) return;
     lastUsedInit.current = true;
     if (config.general.rememberLastTool && config.lastUsed) {
-      setTool(config.lastUsed.tool);
-      setStickerChar(config.lastUsed.stickerEmoji);
+      if (config.lastUsed.tool) setTool(config.lastUsed.tool);
+      if (config.lastUsed.stickerEmoji) setStickerChar(config.lastUsed.stickerEmoji);
     }
   }, [settingsReady, config.general.rememberLastTool, config.lastUsed, setTool, setStickerChar]);
 
   const lastUsedTimer = useRef<number | null>(null);
-  const scheduleLastUsedWrite = (overrides?: Partial<NonNullable<typeof config.lastUsed>>) => {
+  const pendingLastUsed = useRef<NonNullable<AppConfig["lastUsed"]>>({});
+  const scheduleLastUsedWrite = (patch: NonNullable<AppConfig["lastUsed"]>) => {
     if (!config.general.rememberLastTool) return;
-    const snapshot = {
-      tool: useEditor.getState().tool,
-      color: toolsCfg.strokeColor,
-      strokeWidth: toolsCfg.rect.strokeWidth,
-      fontSize: toolsCfg.text.fontSize,
-      stickerEmoji: useEditor.getState().stickerChar,
-      stickerFontSize: toolsCfg.sticker.fontSize,
-      ...overrides,
-    };
+    pendingLastUsed.current = { ...pendingLastUsed.current, ...patch };
     if (lastUsedTimer.current) window.clearTimeout(lastUsedTimer.current);
     lastUsedTimer.current = window.setTimeout(() => {
-      void setLastUsed(snapshot);
+      const cur = useSettings.getState().config.lastUsed ?? {};
+      const merged: NonNullable<AppConfig["lastUsed"]> = {
+        ...cur,
+        ...pendingLastUsed.current,
+        tool: useEditor.getState().tool,
+        stickerEmoji: pendingLastUsed.current.stickerEmoji ?? cur.stickerEmoji ?? useEditor.getState().stickerChar,
+        rect: { ...cur.rect, ...pendingLastUsed.current.rect },
+        arrow: { ...cur.arrow, ...pendingLastUsed.current.arrow },
+        text: { ...cur.text, ...pendingLastUsed.current.text },
+        blur: { ...cur.blur, ...pendingLastUsed.current.blur },
+        sticker: { ...cur.sticker, ...pendingLastUsed.current.sticker },
+        pin: { ...cur.pin, ...pendingLastUsed.current.pin },
+      };
+      pendingLastUsed.current = {};
+      void setLastUsed(merged);
     }, 500);
   };
   useEffect(() => () => {
@@ -172,6 +190,20 @@ export function EditorStage({ src }: Props) {
     tr.getLayer()?.batchDraw();
   }, [selectedId, annotations]);
 
+  useEffect(() => {
+    const tr = hoverTrRef.current;
+    if (!tr) return;
+    const showId = hoveredId && hoveredId !== selectedId ? hoveredId : null;
+    if (!showId) {
+      tr.nodes([]);
+      tr.getLayer()?.batchDraw();
+      return;
+    }
+    const node = nodeRefs.current.get(showId);
+    tr.nodes(node ? [node] : []);
+    tr.getLayer()?.batchDraw();
+  }, [hoveredId, selectedId, annotations]);
+
   const imgW = image?.naturalWidth ?? 0;
   const imgH = image?.naturalHeight ?? 0;
   const padding = 24;
@@ -198,11 +230,9 @@ export function EditorStage({ src }: Props) {
     if (!p) return;
     const empty = isEmptyTarget(e);
 
-    if (tool === "select") {
-      if (empty) select(null);
-      return;
-    }
+    if (empty) select(null);
 
+    if (tool === "select") return;
     if (!empty) return;
 
     if (tool === "rect") {
@@ -218,30 +248,32 @@ export function EditorStage({ src }: Props) {
       return;
     }
     if (tool === "sticker") {
-      add({
+      const a: StickerAnnotation = {
         id: uid(),
         type: "sticker",
         x: p.x,
         y: p.y,
         char: stickerChar,
-        fontSize: STICKER_SIZE,
-      });
-      scheduleLastUsedWrite();
+        fontSize: toolsCfg.sticker.fontSize,
+      };
+      add(a);
+      scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       return;
     }
     if (tool === "pin") {
       const n = nextPinNumber;
-      add({
+      const a: PinAnnotation = {
         id: uid(),
         type: "pin",
         x: p.x,
         y: p.y,
         number: n,
-        color: pinsCfg.defaultColor,
-        size: pinsCfg.defaultSize,
-      });
-      void updateSettings("pins", { lastUsedNumber: n });
-      scheduleLastUsedWrite();
+        color: toolsCfg.pin.color,
+        size: toolsCfg.pin.size,
+      };
+      add(a);
+      void useSettings.getState().update("pins", { lastUsedNumber: n });
+      scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       return;
     }
     if (tool === "text") {
@@ -265,16 +297,17 @@ export function EditorStage({ src }: Props) {
     if (textEditor.id) {
       if (v) update(textEditor.id, { text: v });
     } else if (v) {
-      add({
+      const a: TextAnnotation = {
         id: uid(),
         type: "text",
         x: textEditor.imgX,
         y: textEditor.imgY,
         text: v,
-        fontSize: TEXT_SIZE,
-        fill: TEXT_COLOR,
-      });
-      scheduleLastUsedWrite();
+        fontSize: toolsCfg.text.fontSize,
+        fill: toolsCfg.text.color,
+      };
+      add(a);
+      scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
     }
     setTextEditor(null);
   }
@@ -298,17 +331,18 @@ export function EditorStage({ src }: Props) {
       const w = Math.abs(draft.w);
       const h = Math.abs(draft.h);
       if (w > 2 && h > 2) {
-        add({
+        const a: RectAnnotation = {
           id: draft.id,
           type: "rect",
           x,
           y,
           w,
           h,
-          stroke: STROKE,
-          strokeWidth: RECT_W,
-        });
-        scheduleLastUsedWrite();
+          stroke: toolsCfg.rect.strokeColor,
+          strokeWidth: toolsCfg.rect.strokeWidth,
+        };
+        add(a);
+        scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
     } else if (draft.kind === "blur") {
       const x = draft.w < 0 ? draft.x + draft.w : draft.x;
@@ -316,32 +350,34 @@ export function EditorStage({ src }: Props) {
       const w = Math.abs(draft.w);
       const h = Math.abs(draft.h);
       if (w > 4 && h > 4) {
-        add({
+        const a: BlurAnnotation = {
           id: draft.id,
           type: "blur",
           x,
           y,
           w,
           h,
-          blurRadius: BLUR_RADIUS,
-        });
-        scheduleLastUsedWrite();
+          blurRadius: toolsCfg.blur.blurRadius,
+        };
+        add(a);
+        scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
     } else {
       const dx = draft.x2 - draft.x1;
       const dy = draft.y2 - draft.y1;
       if (Math.hypot(dx, dy) > 4) {
-        add({
+        const a: ArrowAnnotation = {
           id: draft.id,
           type: "arrow",
           x1: draft.x1,
           y1: draft.y1,
           x2: draft.x2,
           y2: draft.y2,
-          stroke: STROKE,
-          strokeWidth: ARROW_W,
-        });
-        scheduleLastUsedWrite();
+          stroke: toolsCfg.arrow.strokeColor,
+          strokeWidth: toolsCfg.arrow.strokeWidth,
+        };
+        add(a);
+        scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
     }
     setDraft(null);
@@ -392,10 +428,14 @@ export function EditorStage({ src }: Props) {
             />
             {annotations.map((a) =>
               renderAnnotation(a, {
-                tool,
                 bgImage: image,
-                onSelect: () => tool === "select" && select(a.id),
-                onChange: (patch) => update(a.id, patch),
+                onSelect: () => select(a.id),
+                onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
+                onChange: (patch) => {
+                  update(a.id, patch);
+                  const merged = { ...a, ...patch } as Annotation;
+                  scheduleLastUsedWrite(lastUsedPatchForAnnotation(merged));
+                },
                 setRef: (n) => setNodeRef(a.id, n),
                 onEditText: (t, sx, sy) =>
                   setTextEditor({
@@ -414,8 +454,8 @@ export function EditorStage({ src }: Props) {
                 y={Math.min(draft.y, draft.y + draft.h)}
                 width={Math.abs(draft.w)}
                 height={Math.abs(draft.h)}
-                stroke={STROKE}
-                strokeWidth={RECT_W}
+                stroke={toolsCfg.rect.strokeColor}
+                strokeWidth={toolsCfg.rect.strokeWidth}
                 dash={[6, 4]}
                 listening={false}
               />
@@ -427,7 +467,7 @@ export function EditorStage({ src }: Props) {
                 width={Math.abs(draft.w)}
                 height={Math.abs(draft.h)}
                 stroke="#60a5fa"
-                strokeWidth={RECT_W}
+                strokeWidth={toolsCfg.rect.strokeWidth}
                 dash={[6, 4]}
                 listening={false}
               />
@@ -435,14 +475,22 @@ export function EditorStage({ src }: Props) {
             {draft?.kind === "arrow" && (
               <Arrow
                 points={[draft.x1, draft.y1, draft.x2, draft.y2]}
-                stroke={STROKE}
-                fill={STROKE}
-                strokeWidth={ARROW_W}
-                pointerLength={ARROW_W * 4}
-                pointerWidth={ARROW_W * 4}
+                stroke={toolsCfg.arrow.strokeColor}
+                fill={toolsCfg.arrow.strokeColor}
+                strokeWidth={toolsCfg.arrow.strokeWidth}
+                pointerLength={toolsCfg.arrow.strokeWidth * 4}
+                pointerWidth={toolsCfg.arrow.strokeWidth * 4}
                 listening={false}
               />
             )}
+            <Transformer
+              ref={hoverTrRef}
+              resizeEnabled={false}
+              rotateEnabled={false}
+              borderStroke="#38bdf8"
+              borderStrokeWidth={1.5}
+              listening={false}
+            />
             <Transformer
               ref={trRef}
               rotateEnabled
@@ -479,17 +527,17 @@ export function EditorStage({ src }: Props) {
             position: "fixed",
             left: textEditor.screenX,
             top: textEditor.screenY,
-            font: `${Math.max(14, TEXT_SIZE * scale)}px sans-serif`,
-            color: TEXT_COLOR,
+            font: `${Math.max(14, toolsCfg.text.fontSize * scale)}px sans-serif`,
+            color: toolsCfg.text.color,
             background: "rgba(20,20,20,0.92)",
-            border: `2px dashed ${TEXT_COLOR}`,
+            border: `2px dashed ${toolsCfg.text.color}`,
             outline: "none",
             padding: 4,
             minWidth: 140,
-            minHeight: Math.max(28, TEXT_SIZE * scale + 12),
+            minHeight: Math.max(28, toolsCfg.text.fontSize * scale + 12),
             resize: "none",
             zIndex: 50,
-            caretColor: TEXT_COLOR,
+            caretColor: toolsCfg.text.color,
           }}
         />
       )}
@@ -498,9 +546,9 @@ export function EditorStage({ src }: Props) {
 }
 
 type ShapeCtx = {
-  tool: string;
   bgImage: HTMLImageElement | undefined;
   onSelect: () => void;
+  onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
   setRef: (n: Konva.Node | null) => void;
   onEditText?: (a: TextAnnotation, screenX: number, screenY: number) => void;
@@ -514,6 +562,21 @@ function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
   if (a.type === "sticker") return <StickerShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "pin") return <PinShape key={a.id} a={a} ctx={ctx} />;
   return null;
+}
+
+function hoverHandlers(ctx: ShapeCtx) {
+  return {
+    onMouseEnter: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      ctx.onHover(true);
+      const stage = e.target.getStage();
+      if (stage) stage.container().style.cursor = "pointer";
+    },
+    onMouseLeave: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      ctx.onHover(false);
+      const stage = e.target.getStage();
+      if (stage) stage.container().style.cursor = "";
+    },
+  };
 }
 
 function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
@@ -533,6 +596,7 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
       stroke={a.stroke}
       strokeWidth={a.strokeWidth}
       draggable
+      {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
@@ -577,6 +641,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
       pointerWidth={a.strokeWidth * 4}
       hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
       draggable
+      {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
@@ -617,6 +682,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       fontSize={a.fontSize}
       fill={a.fill}
       draggable
+      {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
@@ -668,6 +734,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
       filters={[Konva.Filters.Blur]}
       blurRadius={a.blurRadius}
       draggable
+      {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
@@ -712,6 +779,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
       y={a.y}
       rotation={rot}
       draggable
+      {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
@@ -767,6 +835,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
       text={a.char}
       fontSize={a.fontSize}
       draggable
+      {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();

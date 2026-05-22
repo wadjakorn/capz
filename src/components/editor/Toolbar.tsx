@@ -5,7 +5,7 @@ import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { getStage } from "@/lib/stageBridge";
 import { exportAnnotated } from "@/lib/exportImage";
-import { effectiveTools } from "@/lib/config";
+import { effectiveTools, type AppConfig } from "@/lib/config";
 
 type ToolDef = { id: Tool; label: string; hint: string };
 
@@ -39,17 +39,22 @@ export function Toolbar() {
   const updateSettings = useSettings((s) => s.update);
   const setLastUsed = useSettings((s) => s.setLastUsed);
   const remember = fullConfig.general.rememberLastTool;
-  const patchLastUsed = (patch: Partial<NonNullable<typeof fullConfig.lastUsed>>) => {
-    const base = fullConfig.lastUsed ?? {
-      tool,
-      color: toolsCfg.strokeColor,
-      strokeWidth: toolsCfg.rect.strokeWidth,
-      fontSize: toolsCfg.text.fontSize,
-      stickerEmoji: stickerChar,
-      stickerFontSize: toolsCfg.sticker.fontSize,
+
+  const patchLastUsed = (patch: NonNullable<AppConfig["lastUsed"]>) => {
+    const cur = fullConfig.lastUsed ?? {};
+    const merged: NonNullable<AppConfig["lastUsed"]> = {
+      ...cur,
+      ...patch,
+      rect: { ...cur.rect, ...patch.rect },
+      arrow: { ...cur.arrow, ...patch.arrow },
+      text: { ...cur.text, ...patch.text },
+      blur: { ...cur.blur, ...patch.blur },
+      sticker: { ...cur.sticker, ...patch.sticker },
+      pin: { ...cur.pin, ...patch.pin },
     };
-    void setLastUsed({ ...base, ...patch });
+    void setLastUsed(merged);
   };
+
   const [exporting, setExporting] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,12 +78,18 @@ export function Toolbar() {
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
+
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
+      const slot = selected.type;
       colorCtx = {
         label: "Stroke",
         value: selected.stroke,
-        onChange: (v) => updateAnnotation(selected.id, { stroke: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { stroke: v });
+          if (remember) patchLastUsed({ [slot]: { strokeColor: v } });
+          else void updateSettings("tools", { [slot]: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+        },
       };
       widthCtx = {
         label: "Width",
@@ -86,13 +97,21 @@ export function Toolbar() {
         min: 1,
         max: 20,
         step: 1,
-        onChange: (v) => updateAnnotation(selected.id, { strokeWidth: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { strokeWidth: v });
+          if (remember) patchLastUsed({ [slot]: { strokeWidth: v } });
+          else void updateSettings("tools", { [slot]: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
       };
     } else if (selected.type === "text") {
       colorCtx = {
         label: "Color",
         value: selected.fill,
-        onChange: (v) => updateAnnotation(selected.id, { fill: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { fill: v });
+          if (remember) patchLastUsed({ text: { color: v } });
+          else void updateSettings("tools", { text: { fontSize: toolsCfg.text.fontSize, color: v } });
+        },
       };
       sizeCtx = {
         label: "Size",
@@ -100,13 +119,21 @@ export function Toolbar() {
         min: 8,
         max: 96,
         step: 1,
-        onChange: (v) => updateAnnotation(selected.id, { fontSize: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { fontSize: v });
+          if (remember) patchLastUsed({ text: { fontSize: v } });
+          else void updateSettings("tools", { text: { fontSize: v, color: toolsCfg.text.color } });
+        },
       };
     } else if (selected.type === "pin") {
       colorCtx = {
         label: "Color",
         value: selected.color,
-        onChange: (v) => updateAnnotation(selected.id, { color: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { color: v });
+          if (remember) patchLastUsed({ pin: { color: v } });
+          else void updateSettings("pins", { defaultColor: v });
+        },
       };
       sizeCtx = {
         label: "Size",
@@ -114,7 +141,11 @@ export function Toolbar() {
         min: 12,
         max: 120,
         step: 1,
-        onChange: (v) => updateAnnotation(selected.id, { size: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { size: v });
+          if (remember) patchLastUsed({ pin: { size: v } });
+          else void updateSettings("pins", { defaultSize: v });
+        },
       };
     } else if (selected.type === "sticker") {
       sizeCtx = {
@@ -123,7 +154,11 @@ export function Toolbar() {
         min: 12,
         max: 200,
         step: 1,
-        onChange: (v) => updateAnnotation(selected.id, { fontSize: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { fontSize: v });
+          if (remember) patchLastUsed({ sticker: { fontSize: v } });
+          else void updateSettings("tools", { sticker: { fontSize: v } });
+        },
       };
     } else if (selected.type === "blur") {
       widthCtx = {
@@ -132,47 +167,32 @@ export function Toolbar() {
         min: 2,
         max: 60,
         step: 1,
-        onChange: (v) => updateAnnotation(selected.id, { blurRadius: v }),
+        onChange: (v) => {
+          updateAnnotation(selected.id, { blurRadius: v });
+          if (remember) patchLastUsed({ blur: { blurRadius: v } });
+          else void updateSettings("tools", { blur: { blurRadius: v } });
+        },
       };
     }
-  } else if (tool === "rect") {
+  } else if (tool === "rect" || tool === "arrow") {
+    const slot = tool;
     colorCtx = {
       label: "Stroke",
-      value: toolsCfg.strokeColor,
+      value: toolsCfg[slot].strokeColor,
       onChange: (v) => {
-        if (remember) patchLastUsed({ color: v });
-        else void updateSettings("tools", { strokeColor: v });
+        if (remember) patchLastUsed({ [slot]: { strokeColor: v } });
+        else void updateSettings("tools", { [slot]: { strokeColor: v } } as Partial<AppConfig["tools"]>);
       },
     };
     widthCtx = {
       label: "Width",
-      value: toolsCfg.rect.strokeWidth,
+      value: toolsCfg[slot].strokeWidth,
       min: 1,
       max: 20,
       step: 1,
       onChange: (v) => {
-        if (remember) patchLastUsed({ strokeWidth: v });
-        else void updateSettings("tools", { rect: { strokeWidth: v } });
-      },
-    };
-  } else if (tool === "arrow") {
-    colorCtx = {
-      label: "Stroke",
-      value: toolsCfg.strokeColor,
-      onChange: (v) => {
-        if (remember) patchLastUsed({ color: v });
-        else void updateSettings("tools", { strokeColor: v });
-      },
-    };
-    widthCtx = {
-      label: "Width",
-      value: toolsCfg.arrow.strokeWidth,
-      min: 1,
-      max: 20,
-      step: 1,
-      onChange: (v) => {
-        if (remember) patchLastUsed({ strokeWidth: v });
-        else void updateSettings("tools", { arrow: { strokeWidth: v } });
+        if (remember) patchLastUsed({ [slot]: { strokeWidth: v } });
+        else void updateSettings("tools", { [slot]: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
       },
     };
   } else if (tool === "text") {
@@ -180,7 +200,7 @@ export function Toolbar() {
       label: "Color",
       value: toolsCfg.text.color,
       onChange: (v) => {
-        if (remember) patchLastUsed({ color: v });
+        if (remember) patchLastUsed({ text: { color: v } });
         else void updateSettings("tools", { text: { fontSize: toolsCfg.text.fontSize, color: v } });
       },
     };
@@ -191,23 +211,29 @@ export function Toolbar() {
       max: 96,
       step: 1,
       onChange: (v) => {
-        if (remember) patchLastUsed({ fontSize: v });
+        if (remember) patchLastUsed({ text: { fontSize: v } });
         else void updateSettings("tools", { text: { fontSize: v, color: toolsCfg.text.color } });
       },
     };
   } else if (tool === "pin") {
     colorCtx = {
       label: "Color",
-      value: pinsCfg.defaultColor,
-      onChange: (v) => void updateSettings("pins", { defaultColor: v }),
+      value: toolsCfg.pin.color,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { color: v } });
+        else void updateSettings("pins", { defaultColor: v });
+      },
     };
     sizeCtx = {
       label: "Size",
-      value: pinsCfg.defaultSize,
+      value: toolsCfg.pin.size,
       min: 12,
       max: 120,
       step: 1,
-      onChange: (v) => void updateSettings("pins", { defaultSize: v }),
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { size: v } });
+        else void updateSettings("pins", { defaultSize: v });
+      },
     };
   } else if (tool === "sticker") {
     sizeCtx = {
@@ -217,7 +243,7 @@ export function Toolbar() {
       max: 200,
       step: 1,
       onChange: (v) => {
-        if (remember) patchLastUsed({ stickerFontSize: v });
+        if (remember) patchLastUsed({ sticker: { fontSize: v } });
         else void updateSettings("tools", { sticker: { fontSize: v } });
       },
     };
@@ -228,8 +254,10 @@ export function Toolbar() {
       min: 2,
       max: 60,
       step: 1,
-      onChange: (v) =>
-        void updateSettings("tools", { blur: { blurRadius: v } }),
+      onChange: (v) => {
+        if (remember) patchLastUsed({ blur: { blurRadius: v } });
+        else void updateSettings("tools", { blur: { blurRadius: v } });
+      },
     };
   }
 

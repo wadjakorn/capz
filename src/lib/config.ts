@@ -1,3 +1,12 @@
+export type Tool =
+  | "select"
+  | "arrow"
+  | "rect"
+  | "text"
+  | "blur"
+  | "sticker"
+  | "pin";
+
 export type AppConfig = {
   hotkeys: {
     captureFull: string;
@@ -24,17 +33,18 @@ export type AppConfig = {
     rememberLastTool: boolean;
   };
   lastUsed?: {
-    tool: "select" | "arrow" | "rect" | "text" | "blur" | "sticker" | "pin";
-    color: string;
-    strokeWidth: number;
-    fontSize: number;
-    stickerEmoji: string;
-    stickerFontSize: number;
+    tool?: Tool;
+    stickerEmoji?: string;
+    rect?: { strokeColor?: string; strokeWidth?: number };
+    arrow?: { strokeColor?: string; strokeWidth?: number };
+    text?: { color?: string; fontSize?: number };
+    blur?: { blurRadius?: number };
+    sticker?: { fontSize?: number };
+    pin?: { color?: string; size?: number };
   };
   tools: {
-    strokeColor: string;
-    rect: { strokeWidth: number };
-    arrow: { strokeWidth: number };
+    rect: { strokeColor: string; strokeWidth: number };
+    arrow: { strokeColor: string; strokeWidth: number };
     text: { fontSize: number; color: string };
     blur: { blurRadius: number };
     sticker: { fontSize: number };
@@ -70,9 +80,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     rememberLastTool: true,
   },
   tools: {
-    strokeColor: "#ef4444",
-    rect: { strokeWidth: 3 },
-    arrow: { strokeWidth: 3 },
+    rect: { strokeColor: "#ef4444", strokeWidth: 3 },
+    arrow: { strokeColor: "#ef4444", strokeWidth: 3 },
     text: { fontSize: 24, color: "#ef4444" },
     blur: { blurRadius: 16 },
     sticker: { fontSize: 48 },
@@ -85,17 +94,41 @@ export const DEFAULT_CONFIG: AppConfig = {
 export const CONFIG_STORE_FILE = "config.json";
 export const CONFIG_STORE_KEY = "app";
 
-export type EffectiveTools = AppConfig["tools"];
+export type EffectiveTools = {
+  rect: { strokeColor: string; strokeWidth: number };
+  arrow: { strokeColor: string; strokeWidth: number };
+  text: { color: string; fontSize: number };
+  blur: { blurRadius: number };
+  sticker: { fontSize: number };
+  pin: { color: string; size: number };
+};
 
 export function effectiveTools(cfg: AppConfig): EffectiveTools {
-  const lu = cfg.lastUsed;
-  if (!cfg.general.rememberLastTool || !lu) return cfg.tools;
+  const remember = cfg.general.rememberLastTool;
+  const lu = remember ? cfg.lastUsed : undefined;
+  const t = cfg.tools;
   return {
-    strokeColor: lu.color,
-    rect: { strokeWidth: lu.strokeWidth },
-    arrow: { strokeWidth: lu.strokeWidth },
-    text: { fontSize: lu.fontSize, color: lu.color },
-    blur: cfg.tools.blur,
-    sticker: { fontSize: lu.stickerFontSize },
+    rect: {
+      strokeColor: lu?.rect?.strokeColor ?? t.rect.strokeColor,
+      strokeWidth: lu?.rect?.strokeWidth ?? t.rect.strokeWidth,
+    },
+    arrow: {
+      strokeColor: lu?.arrow?.strokeColor ?? t.arrow.strokeColor,
+      strokeWidth: lu?.arrow?.strokeWidth ?? t.arrow.strokeWidth,
+    },
+    text: {
+      color: lu?.text?.color ?? t.text.color,
+      fontSize: lu?.text?.fontSize ?? t.text.fontSize,
+    },
+    blur: {
+      blurRadius: lu?.blur?.blurRadius ?? t.blur.blurRadius,
+    },
+    sticker: {
+      fontSize: lu?.sticker?.fontSize ?? t.sticker.fontSize,
+    },
+    pin: {
+      color: lu?.pin?.color ?? cfg.pins.defaultColor,
+      size: lu?.pin?.size ?? cfg.pins.defaultSize,
+    },
   };
 }

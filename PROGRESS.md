@@ -112,6 +112,21 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Toolbar keyboard shortcuts** `[`/`]` (±width when widthCtx active), `-`/`+`/`=` (±size when sizeCtx active), `C` (focus color picker via hidden click). Handlers live inside Toolbar so they see the same `widthCtx`/`sizeCtx` derivation as the sliders. Suppressed when focused element is `INPUT`/`TEXTAREA`/contentEditable.
 - **Inline color picker + sliders behavior** — when an annotation is selected, the slider writes to the annotation; otherwise it writes to either `lastUsed` (remember on) or `tools.*` (remember off). Pin defaults stay on `config.pins` because they live outside the `tools` block.
 
+### Phase 9.1 — selection UX polish + per-tool persistence (2026-05-23)
+
+- **Per-tool color split** — `tools.strokeColor` removed. Now `tools.rect.strokeColor`, `tools.arrow.strokeColor`, `tools.text.color`, plus `pins.defaultColor`. Each tool keeps its own next-drawn color.
+- **`lastUsed` restructured to per-tool delta map** — `{ tool?, stickerEmoji?, rect?, arrow?, text?, blur?, sticker?, pin? }`. Editing any annotation writes to that annotation's slot via `lastUsedPatchForAnnotation()`. Old flat `lastUsed` payload is dropped on load (best-effort migration).
+- **`effectiveTools()` returns full per-tool shape** including `pin: { color, size }` (overlays `pins.defaultColor`/`defaultSize`). Single consumer surface for editor + toolbar.
+- **Width / size sliders hidden when no selection** — toolbar only renders the slider for the active tool when an annotation is selected. Color picker stays visible for tool default + emoji picker stays for sticker tool.
+- **Hover-to-highlight any element with any tool** — per-shape `onMouseEnter/Leave` sets `hoveredId`; a second resize-disabled `Transformer` (sky-400 border) attaches to the hovered node. Cursor switches to `pointer`. Hover indicator suppressed when target == selection.
+- **Empty-canvas mousedown deselects in every tool** — previously only the `select` tool cleared `selectedId` on empty click. Now all tools deselect first, then continue with their tool-specific behavior (rect/arrow/blur start a draft, text/sticker/pin add).
+
+### Phase 9.1 follow-ups (2026-05-23)
+
+- **Tool defaults restored for no-selection** — width slider (rect/arrow/blur) + size slider (text/sticker/pin) now render even without a selected annotation, so the user can dial defaults before drawing the first element. Earlier 9.1 hid them; was reported as bug.
+- **`tauri-plugin-store` autoSave off, explicit `store.save()` per write** — `autoSave: true` debounces ~100 ms, which races a new editor window opening for the next capture. Switched to `autoSave: false` + awaited `save()` in `update`/`setLastUsed`/`reset` so `pins.lastUsedNumber` + `lastUsed.pin.color` are flushed to disk before the next window's `load()` reads them.
+- **Pin counter persisted across `applyFile` (Phase 11 single-editor)** — `useEditor.reset()` was zeroing `nextPinNumber` on every new image load, defeating `continuityMode: "continue"`. Removed `nextPinNumber: 1` from `reset()`; `editor/page.tsx applyFile` now re-derives the counter from `pins.continuityMode` + `pins.lastUsedNumber` after every image swap (cold-start + new capture + clipboard paste). `EditorStage` `pinInit` retained as cold-mount fallback.
+
 ## Phase renumbering — 2026-05-23
 
 Inserted new Phase 11 (Persistent Editor Workspace) after the existing Phase 10. Previous 11–15 shifted to 12–16. Mapping:
