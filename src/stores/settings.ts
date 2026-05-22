@@ -35,6 +35,7 @@ function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppCon
       blur: { ...base.tools.blur, ...t?.blur },
       sticker: { ...base.tools.sticker, ...t?.sticker },
     },
+    capture: { ...base.capture, ...partial.capture },
   };
 }
 

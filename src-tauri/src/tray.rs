@@ -1,10 +1,27 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle,
+    AppHandle, Runtime,
 };
 
 use crate::windows;
+
+pub const TRAY_ID: &str = "main-tray";
+const IDLE_TOOLTIP: &str = "capz";
+
+pub fn set_busy<R: Runtime>(app: &AppHandle<R>, msg: &str) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_tooltip(Some(format!("capz — {msg}")));
+        let _ = tray.set_title(Some("⋯"));
+    }
+}
+
+pub fn set_idle<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_tooltip(Some(IDLE_TOOLTIP));
+        let _ = tray.set_title(Some(""));
+    }
+}
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let capture_full = MenuItem::with_id(
@@ -26,7 +43,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .cloned()
         .ok_or_else(|| tauri::Error::AssetNotFound("default window icon".into()))?;
 
-    TrayIconBuilder::with_id("main-tray")
+    TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .icon_as_template(true)
         .tooltip("capz")
@@ -34,21 +51,15 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture_full" => {
                 let app2 = app.clone();
-                tauri::async_runtime::spawn_blocking(move || {
-                    match crate::services::capture_service::capture_primary()
-                        .and_then(|img| crate::services::image_service::write_temp_png(&img))
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = crate::commands::capture::capture_to_editor(
+                        app2,
+                        "tray capture_full".into(),
+                        crate::services::capture_service::capture_primary,
+                    )
+                    .await
                     {
-                        Ok(path) => {
-                            log::info!("tray capture_full → {}", path.display());
-                            let path_str = path.to_string_lossy().into_owned();
-                            let app3 = app2.clone();
-                            let _ = app2.run_on_main_thread(move || {
-                                if let Err(e) = windows::show_editor(&app3, &path_str) {
-                                    log::error!("show_editor: {e}");
-                                }
-                            });
-                        }
-                        Err(e) => log::error!("tray capture_full failed: {e}"),
+                        log::error!("tray capture_full: {e}");
                     }
                 });
             }

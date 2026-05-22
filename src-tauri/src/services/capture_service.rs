@@ -5,13 +5,17 @@ use super::monitor_service;
 
 pub fn capture_monitor(id: u32) -> Result<RgbaImage> {
     let m = monitor_service::monitor_by_id(id)?;
-    let img = m.capture_image().map_err(|e| anyhow!("capture failed: {e}"))?;
+    let img = m
+        .capture_image()
+        .map_err(|e| anyhow!("capture failed: {e}"))?;
     Ok(img)
 }
 
 pub fn capture_primary() -> Result<RgbaImage> {
     let m = monitor_service::primary_monitor()?;
-    let img = m.capture_image().map_err(|e| anyhow!("capture failed: {e}"))?;
+    let img = m
+        .capture_image()
+        .map_err(|e| anyhow!("capture failed: {e}"))?;
     Ok(img)
 }
 

@@ -4,7 +4,7 @@ export type AppConfig = {
     captureArea: string;
   };
   output: {
-    defaultMode: "file" | "clipboard" | "ask";
+    defaultMode: "file" | "clipboard" | "both";
     fileFormat: "png" | "jpeg" | "webp";
     jpegQuality: number;
     defaultSavePath: string | null;
@@ -30,6 +30,9 @@ export type AppConfig = {
     blur: { blurRadius: number };
     sticker: { fontSize: number };
   };
+  capture: {
+    tempJpegQuality: number;
+  };
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -38,7 +41,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureArea: "CmdOrCtrl+Alt+Shift+4",
   },
   output: {
-    defaultMode: "ask",
+    defaultMode: "clipboard",
     fileFormat: "png",
     jpegQuality: 90,
     defaultSavePath: null,
@@ -63,6 +66,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     text: { fontSize: 24, color: "#ef4444" },
     blur: { blurRadius: 16 },
     sticker: { fontSize: 48 },
+  },
+  capture: {
+    tempJpegQuality: 85,
   },
 };
 

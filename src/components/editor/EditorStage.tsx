@@ -25,6 +25,7 @@ import {
   type PinAnnotation,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { setStage } from "@/lib/stageBridge";
 
 type Props = { src: string };
 
@@ -82,6 +83,11 @@ export function EditorStage({ src }: Props) {
   useEffect(() => {
     void initSettings();
   }, [initSettings]);
+
+  useEffect(() => {
+    setStage(stageRef.current);
+    return () => setStage(null);
+  }, [image]);
 
   const pinInit = useRef(false);
   useEffect(() => {

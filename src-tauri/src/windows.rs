@@ -10,16 +10,12 @@ pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         win.set_focus()?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(
-        app,
-        "settings",
-        WebviewUrl::App("settings/".into()),
-    )
-    .title("capz — Settings")
-    .inner_size(720.0, 520.0)
-    .resizable(true)
-    .visible(true)
-    .build()?;
+    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings/".into()))
+        .title("capz — Settings")
+        .inner_size(720.0, 520.0)
+        .resizable(true)
+        .visible(true)
+        .build()?;
     #[cfg(debug_assertions)]
     // if let Some(win) = app.get_webview_window("settings") {
     //     win.open_devtools();
@@ -116,14 +112,28 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>, file_path: &str) -> tauri::Re
     let label = format!("editor-{ts}");
     let encoded = urlencoding::encode(file_path);
     let url = format!("editor/?file={encoded}");
+    build_editor_window(app, &label, &url)
+}
 
-    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
+fn build_editor_window<R: Runtime>(app: &AppHandle<R>, label: &str, url: &str) -> tauri::Result<()> {
+    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         .title("capz — Editor")
         .inner_size(1100.0, 760.0)
         .min_inner_size(640.0, 480.0)
         .resizable(true)
         .visible(true)
         .build()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::{class, msg_send, runtime::AnyObject};
+        unsafe {
+            let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let _: () = msg_send![ns_app, activateIgnoringOtherApps: true];
+        }
+    }
+    let _ = win.show();
+    let _ = win.set_focus();
     Ok(())
 }
 

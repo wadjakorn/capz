@@ -3,7 +3,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 
-use crate::services::{capture_service, image_service};
+use crate::services::capture_service;
 use crate::windows;
 
 const STORE_FILE: &str = "config.json";
@@ -103,21 +103,15 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
     match kind {
         CaptureKind::Full => {
             let app2 = app.clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                match capture_service::capture_primary()
-                    .and_then(|img| image_service::write_temp_png(&img))
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::commands::capture::capture_to_editor(
+                    app2,
+                    "hotkey capture_full".into(),
+                    capture_service::capture_primary,
+                )
+                .await
                 {
-                    Ok(path) => {
-                        log::info!("hotkey capture_full → {}", path.display());
-                        let path_str = path.to_string_lossy().into_owned();
-                        let app3 = app2.clone();
-                        let _ = app2.run_on_main_thread(move || {
-                            if let Err(e) = windows::show_editor(&app3, &path_str) {
-                                log::error!("show_editor: {e}");
-                            }
-                        });
-                    }
-                    Err(e) => log::error!("hotkey capture_full failed: {e}"),
+                    log::error!("hotkey capture_full: {e}");
                 }
             });
         }

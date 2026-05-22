@@ -17,7 +17,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
   - [x] 6d blur + sticker
   - [x] 6e numbered pin + continuity
   - [x] 6f acceptance + commit
-- [ ] Phase 7 — output (file/clipboard)
+- [x] Phase 7 — output (file/clipboard/both)
 - [ ] Phase 8 — onboarding (TCC)
 - [ ] Phase 9 — autostart
 - [ ] Phase 10 — updater
@@ -42,6 +42,16 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **`editor.json` capability granted `store:default`**. PLAN.md §6 capability list omitted; needed because editor reads `pins.*` defaults from store. File: [src-tauri/capabilities/editor.json](src-tauri/capabilities/editor.json).
 - **Inline color picker in editor toolbar** (new UX). PLAN.md §6 only specified per-tool default colors via Settings. Toolbar now exposes a context-sensitive color input: edits the selected annotation when one is selected (rect/arrow `stroke`, text `fill`, pin `color`), else writes the default for the active tool back to settings. File: [src/components/editor/Toolbar.tsx](src/components/editor/Toolbar.tsx).
 - **Init-once guard pattern** in `EditorStage` for async settings load (`pinInit` ref). Prevents re-derivation overwriting session counter on subsequent settings mutations. PLAN.md didn't address bootstrap order.
+
+### Phase 7
+
+- **`output.defaultMode` union changed** from PLAN.md's `"file" | "clipboard" | "ask"` to **`"file" | "clipboard" | "both"`**. Resolved §9: no modal prompt, deterministic behavior. Default = `clipboard`.
+- **Export pipeline runs entirely client-side** via Konva `stage.toDataURL` → bytes → `@tauri-apps/plugin-{dialog,fs,clipboard-manager}`. No Rust export commands. Avoids cross-boundary buffer copies for already-canvas data.
+- **`pixelRatio = 1 / stage.scaleX()`** on export so output dimensions equal the source image's natural (physical) pixels regardless of fit-to-window scale. Overrides PLAN.md §5.1 generic `pixelRatio: 2`.
+- **Stage handoff via module-level singleton** `src/lib/stageBridge.ts` (set in `EditorStage`, read in `Toolbar`). Keeps Konva node out of zustand (non-serializable, would inflate snapshots).
+- **Temp PNG cleanup on editor window close** wired in `src/app/editor/page.tsx` via `onCloseRequested` → `plugin-fs.remove(file)` → `window.destroy()`. PLAN.md §5.5 specified the behavior, this is the implementation point.
+- **Startup sweep enabled** — removed `#[allow(dead_code)]` on `sweep_stale_temp` and called it from `lib.rs` setup.
+- **`general.copyToClipboardAfterSave`** is honored only when `defaultMode === "file"` (when `both` is selected, clipboard write already happens).
 
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 

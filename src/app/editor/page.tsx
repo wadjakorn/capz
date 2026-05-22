@@ -29,6 +29,28 @@ function EditorInner() {
     };
   }, [file]);
 
+  useEffect(() => {
+    if (!file) return;
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const [{ getCurrentWindow }, { remove }] = await Promise.all([
+        import("@tauri-apps/api/window"),
+        import("@tauri-apps/plugin-fs"),
+      ]);
+      const win = getCurrentWindow();
+      unlisten = await win.onCloseRequested(async (e) => {
+        e.preventDefault();
+        try {
+          await remove(file);
+        } catch (err) {
+          console.warn("temp file cleanup failed", err);
+        }
+        await win.destroy();
+      });
+    })();
+    return () => unlisten?.();
+  }, [file]);
+
   if (!file) {
     return (
       <div className="flex h-screen items-center justify-center bg-neutral-900 text-sm text-red-400">
@@ -40,7 +62,7 @@ function EditorInner() {
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       <Toolbar />
-      <main className="min-h-0 flex-1">
+      <main className="relative min-h-0 flex-1">
         <EditorStage src={src} />
       </main>
     </div>

@@ -77,10 +77,9 @@ function OverlayInner() {
         w: Math.round(rect.w),
         h: Math.round(rect.h),
       });
-      console.info("capture_region →", path);
+      console.info("capture_region_command → editor", path);
     } catch (e) {
-      console.error("capture_region failed", e);
-    } finally {
+      console.error("capture_region_command failed", e);
       closeOverlay();
     }
   };

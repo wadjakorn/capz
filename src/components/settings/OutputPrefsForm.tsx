@@ -13,10 +13,28 @@ import { useSettings } from "@/stores/settings";
 
 export function OutputPrefsForm() {
   const config = useSettings((s) => s.config.output);
+  const capture = useSettings((s) => s.config.capture);
   const update = useSettings((s) => s.update);
 
   return (
     <div className="grid gap-4">
+      <div className="grid gap-2">
+        <Label>Capture JPEG quality ({capture.tempJpegQuality})</Label>
+        <Input
+          type="number"
+          min={1}
+          max={100}
+          value={capture.tempJpegQuality}
+          onChange={(e) =>
+            update("capture", {
+              tempJpegQuality: Math.max(1, Math.min(100, Number(e.target.value))),
+            })
+          }
+        />
+        <span className="text-xs text-muted-foreground">
+          Lower = faster capture, smaller temp file, more artifacts. Affects intermediate only; final export honors File format below.
+        </span>
+      </div>
       <div className="grid gap-2">
         <Label>Default output</Label>
         <Select
@@ -27,9 +45,9 @@ export function OutputPrefsForm() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ask">Ask each time</SelectItem>
-            <SelectItem value="file">Save to file</SelectItem>
             <SelectItem value="clipboard">Copy to clipboard</SelectItem>
+            <SelectItem value="file">Save to file</SelectItem>
+            <SelectItem value="both">Both (file + clipboard)</SelectItem>
           </SelectContent>
         </Select>
       </div>

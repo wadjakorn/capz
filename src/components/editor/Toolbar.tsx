@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { getStage } from "@/lib/stageBridge";
+import { exportAnnotated } from "@/lib/exportImage";
 
 type ToolDef = { id: Tool; label: string; hint: string };
 
@@ -32,7 +34,9 @@ export function Toolbar() {
   const updateAnnotation = useEditor((s) => s.update);
   const pinsCfg = useSettings((s) => s.config.pins);
   const toolsCfg = useSettings((s) => s.config.tools);
+  const fullConfig = useSettings((s) => s.config);
   const updateSettings = useSettings((s) => s.update);
+  const [exporting, setExporting] = useState(false);
 
   const selected = selectedId
     ? annotations.find((a) => a.id === selectedId) ?? null
@@ -138,6 +142,23 @@ export function Toolbar() {
     notify(`Next = ${v}`);
   };
 
+  const doExport = async () => {
+    const stage = getStage();
+    if (!stage || exporting) return;
+    setExporting(true);
+    try {
+      const r = await exportAnnotated(stage, fullConfig);
+      if (r.saved && r.copied) notify("Saved + copied");
+      else if (r.saved) notify("Saved");
+      else if (r.copied) notify("Copied");
+    } catch (e) {
+      console.error("export failed", e);
+      notify(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="flex items-center gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
       {TOOLS.map((t) => {
@@ -177,6 +198,16 @@ export function Toolbar() {
         className="rounded px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
       >
         Redo
+      </button>
+      <div className="mx-2 h-5 w-px bg-neutral-800" />
+      <button
+        type="button"
+        onClick={() => void doExport()}
+        disabled={exporting}
+        title={`Export (${fullConfig.output.defaultMode})`}
+        className="rounded bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+      >
+        {exporting ? "…" : "Save"}
       </button>
       {colorCtx && (
         <>
@@ -241,11 +272,6 @@ export function Toolbar() {
             >
               Continue
             </button>
-            {flash && (
-              <span className="ml-2 rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-200">
-                {flash}
-              </span>
-            )}
           </div>
         </>
       )}
@@ -272,6 +298,11 @@ export function Toolbar() {
             })}
           </div>
         </>
+      )}
+      {flash && (
+        <span className="ml-auto rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-200">
+          {flash}
+        </span>
       )}
     </div>
   );
