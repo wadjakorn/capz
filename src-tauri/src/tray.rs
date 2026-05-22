@@ -29,7 +29,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
         .icon_as_template(true)
-        .tooltip("Shotr")
+        .tooltip("capz")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture_full" => {

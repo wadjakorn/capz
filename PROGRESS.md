@@ -43,13 +43,11 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Inline color picker in editor toolbar** (new UX). PLAN.md §6 only specified per-tool default colors via Settings. Toolbar now exposes a context-sensitive color input: edits the selected annotation when one is selected (rect/arrow `stroke`, text `fill`, pin `color`), else writes the default for the active tool back to settings. File: [src/components/editor/Toolbar.tsx](src/components/editor/Toolbar.tsx).
 - **Init-once guard pattern** in `EditorStage` for async settings load (`pinInit` ref). Prevents re-derivation overwriting session counter on subsequent settings mutations. PLAN.md didn't address bootstrap order.
 
-## Open questions (PLAN.md §9)
+## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 
-Resolve with user **before Phase 7**:
-
-- [ ] Output behavior (file vs clipboard default)
-- [ ] Branding (app name confirmation, icon)
-- [ ] Filename template
-- [ ] Sticker library (current = 10 hardcoded emoji)
-- [ ] Update channel (stable only v1?)
-- [ ] Telemetry (recommend none v1)
+- [x] **Output behavior:** default = **clipboard**. Settings mode = `file | clipboard | both` (replaces PLAN's `ask`).
+- [x] **Branding:** app name = **`capz`** (rebrand from "Shotr"). Icon stays as-is for v1. Maker may re-brand later.
+- [x] **Filename template:** keep structure, brand prefix → default `capz-{yyyy}{MM}{dd}-{HHmmss}`. User-overridable in Settings.
+- [x] **Sticker library:** keep current 10 emoji; maker can edit `STICKERS` const in [src/stores/editor.ts](src/stores/editor.ts).
+- [x] **Update channel:** stable only in v1.
+- [x] **Telemetry:** none in v1.

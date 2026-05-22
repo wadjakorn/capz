@@ -24,12 +24,12 @@ pub fn write_temp_png(img: &RgbaImage) -> Result<PathBuf> {
         .duration_since(UNIX_EPOCH)
         .map_err(|e| anyhow!("time: {e}"))?
         .as_millis();
-    let path = std::env::temp_dir().join(format!("shotr-temp-{ts}.png"));
+    let path = std::env::temp_dir().join(format!("capz-temp-{ts}.png"));
     std::fs::write(&path, &bytes).map_err(|e| anyhow!("write {}: {e}", path.display()))?;
     Ok(path)
 }
 
-/// Remove `shotr-temp-*.png` files older than 24h from the OS temp dir.
+/// Remove `capz-temp-*.png` files older than 24h from the OS temp dir.
 #[allow(dead_code)]
 pub fn sweep_stale_temp() {
     let dir = std::env::temp_dir();
@@ -39,7 +39,7 @@ pub fn sweep_stale_temp() {
     for entry in entries.flatten() {
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
-        if !(name.starts_with("shotr-temp-") && name.ends_with(".png")) {
+        if !(name.starts_with("capz-temp-") && name.ends_with(".png")) {
             continue;
         }
         let Ok(meta) = entry.metadata() else { continue };

@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Shotr",
+  "productName": "capz",
   "version": "0.1.0",
-  "identifier": "dev.baze.shotr",
+  "identifier": "dev.baze.capz",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -16,7 +16,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$TEMP/**", "**/shotr-temp-*.png"]
+        "scope": ["$TEMP/**", "**/capz-temp-*.png"]
       }
     }
   },

@@ -15,7 +15,7 @@ pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         "settings",
         WebviewUrl::App("settings/".into()),
     )
-    .title("Shotr — Settings")
+    .title("capz — Settings")
     .inner_size(720.0, 520.0)
     .resizable(true)
     .visible(true)
@@ -51,7 +51,7 @@ pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let url = format!("overlay/?monitor={}", primary.id);
 
     let win = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App(url.into()))
-        .title("Shotr — Select area")
+        .title("capz — Select area")
         .transparent(true)
         .decorations(false)
         .always_on_top(true)
@@ -118,7 +118,7 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>, file_path: &str) -> tauri::Re
     let url = format!("editor/?file={encoded}");
 
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
-        .title("Shotr — Editor")
+        .title("capz — Editor")
         .inner_size(1100.0, 760.0)
         .min_inner_size(640.0, 480.0)
         .resizable(true)

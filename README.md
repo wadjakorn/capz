@@ -1,4 +1,4 @@
-# Shotr
+# capz
 
 Cross-platform (macOS + Windows) screenshot capture & annotation desktop app. Runs in tray, captures full-screen or user-selected area via global hotkeys, opens an in-app editor (text, arrows, shapes, blur, stickers, numbered pins), outputs to file or clipboard.
 

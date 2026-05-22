@@ -42,7 +42,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     fileFormat: "png",
     jpegQuality: 90,
     defaultSavePath: null,
-    filenameTemplate: "shotr-{yyyy}{MM}{dd}-{HHmmss}",
+    filenameTemplate: "capz-{yyyy}{MM}{dd}-{HHmmss}",
   },
   pins: {
     continuityMode: "continue",
