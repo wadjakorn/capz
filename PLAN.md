@@ -872,7 +872,162 @@ useEffect(() => {
 
 ---
 
-### Phase 8: First-Launch Onboarding & macOS Permissions
+### Phase 8: Multi-Source Capture (Monitors + Windows)
+
+**Goal:** Capture any monitor (not just primary) and capture a specific application window. Area capture must work on any monitor.
+
+**Tasks:**
+1. **Monitor enumeration IPC.** Rust command `list_monitors() -> Vec<MonitorInfo>` returning `{id, name, x, y, width, height, scale_factor, is_primary}`. Mirror via `ts-rs` to `src/types/ipc.ts`.
+2. **Full-screen picker.** New hotkey path / tray action "Capture Full Screen…" opens a lightweight picker window (`monitor-picker`) listing monitors with thumbnails (small `xcap` capture per monitor). User clicks a monitor → Rust captures that monitor → temp PNG → editor. Single-monitor users skip the picker (auto-select).
+3. **Area capture cross-monitor.** Phase 5 overlay already spans the union of monitors. Lift the v1 single-monitor restriction: allow the selection rect to land on any monitor. Still no cross-monitor stitching — if selection straddles two monitors, capture only the rect intersected with the monitor that contains the rect's center (document this rule in Settings help text).
+4. **Window enumeration IPC.** Rust command `list_windows() -> Vec<WindowInfo>` returning `{id, title, app_name, monitor_id, bounds, icon?}`. Use `xcap::Window::all()` (xcap supports per-window capture on macOS + Windows).
+5. **Window picker UI.** New tray action "Capture Window…" opens `window-picker` window: searchable list grouped by app, with title + small thumbnail. Selecting a window → Rust `capture_window(id)` → temp PNG → editor.
+6. **Hotkey wiring.** Add two new default hotkeys, user-configurable in Settings:
+   - Full Screen (picker): `CmdOrCtrl+Alt+Shift+3` (existing — now opens picker if >1 monitor)
+   - Window: `CmdOrCtrl+Alt+Shift+5` (new)
+7. **Capabilities.** New capability files for `monitor-picker` and `window-picker` (read-only IPC scope; no fs/clipboard).
+
+**macOS notes:**
+- Window list requires Screen Recording permission (already covered by onboarding).
+- Window titles of other apps may be redacted on macOS until permission is granted — handle empty-title fallback to app name.
+
+**Acceptance:**
+- [ ] `list_monitors` returns all attached monitors with correct logical bounds + scale_factor
+- [ ] Full-screen picker shows live thumbnails; selecting non-primary monitor produces a PNG of that monitor at native resolution
+- [ ] Single-monitor setup skips the picker
+- [ ] Area capture works when overlay is dragged on a secondary monitor
+- [ ] Window picker lists currently-open windows from all apps, grouped by app name
+- [ ] Capturing a window produces a PNG of just that window's content (no surrounding desktop)
+- [ ] Minimized windows are filtered out or marked disabled
+
+---
+
+### Phase 9: Editor Live Controls + Session Memory
+
+**Goal:** Editor exposes live stroke-width + color controls on the toolbar that affect both new annotations and the currently-selected one. App remembers the last-used tool, color, stroke width, font size, and sticker per session so the next capture opens in the same state.
+
+**Tasks:**
+1. **Stroke-width slider.** Toolbar control (range 1–20, step 1) visible when tool ∈ {rect, arrow} or when a rect/arrow annotation is selected. Mirrors the inline color-picker pattern from Phase 6 deviations: edits selected annotation if any, else updates the default in store/config.
+2. **Color control on the go.** Existing inline color picker (Phase 6) already covers this; extend it to also be reachable via keyboard shortcut (`C` → focuses color input).
+3. **Font-size + sticker-size sliders.** Same pattern — visible when relevant tool/selection active.
+4. **`lastUsed` config block.** New `AppConfig.lastUsed`:
+   ```ts
+   lastUsed?: {
+     tool: ToolId;
+     color: string;
+     strokeWidth: number;
+     fontSize: number;
+     stickerEmoji: string;
+     stickerFontSize: number;
+   }
+   ```
+   Written to store on every annotation commit (debounced ~500 ms). Read once at editor bootstrap **after** `tools` defaults — overrides them.
+5. **Settings toggle.** General tab: `general.rememberLastTool` (default `true`). When off, editor uses `tools.*` defaults only.
+6. **Init order.** Extend the Phase 6 `pinInit` guard to also gate `lastUsed` hydration; do not let async settings load overwrite a user's mid-session changes.
+7. **Toolbar keyboard shortcuts.** `[` / `]` decrease/increase stroke width; `-` / `+` decrease/increase font/sticker size when relevant.
+8. **Implicit selection (no Select tool needed).** Click on any existing annotation with any active tool → switch interaction to "select that element" for the current gesture: show transformer, allow drag/resize/rotate. Empty-canvas click resumes the active tool's draw behavior. Implementation: hit-test on `mousedown`; if a Konva node belongs to an annotation, intercept before the tool's draw handler. `Esc` deselects.
+9. **Auto-select latest placed.** On annotation commit (rect/arrow/text/blur/sticker/pin), set it as the current selection and attach the transformer. User can immediately tweak position/size/rotation without re-clicking. Skipped for text while still in edit mode (selection happens on textarea blur).
+10. **Rotation for all elements.** Every annotation type gets a `rotation` field (degrees, default 0) in its snapshot shape. Konva `Transformer` config: `rotateEnabled: true`, default rotation snaps at 15° (hold Shift for free rotation). Export honors rotation via Konva's native transform. Pin numbers rotate with their circle but the numeral text counter-rotates so it stays upright (readable).
+
+**Acceptance:**
+- [ ] Changing stroke-width slider with a rect/arrow selected updates that annotation immediately
+- [ ] Changing stroke-width slider with nothing selected updates the default for the next drawn annotation
+- [ ] Color picker behaves the same way for both new and selected annotations
+- [ ] After closing the editor and triggering a new capture, the new editor opens with the last tool, color, and widths used
+- [ ] Toggling `general.rememberLastTool` off restores the Settings → Tools defaults on next capture
+- [ ] `[` / `]` and `-` / `+` keyboard shortcuts work and don't fire inside text-edit mode
+- [ ] Clicking an existing annotation with the Rect/Arrow/Text/Blur/Sticker/Pin tool selects it instead of drawing
+- [ ] Clicking empty canvas resumes the active tool's draw behavior
+- [ ] Newly placed annotation is auto-selected with transformer attached
+- [ ] All annotation types can be rotated via the transformer handle; rotation persists through undo/redo and export
+
+---
+
+### Phase 10: Dedicated Copy Action
+
+**Goal:** Editor exposes Copy as a first-class action separate from Save. Users can press `CmdOrCtrl+C` (when no annotation text is selected for native text-copy) or click a dedicated "Copy" button to write the current canvas to the clipboard without saving to disk.
+
+**Tasks:**
+1. **Toolbar split.** Replace single "Save" output button with three buttons: `Copy`, `Save`, `Save & Copy`. Visibility/ordering follows `output.defaultMode` (the default action gets the primary button styling; others remain accessible).
+2. **`Copy` action.** Reuses the Phase 7 export pipeline (`stage.toDataURL` → bytes → `clipboard-manager.writeImage`) but **skips** the dialog/fs branch. Closes the editor window on success per existing behavior (config-gated by `general.closeEditorAfterExport`).
+3. **`CmdOrCtrl+C` global handler** scoped to the editor window. Conditions:
+   - Suppress when a text annotation is in edit mode (`document.activeElement` is the inline `<textarea>` / Konva text input) — let the native copy proceed for the selected text.
+   - Suppress when a Konva text node is selected *and* a sub-range is highlighted (future-proof; ignore for v1 if not implemented).
+   - Otherwise: copy the full stage to clipboard, flash toast "Copied".
+4. **`output.defaultMode = "both"` re-mapping.** Existing "both" mode now corresponds to the `Save & Copy` button as the default action. No config migration needed.
+5. **Toast feedback.** Reuse the Phase 6 inline-flash pattern: `Copied`, `Saved`, `Saved & Copied`. Errors surface in a red variant.
+6. **Capability.** No new capabilities — clipboard + dialog + fs already scoped in `editor.json` from Phase 7.
+
+**Acceptance:**
+- [ ] Three buttons visible; primary highlight matches `output.defaultMode`
+- [ ] `CmdOrCtrl+C` with no selection copies the full annotated image to clipboard
+- [ ] `CmdOrCtrl+C` while editing a text annotation copies the selected characters, not the canvas
+- [ ] Copy action does not write a file to disk
+- [ ] Save action does not write to clipboard unless `general.copyToClipboardAfterSave` is on (Phase 7 behavior preserved)
+- [ ] Toast confirms each action
+
+---
+
+### Phase 11: Persistent Editor Workspace
+
+**Goal:** Editor becomes a long-lived single-instance workspace window, not a transient per-capture window. Closing the editor *hides* it (state retained); reopening from the tray returns to the same in-progress edit. Workspace also supports an **empty state** so the user can paste an image from the system clipboard without going through capture. State lives only for the app's lifetime — quitting from the tray truly destroys it and sweeps temp files.
+
+**Motivation:** v1 (Phases 6–10) treats each capture as a fresh editor window. Real-world flow: user iterates on annotations, accidentally closes the window, loses work. Also blocks the "edit an image I already have" workflow that doesn't start with a capture.
+
+**Tasks:**
+
+1. **Single fixed window label.** Rename label scheme: `editor-<timestamp>` → fixed `editor`. Drop the per-capture timestamp + multi-instance support. Updates required:
+   - `windows.rs::show_editor` — `get_webview_window("editor")` returns existing; else build with label `editor`.
+   - `capabilities/editor.json` — `windows: ["editor"]` (already exact match; no change unless using glob).
+   - Phase 7 logic that closed the editor after export becomes "hide instead of close" when `general.closeEditorAfterExport` is true.
+2. **Hide-on-close.** Editor frontend `onCloseRequested` → `e.preventDefault(); win.hide()`. **No** temp PNG removal at this point.
+3. **Image source decoupled from URL.** Drop `?file=` query param. Editor frontend listens for Tauri event `editor:load-image` with `{path: string, source: 'capture' | 'paste'}`. On receive: replace stage image + reset annotations (zustand `reset()` action).
+4. **Capture pipeline routing.** `capture_region_command` / `capture_monitor_command` / `capture_window_command`:
+   - Write temp PNG (unchanged).
+   - If `editor` window exists: emit `editor:load-image` to it + `show() + set_focus()`.
+   - Else: build editor (empty), then emit event after window's `ready` event.
+5. **Empty state UI.** When no image loaded:
+   - Centered placeholder: app glyph + "Paste an image (⌘V / Ctrl+V) or capture from the tray".
+   - Toolbar disabled (annotations grayed out); only export buttons remain enabled-but-no-op until image present.
+6. **Paste flow.**
+   - Global `paste` event listener on editor window.
+   - `await readImage()` from `@tauri-apps/plugin-clipboard-manager`. If null/non-image → flash toast "Clipboard has no image".
+   - Write bytes to temp PNG via `tauri-plugin-fs` to a path under OS temp dir as `capz-temp-<ts>.png`.
+   - Emit `editor:load-image` with `source: 'paste'` (same path the frontend just wrote).
+   - **Replace** any currently-loaded image silently (matches "fast capture" ethos; no confirm dialog).
+7. **Tray menu changes.** Add menu items:
+   - `Open Editor` (always enabled) — show + focus existing editor or build empty one.
+   - `Quit capz` (replaces / adds to existing Quit) — destroys editor (real close, not hide), sweeps the active temp PNG, exits.
+8. **Lifetime + cleanup.**
+   - Active temp PNG path tracked in Rust `AppState.active_temp_path: Mutex<Option<PathBuf>>`. Set on every load, cleared on Clear-workspace or replaced on new load — old file removed via `tauri-plugin-fs`.
+   - Tray Quit handler: lock + remove + `app.exit(0)`.
+   - Existing startup `sweep_stale_temp(>24h)` remains the safety net for crash orphans.
+9. ~~**Clear Workspace action.**~~ *(Deferred — not v1 scope. Replace-on-new-load + tray Quit cleanup are sufficient.)*
+10. **Capability updates** (`editor.json`):
+    - `clipboard-manager:allow-read-image` (paste).
+    - `core:event:default` (frontend listens for `editor:load-image`).
+    - `fs:allow-write-file` already covers temp PNG paste-write; scope must include OS temp dir (extend Phase 5 fs scope if needed).
+11. **IPC types.** New event payload type in `src/types/ipc.ts`: `EditorLoadImage { path: string; source: 'capture' | 'paste' }`. Mirror via `ts-rs`.
+
+**Interactions with prior phases:**
+- **Phase 6** acceptance "editor opens with file" → re-validated against new event-based load.
+- **Phase 7** `general.closeEditorAfterExport` semantics: now means hide, not close.
+- **Phase 9** `lastUsed` re-hydrates on each new image load (`editor:load-image` handler), not on window mount.
+- **Phase 10** `CmdOrCtrl+C` handler must be a no-op when stage has no image.
+
+**Acceptance:**
+- [ ] Capturing region → editor appears with image. Close editor → window hides. Tray → "Open Editor" → same image + annotations restored.
+- [ ] Two captures in a row: second replaces first; editor shown only once.
+- [ ] Cold start → tray "Open Editor" → editor shown empty with paste hint.
+- [ ] Cmd/Ctrl+V with image on clipboard loads it into editor.
+- [ ] Cmd/Ctrl+V with no image → toast "Clipboard has no image", no crash.
+- [ ] Tray Quit removes active temp PNG.
+- [ ] Annotations persist across hide/show within an app session.
+- [ ] App quit + relaunch → workspace is empty (no cross-restart persistence).
+
+---
+
+### Phase 12: First-Launch Onboarding & macOS Permissions
 
 **Goal:** First launch shows a guided flow to grant Screen Recording permission (macOS) and pick initial hotkeys.
 
@@ -937,7 +1092,7 @@ useEffect(() => {
 
 ---
 
-### Phase 9: Autostart Integration
+### Phase 13: Autostart Integration
 
 **Goal:** Toggle in Settings (and onboarding) enables/disables launch at login.
 
@@ -967,7 +1122,7 @@ useEffect(() => {
 
 ---
 
-### Phase 10: Polish, Logging, Error Handling
+### Phase 14: Polish, Logging, Error Handling
 
 **Goal:** App is robust to common failure modes and produces useful logs.
 
@@ -991,7 +1146,7 @@ useEffect(() => {
 
 ---
 
-### Phase 11: Packaging & Distribution
+### Phase 15: Packaging & Distribution
 
 **Goal:** Signed, notarized builds ready for distribution.
 
@@ -1024,7 +1179,7 @@ useEffect(() => {
      ```
    - Build `.msi` via `pnpm tauri build`
    - Optionally also build `.exe` installer with `nsis` target
-3. **Auto-update setup:** see Phase 12 (full implementation as separate phase)
+3. **Auto-update setup:** see Phase 16 (full implementation as separate phase)
 4. Build pipeline (GitHub Actions):
    - Matrix: `[macos-14, windows-latest]`
    - Use `tauri-apps/tauri-action`
@@ -1038,16 +1193,16 @@ useEffect(() => {
 
 ---
 
-### Phase 12: Auto-Update with `tauri-plugin-updater`
+### Phase 16: Auto-Update with `tauri-plugin-updater`
 
 **Goal:** App can detect new versions, prompt the user with a Yes/No dialog, download a signed update bundle, verify it, and relaunch into the new version — all without re-running the original installer.
 
 **Prerequisites:**
-- Phase 11 complete (app is code-signed; this is a separate signing layer specifically for update artifacts)
+- Phase 15 complete (app is code-signed; this is a separate signing layer specifically for update artifacts)
 - A versioning convention is decided (recommend semver, tags like `v1.2.3`)
 - Distribution decision is "direct" (GitHub Releases or self-hosted), **not** Mac App Store / Microsoft Store
 
-#### 12.1 Generate Ed25519 update-signing keypair (one-time, never regenerate)
+#### 16.1 Generate Ed25519 update-signing keypair (one-time, never regenerate)
 
 > ⚠️ **CRITICAL:** This key is **separate from** Apple Developer ID / Windows code signing certs. Losing it means **every existing user is permanently stranded on their current version** — they cannot receive any future update because the signature won't validate. Back it up in 1Password / Bitwarden / encrypted offline storage. Do not commit to git.
 
@@ -1060,7 +1215,7 @@ This produces:
 - `~/.tauri/shotr-updater.key` — **private** key (signs update bundles in CI)
 - `~/.tauri/shotr-updater.key.pub` — **public** key (embedded in app at build time)
 
-#### 12.2 Install plugin and dependencies
+#### 16.2 Install plugin and dependencies
 
 ```bash
 pnpm tauri add updater
@@ -1068,7 +1223,7 @@ pnpm add @tauri-apps/plugin-process     # for relaunch() after install
 # @tauri-apps/plugin-dialog should already be installed from Phase 7
 ```
 
-#### 12.3 Configure `tauri.conf.json`
+#### 16.3 Configure `tauri.conf.json`
 
 ```json
 {
@@ -1099,7 +1254,7 @@ Per-platform `installMode` options for Windows (macOS auto-applies an in-place s
 | `quiet` | No UI at all, fully silent | Enterprise/MDM rollouts |
 | `basicUi` | Full installer wizard, same as fresh install | When changes are major and you want user confirmation each step |
 
-#### 12.4 Update capabilities
+#### 16.4 Update capabilities
 
 Add to `src-tauri/capabilities/default.json` (or whichever capability the settings window uses):
 
@@ -1113,7 +1268,7 @@ Add to `src-tauri/capabilities/default.json` (or whichever capability the settin
 }
 ```
 
-#### 12.5 CI: store signing key as GitHub secrets
+#### 16.5 CI: store signing key as GitHub secrets
 
 In repo Settings → Secrets and variables → Actions, add:
 
@@ -1124,7 +1279,7 @@ In repo Settings → Secrets and variables → Actions, add:
 
 These are **in addition to** the macOS notarization secrets and Windows code-signing secrets from Phase 11. Total secrets expected: roughly 8–11 depending on signing setup.
 
-#### 12.6 Update checker service (Rust + frontend)
+#### 16.6 Update checker service (Rust + frontend)
 
 Create `src/lib/updater.ts`:
 
@@ -1194,7 +1349,7 @@ export async function skipVersion(version: string) {
 }
 ```
 
-#### 12.7 Settings UI additions
+#### 16.7 Settings UI additions
 
 Extend `AppConfig` from Phase 2:
 
@@ -1215,7 +1370,7 @@ Add to Settings → "Updates" tab:
 - Display current version and last-checked timestamp
 - (Optional) Channel selector if multi-channel is implemented
 
-#### 12.8 Background check scheduler (Rust)
+#### 16.8 Background check scheduler (Rust)
 
 In `src-tauri/src/lib.rs`, after app setup:
 
@@ -1245,7 +1400,7 @@ In `src-tauri/src/lib.rs`, after app setup:
 
 Frontend listens for `updater://check-now` events (in the settings window, since it's the persistent UI surface) and runs `checkForUpdates(true)`. If an update is found, the dialog appears even if the settings window was hidden — `ask()` opens a native OS dialog regardless.
 
-#### 12.9 Update flow UX states (handle all of these)
+#### 16.9 Update flow UX states (handle all of these)
 
 | State | UI behavior |
 |---|---|
@@ -1259,7 +1414,7 @@ Frontend listens for `updater://check-now` events (in the settings window, since
 | User clicked Later | Will prompt again on next interval |
 | Currently on skipped version, newer one releases | Reset skip state, prompt for new version |
 
-#### 12.10 `latest.json` manifest format
+#### 16.10 `latest.json` manifest format
 
 The endpoint must return JSON in this exact shape (Tauri parses it strictly):
 
@@ -1288,7 +1443,7 @@ The endpoint must return JSON in this exact shape (Tauri parses it strictly):
 > Note: For Windows, Tauri ships **MSI** or **NSIS** updates as `.zip` archives. `latest.json` should reference the `.zip`, not the bare `.msi`/`.exe`.
 > macOS ships the `.app` inside a `.tar.gz`.
 
-#### 12.11 Release workflow (GitHub Actions)
+#### 16.11 Release workflow (GitHub Actions)
 
 Create `.github/workflows/release.yml`:
 
@@ -1326,17 +1481,17 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Updater signing (Phase 12)
+          # Updater signing (Phase 16)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS notarization (Phase 11)
+          # macOS notarization (Phase 15)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows code signing (Phase 11)
+          # Windows code signing (Phase 15)
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         with:
@@ -1351,7 +1506,7 @@ jobs:
 
 The tauri-action automatically uploads `latest.json` to the GitHub Release, which the updater plugin reads to detect available updates. No manual upload needed.
 
-#### 12.12 Local testing procedure
+#### 16.12 Local testing procedure
 
 > Auto-update is **hard to test in production** — you can't easily "go back in time" once your installed app version is new. Test locally before pushing tags.
 
@@ -1365,7 +1520,7 @@ The tauri-action automatically uploads `latest.json` to the GitHub Release, whic
 8. Click Install → verify download, install, relaunch into `0.2.0`
 9. **Test signature verification failure:** modify the `.zip`/`.tar.gz` after signing → updater should refuse to install
 
-#### 12.13 Failure modes & recovery
+#### 16.13 Failure modes & recovery
 
 | Failure | Diagnosis | Recovery |
 |---|---|---|

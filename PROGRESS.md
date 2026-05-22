@@ -18,11 +18,15 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
   - [x] 6e numbered pin + continuity
   - [x] 6f acceptance + commit
 - [x] Phase 7 — output (file/clipboard/both)
-- [ ] Phase 8 — onboarding (TCC)
-- [ ] Phase 9 — autostart
-- [ ] Phase 10 — updater
-- [ ] Phase 11 — packaging/signing
-- [ ] Phase 12 — telemetry decision + ship
+- [x] Phase 8 — multi-source capture (multi-monitor area + full-screen picker + window picker)
+- [ ] Phase 9 — editor live controls + session memory (live stroke/color/size, remember last-used)
+- [ ] Phase 10 — dedicated copy action (Ctrl+C + Copy button separate from Save)
+- [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
+- [ ] Phase 12 — onboarding (TCC)
+- [ ] Phase 13 — autostart
+- [ ] Phase 14 — polish/logging
+- [ ] Phase 15 — packaging/signing
+- [ ] Phase 16 — updater + ship
 
 ## Deviations from PLAN.md
 
@@ -43,6 +47,50 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Inline color picker in editor toolbar** (new UX). PLAN.md §6 only specified per-tool default colors via Settings. Toolbar now exposes a context-sensitive color input: edits the selected annotation when one is selected (rect/arrow `stroke`, text `fill`, pin `color`), else writes the default for the active tool back to settings. File: [src/components/editor/Toolbar.tsx](src/components/editor/Toolbar.tsx).
 - **Init-once guard pattern** in `EditorStage` for async settings load (`pinInit` ref). Prevents re-derivation overwriting session counter on subsequent settings mutations. PLAN.md didn't address bootstrap order.
 
+### Phase 5 — fix 2026-05-22
+
+- **Overlay span fix.** Original Phase 5 overlay only covered the primary monitor (PLAN.md §5.2 specified union of all monitors). First attempt used `PhysicalPosition/Size` on a single window spanning the virtual desktop — broken on macOS because xcap's `Monitor::x/y/width/height` return **CG points (logical)**, not physical pixels (see [`xcap-0.9.4/src/macos/impl_monitor.rs:146`](https://docs.rs/xcap/0.9.4/) → reads `CGDisplayBounds`). Passing points to `PhysicalPosition` mis-scaled the window. Phase 5's original code only worked because of an NSScreen `setFrame:screens[0]` hack that pinned the window to primary.
+- **Final approach: per-monitor overlay windows.** [src-tauri/src/windows.rs](src-tauri/src/windows.rs) `show_overlay` now enumerates `list_monitors()` and spawns one window per monitor, labeled `overlay-<CGDirectDisplayID>`, positioned via `LogicalPosition/LogicalSize` using xcap's already-point values. Sidesteps cross-monitor coordinate math entirely. macOS NSWindow level=1000 + collectionBehavior applied per window.
+- **`close_overlay` and `capture_region_command`** updated to close any window whose label matches `overlay-*` (or legacy `overlay`).
+- **Capability scope:** [src-tauri/capabilities/overlay.json](src-tauri/capabilities/overlay.json) `windows` glob changed `"overlay"` → `"overlay-*"`.
+- **Frontend** ([src/app/overlay/page.tsx](src/app/overlay/page.tsx)) reverted to single-monitor logic: reads `?monitor=<id>` from URL, sends `capture_region_command(monitorId, x, y, w, h)` with window-local logical coords.
+- **Hover-activate UX.** Each overlay tracks `active` state via `onPointerEnter`/`onPointerLeave` + `onMouseMove` fallback (covers cursor already inside at spawn). Active: 0.35 dim, crosshair, sky-400 inset border, "Drag to select" hint. Inactive: 0.12 tint, default cursor, "Move cursor here…" hint. `onPointerEnter` calls `getCurrentWindow().setFocus()` so Esc routes to hovered screen.
+- **macOS cursor-poll auto-focus.** macOS only delivers mouse events to focused NSWindow, so crossing a bezel required a click to wake the next overlay. Fix: Rust spawns a `tauri::async_runtime` task that polls `NSEvent.mouseLocation` every 40ms, converts NS bottom-left → CG top-left (`h_primary - ns_y`), hit-tests against xcap monitor rects, calls `set_focus` on matching overlay when label changes. Loop exits when no `overlay-*` windows remain.
+- **Cross-platform position/size.** xcap coordinate semantics differ by OS:
+  - macOS: `Monitor::x/y/width/height` = CG **points** (logical). Use `LogicalPosition`/`LogicalSize`.
+  - Windows: `dmPosition` / `dmPelsWidth` = **physical pixels** (DEVMODE). Use `PhysicalPosition`/`PhysicalSize`.
+  - Linux: same as Windows (physical). Untested; PLAN.md targets macOS/Windows.
+- **Auto-focus polling is macOS-only.** Windows delivers `WM_MOUSEMOVE` regardless of focus, so `pointerenter` fires naturally without polling.
+- **Windows verification still TODO** — code path believed correct (xcap physical → `Physical*` → Webview2 viewport in CSS px = logical) but no Windows hardware available for this commit.
+
+### Phase 8
+
+- **Unified overlay UX (2026-05-23 rework).** PLAN.md §Phase 8 specced separate `monitor-picker` and `window-picker` thumbnail-grid windows. User feedback after the initial cut: wrong UX — wanted the area-overlay metaphor extended to full + window modes. Rewrote: one overlay route handles three modes via `?mode=area|full|window` param.
+  - **`area`**: drag rect → `capture_region_command` (unchanged from Phase 5).
+  - **`full`**: per-monitor overlay; click anywhere on the active monitor → `capture_full_monitor(monitor_id)`.
+  - **`window`**: per-monitor overlay; on mount the frontend fetches `list_capture_windows(monitor_id)`; hover hit-tests against cached bounds and outlines the topmost window (title/app tag); click → `capture_window_command(window_id)`.
+- **Picker code removed entirely.** Deleted `windows::show_monitor_picker` / `show_window_picker`, all picker IPC commands (`list_monitors_with_thumbs`, `list_windows_with_thumbs`, `capture_monitor_from_picker`, `close_picker_command`, `show_*_picker_command`), `capabilities/monitor-picker.json`, `capabilities/window-picker.json`, `src/app/picker/`. Thumbnail helper + `base64` crate dep also removed.
+- **`list_capture_windows(monitor_id)`** ([src-tauri/src/commands/pickers.rs](src-tauri/src/commands/pickers.rs)) returns `WindowOverlayInfo` filtered to: not own pid, not minimized, non-zero area, has title or app_name, `current_monitor().id() == monitor_id`. Bounds converted to **monitor-local logical coords** (`x - monitor.x`, `y - monitor.y`) so the overlay can hit-test in its own viewport space. Macos `xcap::Window::all()` returns front-to-back (confirmed against `xcap-0.9.4/src/macos/impl_window.rs:172`); frontend iterates index 0 onward for topmost.
+- **`capture_full_monitor` + `capture_window_command`** both close all `overlay-*` windows + sleep 150ms before invoking `capture_to_editor`. Matches the existing `capture_region_command` close-before-grab pattern so the overlay never lands in the output frame.
+- **Smart full dispatch removed.** Earlier draft branched on monitor count (1 → direct capture, 2+ → picker). With overlay UX there's no special case: tray and hotkey always show the overlay. `capture_dispatch::dispatch_full` / `dispatch_window` are thin wrappers around `show_overlay_mode`.
+- **Hotkey: `CmdOrCtrl+Alt+Shift+5`** → window-mode overlay. Stored as `hotkeys.captureWindow` in `config.json`. Settings UI not yet exposed (Phase 9/14 will surface it).
+- **`xcap::Window` no icon support.** PLAN.md listed `icon?` in WindowInfo — xcap 0.9.4 doesn't expose it. Field omitted; not on the acceptance list.
+- **Area capture cross-monitor restriction lifted in Phase 5.** Per-monitor overlay windows already cover all monitors and route capture via the monitor under the cursor — task 3 needed no code change in Phase 8.
+
+### Phase 11
+
+- **Fixed window label.** Per-capture `editor-<ts>` collapsed to single `editor`. Capability glob in [src-tauri/capabilities/editor.json](src-tauri/capabilities/editor.json) tightened to exact match.
+- **Workspace state is process-local.** `state::AppState.active_temp_path: Mutex<Option<PathBuf>>` tracks the active temp PNG. `swap()` returns the prior path so the caller can `fs::remove_file` it. Tray Quit drains the slot and deletes before `app.exit(0)`. No disk persistence by design (PLAN.md §Phase 11 motivation).
+- **Image load is event-driven.** Dropped `?file=` URL param. Rust `windows::load_editor_image` (1) swaps state, (2) removes prior temp, (3) calls `show_editor` (idempotent), (4) `app.emit_to("editor", "editor:load-image", path)`. Frontend listens in [src/app/editor/page.tsx](src/app/editor/page.tsx).
+- **Cold-start seeding.** On mount, the editor invokes `editor_current_image` (Rust state) so a window opened *after* a capture still picks up the active image. Avoids event-vs-listener race.
+- **Paste lives in Rust.** `paste_into_editor` command uses `ClipboardExt::read_image()`, encodes RGBA → PNG via `image::PngEncoder`, writes `capz-temp-<ts>.png`, then routes through `load_editor_image`. Avoids JS-side PNG encoding (would otherwise need pure-JS encoder or canvas roundtrip).
+- **Hide-on-close.** `onCloseRequested` → `e.preventDefault(); win.hide()`. Annotations + active image persist in memory until tray Quit. Permission `core:window:allow-hide` added.
+- **Tray menu.** `Open Editor` (always enabled) calls `show_editor` (creates empty if no window, else show + focus). `Quit capz` drains state + removes temp + exits.
+- **Empty state.** When `editor_current_image` returns null and no event fired, page renders `<EmptyState/>` with paste-hint. `EditorStage` not mounted (skips Konva init).
+- **Store `reset()`** added to [src/stores/editor.ts](src/stores/editor.ts) — wipes annotations / undo stack / pin counter / selection. Existing `clear()` early-returns when annotations empty, doesn't touch history; not suitable for cross-image reset.
+- **Cache-busting `src` URL** (`convertFileSrc(path)?t=<ts>`) so a *replaced* temp file at the same path still triggers a reload. (Currently each capture/paste produces a new timestamped path, so collisions are unlikely — defensive.)
+- **Clear Workspace** *(spec task 9)* deferred. Replace-on-load + tray-Quit cleanup cover the v1 use cases per user decision 2026-05-23.
+
 ### Phase 7
 
 - **`output.defaultMode` union changed** from PLAN.md's `"file" | "clipboard" | "ask"` to **`"file" | "clipboard" | "both"`**. Resolved §9: no modal prompt, deterministic behavior. Default = `clipboard`.
@@ -52,6 +100,52 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Temp PNG cleanup on editor window close** wired in `src/app/editor/page.tsx` via `onCloseRequested` → `plugin-fs.remove(file)` → `window.destroy()`. PLAN.md §5.5 specified the behavior, this is the implementation point.
 - **Startup sweep enabled** — removed `#[allow(dead_code)]` on `sweep_stale_temp` and called it from `lib.rs` setup.
 - **`general.copyToClipboardAfterSave`** is honored only when `defaultMode === "file"` (when `both` is selected, clipboard write already happens).
+
+## Phase renumbering — 2026-05-23
+
+Inserted new Phase 11 (Persistent Editor Workspace) after the existing Phase 10. Previous 11–15 shifted to 12–16. Mapping:
+
+| Old | New | Title |
+| --- | --- | --- |
+| —   | 11  | Persistent Editor Workspace |
+| 11  | 12  | First-Launch Onboarding & macOS Permissions |
+| 12  | 13  | Autostart Integration |
+| 13  | 14  | Polish, Logging, Error Handling |
+| 14  | 15  | Packaging & Distribution |
+| 15  | 16  | Auto-Update |
+
+Driver: tray-driven single-instance editor that survives close (hide-only), supports clipboard-paste as input source, has an empty/idle state, and only truly tears down on app quit. Implications:
+- Editor window label collapses `editor-<ts>` → fixed `editor`.
+- `?file=` query param replaced by `editor:load-image` Tauri event.
+- Phase 7 `closeEditorAfterExport` semantics reinterpreted as hide.
+- Phase 9 `lastUsed` re-hydrates per image load instead of per window mount.
+- Phase 10 `CmdOrCtrl+C` no-op when stage empty.
+
+## Phase renumbering — 2026-05-22
+
+Inserted three new phases (8/9/10) refining a user brief; previous 8–12 shifted to 11–15. Mapping:
+
+| Old | New | Title |
+| --- | --- | --- |
+| —   | 8   | Multi-Source Capture (Monitors + Windows) |
+| —   | 9   | Editor Live Controls + Session Memory |
+| —   | 10  | Dedicated Copy Action |
+| 8   | 11  | First-Launch Onboarding & macOS Permissions |
+| 9   | 12  | Autostart Integration |
+| 10  | 13  | Polish, Logging, Error Handling |
+| 11  | 14  | Packaging & Distribution |
+| 12  | 15  | Auto-Update |
+
+Source brief (verbatim, then refined):
+1. multi-monitor area capture + full-screen capture monitor picker → folded into Phase 8 alongside…
+2. specific window capture → …window-picker IPC + UI in same phase (shared `xcap` enumeration code path).
+3. adjust stroke width on the fly in editor → Phase 9 toolbar slider, edits selection or default depending on context (matches existing inline-color-picker pattern from Phase 6 deviations).
+4. adjust color on the fly → Phase 9, already partly delivered in Phase 6; phase formalizes + adds keyboard shortcut.
+5. remember last tool/color/width/etc for next capture → Phase 9 `config.lastUsed` block with `general.rememberLastTool` toggle.
+5a. (added 2026-05-22) implicit selection — click any element with any tool selects it, no Select tool needed → Phase 9.
+5b. (added 2026-05-22) auto-select latest placed element → Phase 9, transformer attaches on commit.
+5c. (added 2026-05-22) all elements rotatable → Phase 9, `rotation` field on every annotation; pin numeral counter-rotates to stay upright.
+6. Ctrl+C copy + button separate from Save → Phase 10 dedicated Copy action with editor-scoped `CmdOrCtrl+C` handler; splits Save/Copy/Save&Copy.
 
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 

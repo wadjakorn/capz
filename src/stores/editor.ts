@@ -108,6 +108,7 @@ type State = {
   update: (id: string, patch: Partial<Annotation>) => void;
   remove: (id: string) => void;
   clear: () => void;
+  reset: () => void;
   undo: () => void;
   redo: () => void;
 };
@@ -179,6 +180,15 @@ export const useEditor = create<State>((set, get) => ({
       selectedId: null,
     });
   },
+
+  reset: () =>
+    set({
+      annotations: [],
+      selectedId: null,
+      past: [],
+      future: [],
+      nextPinNumber: 1,
+    }),
 
   undo: () => {
     const { past, future, annotations, nextPinNumber } = get();

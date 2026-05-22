@@ -14,6 +14,7 @@ pub struct MonitorInfo {
     pub is_primary: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct Rect {
     pub x: i32,

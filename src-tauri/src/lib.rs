@@ -1,6 +1,8 @@
+mod capture_dispatch;
 mod commands;
 mod services;
 mod shortcuts;
+mod state;
 mod tray;
 mod windows;
 
@@ -19,7 +21,14 @@ pub fn run() {
             commands::capture::capture_monitor_command,
             commands::capture::capture_region_command,
             commands::overlay::close_overlay_command,
+            commands::editor::editor_current_image,
+            commands::editor::open_editor,
+            commands::editor::paste_into_editor,
+            commands::pickers::list_capture_windows,
+            commands::pickers::capture_full_monitor,
+            commands::pickers::capture_window_command,
         ])
+        .manage(state::AppState::default())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

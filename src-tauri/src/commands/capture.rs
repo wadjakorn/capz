@@ -64,8 +64,8 @@ where
     let app_main = app.clone();
     let path_open = path_str.clone();
     let main_res = app.run_on_main_thread(move || {
-        if let Err(e) = windows::show_editor(&app_main, &path_open) {
-            log::error!("show_editor: {e}");
+        if let Err(e) = windows::load_editor_image(&app_main, &path_open) {
+            log::error!("load_editor_image: {e}");
         }
     });
     tray::set_idle(&app);
@@ -103,8 +103,10 @@ pub async fn capture_region_command<R: Runtime>(
     tray::set_busy(&app, "Capturing…");
     let app_close = app.clone();
     app.run_on_main_thread(move || {
-        if let Some(overlay) = app_close.get_webview_window("overlay") {
-            let _ = overlay.close();
+        for (label, win) in app_close.webview_windows() {
+            if label.starts_with("overlay-") || label == "overlay" {
+                let _ = win.close();
+            }
         }
     })
     .map_err(|e| e.to_string())?;

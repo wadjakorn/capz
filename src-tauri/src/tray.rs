@@ -1,7 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Runtime,
+    AppHandle, Manager, Runtime,
 };
 
 use crate::windows;
@@ -32,11 +32,32 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, None::<&str>)?;
+    let capture_window = MenuItem::with_id(
+        app,
+        "capture_window",
+        "Capture Window…",
+        true,
+        None::<&str>,
+    )?;
     let sep = PredefinedMenuItem::separator(app)?;
+    let open_editor = MenuItem::with_id(app, "open_editor", "Open Editor", true, None::<&str>)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit capz", true, None::<&str>)?;
 
-    let menu = Menu::with_items(app, &[&capture_full, &capture_area, &sep, &settings, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &capture_full,
+            &capture_area,
+            &capture_window,
+            &sep,
+            &open_editor,
+            &sep2,
+            &settings,
+            &quit,
+        ],
+    )?;
 
     let icon = app
         .default_window_icon()
@@ -50,22 +71,19 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture_full" => {
-                let app2 = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = crate::commands::capture::capture_to_editor(
-                        app2,
-                        "tray capture_full".into(),
-                        crate::services::capture_service::capture_primary,
-                    )
-                    .await
-                    {
-                        log::error!("tray capture_full: {e}");
-                    }
-                });
+                crate::capture_dispatch::dispatch_full(app);
             }
             "capture_area" => {
                 if let Err(e) = windows::show_overlay(app) {
                     log::error!("show_overlay failed: {e}");
+                }
+            }
+            "capture_window" => {
+                crate::capture_dispatch::dispatch_window(app);
+            }
+            "open_editor" => {
+                if let Err(e) = windows::show_editor(app) {
+                    log::error!("show_editor failed: {e}");
                 }
             }
             "settings" => {
@@ -74,6 +92,12 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 }
             }
             "quit" => {
+                let state = app.state::<crate::state::AppState>();
+                if let Some(prev) = state.swap(None) {
+                    if let Err(e) = std::fs::remove_file(&prev) {
+                        log::warn!("quit: remove temp {}: {e}", prev.display());
+                    }
+                }
                 app.exit(0);
             }
             _ => {}

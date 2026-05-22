@@ -1,78 +1,130 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
+import { useEditor } from "@/stores/editor";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
   { ssr: false },
 );
 
-function EditorInner() {
-  const params = useSearchParams();
-  const file = params.get("file") ?? "";
+export default function EditorPage() {
+  const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const resetEditor = useEditor((s) => s.reset);
 
   useEditorShortcuts();
 
-  useEffect(() => {
-    if (!file) return;
-    let cancelled = false;
-    import("@tauri-apps/api/core").then(({ convertFileSrc }) => {
-      if (!cancelled) setSrc(convertFileSrc(file));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [file]);
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 1800);
+  }, []);
 
+  const applyFile = useCallback(async (path: string | null) => {
+    if (!path) {
+      setFile(null);
+      setSrc("");
+      return;
+    }
+    const { convertFileSrc } = await import("@tauri-apps/api/core");
+    setFile(path);
+    // Cache-bust so a replaced temp file at the same path reloads.
+    setSrc(`${convertFileSrc(path)}?t=${Date.now()}`);
+    // Fresh image = fresh annotation stack.
+    resetEditor();
+  }, [resetEditor]);
+
+  // Initial load: pull whatever is in Rust state (covers cold-start with prior capture).
   useEffect(() => {
-    if (!file) return;
+    (async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const path = await invoke<string | null>("editor_current_image");
+      if (path) await applyFile(path);
+    })();
+  }, [applyFile]);
+
+  // Subsequent loads (new captures / paste): event-driven.
+  useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
-      const [{ getCurrentWindow }, { remove }] = await Promise.all([
-        import("@tauri-apps/api/window"),
-        import("@tauri-apps/plugin-fs"),
-      ]);
-      const win = getCurrentWindow();
-      unlisten = await win.onCloseRequested(async (e) => {
-        e.preventDefault();
-        try {
-          await remove(file);
-        } catch (err) {
-          console.warn("temp file cleanup failed", err);
-        }
-        await win.destroy();
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen<string>("editor:load-image", (e) => {
+        void applyFile(e.payload);
       });
     })();
     return () => unlisten?.();
-  }, [file]);
+  }, [applyFile]);
 
-  if (!file) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-neutral-900 text-sm text-red-400">
-        Missing ?file= query param
-      </div>
-    );
-  }
+  // Hide-on-close: workspace persists until app quit.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow();
+      unlisten = await win.onCloseRequested((e) => {
+        e.preventDefault();
+        void win.hide();
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
+
+  // Paste handler: ask Rust to read clipboard image and load it.
+  useEffect(() => {
+    const onPaste = async (ev: ClipboardEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      ev.preventDefault();
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke<string>("paste_into_editor");
+      } catch (err) {
+        console.warn("paste_into_editor failed", err);
+        showToast("Clipboard has no image");
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [showToast]);
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       <Toolbar />
       <main className="relative min-h-0 flex-1">
-        <EditorStage src={src} />
+        {file ? (
+          <EditorStage src={src} />
+        ) : (
+          <EmptyState />
+        )}
+        {toast && (
+          <div className="pointer-events-none absolute right-4 top-4 rounded bg-black/80 px-3 py-1.5 text-xs text-white shadow">
+            {toast}
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-export default function EditorPage() {
+function EmptyState() {
+  const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+  const paste = isMac ? "⌘V" : "Ctrl+V";
   return (
-    <Suspense fallback={null}>
-      <EditorInner />
-    </Suspense>
+    <div className="flex h-full w-full items-center justify-center bg-neutral-900">
+      <div className="flex flex-col items-center gap-3 text-center text-neutral-400">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-neutral-700 text-3xl">
+          ⌘
+        </div>
+        <div className="text-sm">
+          Paste an image (<span className="font-mono">{paste}</span>) or capture from the tray.
+        </div>
+      </div>
+    </div>
   );
 }
