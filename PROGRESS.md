@@ -19,7 +19,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
   - [x] 6f acceptance + commit
 - [x] Phase 7 — output (file/clipboard/both)
 - [x] Phase 8 — multi-source capture (multi-monitor area + full-screen picker + window picker)
-- [ ] Phase 9 — editor live controls + session memory (live stroke/color/size, remember last-used)
+- [x] Phase 9 — editor live controls + session memory (live stroke/color/size, remember last-used)
 - [ ] Phase 10 — dedicated copy action (Ctrl+C + Copy button separate from Save)
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
 - [ ] Phase 12 — onboarding (TCC)
@@ -100,6 +100,17 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Temp PNG cleanup on editor window close** wired in `src/app/editor/page.tsx` via `onCloseRequested` → `plugin-fs.remove(file)` → `window.destroy()`. PLAN.md §5.5 specified the behavior, this is the implementation point.
 - **Startup sweep enabled** — removed `#[allow(dead_code)]` on `sweep_stale_temp` and called it from `lib.rs` setup.
 - **`general.copyToClipboardAfterSave`** is honored only when `defaultMode === "file"` (when `both` is selected, clipboard write already happens).
+
+### Phase 9
+
+- **`effectiveTools(config)` helper in [src/lib/config.ts](src/lib/config.ts)** — overrides `tools.*` with `lastUsed` values when `general.rememberLastTool` is on. Editor + Toolbar both read through it so live tool state reflects the last session.
+- **`lastUsed` block on AppConfig** persists tool, color, strokeWidth, fontSize, stickerEmoji, stickerFontSize. Written 500 ms after each annotation commit via debounced `scheduleLastUsedWrite` in [src/components/editor/EditorStage.tsx](src/components/editor/EditorStage.tsx). Hydrated once on editor mount (overrides `tools.*`).
+- **`general.rememberLastTool`** Settings toggle (default true). When off, sliders write to `tools.*` defaults instead of `lastUsed`.
+- **Implicit selection via cancelBubble** — every annotation node now calls `ctx.onSelect()` on `mousedown` regardless of active tool, and is `draggable={true}`. Stage's `handleMouseDown` only initiates a new draft when target is `isEmptyTarget` (stage or `bg-image`). Removes the need for an explicit Select tool.
+- **Transformer attaches whenever `selectedId` is set**, not gated on `tool === "select"`. `rotateEnabled: true` with 15° snap step. Pin annotation counter-rotates its numeral (`offsetX/offsetY` + negative rotation) so the digit stays upright.
+- **Rotation field on all annotation types** (`Base.rotation?: number`). On `transformEnd`, every shape writes back `rotation: node.rotation()` so undo/redo and PNG export honor the rotation via Konva's native transform.
+- **Toolbar keyboard shortcuts** `[`/`]` (±width when widthCtx active), `-`/`+`/`=` (±size when sizeCtx active), `C` (focus color picker via hidden click). Handlers live inside Toolbar so they see the same `widthCtx`/`sizeCtx` derivation as the sliders. Suppressed when focused element is `INPUT`/`TEXTAREA`/contentEditable.
+- **Inline color picker + sliders behavior** — when an annotation is selected, the slider writes to the annotation; otherwise it writes to either `lastUsed` (remember on) or `tools.*` (remember off). Pin defaults stay on `config.pins` because they live outside the `tools` block.
 
 ## Phase renumbering — 2026-05-23
 

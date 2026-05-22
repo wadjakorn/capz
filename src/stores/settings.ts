@@ -9,6 +9,7 @@ type State = {
   ready: boolean;
   init: () => Promise<void>;
   update: <K extends keyof AppConfig>(section: K, patch: Partial<AppConfig[K]>) => Promise<void>;
+  setLastUsed: (v: NonNullable<AppConfig["lastUsed"]>) => Promise<void>;
   reset: () => Promise<void>;
 };
 
@@ -36,6 +37,7 @@ function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppCon
       sticker: { ...base.tools.sticker, ...t?.sticker },
     },
     capture: { ...base.capture, ...partial.capture },
+    lastUsed: partial.lastUsed ?? base.lastUsed,
   };
 }
 
@@ -50,6 +52,12 @@ export const useSettings = create<State>((set, get) => ({
   },
   update: async (section, patch) => {
     const next = { ...get().config, [section]: { ...get().config[section], ...patch } };
+    set({ config: next });
+    const store = await getStore();
+    await store.set(CONFIG_STORE_KEY, next);
+  },
+  setLastUsed: async (v) => {
+    const next = { ...get().config, lastUsed: v };
     set({ config: next });
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, next);

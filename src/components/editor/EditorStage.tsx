@@ -26,6 +26,7 @@ import {
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { setStage } from "@/lib/stageBridge";
+import { effectiveTools } from "@/lib/config";
 
 type Props = { src: string };
 
@@ -71,8 +72,10 @@ export function EditorStage({ src }: Props) {
   const settingsReady = useSettings((s) => s.ready);
   const initSettings = useSettings((s) => s.init);
   const updateSettings = useSettings((s) => s.update);
-  const pinsCfg = useSettings((s) => s.config.pins);
-  const toolsCfg = useSettings((s) => s.config.tools);
+  const setLastUsed = useSettings((s) => s.setLastUsed);
+  const config = useSettings((s) => s.config);
+  const pinsCfg = config.pins;
+  const toolsCfg = effectiveTools(config);
   const STROKE = toolsCfg.strokeColor;
   const RECT_W = toolsCfg.rect.strokeWidth;
   const ARROW_W = toolsCfg.arrow.strokeWidth;
@@ -80,6 +83,39 @@ export function EditorStage({ src }: Props) {
   const TEXT_COLOR = toolsCfg.text.color;
   const BLUR_RADIUS = toolsCfg.blur.blurRadius;
   const STICKER_SIZE = toolsCfg.sticker.fontSize;
+
+  const setTool = useEditor((s) => s.setTool);
+  const setStickerChar = useEditor((s) => s.setStickerChar);
+  const lastUsedInit = useRef(false);
+  useEffect(() => {
+    if (!settingsReady || lastUsedInit.current) return;
+    lastUsedInit.current = true;
+    if (config.general.rememberLastTool && config.lastUsed) {
+      setTool(config.lastUsed.tool);
+      setStickerChar(config.lastUsed.stickerEmoji);
+    }
+  }, [settingsReady, config.general.rememberLastTool, config.lastUsed, setTool, setStickerChar]);
+
+  const lastUsedTimer = useRef<number | null>(null);
+  const scheduleLastUsedWrite = (overrides?: Partial<NonNullable<typeof config.lastUsed>>) => {
+    if (!config.general.rememberLastTool) return;
+    const snapshot = {
+      tool: useEditor.getState().tool,
+      color: toolsCfg.strokeColor,
+      strokeWidth: toolsCfg.rect.strokeWidth,
+      fontSize: toolsCfg.text.fontSize,
+      stickerEmoji: useEditor.getState().stickerChar,
+      stickerFontSize: toolsCfg.sticker.fontSize,
+      ...overrides,
+    };
+    if (lastUsedTimer.current) window.clearTimeout(lastUsedTimer.current);
+    lastUsedTimer.current = window.setTimeout(() => {
+      void setLastUsed(snapshot);
+    }, 500);
+  };
+  useEffect(() => () => {
+    if (lastUsedTimer.current) window.clearTimeout(lastUsedTimer.current);
+  }, []);
 
   useEffect(() => {
     void initSettings();
@@ -126,7 +162,7 @@ export function EditorStage({ src }: Props) {
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-    if (tool !== "select" || !selectedId) {
+    if (!selectedId) {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -134,7 +170,7 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(selectedId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [tool, selectedId, annotations]);
+  }, [selectedId, annotations]);
 
   const imgW = image?.naturalWidth ?? 0;
   const imgH = image?.naturalHeight ?? 0;
@@ -190,6 +226,7 @@ export function EditorStage({ src }: Props) {
         char: stickerChar,
         fontSize: STICKER_SIZE,
       });
+      scheduleLastUsedWrite();
       return;
     }
     if (tool === "pin") {
@@ -204,6 +241,7 @@ export function EditorStage({ src }: Props) {
         size: pinsCfg.defaultSize,
       });
       void updateSettings("pins", { lastUsedNumber: n });
+      scheduleLastUsedWrite();
       return;
     }
     if (tool === "text") {
@@ -236,6 +274,7 @@ export function EditorStage({ src }: Props) {
         fontSize: TEXT_SIZE,
         fill: TEXT_COLOR,
       });
+      scheduleLastUsedWrite();
     }
     setTextEditor(null);
   }
@@ -269,6 +308,7 @@ export function EditorStage({ src }: Props) {
           stroke: STROKE,
           strokeWidth: RECT_W,
         });
+        scheduleLastUsedWrite();
       }
     } else if (draft.kind === "blur") {
       const x = draft.w < 0 ? draft.x + draft.w : draft.x;
@@ -285,6 +325,7 @@ export function EditorStage({ src }: Props) {
           h,
           blurRadius: BLUR_RADIUS,
         });
+        scheduleLastUsedWrite();
       }
     } else {
       const dx = draft.x2 - draft.x1;
@@ -300,6 +341,7 @@ export function EditorStage({ src }: Props) {
           stroke: STROKE,
           strokeWidth: ARROW_W,
         });
+        scheduleLastUsedWrite();
       }
     }
     setDraft(null);
@@ -403,7 +445,8 @@ export function EditorStage({ src }: Props) {
             )}
             <Transformer
               ref={trRef}
-              rotateEnabled={false}
+              rotateEnabled
+              rotationSnaps={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]}
               ignoreStroke
               boundBoxFunc={(_oldBox, newBox) => {
                 if (Math.abs(newBox.width) < 5 || Math.abs(newBox.height) < 5) {
@@ -486,14 +529,13 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
       y={a.y}
       width={a.w}
       height={a.h}
+      rotation={a.rotation ?? 0}
       stroke={a.stroke}
       strokeWidth={a.strokeWidth}
-      draggable={ctx.tool === "select"}
+      draggable
       onMouseDown={(e) => {
-        if (ctx.tool === "select") {
-          e.cancelBubble = true;
-          ctx.onSelect();
-        }
+        e.cancelBubble = true;
+        ctx.onSelect();
       }}
       onDragEnd={(e) => {
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
@@ -510,6 +552,7 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
           y: node.y(),
           w: Math.max(2, node.width() * sx),
           h: Math.max(2, node.height() * sy),
+          rotation: node.rotation(),
         });
       }}
     />
@@ -526,18 +569,17 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
     <Arrow
       ref={ref}
       points={[a.x1, a.y1, a.x2, a.y2]}
+      rotation={a.rotation ?? 0}
       stroke={a.stroke}
       fill={a.stroke}
       strokeWidth={a.strokeWidth}
       pointerLength={a.strokeWidth * 4}
       pointerWidth={a.strokeWidth * 4}
       hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
-      draggable={ctx.tool === "select"}
+      draggable
       onMouseDown={(e) => {
-        if (ctx.tool === "select") {
-          e.cancelBubble = true;
-          ctx.onSelect();
-        }
+        e.cancelBubble = true;
+        ctx.onSelect();
       }}
       onDragEnd={(e) => {
         const dx = e.target.x();
@@ -549,6 +591,11 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
           x2: a.x2 + dx,
           y2: a.y2 + dy,
         });
+      }}
+      onTransformEnd={() => {
+        const node = ref.current;
+        if (!node) return;
+        ctx.onChange({ rotation: node.rotation() });
       }}
     />
   );
@@ -565,15 +612,14 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       ref={ref}
       x={a.x}
       y={a.y}
+      rotation={a.rotation ?? 0}
       text={a.text}
       fontSize={a.fontSize}
       fill={a.fill}
-      draggable={ctx.tool === "select"}
+      draggable
       onMouseDown={(e) => {
-        if (ctx.tool === "select") {
-          e.cancelBubble = true;
-          ctx.onSelect();
-        }
+        e.cancelBubble = true;
+        ctx.onSelect();
       }}
       onDblClick={(e) => {
         ctx.onEditText?.(a, e.evt.clientX, e.evt.clientY);
@@ -587,7 +633,10 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         const sx = node.scaleX();
         node.scaleX(1);
         node.scaleY(1);
-        ctx.onChange({ fontSize: Math.max(8, a.fontSize * sx) });
+        ctx.onChange({
+          fontSize: Math.max(8, a.fontSize * sx),
+          rotation: node.rotation(),
+        });
       }}
     />
   );
@@ -612,17 +661,16 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
       image={ctx.bgImage}
       x={a.x}
       y={a.y}
+      rotation={a.rotation ?? 0}
       width={a.w}
       height={a.h}
       crop={{ x: a.x, y: a.y, width: a.w, height: a.h }}
       filters={[Konva.Filters.Blur]}
       blurRadius={a.blurRadius}
-      draggable={ctx.tool === "select"}
+      draggable
       onMouseDown={(e) => {
-        if (ctx.tool === "select") {
-          e.cancelBubble = true;
-          ctx.onSelect();
-        }
+        e.cancelBubble = true;
+        ctx.onSelect();
       }}
       onDragEnd={(e) => {
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
@@ -639,6 +687,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
           y: node.y(),
           w: Math.max(4, a.w * sx),
           h: Math.max(4, a.h * sy),
+          rotation: node.rotation(),
         });
       }}
     />
@@ -655,17 +704,17 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
   const label = String(a.number);
   const fontSize = Math.max(10, a.size * 0.55);
   const textW = a.size;
+  const rot = a.rotation ?? 0;
   return (
     <Group
       ref={ref}
       x={a.x}
       y={a.y}
-      draggable={ctx.tool === "select"}
+      rotation={rot}
+      draggable
       onMouseDown={(e) => {
-        if (ctx.tool === "select") {
-          e.cancelBubble = true;
-          ctx.onSelect();
-        }
+        e.cancelBubble = true;
+        ctx.onSelect();
       }}
       onDragEnd={(e) => {
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
@@ -680,6 +729,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
           x: node.x(),
           y: node.y(),
           size: Math.max(12, a.size * sx),
+          rotation: node.rotation(),
         });
       }}
     >
@@ -693,8 +743,9 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         height={a.size}
         align="center"
         verticalAlign="middle"
-        x={-textW / 2}
-        y={-a.size / 2}
+        offsetX={textW / 2}
+        offsetY={a.size / 2}
+        rotation={-rot}
         listening={false}
       />
     </Group>
@@ -712,14 +763,13 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
       ref={ref}
       x={a.x}
       y={a.y}
+      rotation={a.rotation ?? 0}
       text={a.char}
       fontSize={a.fontSize}
-      draggable={ctx.tool === "select"}
+      draggable
       onMouseDown={(e) => {
-        if (ctx.tool === "select") {
-          e.cancelBubble = true;
-          ctx.onSelect();
-        }
+        e.cancelBubble = true;
+        ctx.onSelect();
       }}
       onDragEnd={(e) => {
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
@@ -730,7 +780,10 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         const sx = node.scaleX();
         node.scaleX(1);
         node.scaleY(1);
-        ctx.onChange({ fontSize: Math.max(12, a.fontSize * sx) });
+        ctx.onChange({
+          fontSize: Math.max(12, a.fontSize * sx),
+          rotation: node.rotation(),
+        });
       }}
     />
   );

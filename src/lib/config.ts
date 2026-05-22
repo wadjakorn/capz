@@ -21,6 +21,15 @@ export type AppConfig = {
     autostart: boolean;
     playSoundOnCapture: boolean;
     copyToClipboardAfterSave: boolean;
+    rememberLastTool: boolean;
+  };
+  lastUsed?: {
+    tool: "select" | "arrow" | "rect" | "text" | "blur" | "sticker" | "pin";
+    color: string;
+    strokeWidth: number;
+    fontSize: number;
+    stickerEmoji: string;
+    stickerFontSize: number;
   };
   tools: {
     strokeColor: string;
@@ -58,6 +67,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     autostart: false,
     playSoundOnCapture: false,
     copyToClipboardAfterSave: false,
+    rememberLastTool: true,
   },
   tools: {
     strokeColor: "#ef4444",
@@ -74,3 +84,18 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 export const CONFIG_STORE_FILE = "config.json";
 export const CONFIG_STORE_KEY = "app";
+
+export type EffectiveTools = AppConfig["tools"];
+
+export function effectiveTools(cfg: AppConfig): EffectiveTools {
+  const lu = cfg.lastUsed;
+  if (!cfg.general.rememberLastTool || !lu) return cfg.tools;
+  return {
+    strokeColor: lu.color,
+    rect: { strokeWidth: lu.strokeWidth },
+    arrow: { strokeWidth: lu.strokeWidth },
+    text: { fontSize: lu.fontSize, color: lu.color },
+    blur: cfg.tools.blur,
+    sticker: { fontSize: lu.stickerFontSize },
+  };
+}

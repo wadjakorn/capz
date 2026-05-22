@@ -258,6 +258,11 @@ export default function SettingsPage() {
             checked={config.general.copyToClipboardAfterSave}
             onChange={(v) => update("general", { copyToClipboardAfterSave: v })}
           />
+          <ToggleRow
+            label="Remember last tool/color/size between captures"
+            checked={config.general.rememberLastTool}
+            onChange={(v) => update("general", { rememberLastTool: v })}
+          />
         </TabsContent>
       </Tabs>
     </main>

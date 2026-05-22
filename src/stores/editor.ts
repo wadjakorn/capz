@@ -11,7 +11,7 @@ export type Tool =
   | "sticker"
   | "pin";
 
-type Base = { id: string };
+type Base = { id: string; rotation?: number };
 
 export type RectAnnotation = Base & {
   type: "rect";

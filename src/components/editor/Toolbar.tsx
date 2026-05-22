@@ -5,6 +5,7 @@ import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { getStage } from "@/lib/stageBridge";
 import { exportAnnotated } from "@/lib/exportImage";
+import { effectiveTools } from "@/lib/config";
 
 type ToolDef = { id: Tool; label: string; hint: string };
 
@@ -33,10 +34,24 @@ export function Toolbar() {
   const selectedId = useEditor((s) => s.selectedId);
   const updateAnnotation = useEditor((s) => s.update);
   const pinsCfg = useSettings((s) => s.config.pins);
-  const toolsCfg = useSettings((s) => s.config.tools);
   const fullConfig = useSettings((s) => s.config);
+  const toolsCfg = effectiveTools(fullConfig);
   const updateSettings = useSettings((s) => s.update);
+  const setLastUsed = useSettings((s) => s.setLastUsed);
+  const remember = fullConfig.general.rememberLastTool;
+  const patchLastUsed = (patch: Partial<NonNullable<typeof fullConfig.lastUsed>>) => {
+    const base = fullConfig.lastUsed ?? {
+      tool,
+      color: toolsCfg.strokeColor,
+      strokeWidth: toolsCfg.rect.strokeWidth,
+      fontSize: toolsCfg.text.fontSize,
+      stickerEmoji: stickerChar,
+      stickerFontSize: toolsCfg.sticker.fontSize,
+    };
+    void setLastUsed({ ...base, ...patch });
+  };
   const [exporting, setExporting] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
   const selected = selectedId
     ? annotations.find((a) => a.id === selectedId) ?? null
@@ -47,7 +62,17 @@ export function Toolbar() {
     value: string;
     onChange: (v: string) => void;
   };
+  type NumCtx = {
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (v: number) => void;
+  };
   let colorCtx: ColorCtx | null = null;
+  let widthCtx: NumCtx | null = null;
+  let sizeCtx: NumCtx | null = null;
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
       colorCtx = {
@@ -55,11 +80,27 @@ export function Toolbar() {
         value: selected.stroke,
         onChange: (v) => updateAnnotation(selected.id, { stroke: v }),
       };
+      widthCtx = {
+        label: "Width",
+        value: selected.strokeWidth,
+        min: 1,
+        max: 20,
+        step: 1,
+        onChange: (v) => updateAnnotation(selected.id, { strokeWidth: v }),
+      };
     } else if (selected.type === "text") {
       colorCtx = {
         label: "Color",
         value: selected.fill,
         onChange: (v) => updateAnnotation(selected.id, { fill: v }),
+      };
+      sizeCtx = {
+        label: "Size",
+        value: selected.fontSize,
+        min: 8,
+        max: 96,
+        step: 1,
+        onChange: (v) => updateAnnotation(selected.id, { fontSize: v }),
       };
     } else if (selected.type === "pin") {
       colorCtx = {
@@ -67,27 +108,128 @@ export function Toolbar() {
         value: selected.color,
         onChange: (v) => updateAnnotation(selected.id, { color: v }),
       };
+      sizeCtx = {
+        label: "Size",
+        value: selected.size,
+        min: 12,
+        max: 120,
+        step: 1,
+        onChange: (v) => updateAnnotation(selected.id, { size: v }),
+      };
+    } else if (selected.type === "sticker") {
+      sizeCtx = {
+        label: "Size",
+        value: selected.fontSize,
+        min: 12,
+        max: 200,
+        step: 1,
+        onChange: (v) => updateAnnotation(selected.id, { fontSize: v }),
+      };
+    } else if (selected.type === "blur") {
+      widthCtx = {
+        label: "Blur",
+        value: selected.blurRadius,
+        min: 2,
+        max: 60,
+        step: 1,
+        onChange: (v) => updateAnnotation(selected.id, { blurRadius: v }),
+      };
     }
-  } else if (tool === "rect" || tool === "arrow") {
+  } else if (tool === "rect") {
     colorCtx = {
       label: "Stroke",
       value: toolsCfg.strokeColor,
-      onChange: (v) => void updateSettings("tools", { strokeColor: v }),
+      onChange: (v) => {
+        if (remember) patchLastUsed({ color: v });
+        else void updateSettings("tools", { strokeColor: v });
+      },
+    };
+    widthCtx = {
+      label: "Width",
+      value: toolsCfg.rect.strokeWidth,
+      min: 1,
+      max: 20,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ strokeWidth: v });
+        else void updateSettings("tools", { rect: { strokeWidth: v } });
+      },
+    };
+  } else if (tool === "arrow") {
+    colorCtx = {
+      label: "Stroke",
+      value: toolsCfg.strokeColor,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ color: v });
+        else void updateSettings("tools", { strokeColor: v });
+      },
+    };
+    widthCtx = {
+      label: "Width",
+      value: toolsCfg.arrow.strokeWidth,
+      min: 1,
+      max: 20,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ strokeWidth: v });
+        else void updateSettings("tools", { arrow: { strokeWidth: v } });
+      },
     };
   } else if (tool === "text") {
     colorCtx = {
       label: "Color",
       value: toolsCfg.text.color,
-      onChange: (v) =>
-        void updateSettings("tools", {
-          text: { fontSize: toolsCfg.text.fontSize, color: v },
-        }),
+      onChange: (v) => {
+        if (remember) patchLastUsed({ color: v });
+        else void updateSettings("tools", { text: { fontSize: toolsCfg.text.fontSize, color: v } });
+      },
+    };
+    sizeCtx = {
+      label: "Size",
+      value: toolsCfg.text.fontSize,
+      min: 8,
+      max: 96,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ fontSize: v });
+        else void updateSettings("tools", { text: { fontSize: v, color: toolsCfg.text.color } });
+      },
     };
   } else if (tool === "pin") {
     colorCtx = {
       label: "Color",
       value: pinsCfg.defaultColor,
       onChange: (v) => void updateSettings("pins", { defaultColor: v }),
+    };
+    sizeCtx = {
+      label: "Size",
+      value: pinsCfg.defaultSize,
+      min: 12,
+      max: 120,
+      step: 1,
+      onChange: (v) => void updateSettings("pins", { defaultSize: v }),
+    };
+  } else if (tool === "sticker") {
+    sizeCtx = {
+      label: "Size",
+      value: toolsCfg.sticker.fontSize,
+      min: 12,
+      max: 200,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ stickerFontSize: v });
+        else void updateSettings("tools", { sticker: { fontSize: v } });
+      },
+    };
+  } else if (tool === "blur") {
+    widthCtx = {
+      label: "Blur",
+      value: toolsCfg.blur.blurRadius,
+      min: 2,
+      max: 60,
+      step: 1,
+      onChange: (v) =>
+        void updateSettings("tools", { blur: { blurRadius: v } }),
     };
   }
 
@@ -141,6 +283,44 @@ export function Toolbar() {
     setNextPinNumber(v);
     notify(`Next = ${v}`);
   };
+
+  const widthRef = useRef<NumCtx | null>(null);
+  const sizeRef = useRef<NumCtx | null>(null);
+  widthRef.current = widthCtx;
+  sizeRef.current = sizeCtx;
+
+  useEffect(() => {
+    function isTyping(el: EventTarget | null): boolean {
+      if (!(el instanceof HTMLElement)) return false;
+      return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
+    }
+    function clamp(c: NumCtx, v: number) {
+      return Math.min(c.max, Math.max(c.min, v));
+    }
+    function onKey(e: KeyboardEvent) {
+      if (isTyping(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+      if (k === "[" || k === "]") {
+        const c = widthRef.current;
+        if (!c) return;
+        e.preventDefault();
+        c.onChange(clamp(c, c.value + (k === "]" ? 1 : -1)));
+      } else if (k === "-" || k === "+" || k === "=") {
+        const c = sizeRef.current;
+        if (!c) return;
+        e.preventDefault();
+        c.onChange(clamp(c, c.value + (k === "-" ? -2 : 2)));
+      } else if (k === "c" || k === "C") {
+        const r = colorInputRef.current;
+        if (!r) return;
+        e.preventDefault();
+        r.click();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const doExport = async () => {
     const stage = getStage();
@@ -218,11 +398,54 @@ export function Toolbar() {
           >
             {colorCtx.label}
             <input
+              ref={colorInputRef}
               type="color"
               value={colorCtx.value}
               onChange={(e) => colorCtx!.onChange(e.target.value)}
               className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-neutral-950 p-0.5"
             />
+          </label>
+        </>
+      )}
+      {widthCtx && (
+        <>
+          <div className="mx-2 h-5 w-px bg-neutral-800" />
+          <label
+            className="flex items-center gap-1.5 text-xs text-neutral-300"
+            title={`${widthCtx.label}: [/]`}
+          >
+            {widthCtx.label}
+            <input
+              type="range"
+              min={widthCtx.min}
+              max={widthCtx.max}
+              step={widthCtx.step}
+              value={widthCtx.value}
+              onChange={(e) => widthCtx!.onChange(parseInt(e.target.value, 10))}
+              className="h-1 w-24 cursor-pointer accent-neutral-200"
+            />
+            <span className="w-6 text-right tabular-nums">{widthCtx.value}</span>
+          </label>
+        </>
+      )}
+      {sizeCtx && (
+        <>
+          <div className="mx-2 h-5 w-px bg-neutral-800" />
+          <label
+            className="flex items-center gap-1.5 text-xs text-neutral-300"
+            title={`${sizeCtx.label}: -/+`}
+          >
+            {sizeCtx.label}
+            <input
+              type="range"
+              min={sizeCtx.min}
+              max={sizeCtx.max}
+              step={sizeCtx.step}
+              value={sizeCtx.value}
+              onChange={(e) => sizeCtx!.onChange(parseInt(e.target.value, 10))}
+              className="h-1 w-24 cursor-pointer accent-neutral-200"
+            />
+            <span className="w-8 text-right tabular-nums">{sizeCtx.value}</span>
           </label>
         </>
       )}
