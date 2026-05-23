@@ -92,6 +92,18 @@ export const useSettings = create<State>((set, get) => ({
       }
     }
     set({ config: merged, ready: true });
+    // Cross-window sync: another webview (e.g. Settings) may write the store.
+    // Pull updates into this window's in-memory state so changes (closeAction,
+    // hotkeys, etc.) take effect without restart.
+    try {
+      await store.onKeyChange<Partial<AppConfig>>(CONFIG_STORE_KEY, (value) => {
+        if (!value) return;
+        const next = merge(DEFAULT_CONFIG, value);
+        set({ config: next });
+      });
+    } catch (e) {
+      console.warn("store onKeyChange subscription failed", e);
+    }
   },
   update: async (section, patch) => {
     const cur = get().config;
