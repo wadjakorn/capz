@@ -1,0 +1,86 @@
+name: Update Homebrew Cask
+
+# Fires after a GitHub Release is published (not draft). Computes SHA256s
+# of the two macOS .dmg assets and pushes a bumped Casks/capz.rb to the
+# wadjakorn/homebrew-capz tap on its main branch.
+#
+# Requires repo secret HOMEBREW_TAP_TOKEN: a fine-grained PAT with
+# Contents: write on wadjakorn/homebrew-capz.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.2)"
+        required: true
+
+jobs:
+  update-cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download dmgs and compute SHA256
+        id: sha
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          VERSION="${{ steps.tag.outputs.version }}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          ARM_DMG="capz_${VERSION}_aarch64.dmg"
+          INTEL_DMG="capz_${VERSION}_x64.dmg"
+          curl -fL -o "$ARM_DMG"   "${BASE}/${ARM_DMG}"
+          curl -fL -o "$INTEL_DMG" "${BASE}/${INTEL_DMG}"
+          ARM_SHA=$(shasum -a 256 "$ARM_DMG"   | awk '{print $1}')
+          INTEL_SHA=$(shasum -a 256 "$INTEL_DMG" | awk '{print $1}')
+          echo "arm=$ARM_SHA"     >> "$GITHUB_OUTPUT"
+          echo "intel=$INTEL_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: wadjakorn/homebrew-capz
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Patch cask
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          ARM:     ${{ steps.sha.outputs.arm }}
+          INTEL:   ${{ steps.sha.outputs.intel }}
+        run: |
+          F=tap/Casks/capz.rb
+          python3 - <<'PY'
+          import os, re
+          path = "tap/Casks/capz.rb"
+          s = open(path).read()
+          s = re.sub(r'version "[^"]+"', f'version "{os.environ["VERSION"]}"', s, count=1)
+          s = re.sub(r'(sha256 arm:\s*)"[0-9a-f]+"', rf'\1"{os.environ["ARM"]}"', s)
+          s = re.sub(r'(intel:\s*)"[0-9a-f]+"', rf'\1"{os.environ["INTEL"]}"', s)
+          open(path, "w").write(s)
+          PY
+          cat "$F"
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add Casks/capz.rb
+          git commit -m "capz ${{ steps.tag.outputs.version }}"
+          git push
