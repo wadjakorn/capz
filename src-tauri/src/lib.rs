@@ -98,6 +98,7 @@ pub fn run() {
             commands::permissions::open_system_settings_screen_recording,
             commands::permissions::relaunch_app,
             commands::permissions::show_onboarding_window,
+            windows::set_editor_always_on_top,
         ])
         .manage(state::AppState::default())
         .setup(|app| {

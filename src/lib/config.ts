@@ -33,6 +33,7 @@ export type AppConfig = {
     copyToClipboardAfterSave: boolean;
     rememberLastTool: boolean;
     onboardingCompleted: boolean;
+    alwaysOnTopEditor: boolean;
   };
   lastUsed?: {
     tool?: Tool;
@@ -89,6 +90,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     copyToClipboardAfterSave: false,
     rememberLastTool: true,
     onboardingCompleted: false,
+    alwaysOnTopEditor: false,
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },

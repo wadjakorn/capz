@@ -1,4 +1,5 @@
 use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_store::StoreExt;
 #[cfg(target_os = "macos")]
 use tauri::{LogicalPosition, LogicalSize};
 #[cfg(not(target_os = "macos"))]
@@ -222,6 +223,7 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         win.unminimize().ok();
         macos_activate();
         win.set_focus()?;
+        let _ = win.set_always_on_top(read_always_on_top_editor(app));
         return Ok(());
     }
 
@@ -236,6 +238,28 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     macos_activate();
     if let Some(win) = app.get_webview_window("editor") {
         let _ = win.set_focus();
+        let _ = win.set_always_on_top(read_always_on_top_editor(app));
+    }
+    Ok(())
+}
+
+fn read_always_on_top_editor<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let Ok(store) = app.store("config.json") else {
+        return false;
+    };
+    let Some(v) = store.get("app") else {
+        return false;
+    };
+    v.get("general")
+        .and_then(|g| g.get("alwaysOnTopEditor"))
+        .and_then(|b| b.as_bool())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn set_editor_always_on_top<R: Runtime>(app: AppHandle<R>, on: bool) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("editor") {
+        win.set_always_on_top(on).map_err(|e| e.to_string())?;
     }
     Ok(())
 }

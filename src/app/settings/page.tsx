@@ -311,6 +311,18 @@ export default function SettingsPage() {
             checked={config.general.rememberLastTool}
             onChange={(v) => update("general", { rememberLastTool: v })}
           />
+          <ToggleRow
+            label="Editor window always on top"
+            checked={config.general.alwaysOnTopEditor}
+            onChange={async (v) => {
+              await update("general", { alwaysOnTopEditor: v });
+              try {
+                await invoke("set_editor_always_on_top", { on: v });
+              } catch (e) {
+                console.error("set_editor_always_on_top failed", e);
+              }
+            }}
+          />
           <div className="flex items-center justify-between border-t pt-4">
             <div className="grid gap-0.5">
               <Label>Re-run onboarding</Label>
