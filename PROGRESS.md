@@ -25,7 +25,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [ ] Phase 12 — onboarding (TCC)
 - [ ] Phase 13 — autostart
 - [ ] Phase 14 — polish/logging
-- [ ] Phase 15 — packaging/signing
+- [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
 - [ ] Phase 16 — updater + ship
 
 ## Deviations from PLAN.md
