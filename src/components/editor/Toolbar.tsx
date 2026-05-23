@@ -386,7 +386,7 @@ export function Toolbar() {
   };
 
   return (
-    <div className="flex items-center gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
+    <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 [&>*]:shrink-0">
       {TOOLS.map((t) => {
         const active = tool === t.id;
         const Icon = t.icon;
