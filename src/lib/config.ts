@@ -11,6 +11,7 @@ export type AppConfig = {
   hotkeys: {
     captureFull: string;
     captureArea: string;
+    captureWindow: string;
   };
   output: {
     defaultMode: "file" | "clipboard" | "both";
@@ -66,6 +67,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   hotkeys: {
     captureFull: "CmdOrCtrl+Alt+Shift+3",
     captureArea: "CmdOrCtrl+Alt+Shift+4",
+    captureWindow: "CmdOrCtrl+Alt+Shift+5",
   },
   output: {
     defaultMode: "clipboard",
