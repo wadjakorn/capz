@@ -32,13 +32,8 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, None::<&str>)?;
-    let capture_window = MenuItem::with_id(
-        app,
-        "capture_window",
-        "Capture Window…",
-        true,
-        None::<&str>,
-    )?;
+    let capture_window =
+        MenuItem::with_id(app, "capture_window", "Capture Window…", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let open_editor = MenuItem::with_id(app, "open_editor", "Open Editor", true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(app)?;

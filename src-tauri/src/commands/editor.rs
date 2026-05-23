@@ -9,9 +9,7 @@ use crate::windows;
 #[tauri::command]
 pub async fn editor_current_image<R: Runtime>(app: AppHandle<R>) -> Option<String> {
     let state = app.state::<AppState>();
-    state
-        .current()
-        .map(|p| p.to_string_lossy().into_owned())
+    state.current().map(|p| p.to_string_lossy().into_owned())
 }
 
 #[tauri::command]

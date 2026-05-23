@@ -16,7 +16,10 @@ impl AppState {
     /// Atomically swap the active temp path. Returns the previous path (if any)
     /// so the caller can remove it from disk.
     pub fn swap(&self, next: Option<PathBuf>) -> Option<PathBuf> {
-        let mut g = self.active_temp_path.lock().expect("active_temp_path poisoned");
+        let mut g = self
+            .active_temp_path
+            .lock()
+            .expect("active_temp_path poisoned");
         std::mem::replace(&mut *g, next)
     }
 

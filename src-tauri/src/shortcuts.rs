@@ -28,7 +28,13 @@ struct ShortcutPayload {
 fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String) {
     let store = match app.store(STORE_FILE) {
         Ok(s) => s,
-        Err(_) => return (DEFAULT_FULL.into(), DEFAULT_AREA.into(), DEFAULT_WINDOW.into()),
+        Err(_) => {
+            return (
+                DEFAULT_FULL.into(),
+                DEFAULT_AREA.into(),
+                DEFAULT_WINDOW.into(),
+            )
+        }
     };
     let value = store.get(STORE_KEY);
     let mut full = DEFAULT_FULL.to_string();

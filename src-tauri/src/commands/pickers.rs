@@ -23,9 +23,7 @@ pub struct WindowOverlayInfo {
 /// monitor-local logical pixels so the overlay frontend can hit-test in its
 /// own viewport space.
 #[tauri::command]
-pub async fn list_capture_windows(
-    monitor_id: u32,
-) -> Result<Vec<WindowOverlayInfo>, String> {
+pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayInfo>, String> {
     tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<WindowOverlayInfo>> {
         let mon = monitor_service::monitor_by_id(monitor_id)?;
         let mx = mon.x().map_err(|e| anyhow::anyhow!("mon.x: {e}"))?;

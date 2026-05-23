@@ -83,11 +83,9 @@ pub async fn capture_monitor_command<R: Runtime>(
     app: AppHandle<R>,
     monitor_id: u32,
 ) -> Result<String, String> {
-    capture_to_editor(
-        app,
-        format!("capture_monitor({monitor_id})"),
-        move || capture_service::capture_monitor(monitor_id),
-    )
+    capture_to_editor(app, format!("capture_monitor({monitor_id})"), move || {
+        capture_service::capture_monitor(monitor_id)
+    })
     .await
 }
 

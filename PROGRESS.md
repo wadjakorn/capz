@@ -23,7 +23,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 10 — dedicated copy action (Ctrl+C + Copy button separate from Save)
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
 - [x] Phase 12 — onboarding (TCC)
-- [ ] Phase 13 — autostart
+- [x] Phase 13 — autostart
 - [ ] Phase 14 — polish/logging
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
 - [ ] Phase 16 — updater + ship
@@ -170,6 +170,15 @@ User enhancement on top of Phase 10: drop the per-save file dialog; persist a de
 - **Skip semantics.** "Skip for now" button advances to Done without granting; capture pipeline still works for clipboard mode or screens that don't require TCC. macOS denies actual screen capture until granted — surfaced via existing capture-error toast.
 - **Re-entry.** Mid-flow quit: next launch re-opens onboarding (flag still false). After finish: flag true → tray-only path; user can still access Settings via tray. No tray "Re-open onboarding" entry — kept menu minimal; user can manually clear the flag from Settings → Debug if needed (future enhancement).
 
+### Phase 13 — autostart (2026-05-23)
+
+- **Plugin** `tauri-plugin-autostart` added via `pnpm tauri add autostart` (auto-wired Cargo dep, npm dep `@tauri-apps/plugin-autostart`, capability `autostart:default` in [src-tauri/capabilities/desktop.json](src-tauri/capabilities/desktop.json)).
+- **macOS launcher** explicit: replaced generated `Builder::new().build()` with `init(MacosLauncher::LaunchAgent, Some(vec![]))` in [src-tauri/src/lib.rs](src-tauri/src/lib.rs). LaunchAgent path = `~/Library/LaunchAgents/<bundle-id>.plist` — user-scope, no admin.
+- **Settings wiring** in [src/app/settings/page.tsx](src/app/settings/page.tsx):
+  - On `ready` boot, query `isEnabled()` from plugin (OS = source of truth) and reconcile store if drifted.
+  - Toggle handler `applyAutostart(v)` calls `enable()` / `disable()` then writes store. Errors logged but don't roll back UI — user re-toggles.
+- **No onboarding wiring.** PLAN.md §13 mentions "and onboarding" optionally; deferred — Settings sufficient for acceptance + reduces onboarding clutter.
+
 ### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
 
 Full signing/notarization deferred (Apple Developer Program $99/yr not funded). Interim path landed so artifacts ship now and Phase 15 proper can layer on later.
@@ -239,6 +248,14 @@ User-noted enhancements deferred until after Phase 13:
 3. **Pre-close action.** Settings toggle: when editor closes/hides, optionally run Save / Copy / Save+Copy first (mirrors toolbar `output.defaultMode`). Lets keyboard-only workflow capture → annotate → `Esc` → done. Default off (preserves current behavior). New config field e.g. `general.closeAction: "none" | "save" | "copy" | "both"`.
 
 Wire all three together: shortcut #1 fires → if `closeAction` set, run export pipeline → then hide. Shortcut #2 unmodified.
+
+## Backlog — UI/UX polish (noted 2026-05-23)
+
+User-noted enhancements deferred until Phase 14 (polish):
+
+1. **Responsive editor chrome.** Some elements overflow editor window at small sizes — e.g. "Copied" / "Saved" toast/feedback badge, tool controllers with long inline labels or many controls (Tools tab Rect/Arrow/Text/Blur/Sticker rows in Settings). Fix: wrap controllers in horizontal-scroll container or stack vertically below breakpoint; truncate toast text; min-width clamps on toolbar groups.
+2. **Window-capture hotkey.** Settings → Shortcuts currently exposes only `captureFull` and `captureArea`. Wire `captureWindow` (already defined in `config.hotkeys` / `shortcuts.rs`) into the Shortcuts tab via a third `HotkeyRecorder` row. Default `CmdOrCtrl+Alt+Shift+5`.
+3. **Iconified buttons.** Replace bare-text buttons (toolbar tool buttons, Save/Copy/Cancel, Settings tab triggers, onboarding actions) with `lucide-react` icons + tooltip labels. Keep text on primary CTAs.
 
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 

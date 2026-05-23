@@ -1,8 +1,8 @@
+use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 #[cfg(target_os = "macos")]
 use tauri::{LogicalPosition, LogicalSize};
 #[cfg(not(target_os = "macos"))]
 use tauri::{PhysicalPosition, PhysicalSize};
-use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::services::monitor_service;
 

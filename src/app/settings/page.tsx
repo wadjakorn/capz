@@ -9,6 +9,11 @@ import { Input } from "@/components/ui/input";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { useSettings } from "@/stores/settings";
+import {
+  enable as enableAutostart,
+  disable as disableAutostart,
+  isEnabled as isAutostartEnabled,
+} from "@tauri-apps/plugin-autostart";
 
 async function applyHotkey(
   update: ReturnType<typeof useSettings.getState>["update"],
@@ -32,6 +37,33 @@ export default function SettingsPage() {
   useEffect(() => {
     init();
   }, [init]);
+
+  // Sync autostart toggle from OS (source of truth) once settings are ready.
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      try {
+        const on = await isAutostartEnabled();
+        if (on !== config.general.autostart) {
+          await update("general", { autostart: on });
+        }
+      } catch (e) {
+        console.warn("autostart isEnabled failed", e);
+      }
+    })();
+    // run only once after ready becomes true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  async function applyAutostart(v: boolean) {
+    try {
+      if (v) await enableAutostart();
+      else await disableAutostart();
+      await update("general", { autostart: v });
+    } catch (e) {
+      console.error("autostart toggle failed", e);
+    }
+  }
 
   useEffect(() => {
     if (!ready) return;
@@ -259,7 +291,7 @@ export default function SettingsPage() {
           <ToggleRow
             label="Launch at login"
             checked={config.general.autostart}
-            onChange={(v) => update("general", { autostart: v })}
+            onChange={applyAutostart}
           />
           <ToggleRow
             label="Play sound on capture"
