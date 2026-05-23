@@ -259,6 +259,7 @@ pub fn load_editor_image<R: Runtime>(app: &AppHandle<R>, path: &str) -> tauri::R
     if let Err(e) = app.emit_to("editor", "editor:load-image", path.to_string()) {
         log::warn!("emit editor:load-image: {e}");
     }
+    crate::services::sound::play_capture_sound(app);
     Ok(())
 }
 

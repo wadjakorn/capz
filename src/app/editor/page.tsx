@@ -60,9 +60,6 @@ export default function EditorPage() {
       const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen<string>("editor:load-image", (e) => {
         void applyFile(e.payload);
-        if (useSettings.getState().config.general.playSoundOnCapture) {
-          void import("@/lib/captureSound").then((m) => m.playCaptureSound());
-        }
       });
     })();
     return () => unlisten?.();
