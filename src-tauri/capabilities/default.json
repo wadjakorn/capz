@@ -9,6 +9,7 @@
     "core:default",
     "store:default",
     "dialog:allow-open",
+    "dialog:allow-ask",
     "fs:allow-mkdir",
     "fs:allow-exists",
     {
