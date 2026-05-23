@@ -26,7 +26,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 13 — autostart
 - [x] Phase 14 — polish/logging (14a logging+sound+About, 14b sonner+notice channel, 14c error classification)
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
-- [~] Phase 16 — updater + ship (16a scaffolded; 16b blocked on Ed25519 key gen + GitHub secrets)
+- [~] Phase 16 — updater + ship (16a scaffolded, 16b pubkey + secrets + background scheduler done; release pipeline test pending tag-push)
 
 ## Deviations from PLAN.md
 
@@ -272,15 +272,21 @@ Source brief (verbatim, then refined):
 - **Settings → Updates tab.** Toggle for auto-check, interval selector (6h / 24h / 7d), "Check now" button, last-checked timestamp, skipped-version display with Clear.
 - **`tauri.conf.json`** — `bundle.createUpdaterArtifacts: true`; `plugins.updater.endpoints: ["https://github.com/wadjakorn/capz/releases/latest/download/latest.json"]`; `pubkey: ""` placeholder; Windows `installMode: "passive"`.
 
-#### Phase 16b — pending (blocked on user action — see CLAUDE.md SPOF warning)
+### Phase 16b — pubkey + background scheduler (2026-05-23)
 
-1. Generate keypair: `pnpm tauri signer generate -w ~/.tauri/capz-updater.key` (note: PLAN.md uses `shotr-updater.key` but project rebranded; rename to `capz-updater.key` for clarity). Strong password. Store in 1Password/Bitwarden with ≥2 team-member access + offline backup. **NEVER commit.**
-2. Paste `~/.tauri/capz-updater.key.pub` content into `tauri.conf.json` `plugins.updater.pubkey`.
-3. Add GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` (file content) + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Secrets already referenced in [.github/workflows/build.yml](.github/workflows/build.yml) Phase 15 interim — populate them.
-4. Tag-push triggers release; `latest.json` is published by Tauri Action alongside DMG/MSI.
-5. **Background auto-check scheduler** also deferred — currently only manual "Check now" runs. PLAN §16.8 calls for tokio task in `setup` emitting `updater://check-now` event on interval; needs a listener in the editor window (settings may be hidden when interval fires).
+- **Ed25519 pubkey** pasted into `tauri.conf.json` `plugins.updater.pubkey` (single-line base64 minisign blob). Private key + password stored in secrets manager + GitHub Actions secrets (`TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+- **Background auto-check scheduler** in [src-tauri/src/lib.rs](src-tauri/src/lib.rs):
+  - `read_update_prefs(app)` reads `updates.{autoCheck, checkIntervalHours}` from store with safe defaults `(true, 24)`. Min interval clamped to 1h.
+  - `spawn_update_checker(app)` spawns tokio task: 30s startup delay, then loop emits `updater://check-now` per interval if `autoCheck` true.
+  - Called from setup.
+- **Frontend listener** `useUpdateCheckListener()` in [src/lib/updater.ts](src/lib/updater.ts) subscribes to `updater://check-now`, runs silent `checkForUpdates()`, opens native ask-dialog via `promptAndInstall` if available. Honors `skippedVersion`.
+- **Wired in both Settings and Editor pages.** Editor is the persistent surface after first capture; Settings catches manual visits. If both hidden, the tick still fires but listener instance is gone — acceptable since user will see prompt next time either window opens.
 
-Until 16b lands, `check()` will fail at runtime with empty pubkey — toast surfaces error.
+#### Phase 16b — remaining
+
+1. **End-to-end release test.** Tag-push `v0.1.1` (or similar bump) to trigger CI matrix → release job builds + signs updater artifacts → drafts GitHub Release. Verify `latest.json` lands at the configured endpoint. Then bump app version locally to a *lower* number, run prior-version build manually, install, and confirm auto-check picks up the newer release + prompts to install.
+2. **CI: confirm Tauri Action publishes `latest.json`.** Check current workflow ([.github/workflows/build.yml](.github/workflows/build.yml)) actually generates and uploads `latest.json` to the release. `tauri-apps/tauri-action` does this when `createUpdaterArtifacts: true` + `TAURI_SIGNING_PRIVATE_KEY` env is set — verify on first tag-push.
+3. **Key custody.** Confirm offline encrypted backup of `~/.tauri/capz-updater.key` (or whatever filename you used) is stored separately from password. SPOF — see CLAUDE.md.
 
 ## Backlog — editor close/show UX (noted 2026-05-23)
 
@@ -301,6 +307,7 @@ User-noted enhancements deferred until Phase 14 (polish):
 3. **Iconified buttons.** Replace bare-text buttons (toolbar tool buttons, Save/Copy/Cancel, Settings tab triggers, onboarding actions) with `lucide-react` icons + tooltip labels. Keep text on primary CTAs.
 4. **Always-on-top toggle.** Settings → General switch. Per-window: editor (helpful while annotating over reference) — and possibly settings. Wire via `tauri::WebviewWindow::set_always_on_top(bool)` on toggle; persist in `general.alwaysOnTop`. Re-apply on window create.
 5. **Context-aware cursors.** Tool-specific cursors in editor: `crosshair` while dragging shape (rect/arrow/blur region), `pointer` for select/pin, `text` for text tool, `move` while dragging existing element. Currently default arrow everywhere. Set via inline `style.cursor` on `EditorStage` container based on active tool + drag state.
+6. **App + tray icon.** Replace Tauri default placeholder icons in [src-tauri/icons/](src-tauri/icons/) (32, 128, 128@2x, .icns, .ico) and tray icon. Generate dual-tone macOS template (black/transparent for menu bar auto-tint) + standard Windows multi-res .ico. Verify tray icon honors `set_icon_as_template(true)` on macOS so it inverts with menu bar theme.
 
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useSettings } from "@/stores/settings";
 
 export type UpdateCheckResult =
@@ -55,4 +56,27 @@ export async function promptAndInstall(
 
 export async function skipVersion(version: string): Promise<void> {
   await useSettings.getState().update("updates", { skippedVersion: version });
+}
+
+/**
+ * Subscribes the calling component to the Rust-emitted `updater://check-now`
+ * tick. Runs a silent check; if an update is available, opens the native
+ * prompt dialog. Honors `updates.skippedVersion` via promptAndInstall.
+ */
+export function useUpdateCheckListener() {
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen("updater://check-now", async () => {
+        try {
+          const r = await checkForUpdates();
+          if (r.kind === "available") await promptAndInstall(r);
+        } catch (e) {
+          console.warn("auto update check failed", e);
+        }
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
 }

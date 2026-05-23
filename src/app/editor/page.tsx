@@ -8,6 +8,7 @@ import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useNoticeListener } from "@/lib/notice";
+import { useUpdateCheckListener } from "@/lib/updater";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -21,6 +22,7 @@ export default function EditorPage() {
 
   useEditorShortcuts();
   useNoticeListener();
+  useUpdateCheckListener();
 
   const applyFile = useCallback(async (path: string | null) => {
     if (!path) {

@@ -7,6 +7,48 @@ mod state;
 mod tray;
 mod windows;
 
+/// Reads `updates.{autoCheck, checkIntervalHours}` from the store with safe defaults.
+fn read_update_prefs<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> (bool, u64) {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("config.json") else {
+        return (true, 24);
+    };
+    let Some(v) = store.get("app") else {
+        return (true, 24);
+    };
+    let auto = v
+        .get("updates")
+        .and_then(|u| u.get("autoCheck"))
+        .and_then(|x| x.as_bool())
+        .unwrap_or(true);
+    let hours = v
+        .get("updates")
+        .and_then(|u| u.get("checkIntervalHours"))
+        .and_then(|x| x.as_u64())
+        .unwrap_or(24)
+        .max(1);
+    (auto, hours)
+}
+
+/// Background tokio task: waits 30s after launch, then emits `updater://check-now`
+/// at the user-configured interval. Frontend (Settings or Editor window) handles
+/// the actual check via `tauri-plugin-updater` and any prompt UI.
+fn spawn_update_checker<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    use tauri::Emitter;
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        loop {
+            let (auto, hours) = read_update_prefs(&app);
+            if auto {
+                if let Err(e) = app.emit("updater://check-now", ()) {
+                    log::warn!("emit updater://check-now: {e}");
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(hours * 3600)).await;
+        }
+    });
+}
+
 fn is_onboarding_completed<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
     use tauri_plugin_store::StoreExt;
     let store = match app.store("config.json") {
@@ -92,6 +134,7 @@ pub fn run() {
                     log::warn!("show onboarding: {e}");
                 }
             }
+            spawn_update_checker(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())

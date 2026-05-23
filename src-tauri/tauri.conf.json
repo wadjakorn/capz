@@ -43,7 +43,7 @@
       "endpoints": [
         "https://github.com/wadjakorn/capz/releases/latest/download/latest.json"
       ],
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwM0JCRDk1MDhGQTRCOEUKUldTT1Mvb0lsYjA3a09qN3M4R21JZnFsTExtMlozcDIyY2N3Y1VMZnB3d1h4ZHV6UjNBSTlTb3cK",
       "windows": {
         "installMode": "passive"
       }

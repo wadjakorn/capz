@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Toaster, toast } from "sonner";
 import { useNoticeListener } from "@/lib/notice";
+import { useUpdateCheckListener } from "@/lib/updater";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -35,6 +36,7 @@ export default function SettingsPage() {
   const firstSig = useRef<string | null>(null);
 
   useNoticeListener();
+  useUpdateCheckListener();
 
   useEffect(() => {
     init();
