@@ -153,7 +153,9 @@ export function EditorStage({ src }: Props) {
       container.style.cursor = "grabbing";
     };
     const onEnd = () => {
-      container.style.cursor = "";
+      // After drag, mouse is still over the shape — restore hover cursor
+      // ("grab") instead of falling back to the stage tool cursor (crosshair).
+      container.style.cursor = "grab";
     };
     stage.on("dragstart", onStart);
     stage.on("dragend", onEnd);
@@ -588,7 +590,7 @@ function hoverHandlers(ctx: ShapeCtx) {
     onMouseEnter: (e: Konva.KonvaEventObject<MouseEvent>) => {
       ctx.onHover(true);
       const stage = e.target.getStage();
-      if (stage) stage.container().style.cursor = "pointer";
+      if (stage) stage.container().style.cursor = "grab";
     },
     onMouseLeave: (e: Konva.KonvaEventObject<MouseEvent>) => {
       ctx.onHover(false);
