@@ -58,13 +58,23 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(if cfg!(debug_assertions) {
+                        log::LevelFilter::Info
+                    } else {
+                        log::LevelFilter::Warn
+                    })
+                    .targets([
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                            file_name: None,
+                        }),
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    ])
+                    .max_file_size(1_000_000)
+                    .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                    .build(),
+            )?;
             services::image_service::sweep_stale_temp();
             tray::create_tray(app.handle())?;
             if let Err(e) = shortcuts::register_shortcuts(app.handle()) {

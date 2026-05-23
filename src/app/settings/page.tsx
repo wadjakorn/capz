@@ -330,6 +330,7 @@ export default function SettingsPage() {
               Re-run
             </button>
           </div>
+          <AboutRow />
         </TabsContent>
       </Tabs>
     </main>
@@ -404,6 +405,35 @@ function CaptureDebug() {
       <pre className="rounded bg-muted p-2 text-xs whitespace-pre-wrap break-all min-h-[6rem]">
         {out || "click a button…"}
       </pre>
+    </div>
+  );
+}
+
+function AboutRow() {
+  const [info, setInfo] = useState<{ app: string; tauri: string } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getVersion, getTauriVersion } = await import("@tauri-apps/api/app");
+        const [app, tauri] = await Promise.all([getVersion(), getTauriVersion()]);
+        setInfo({ app, tauri });
+      } catch (e) {
+        console.warn("about info failed", e);
+      }
+    })();
+  }, []);
+
+  return (
+    <div className="flex items-center justify-between border-t pt-4">
+      <div className="grid gap-0.5">
+        <Label>About capz</Label>
+        <span className="text-xs text-muted-foreground">
+          {info
+            ? `v${info.app} · Tauri ${info.tauri} · ${navigator.platform}`
+            : "loading…"}
+        </span>
+      </div>
     </div>
   );
 }

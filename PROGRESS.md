@@ -24,7 +24,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
 - [x] Phase 12 — onboarding (TCC)
 - [x] Phase 13 — autostart
-- [ ] Phase 14 — polish/logging
+- [~] Phase 14 — polish/logging (14a: file logging + capture sound + About row — done; 14b: toast/Sonner + edge-case surfacing — pending)
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
 - [ ] Phase 16 — updater + ship
 
@@ -178,6 +178,13 @@ User enhancement on top of Phase 10: drop the per-save file dialog; persist a de
   - On `ready` boot, query `isEnabled()` from plugin (OS = source of truth) and reconcile store if drifted.
   - Toggle handler `applyAutostart(v)` calls `enable()` / `disable()` then writes store. Errors logged but don't roll back UI — user re-toggles.
 - **No onboarding wiring.** PLAN.md §13 mentions "and onboarding" optionally; deferred — Settings sufficient for acceptance + reduces onboarding clutter.
+
+### Phase 14a — logging + capture sound + About (2026-05-23)
+
+- **Always-on file logging** in [src-tauri/src/lib.rs](src-tauri/src/lib.rs). `tauri-plugin-log` writes to OS log dir (`~/Library/Logs/dev.baze.capz/` macOS, `%LOCALAPPDATA%\dev.baze.capz\logs\` Windows) + stdout. Level: Info in debug, Warn in release. 1 MB rotation, `KeepAll` strategy. Replaces previous debug-only registration.
+- **Capture sound** [src/lib/captureSound.ts](src/lib/captureSound.ts) — Web Audio API square-wave 1800 Hz, 100 ms with attack/decay envelope. No asset file. Editor page fires on `editor:load-image` event when `general.playSoundOnCapture === true`. Dynamic import keeps cold-start trim. Errors swallowed (autoplay policies / locked-down envs).
+- **About row** in Settings → General. Reads `getVersion()` + `getTauriVersion()` from `@tauri-apps/api/app`, renders `vX.Y.Z · Tauri X.Y.Z · <platform>` under the "Re-run onboarding" row.
+- **Deferred to Phase 14b:** Sonner toasts replacing inline `setToast`; surfacing hotkey-registration failures (currently only `log::error!`); recovery flow for capture-permission revoked mid-session; disk-full handling on save.
 
 ### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
 
