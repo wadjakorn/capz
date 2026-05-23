@@ -127,6 +127,20 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **`tauri-plugin-store` autoSave off, explicit `store.save()` per write** — `autoSave: true` debounces ~100 ms, which races a new editor window opening for the next capture. Switched to `autoSave: false` + awaited `save()` in `update`/`setLastUsed`/`reset` so `pins.lastUsedNumber` + `lastUsed.pin.color` are flushed to disk before the next window's `load()` reads them.
 - **Pin counter persisted across `applyFile` (Phase 11 single-editor)** — `useEditor.reset()` was zeroing `nextPinNumber` on every new image load, defeating `continuityMode: "continue"`. Removed `nextPinNumber: 1` from `reset()`; `editor/page.tsx applyFile` now re-derives the counter from `pins.continuityMode` + `pins.lastUsedNumber` after every image swap (cold-start + new capture + clipboard paste). `EditorStage` `pinInit` retained as cold-mount fallback.
 
+### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
+
+Full signing/notarization deferred (Apple Developer Program $99/yr not funded). Interim path landed so artifacts ship now and Phase 15 proper can layer on later.
+
+- **`.github/workflows/build.yml`** matrix:
+  - `macos-latest` → `aarch64-apple-darwin`
+  - `macos-13` → `x86_64-apple-darwin` (Intel — `macos-latest` is ARM-only)
+  - `windows-latest` → `x86_64-pc-windows-msvc`
+- **Tag-triggered release.** `push: tags: v*` runs the matrix + a `release` job that downloads all artifacts, computes `SHA256SUMS.txt`, opens a **draft** GitHub Release (manual publish gate).
+- **Secrets.** `TAURI_SIGNING_PRIVATE_KEY{,_PASSWORD}` referenced but undefined — empty secrets resolve to empty strings, Tauri skips updater bundle, build still succeeds. Wire real keypair before Phase 16.
+- **Homebrew Cask** ([packaging/homebrew-cask/capz.rb](packaging/homebrew-cask/capz.rb)) pulls dual-arch DMGs from GitHub Releases. `postflight` runs `xattr -dr com.apple.quarantine` so unsigned DMG opens without the Gatekeeper "could not verify" prompt on Sequoia 15+. README ([packaging/homebrew-cask/README.md](packaging/homebrew-cask/README.md)) documents personal-tap (`wadjakorn/homebrew-capz`) vs official `Homebrew/homebrew-cask` PR trade-offs.
+- **Windows**: MSI + NSIS unsigned. SmartScreen warns first run → "More info → Run anyway". EV code-sign cert (~$300/yr) deferred with macOS notarization.
+- **Remove later.** Once Phase 15 proper ships: delete `postflight xattr` from cask, add `xcrun stapler staple` step to release job, swap matrix to `--target universal-apple-darwin` before `macos-13` deprecates (Q4 2026 per GitHub roadmap).
+
 ## Phase renumbering — 2026-05-23
 
 Inserted new Phase 11 (Persistent Editor Workspace) after the existing Phase 10. Previous 11–15 shifted to 12–16. Mapping:

@@ -1150,6 +1150,8 @@ useEffect(() => {
 
 **Goal:** Signed, notarized builds ready for distribution.
 
+> **Interim status (2026-05-23):** unsigned dual-arch macOS + Windows CI builds wired in [.github/workflows/build.yml](.github/workflows/build.yml); tag `v*` drafts a GitHub Release. Free-distribution path via Homebrew Cask under [packaging/homebrew-cask/](packaging/homebrew-cask/) uses a `postflight xattr` to strip `com.apple.quarantine` (Gatekeeper bypass for unsigned builds). Tasks below describe the **signed/notarized** target state; once shipped, remove the cask `postflight` and add `stapler staple` to the release job. See PROGRESS.md → "Phase 15 — interim CI + free-distribution".
+
 **Tasks:**
 1. **macOS:**
    - Apple Developer ID Application certificate in keychain
