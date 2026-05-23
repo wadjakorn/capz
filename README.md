@@ -8,7 +8,14 @@ Tauri v2 · Rust · Next.js 15 (static export) · TypeScript · Tailwind 4 · sh
 
 ## Status
 
-Pre-implementation. Building per [PLAN.md](PLAN.md) phases 0–12.
+Shipping. macOS (arm64 + x64) + Windows (x64) builds released via GitHub. See [PROGRESS.md](PROGRESS.md) for phase log.
+
+## Install (macOS, Homebrew)
+
+```bash
+brew tap wadjakorn/capz
+brew install --cask capz
+```
 
 ## Develop
 
@@ -33,6 +40,12 @@ pnpm tauri build      # .app (macOS) / .msi (Windows)
 
 - Full screen: `CmdOrCtrl+Alt+Shift+3`
 - Area: `CmdOrCtrl+Alt+Shift+4`
+- Window: `CmdOrCtrl+Alt+Shift+5`
+- Show editor: `CmdOrCtrl+Alt+Shift+0`
+
+## Auto-update
+
+Background updater polls `https://wadjakorn.github.io/capz/latest.json` (signed via Ed25519 minisign). Manual: Settings → Updates → Check now.
 
 ## Docs
 

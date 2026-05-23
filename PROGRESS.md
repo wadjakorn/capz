@@ -318,6 +318,39 @@ User-noted enhancements deferred until Phase 14 (polish):
 5. ~~**Context-aware cursors.** Tool-specific cursors in editor: `crosshair` while dragging shape (rect/arrow/blur region), `pointer` for select/pin, `text` for text tool, `move` while dragging existing element. Currently default arrow everywhere. Set via inline `style.cursor` on `EditorStage` container based on active tool + drag state.~~ Done 2026-05-23 — tool-based cursorClass already covered select/text/crosshair; hover→pointer already wired; added stage `dragstart`/`dragend` listener → `grabbing` while moving existing element.
 6. **App + tray icon.** Replace Tauri default placeholder icons in [src-tauri/icons/](src-tauri/icons/) (32, 128, 128@2x, .icns, .ico) and tray icon. Generate dual-tone macOS template (black/transparent for menu bar auto-tint) + standard Windows multi-res .ico. Verify tray icon honors `set_icon_as_template(true)` on macOS so it inverts with menu bar theme.
 
+### Phase 17 — Appled UI tokens + new app/tray icons (2026-05-23)
+
+- **Design system.** Token rewrite in [src/app/globals.css](src/app/globals.css): swapped OKLCH neutrals for Apple-inspired palette (`#ffffff` / `#f5f5f7` / `#fbfbfd` surfaces, `#1d1d1f` foreground, `#0071e3` primary / `#0a84ff` dark, `#d2d2d7` hairline borders, 980px pill radius). Preserved shadcn variable names so downstream classes (`bg-card`, `text-muted-foreground`, `border-border`) keep working. Added Apple-style shadows + 4px focus halo. New `.eyebrow` utility class.
+- **Fonts.** [src/app/layout.tsx](src/app/layout.tsx) — swapped Geist → Inter + JetBrains Mono via `next/font/google`. Body stack falls back to `-apple-system, BlinkMacSystemFont` for native macOS feel.
+- **Button + Input.** [src/components/ui/button.tsx](src/components/ui/button.tsx): base `rounded-lg` → `rounded-full` pill, focus ring `ring-3 ring-ring/50` → `ring-4 ring-ring/30`. Default variant adopts Apple Blue hover/active states. [src/components/ui/input.tsx](src/components/ui/input.tsx): `h-9`, hairline border, 4px focus halo.
+- **Editor dark chrome preserved.** `src/components/editor/**` + `src/app/{editor,overlay}/page.tsx` keep `bg-neutral-900/95 text-neutral-200` — floats over screenshots, intentional.
+- **App icons.** Regenerated via `pnpm tauri icon /Users/.../icon_master_1024.png`. Overwrites `icons/{32x32,128x128,128x128@2x,icon}.png`, `icon.icns`, `icon.ico`, Windows Store `Square*Logo.png` set.
+- **Tray icons.** New monochrome PNG set in [src-tauri/icons/tray/](src-tauri/icons/tray/) (tray_{16,16@2x,22,22@2x,24,24@2x,32}.png). [src-tauri/src/tray.rs](src-tauri/src/tray.rs) replaces `app.default_window_icon()` with `tauri::image::Image::from_path()` resolving `tray_22@2x.png` via `BaseDirectory::Resource`. `.icon_as_template(true)` retained so macOS auto-inverts for light/dark menubar. `tauri.conf.json bundle.resources` extended with `"icons/tray/*.png"`.
+
+### Phase 18 — updater endpoint move to GitHub Pages (2026-05-23)
+
+**Problem.** v0.1.3 release published; v0.1.2 installed via brew cask. Settings → Updates → Check now produced `Update check failed — Could not fetch a valid release JSON from the remote`. App log: `tauri_plugin_updater::updater: update endpoint did not respond with a successful status code`. Manual curl of `https://github.com/wadjakorn/capz/releases/latest/download/latest.json` (same UA, same headers) returned `HTTP/2 200` with valid JSON. Pubkey matched between v0.1.2 binary and v0.1.3 release. Plugin version `2.10.1` is current on crates.io. Conclusion: `tauri-plugin-updater 2.10.1` cannot reliably follow GitHub's release-asset redirect chain (`github.com → release-assets.githubusercontent.com` presigned Azure-Blob URL) — likely rustls / CDN handshake quirk.
+
+**Fix.** Stop using GitHub release assets as the updater endpoint. Host `latest.json` on GitHub Pages — `*.github.io` returns the file directly with 200, no redirect.
+
+- **Endpoint flipped.** [src-tauri/tauri.conf.json](src-tauri/tauri.conf.json) `plugins.updater.endpoints[0]` → `https://wadjakorn.github.io/capz/latest.json`. Pubkey + installMode unchanged.
+- **gh-pages branch.** New orphan branch initialized with `index.html` placeholder + initial `latest.json` (`{"version":"0.0.0","platforms":{}}`). Repo Settings → Pages → source `gh-pages` / root.
+- **CI publish step.** [.github/workflows/build.yml](.github/workflows/build.yml) gains `publish-meta` job: `needs: build`, runs only on tag push, checks out gh-pages, downloads `latest.json` from the just-created (still-draft) GitHub Release via `gh release download`, commits + pushes. Runs in parallel with manual publish step — gh-pages reflects current tag's metadata even while release is still draft. Bundled `.app.tar.gz` URLs inside `latest.json` still point to release-assets CDN — those 404 until release is published (existing behavior).
+- **Compatibility window.** v0.1.2 + v0.1.3 installs both point to the old GitHub URL baked in binary — their auto-update path stays broken. v0.1.4 = first build with new endpoint; first end-to-end updater verification = v0.1.4 → v0.1.5.
+
+#### v0.1.3 release (2026-05-23, partial)
+
+- Tag pushed, CI matrix succeeded (mac-arm64, mac-x64, win-x64), assets signed + uploaded, release published.
+- Auto-update path from v0.1.2 failed (see above). Release otherwise sound — manual install works.
+- No code-level changes vs v0.1.2 in updater path; failure attributed to plugin-CDN interaction, not capz code.
+
+#### v0.1.4 release (2026-05-23, pending)
+
+- Bumped `package.json` + `src-tauri/tauri.conf.json` to 0.1.4.
+- First build under new GitHub Pages endpoint.
+- After tag push: matrix builds → `publish-meta` writes new `latest.json` to gh-pages → manual `gh release edit v0.1.4 --draft=false` → cask workflow updates tap.
+- Smoke test plan: reinstall v0.1.4 via brew, tag v0.1.5, verify Settings → Updates → Check now detects + installs.
+
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 
 - [x] **Output behavior:** default = **clipboard**. Settings mode = `file | clipboard | both` (replaces PLAN's `ask`).
