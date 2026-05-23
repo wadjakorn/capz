@@ -25,8 +25,8 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 12 — onboarding (TCC)
 - [x] Phase 13 — autostart
 - [x] Phase 14 — polish/logging (14a logging+sound+About, 14b sonner+notice channel, 14c error classification)
-- [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
-- [~] Phase 16 — updater + ship (16a scaffolded, 16b pubkey + secrets + background scheduler done; release pipeline test pending tag-push)
+- [x] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred — ad-hoc sign, Gatekeeper bypass via brew cask)
+- [x] Phase 16 — updater + ship (16a scaffolded, 16b pubkey + secrets + background scheduler done; v0.1.2 released via brew tap, auto-update smoke test deferred — no older build available)
 
 ## Deviations from PLAN.md
 
@@ -284,9 +284,18 @@ Source brief (verbatim, then refined):
 
 #### Phase 16b — remaining
 
-1. **End-to-end release test.** Tag-push `v0.1.1` (or similar bump) to trigger CI matrix → release job builds + signs updater artifacts → drafts GitHub Release. Verify `latest.json` lands at the configured endpoint. Then bump app version locally to a *lower* number, run prior-version build manually, install, and confirm auto-check picks up the newer release + prompts to install.
-2. **CI: confirm Tauri Action publishes `latest.json`.** Check current workflow ([.github/workflows/build.yml](.github/workflows/build.yml)) actually generates and uploads `latest.json` to the release. `tauri-apps/tauri-action` does this when `createUpdaterArtifacts: true` + `TAURI_SIGNING_PRIVATE_KEY` env is set — verify on first tag-push.
-3. **Key custody.** Confirm offline encrypted backup of `~/.tauri/capz-updater.key` (or whatever filename you used) is stored separately from password. SPOF — see CLAUDE.md.
+1. ~~End-to-end release test.~~ **DONE 2026-05-23** — v0.1.1 tag-push triggered CI matrix; `latest.json` + dmgs landed on release. v0.1.2 re-released after macos-13 runner fix.
+2. ~~CI: confirm Tauri Action publishes `latest.json`.~~ **DONE 2026-05-23** — confirmed live at `https://github.com/wadjakorn/capz/releases/latest/download/latest.json`.
+3. **Key custody.** Confirm offline encrypted backup of `~/.tauri/capz-updater.key` stored separately from password. SPOF — see CLAUDE.md. *(user task — not code)*
+4. **Auto-update smoke test deferred.** Oldest available build = v0.1.2. Re-run on next bump (v0.1.3) by keeping v0.1.2 dmg on hand to install → trigger update prompt → verify install + relaunch.
+
+### Phase 15/16 — ship (2026-05-23)
+
+- **v0.1.1 release.** First tag-push. CI matrix built mac-arm64, mac-x64, windows-x64. Updater artifacts + `latest.json` signed and uploaded. Mac-x64 matrix job stuck >12h waiting for `macos-13` runner (GitHub Intel runner deprecation/scarcity).
+- **v0.1.2 release — macos-13 runner fix.** Switched x86_64-apple-darwin matrix entry from `os: macos-13` → `os: macos-latest` (arm64 host) + cross-compile via `--target x86_64-apple-darwin`. dtolnay/rust-toolchain installs target. Bundler cross-compiles within same OS family. Both mac jobs now share runner pool. File: [.github/workflows/build.yml](.github/workflows/build.yml).
+- **Homebrew distribution.** Created tap `wadjakorn/homebrew-capz` with `Casks/capz.rb`. Install: `brew tap wadjakorn/capz && brew install --cask capz`. Cask handles Gatekeeper quarantine attribute removal automatically for ad-hoc signed app.
+- **Auto-publish cask.** [.github/workflows/update-cask.yml](.github/workflows/update-cask.yml) fires on `release: published` (+ `workflow_dispatch`). Downloads both dmgs from release, computes SHA256, regex-patches `Casks/capz.rb` in tap repo via cross-repo PAT (`HOMEBREW_TAP_TOKEN`, fine-grained, Contents:write on tap only), commits + pushes. Initial v0.1.2 publish required manual `workflow_dispatch` since workflow file landed after release published; subsequent releases fire automatically.
+- **Install verified.** `brew install --cask capz` works end-to-end on macOS arm64. Note: stale local tap clone shows placeholder SHAs → `brew update` (or untap+retap) pulls latest.
 
 ## Backlog — editor close/show UX (noted 2026-05-23)
 

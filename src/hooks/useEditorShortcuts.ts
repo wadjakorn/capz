@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useEditor, type Tool } from "@/stores/editor";
+
+const ESC_HIDE_WINDOW_MS = 2000;
+const ESC_TOAST_ID = "editor-esc-hide-arm";
 
 const TOOL_KEYS: Record<string, Tool> = {
   v: "select",
@@ -25,6 +29,7 @@ export function useEditorShortcuts() {
   const remove = useEditor((s) => s.remove);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
+  const escArmedAt = useRef<number>(0);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -44,8 +49,29 @@ export function useEditorShortcuts() {
 
       if (key === "escape") {
         e.preventDefault();
-        select(null);
-        setTool("select");
+        const { selectedId } = useEditor.getState();
+        if (selectedId) {
+          escArmedAt.current = 0;
+          toast.dismiss(ESC_TOAST_ID);
+          select(null);
+          return;
+        }
+        // No selection → double-Esc hides window.
+        const now = Date.now();
+        if (escArmedAt.current && now - escArmedAt.current <= ESC_HIDE_WINDOW_MS) {
+          escArmedAt.current = 0;
+          toast.dismiss(ESC_TOAST_ID);
+          void (async () => {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window");
+            await getCurrentWindow().hide();
+          })();
+          return;
+        }
+        escArmedAt.current = now;
+        toast("Press Esc again to hide editor", {
+          id: ESC_TOAST_ID,
+          duration: ESC_HIDE_WINDOW_MS,
+        });
         return;
       }
 
