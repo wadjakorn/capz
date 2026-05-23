@@ -54,3 +54,8 @@ pub fn open_system_settings_screen_recording() -> Result<(), String> {
 pub fn relaunch_app(app: AppHandle) {
     app.restart();
 }
+
+#[tauri::command]
+pub fn show_onboarding_window(app: AppHandle) -> Result<(), String> {
+    crate::windows::show_onboarding(&app).map_err(|e| e.to_string())
+}

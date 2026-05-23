@@ -48,6 +48,7 @@ pub fn run() {
             commands::permissions::request_screen_recording_permission,
             commands::permissions::open_system_settings_screen_recording,
             commands::permissions::relaunch_app,
+            commands::permissions::show_onboarding_window,
         ])
         .manage(state::AppState::default())
         .setup(|app| {

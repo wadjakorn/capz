@@ -276,6 +276,28 @@ export default function SettingsPage() {
             checked={config.general.rememberLastTool}
             onChange={(v) => update("general", { rememberLastTool: v })}
           />
+          <div className="flex items-center justify-between border-t pt-4">
+            <div className="grid gap-0.5">
+              <Label>Re-run onboarding</Label>
+              <span className="text-xs text-muted-foreground">
+                Opens the welcome / permissions flow again.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                await update("general", { onboardingCompleted: false });
+                try {
+                  await invoke("show_onboarding_window");
+                } catch (e) {
+                  console.error("show_onboarding_window failed", e);
+                }
+              }}
+              className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              Re-run
+            </button>
+          </div>
         </TabsContent>
       </Tabs>
     </main>
