@@ -144,6 +144,25 @@ export function EditorStage({ src }: Props) {
     return () => setStage(null);
   }, [image]);
 
+  // Cursor: switch to grabbing while dragging an existing element.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const container = stage.container();
+    const onStart = () => {
+      container.style.cursor = "grabbing";
+    };
+    const onEnd = () => {
+      container.style.cursor = "";
+    };
+    stage.on("dragstart", onStart);
+    stage.on("dragend", onEnd);
+    return () => {
+      stage.off("dragstart", onStart);
+      stage.off("dragend", onEnd);
+    };
+  }, [image]);
+
   const pinInit = useRef(false);
   useEffect(() => {
     if (!settingsReady || pinInit.current) return;
