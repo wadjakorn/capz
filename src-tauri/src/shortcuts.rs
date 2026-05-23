@@ -11,6 +11,7 @@ const STORE_KEY: &str = "app";
 const DEFAULT_FULL: &str = "CmdOrCtrl+Alt+Shift+3";
 const DEFAULT_AREA: &str = "CmdOrCtrl+Alt+Shift+4";
 const DEFAULT_WINDOW: &str = "CmdOrCtrl+Alt+Shift+5";
+const DEFAULT_SHOW_EDITOR: &str = "CmdOrCtrl+Alt+Shift+0";
 
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -25,7 +26,7 @@ struct ShortcutPayload {
     kind: CaptureKind,
 }
 
-fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String) {
+fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, String) {
     let store = match app.store(STORE_FILE) {
         Ok(s) => s,
         Err(_) => {
@@ -33,6 +34,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String) {
                 DEFAULT_FULL.into(),
                 DEFAULT_AREA.into(),
                 DEFAULT_WINDOW.into(),
+                DEFAULT_SHOW_EDITOR.into(),
             )
         }
     };
@@ -40,6 +42,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String) {
     let mut full = DEFAULT_FULL.to_string();
     let mut area = DEFAULT_AREA.to_string();
     let mut window = DEFAULT_WINDOW.to_string();
+    let mut show_editor = DEFAULT_SHOW_EDITOR.to_string();
     if let Some(v) = value {
         if let Some(hk) = v.get("hotkeys") {
             if let Some(s) = hk.get("captureFull").and_then(|x| x.as_str()) {
@@ -51,13 +54,16 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String) {
             if let Some(s) = hk.get("captureWindow").and_then(|x| x.as_str()) {
                 window = s.to_string();
             }
+            if let Some(s) = hk.get("showEditor").and_then(|x| x.as_str()) {
+                show_editor = s.to_string();
+            }
         }
     }
-    (full, area, window)
+    (full, area, window, show_editor)
 }
 
 pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let (full, area, window) = read_hotkeys(app);
+    let (full, area, window, show_editor) = read_hotkeys(app);
     let gs = app.global_shortcut();
 
     gs.unregister_all().map_err(|e| e.to_string())?;
@@ -65,6 +71,7 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> 
     let full_shortcut: Shortcut = full.parse().map_err(|e| format!("{e:?}"))?;
     let area_shortcut: Shortcut = area.parse().map_err(|e| format!("{e:?}"))?;
     let window_shortcut: Shortcut = window.parse().map_err(|e| format!("{e:?}"))?;
+    let show_editor_shortcut: Shortcut = show_editor.parse().map_err(|e| format!("{e:?}"))?;
 
     let app_for_full = app.clone();
     gs.on_shortcut(full_shortcut, move |_app, _sc, event| {
@@ -96,6 +103,20 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> 
     })
     .map_err(|e| {
         log::error!("failed to register window shortcut '{window}': {e}");
+        e.to_string()
+    })?;
+
+    let app_for_show = app.clone();
+    gs.on_shortcut(show_editor_shortcut, move |_app, _sc, event| {
+        if event.state == ShortcutState::Pressed {
+            log::info!("shortcut triggered: show_editor");
+            if let Err(e) = windows::show_editor(&app_for_show) {
+                log::error!("show_editor failed: {e}");
+            }
+        }
+    })
+    .map_err(|e| {
+        log::error!("failed to register show_editor shortcut '{show_editor}': {e}");
         e.to_string()
     })?;
 

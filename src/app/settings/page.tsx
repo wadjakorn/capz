@@ -20,7 +20,12 @@ import {
 
 async function applyHotkey(
   update: ReturnType<typeof useSettings.getState>["update"],
-  patch: { captureFull?: string; captureArea?: string; captureWindow?: string },
+  patch: {
+    captureFull?: string;
+    captureArea?: string;
+    captureWindow?: string;
+    showEditor?: string;
+  },
 ) {
   await update("hotkeys", patch);
   try {
@@ -125,6 +130,13 @@ export default function SettingsPage() {
             <HotkeyRecorder
               value={config.hotkeys.captureWindow}
               onChange={(v) => applyHotkey(update, { captureWindow: v })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Show editor</Label>
+            <HotkeyRecorder
+              value={config.hotkeys.showEditor}
+              onChange={(v) => applyHotkey(update, { showEditor: v })}
             />
           </div>
         </TabsContent>

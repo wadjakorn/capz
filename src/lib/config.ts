@@ -12,6 +12,7 @@ export type AppConfig = {
     captureFull: string;
     captureArea: string;
     captureWindow: string;
+    showEditor: string;
   };
   output: {
     defaultMode: "file" | "clipboard" | "both";
@@ -70,6 +71,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureFull: "CmdOrCtrl+Alt+Shift+3",
     captureArea: "CmdOrCtrl+Alt+Shift+4",
     captureWindow: "CmdOrCtrl+Alt+Shift+5",
+    showEditor: "CmdOrCtrl+Alt+Shift+0",
   },
   output: {
     defaultMode: "clipboard",
