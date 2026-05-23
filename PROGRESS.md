@@ -230,6 +230,16 @@ Source brief (verbatim, then refined):
 5c. (added 2026-05-22) all elements rotatable → Phase 9, `rotation` field on every annotation; pin numeral counter-rotates to stay upright.
 6. Ctrl+C copy + button separate from Save → Phase 10 dedicated Copy action with editor-scoped `CmdOrCtrl+C` handler; splits Save/Copy/Save&Copy.
 
+## Backlog — editor close/show UX (noted 2026-05-23)
+
+User-noted enhancements deferred until after Phase 13:
+
+1. **Editor hide/close shortcut.** `Esc` when nothing selected → hide editor (matches current persistent-workspace semantics from Phase 11). Currently `Esc` only deselects. Guard: skip when text-edit caret active or selection non-empty (Esc keeps deselect role first).
+2. **Editor show/open shortcut.** Global hotkey to focus/show editor without going through tray. Likely default `CmdOrCtrl+Alt+Shift+0` or similar; user-configurable in Settings → Shortcuts. Wires into existing `windows::show_editor` path.
+3. **Pre-close action.** Settings toggle: when editor closes/hides, optionally run Save / Copy / Save+Copy first (mirrors toolbar `output.defaultMode`). Lets keyboard-only workflow capture → annotate → `Esc` → done. Default off (preserves current behavior). New config field e.g. `general.closeAction: "none" | "save" | "copy" | "both"`.
+
+Wire all three together: shortcut #1 fires → if `closeAction` set, run export pipeline → then hide. Shortcut #2 unmodified.
+
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 
 - [x] **Output behavior:** default = **clipboard**. Settings mode = `file | clipboard | both` (replaces PLAN's `ask`).
