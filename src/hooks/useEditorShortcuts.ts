@@ -62,6 +62,8 @@ export function useEditorShortcuts() {
           escArmedAt.current = 0;
           toast.dismiss(ESC_TOAST_ID);
           void (async () => {
+            const { runPreCloseAction } = await import("@/lib/preClose");
+            await runPreCloseAction();
             const { getCurrentWindow } = await import("@tauri-apps/api/window");
             await getCurrentWindow().hide();
           })();

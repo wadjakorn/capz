@@ -311,6 +311,28 @@ export default function SettingsPage() {
             checked={config.general.rememberLastTool}
             onChange={(v) => update("general", { rememberLastTool: v })}
           />
+          <div className="flex items-center justify-between">
+            <div className="grid gap-0.5">
+              <Label>On editor close/hide</Label>
+              <span className="text-xs text-muted-foreground">
+                Run an export action when the editor window is closed or Esc-hidden.
+              </span>
+            </div>
+            <select
+              className="rounded border bg-background px-2 py-1.5 text-sm"
+              value={config.general.closeAction}
+              onChange={(e) =>
+                update("general", {
+                  closeAction: e.target.value as "none" | "copy" | "file" | "both",
+                })
+              }
+            >
+              <option value="none">Nothing</option>
+              <option value="copy">Copy to clipboard</option>
+              <option value="file">Save to file</option>
+              <option value="both">Save & Copy</option>
+            </select>
+          </div>
           <ToggleRow
             label="Editor window always on top"
             checked={config.general.alwaysOnTopEditor}

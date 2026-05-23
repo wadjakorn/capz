@@ -303,7 +303,7 @@ User-noted enhancements deferred until after Phase 13:
 
 1. **Editor hide/close shortcut.** `Esc` when nothing selected → hide editor (matches current persistent-workspace semantics from Phase 11). Currently `Esc` only deselects. Guard: skip when text-edit caret active or selection non-empty (Esc keeps deselect role first).
 2. **Editor show/open shortcut.** Global hotkey to focus/show editor without going through tray. Likely default `CmdOrCtrl+Alt+Shift+0` or similar; user-configurable in Settings → Shortcuts. Wires into existing `windows::show_editor` path.
-3. **Pre-close action.** Settings toggle: when editor closes/hides, optionally run Save / Copy / Save+Copy first (mirrors toolbar `output.defaultMode`). Lets keyboard-only workflow capture → annotate → `Esc` → done. Default off (preserves current behavior). New config field e.g. `general.closeAction: "none" | "save" | "copy" | "both"`.
+3. ~~**Pre-close action.** Settings toggle: when editor closes/hides, optionally run Save / Copy / Save+Copy first (mirrors toolbar `output.defaultMode`). Lets keyboard-only workflow capture → annotate → `Esc` → done. Default off (preserves current behavior). New config field e.g. `general.closeAction: "none" | "save" | "copy" | "both"`.~~ Done 2026-05-23 — `general.closeAction` config field (none/copy/file/both, default none), Settings → General dropdown, shared `runPreCloseAction()` helper invoked from both window close-requested and double-Esc-hide paths.
 
 Wire all three together: shortcut #1 fires → if `closeAction` set, run export pipeline → then hide. Shortcut #2 unmodified.
 

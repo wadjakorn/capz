@@ -65,6 +65,7 @@ export default function EditorPage() {
   }, [applyFile]);
 
   // Hide-on-close: workspace persists until app quit.
+  // If general.closeAction is set, run the export action first, then hide.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
@@ -72,7 +73,11 @@ export default function EditorPage() {
       const win = getCurrentWindow();
       unlisten = await win.onCloseRequested((e) => {
         e.preventDefault();
-        void win.hide();
+        void (async () => {
+          const { runPreCloseAction } = await import("@/lib/preClose");
+          await runPreCloseAction();
+          await win.hide();
+        })();
       });
     })();
     return () => unlisten?.();
