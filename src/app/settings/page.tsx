@@ -99,6 +99,7 @@ export default function SettingsPage() {
           <TabsTrigger value="pins">Pins</TabsTrigger>
           <TabsTrigger value="tools">Tools</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="updates">Updates</TabsTrigger>
           <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
 
@@ -272,6 +273,10 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
+        <TabsContent value="updates" className="grid gap-4 pt-4">
+          <UpdatesTab />
+        </TabsContent>
+
         <TabsContent value="debug" className="grid gap-3 pt-4">
           <CaptureDebug />
         </TabsContent>
@@ -395,6 +400,79 @@ function CaptureDebug() {
         {out || "click a button…"}
       </pre>
     </div>
+  );
+}
+
+function UpdatesTab() {
+  const { config, update } = useSettings();
+  const [checking, setChecking] = useState(false);
+  const u = config.updates;
+
+  const lastChecked = u.lastCheckedAt
+    ? new Date(u.lastCheckedAt).toLocaleString()
+    : "never";
+
+  async function onCheckNow() {
+    setChecking(true);
+    try {
+      const { checkForUpdates, promptAndInstall } = await import("@/lib/updater");
+      const r = await checkForUpdates();
+      if (r.kind === "none") toast("You are on the latest version.");
+      else if (r.kind === "error") toast.error("Update check failed", { description: r.error });
+      else await promptAndInstall(r);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <>
+      <ToggleRow
+        label="Automatically check for updates"
+        checked={u.autoCheck}
+        onChange={(v) => update("updates", { autoCheck: v })}
+      />
+      <div className="grid gap-2">
+        <Label>Check interval</Label>
+        <select
+          className="rounded border bg-background px-2 py-1.5 text-sm"
+          value={u.checkIntervalHours}
+          onChange={(e) =>
+            update("updates", { checkIntervalHours: Number(e.target.value) })
+          }
+        >
+          <option value={6}>Every 6 hours</option>
+          <option value={24}>Every 24 hours</option>
+          <option value={168}>Every 7 days</option>
+        </select>
+      </div>
+      <div className="flex items-center justify-between border-t pt-4">
+        <div className="grid gap-0.5">
+          <Label>Last checked</Label>
+          <span className="text-xs text-muted-foreground">{lastChecked}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onCheckNow}
+          disabled={checking}
+          className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+        >
+          {checking ? "Checking…" : "Check now"}
+        </button>
+      </div>
+      {u.skippedVersion && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Skipped version: {u.skippedVersion}</span>
+          <button
+            type="button"
+            onClick={() => update("updates", { skippedVersion: null })}
+            className="underline hover:text-foreground"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

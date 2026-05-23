@@ -26,7 +26,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 13 — autostart
 - [x] Phase 14 — polish/logging (14a logging+sound+About, 14b sonner+notice channel, 14c error classification)
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
-- [ ] Phase 16 — updater + ship
+- [~] Phase 16 — updater + ship (16a scaffolded; 16b blocked on Ed25519 key gen + GitHub secrets)
 
 ## Deviations from PLAN.md
 
@@ -263,6 +263,24 @@ Source brief (verbatim, then refined):
 5b. (added 2026-05-22) auto-select latest placed element → Phase 9, transformer attaches on commit.
 5c. (added 2026-05-22) all elements rotatable → Phase 9, `rotation` field on every annotation; pin numeral counter-rotates to stay upright.
 6. Ctrl+C copy + button separate from Save → Phase 10 dedicated Copy action with editor-scoped `CmdOrCtrl+C` handler; splits Save/Copy/Save&Copy.
+
+### Phase 16a — updater plugin scaffold (2026-05-23)
+
+- **Plugins added.** `tauri-plugin-updater` + `tauri-plugin-process` via `pnpm tauri add`. Capability `updater:default` auto-added to `desktop.json`; `process:allow-restart` added manually (process plugin doesn't auto-wire capability).
+- **`AppConfig.updates`** field — `autoCheck: bool`, `checkIntervalHours: number`, `channel: "stable" | "beta"`, `skippedVersion: string|null`, `lastCheckedAt: number|null`. Merger in `stores/settings.ts` extended.
+- **`src/lib/updater.ts`** — `checkForUpdates()` wraps `@tauri-apps/plugin-updater` and returns uniform `{ kind }` discriminated union; `promptAndInstall(available)` opens native `ask` dialog (Install / Later), runs `downloadAndInstall` + `relaunch` on confirm; `skipVersion(v)` writes to store and is honored by promptAndInstall.
+- **Settings → Updates tab.** Toggle for auto-check, interval selector (6h / 24h / 7d), "Check now" button, last-checked timestamp, skipped-version display with Clear.
+- **`tauri.conf.json`** — `bundle.createUpdaterArtifacts: true`; `plugins.updater.endpoints: ["https://github.com/wadjakorn/capz/releases/latest/download/latest.json"]`; `pubkey: ""` placeholder; Windows `installMode: "passive"`.
+
+#### Phase 16b — pending (blocked on user action — see CLAUDE.md SPOF warning)
+
+1. Generate keypair: `pnpm tauri signer generate -w ~/.tauri/capz-updater.key` (note: PLAN.md uses `shotr-updater.key` but project rebranded; rename to `capz-updater.key` for clarity). Strong password. Store in 1Password/Bitwarden with ≥2 team-member access + offline backup. **NEVER commit.**
+2. Paste `~/.tauri/capz-updater.key.pub` content into `tauri.conf.json` `plugins.updater.pubkey`.
+3. Add GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` (file content) + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Secrets already referenced in [.github/workflows/build.yml](.github/workflows/build.yml) Phase 15 interim — populate them.
+4. Tag-push triggers release; `latest.json` is published by Tauri Action alongside DMG/MSI.
+5. **Background auto-check scheduler** also deferred — currently only manual "Check now" runs. PLAN §16.8 calls for tokio task in `setup` emitting `updater://check-now` event on interval; needs a listener in the editor window (settings may be hidden when interval fires).
+
+Until 16b lands, `check()` will fail at runtime with empty pubkey — toast surfaces error.
 
 ## Backlog — editor close/show UX (noted 2026-05-23)
 

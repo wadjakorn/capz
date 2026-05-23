@@ -53,6 +53,13 @@ export type AppConfig = {
   capture: {
     tempJpegQuality: number;
   };
+  updates: {
+    autoCheck: boolean;
+    checkIntervalHours: number;
+    channel: "stable" | "beta";
+    skippedVersion: string | null;
+    lastCheckedAt: number | null;
+  };
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -90,6 +97,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   capture: {
     tempJpegQuality: 85,
+  },
+  updates: {
+    autoCheck: true,
+    checkIntervalHours: 24,
+    channel: "stable",
+    skippedVersion: null,
+    lastCheckedAt: null,
   },
 };
 
