@@ -36,6 +36,7 @@ export type AppConfig = {
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
+    editorWindow: { width: number; height: number };
   };
   lastUsed?: {
     tool?: Tool;
@@ -95,6 +96,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
     closeAction: "none",
+    editorWindow: { width: 1024, height: 680 },
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },

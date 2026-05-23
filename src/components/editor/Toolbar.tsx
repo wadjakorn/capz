@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
-import { getStage } from "@/lib/stageBridge";
+import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
@@ -366,6 +366,9 @@ export function Toolbar() {
     const stage = getStage();
     if (!stage || exporting) return;
     setExporting(true);
+    // WYSIWYG: commit pending text edit + clear selection so transformer UI
+    // doesn't get baked into the exported PNG.
+    runPrepareExport();
     try {
       const r =
         action === "copy"
@@ -385,8 +388,12 @@ export function Toolbar() {
     }
   };
 
+  const hasOptionsRow =
+    !!(colorCtx || widthCtx || sizeCtx) || tool === "pin" || tool === "sticker";
+
   return (
-    <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 [&>*]:shrink-0">
+    <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 max-h-[40vh] overflow-y-auto">
+      <div className="flex flex-wrap items-center gap-1">
       {TOOLS.map((t) => {
         const active = tool === t.id;
         const Icon = t.icon;
@@ -465,9 +472,11 @@ export function Toolbar() {
           </div>
         );
       })()}
+      </div>
+      {hasOptionsRow && (
+      <div className="flex flex-wrap items-center gap-1 border-t border-neutral-800 pt-1">
       {colorCtx && (
         <>
-          <div className="mx-2 h-5 w-px bg-neutral-800" />
           <label
             className="flex items-center gap-1.5 text-xs text-neutral-300"
             title={selected ? "Edit selected element color" : "Default color for next element"}
@@ -485,7 +494,6 @@ export function Toolbar() {
       )}
       {widthCtx && (
         <>
-          <div className="mx-2 h-5 w-px bg-neutral-800" />
           <label
             className="flex items-center gap-1.5 text-xs text-neutral-300"
             title={`${widthCtx.label}: [/]`}
@@ -496,17 +504,16 @@ export function Toolbar() {
               min={widthCtx.min}
               max={widthCtx.max}
               step={widthCtx.step}
-              value={widthCtx.value}
+              value={Math.round(widthCtx.value)}
               onChange={(e) => widthCtx!.onChange(parseInt(e.target.value, 10))}
               className="h-1 w-24 cursor-pointer accent-neutral-200"
             />
-            <span className="w-6 text-right tabular-nums">{widthCtx.value}</span>
+            <span className="w-6 text-right tabular-nums">{Math.round(widthCtx.value)}</span>
           </label>
         </>
       )}
       {sizeCtx && (
         <>
-          <div className="mx-2 h-5 w-px bg-neutral-800" />
           <label
             className="flex items-center gap-1.5 text-xs text-neutral-300"
             title={`${sizeCtx.label}: -/+`}
@@ -517,17 +524,16 @@ export function Toolbar() {
               min={sizeCtx.min}
               max={sizeCtx.max}
               step={sizeCtx.step}
-              value={sizeCtx.value}
+              value={Math.round(sizeCtx.value)}
               onChange={(e) => sizeCtx!.onChange(parseInt(e.target.value, 10))}
               className="h-1 w-24 cursor-pointer accent-neutral-200"
             />
-            <span className="w-8 text-right tabular-nums">{sizeCtx.value}</span>
+            <span className="w-8 text-right tabular-nums">{Math.round(sizeCtx.value)}</span>
           </label>
         </>
       )}
       {tool === "pin" && (
         <>
-          <div className="mx-2 h-5 w-px bg-neutral-800" />
           <div className="flex items-center gap-2 text-xs text-neutral-300">
             <label className="flex items-center gap-1">
               Next:
@@ -576,7 +582,6 @@ export function Toolbar() {
       )}
       {tool === "sticker" && (
         <>
-          <div className="mx-2 h-5 w-px bg-neutral-800" />
           <div className="flex items-center gap-0.5">
             {STICKERS.map((c) => {
               const active = stickerChar === c;
@@ -597,6 +602,8 @@ export function Toolbar() {
             })}
           </div>
         </>
+      )}
+      </div>
       )}
     </div>
   );

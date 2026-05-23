@@ -235,10 +235,11 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     }
 
+    let (w, h) = read_editor_window_size(app);
     WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("editor/".into()))
         .title("capz — Editor")
-        .inner_size(1100.0, 760.0)
-        .min_inner_size(640.0, 480.0)
+        .inner_size(w, h)
+        .min_inner_size(1024.0, 680.0)
         .resizable(true)
         .visible(true)
         .build()?;
@@ -249,6 +250,28 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         let _ = win.set_always_on_top(read_always_on_top_editor(app));
     }
     Ok(())
+}
+
+fn read_editor_window_size<R: Runtime>(app: &AppHandle<R>) -> (f64, f64) {
+    let default = (1024.0_f64, 680.0_f64);
+    let Ok(store) = app.store("config.json") else {
+        return default;
+    };
+    let Some(v) = store.get("app") else {
+        return default;
+    };
+    let ew = v.get("general").and_then(|g| g.get("editorWindow"));
+    let w = ew
+        .and_then(|e| e.get("width"))
+        .and_then(|n| n.as_f64())
+        .unwrap_or(default.0)
+        .max(1024.0);
+    let h = ew
+        .and_then(|e| e.get("height"))
+        .and_then(|n| n.as_f64())
+        .unwrap_or(default.1)
+        .max(680.0);
+    (w, h)
 }
 
 fn read_always_on_top_editor<R: Runtime>(app: &AppHandle<R>) -> bool {

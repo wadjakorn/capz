@@ -25,7 +25,7 @@ import {
   type PinAnnotation,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
-import { setStage } from "@/lib/stageBridge";
+import { setStage, setPrepareExport } from "@/lib/stageBridge";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 
 type Props = { src: string };
@@ -333,6 +333,32 @@ export function EditorStage({ src }: Props) {
     setTextEditor(null);
   }
 
+  // Register a synchronous pre-export hook so Save/Copy from the toolbar
+  // produces a WYSIWYG image: commit any in-flight text edit, clear selection,
+  // and force-clear transformer nodes before the next paint/toDataURL.
+  const commitTextRef = useRef(commitTextEditor);
+  commitTextRef.current = commitTextEditor;
+  const textEditorOpenRef = useRef(textEditor !== null);
+  textEditorOpenRef.current = textEditor !== null;
+  useEffect(() => {
+    setPrepareExport(() => {
+      if (textEditorOpenRef.current) commitTextRef.current();
+      useEditor.getState().select(null);
+      const tr = trRef.current;
+      const htr = hoverTrRef.current;
+      if (tr) {
+        tr.nodes([]);
+        tr.getLayer()?.batchDraw();
+      }
+      if (htr) {
+        htr.nodes([]);
+        htr.getLayer()?.batchDraw();
+      }
+      setHoveredId(null);
+    });
+    return () => setPrepareExport(null);
+  }, []);
+
   function handleMouseMove() {
     if (!draft) return;
     const p = getPointer();
@@ -633,10 +659,10 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
         node.scaleX(1);
         node.scaleY(1);
         ctx.onChange({
-          x: node.x(),
-          y: node.y(),
-          w: Math.max(2, node.width() * sx),
-          h: Math.max(2, node.height() * sy),
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          w: Math.round(Math.max(2, node.width() * sx)),
+          h: Math.round(Math.max(2, node.height() * sy)),
           rotation: node.rotation(),
         });
       }}
@@ -721,7 +747,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         node.scaleX(1);
         node.scaleY(1);
         ctx.onChange({
-          fontSize: Math.max(8, a.fontSize * sx),
+          fontSize: Math.round(Math.max(8, a.fontSize * sx)),
           rotation: node.rotation(),
         });
       }}
@@ -771,10 +797,10 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
         node.scaleX(1);
         node.scaleY(1);
         ctx.onChange({
-          x: node.x(),
-          y: node.y(),
-          w: Math.max(4, a.w * sx),
-          h: Math.max(4, a.h * sy),
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          w: Math.round(Math.max(4, a.w * sx)),
+          h: Math.round(Math.max(4, a.h * sy)),
           rotation: node.rotation(),
         });
       }}
@@ -815,9 +841,9 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         node.scaleX(1);
         node.scaleY(1);
         ctx.onChange({
-          x: node.x(),
-          y: node.y(),
-          size: Math.max(12, a.size * sx),
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          size: Math.round(Math.max(12, a.size * sx)),
           rotation: node.rotation(),
         });
       }}
@@ -871,7 +897,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         node.scaleX(1);
         node.scaleY(1);
         ctx.onChange({
-          fontSize: Math.max(12, a.fontSize * sx),
+          fontSize: Math.round(Math.max(12, a.fontSize * sx)),
           rotation: node.rotation(),
         });
       }}

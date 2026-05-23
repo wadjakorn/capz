@@ -387,6 +387,43 @@ export default function SettingsPage() {
               }
             }}
           />
+          <div className="flex items-center justify-between">
+            <div className="grid gap-0.5">
+              <Label>Editor window default size</Label>
+              <span className="text-xs text-muted-foreground">
+                Initial width × height (px). Applies the next time the editor opens. Min 1024 × 680.
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={1024}
+                step={8}
+                value={config.general.editorWindow.width}
+                onChange={(e) => {
+                  const w = Math.max(1024, parseInt(e.target.value, 10) || 1024);
+                  update("general", {
+                    editorWindow: { width: w, height: config.general.editorWindow.height },
+                  });
+                }}
+                className="w-20 rounded border bg-background px-2 py-1 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">×</span>
+              <input
+                type="number"
+                min={680}
+                step={8}
+                value={config.general.editorWindow.height}
+                onChange={(e) => {
+                  const h = Math.max(680, parseInt(e.target.value, 10) || 680);
+                  update("general", {
+                    editorWindow: { width: config.general.editorWindow.width, height: h },
+                  });
+                }}
+                className="w-20 rounded border bg-background px-2 py-1 text-sm"
+              />
+            </div>
+          </div>
           <div className="flex items-center justify-between border-t pt-4">
             <div className="grid gap-0.5">
               <Label>Re-run onboarding</Label>
