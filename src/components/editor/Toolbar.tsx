@@ -15,6 +15,10 @@ import {
   Copy as CopyIcon,
   Save,
   SaveAll,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
   type LucideIcon,
 } from "lucide-react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
@@ -41,6 +45,44 @@ const EXPORT_ICONS: Record<"copy" | "file" | "both", LucideIcon> = {
   file: Save,
   both: SaveAll,
 };
+
+const FONT_FAMILIES: { label: string; value: string }[] = [
+  { label: "Sans", value: "system-ui, sans-serif" },
+  { label: "Serif", value: "serif" },
+  { label: "Mono", value: "ui-monospace, monospace" },
+  { label: "Cursive", value: "cursive" },
+];
+
+type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
+type TextDecoration =
+  | ""
+  | "underline"
+  | "line-through"
+  | "underline line-through";
+
+function withBold(s: TextFontStyle, on: boolean): TextFontStyle {
+  const italic = s.includes("italic");
+  if (on) return italic ? "italic bold" : "bold";
+  return italic ? "italic" : "normal";
+}
+function withItalic(s: TextFontStyle, on: boolean): TextFontStyle {
+  const bold = s.includes("bold");
+  if (on) return bold ? "italic bold" : "italic";
+  return bold ? "bold" : "normal";
+}
+function withDeco(
+  d: TextDecoration,
+  which: "underline" | "line-through",
+  on: boolean,
+): TextDecoration {
+  const has = (k: "underline" | "line-through") => d.includes(k);
+  const u = which === "underline" ? on : has("underline");
+  const s = which === "line-through" ? on : has("line-through");
+  if (u && s) return "underline line-through";
+  if (u) return "underline";
+  if (s) return "line-through";
+  return "";
+}
 
 export function Toolbar() {
   const tool = useEditor((s) => s.tool);
@@ -98,9 +140,21 @@ export function Toolbar() {
     step: number;
     onChange: (v: number) => void;
   };
+  type TextStyleCtx = {
+    fontStyle: TextFontStyle;
+    textDecoration: TextDecoration;
+    fontFamily: string;
+    backgroundColor: string | null;
+    setFontStyle: (v: TextFontStyle) => void;
+    setTextDecoration: (v: TextDecoration) => void;
+    setFontFamily: (v: string) => void;
+    setBackgroundColor: (v: string | null) => void;
+  };
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
+  let textStyleCtx: TextStyleCtx | null = null;
+  let pinLabelCtx: ColorCtx | null = null;
 
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
@@ -127,13 +181,21 @@ export function Toolbar() {
         },
       };
     } else if (selected.type === "text") {
+      const baseText = () => ({
+        fontSize: toolsCfg.text.fontSize,
+        color: toolsCfg.text.color,
+        fontStyle: toolsCfg.text.fontStyle,
+        textDecoration: toolsCfg.text.textDecoration,
+        fontFamily: toolsCfg.text.fontFamily,
+        backgroundColor: toolsCfg.text.backgroundColor,
+      });
       colorCtx = {
         label: "Color",
         value: selected.fill,
         onChange: (v) => {
           updateAnnotation(selected.id, { fill: v });
           if (remember) patchLastUsed({ text: { color: v } });
-          else void updateSettings("tools", { text: { fontSize: toolsCfg.text.fontSize, color: v } });
+          else void updateSettings("tools", { text: { ...baseText(), color: v } });
         },
       };
       sizeCtx = {
@@ -145,7 +207,37 @@ export function Toolbar() {
         onChange: (v) => {
           updateAnnotation(selected.id, { fontSize: v });
           if (remember) patchLastUsed({ text: { fontSize: v } });
-          else void updateSettings("tools", { text: { fontSize: v, color: toolsCfg.text.color } });
+          else void updateSettings("tools", { text: { ...baseText(), fontSize: v } });
+        },
+      };
+      const curStyle = (selected.fontStyle ?? "normal") as TextFontStyle;
+      const curDeco = (selected.textDecoration ?? "") as TextDecoration;
+      const curFamily = selected.fontFamily ?? toolsCfg.text.fontFamily;
+      const curBg = selected.backgroundColor ?? null;
+      textStyleCtx = {
+        fontStyle: curStyle,
+        textDecoration: curDeco,
+        fontFamily: curFamily,
+        backgroundColor: curBg,
+        setFontStyle: (v) => {
+          updateAnnotation(selected.id, { fontStyle: v });
+          if (remember) patchLastUsed({ text: { fontStyle: v } });
+          else void updateSettings("tools", { text: { ...baseText(), fontStyle: v } });
+        },
+        setTextDecoration: (v) => {
+          updateAnnotation(selected.id, { textDecoration: v });
+          if (remember) patchLastUsed({ text: { textDecoration: v } });
+          else void updateSettings("tools", { text: { ...baseText(), textDecoration: v } });
+        },
+        setFontFamily: (v) => {
+          updateAnnotation(selected.id, { fontFamily: v });
+          if (remember) patchLastUsed({ text: { fontFamily: v } });
+          else void updateSettings("tools", { text: { ...baseText(), fontFamily: v } });
+        },
+        setBackgroundColor: (v) => {
+          updateAnnotation(selected.id, { backgroundColor: v });
+          if (remember) patchLastUsed({ text: { backgroundColor: v } });
+          else void updateSettings("tools", { text: { ...baseText(), backgroundColor: v } });
         },
       };
     } else if (selected.type === "pin") {
@@ -168,6 +260,15 @@ export function Toolbar() {
           updateAnnotation(selected.id, { size: v });
           if (remember) patchLastUsed({ pin: { size: v } });
           else void updateSettings("pins", { defaultSize: v });
+        },
+      };
+      pinLabelCtx = {
+        label: "Label",
+        value: selected.labelColor ?? toolsCfg.pin.labelColor,
+        onChange: (v) => {
+          updateAnnotation(selected.id, { labelColor: v });
+          if (remember) patchLastUsed({ pin: { labelColor: v } });
+          else void updateSettings("pins", { defaultLabelColor: v });
         },
       };
     } else if (selected.type === "sticker") {
@@ -219,12 +320,20 @@ export function Toolbar() {
       },
     };
   } else if (tool === "text") {
+    const baseText = () => ({
+      fontSize: toolsCfg.text.fontSize,
+      color: toolsCfg.text.color,
+      fontStyle: toolsCfg.text.fontStyle,
+      textDecoration: toolsCfg.text.textDecoration,
+      fontFamily: toolsCfg.text.fontFamily,
+      backgroundColor: toolsCfg.text.backgroundColor,
+    });
     colorCtx = {
       label: "Color",
       value: toolsCfg.text.color,
       onChange: (v) => {
         if (remember) patchLastUsed({ text: { color: v } });
-        else void updateSettings("tools", { text: { fontSize: toolsCfg.text.fontSize, color: v } });
+        else void updateSettings("tools", { text: { ...baseText(), color: v } });
       },
     };
     sizeCtx = {
@@ -235,7 +344,29 @@ export function Toolbar() {
       step: 1,
       onChange: (v) => {
         if (remember) patchLastUsed({ text: { fontSize: v } });
-        else void updateSettings("tools", { text: { fontSize: v, color: toolsCfg.text.color } });
+        else void updateSettings("tools", { text: { ...baseText(), fontSize: v } });
+      },
+    };
+    textStyleCtx = {
+      fontStyle: toolsCfg.text.fontStyle,
+      textDecoration: toolsCfg.text.textDecoration,
+      fontFamily: toolsCfg.text.fontFamily,
+      backgroundColor: toolsCfg.text.backgroundColor,
+      setFontStyle: (v) => {
+        if (remember) patchLastUsed({ text: { fontStyle: v } });
+        else void updateSettings("tools", { text: { ...baseText(), fontStyle: v } });
+      },
+      setTextDecoration: (v) => {
+        if (remember) patchLastUsed({ text: { textDecoration: v } });
+        else void updateSettings("tools", { text: { ...baseText(), textDecoration: v } });
+      },
+      setFontFamily: (v) => {
+        if (remember) patchLastUsed({ text: { fontFamily: v } });
+        else void updateSettings("tools", { text: { ...baseText(), fontFamily: v } });
+      },
+      setBackgroundColor: (v) => {
+        if (remember) patchLastUsed({ text: { backgroundColor: v } });
+        else void updateSettings("tools", { text: { ...baseText(), backgroundColor: v } });
       },
     };
   } else if (tool === "pin") {
@@ -256,6 +387,14 @@ export function Toolbar() {
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { size: v } });
         else void updateSettings("pins", { defaultSize: v });
+      },
+    };
+    pinLabelCtx = {
+      label: "Label",
+      value: toolsCfg.pin.labelColor,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { labelColor: v } });
+        else void updateSettings("pins", { defaultLabelColor: v });
       },
     };
   } else if (tool === "sticker") {
@@ -389,7 +528,9 @@ export function Toolbar() {
   };
 
   const hasOptionsRow =
-    !!(colorCtx || widthCtx || sizeCtx) || tool === "pin" || tool === "sticker";
+    !!(colorCtx || widthCtx || sizeCtx || textStyleCtx || pinLabelCtx) ||
+    tool === "pin" ||
+    tool === "sticker";
 
   return (
     <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 max-h-[40vh] overflow-y-auto">
@@ -492,6 +633,20 @@ export function Toolbar() {
           </label>
         </>
       )}
+      {pinLabelCtx && (
+        <label
+          className="flex items-center gap-1.5 text-xs text-neutral-300"
+          title="Pin number color"
+        >
+          {pinLabelCtx.label}
+          <input
+            type="color"
+            value={pinLabelCtx.value}
+            onChange={(e) => pinLabelCtx!.onChange(e.target.value)}
+            className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-neutral-950 p-0.5"
+          />
+        </label>
+      )}
       {widthCtx && (
         <>
           <label
@@ -532,6 +687,81 @@ export function Toolbar() {
           </label>
         </>
       )}
+      {textStyleCtx && (() => {
+        const tsc = textStyleCtx;
+        const bold = tsc.fontStyle.includes("bold");
+        const italic = tsc.fontStyle.includes("italic");
+        const ul = tsc.textDecoration.includes("underline");
+        const st = tsc.textDecoration.includes("line-through");
+        const togBtn = (
+          active: boolean,
+          onClick: () => void,
+          title: string,
+          Icon: LucideIcon,
+        ) => (
+          <button
+            type="button"
+            onClick={onClick}
+            title={title}
+            aria-pressed={active}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              active
+                ? "bg-neutral-100 text-neutral-900"
+                : "text-neutral-300 hover:bg-neutral-800",
+            ].join(" ")}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+        return (
+          <>
+            <div className="flex items-center gap-0.5">
+              {togBtn(bold, () => tsc.setFontStyle(withBold(tsc.fontStyle, !bold)), "Bold", Bold)}
+              {togBtn(italic, () => tsc.setFontStyle(withItalic(tsc.fontStyle, !italic)), "Italic", Italic)}
+              {togBtn(ul, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul)), "Underline", Underline)}
+              {togBtn(st, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st)), "Strike", Strikethrough)}
+            </div>
+            <label className="flex items-center gap-1.5 text-xs text-neutral-300" title="Font family">
+              Font
+              <select
+                value={tsc.fontFamily}
+                onChange={(e) => tsc.setFontFamily(e.target.value)}
+                className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-xs text-neutral-100 outline-none focus:border-neutral-500"
+              >
+                {FONT_FAMILIES.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-neutral-300" title="Background / highlight">
+              Bg
+              <input
+                type="color"
+                value={tsc.backgroundColor ?? "#ffff00"}
+                onChange={(e) => tsc.setBackgroundColor(e.target.value)}
+                className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-neutral-950 p-0.5"
+                disabled={tsc.backgroundColor === null}
+              />
+              <button
+                type="button"
+                onClick={() => tsc.setBackgroundColor(tsc.backgroundColor === null ? "#ffff00" : null)}
+                title={tsc.backgroundColor === null ? "Enable background" : "Disable background"}
+                className={[
+                  "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
+                  tsc.backgroundColor === null
+                    ? "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    : "bg-neutral-100 text-neutral-900 hover:bg-neutral-200",
+                ].join(" ")}
+              >
+                {tsc.backgroundColor === null ? "None" : "On"}
+              </button>
+            </label>
+          </>
+        );
+      })()}
       {tool === "pin" && (
         <>
           <div className="flex items-center gap-2 text-xs text-neutral-300">

@@ -33,6 +33,13 @@ export type ArrowAnnotation = Base & {
   strokeWidth: number;
 };
 
+export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
+export type TextDecoration =
+  | ""
+  | "underline"
+  | "line-through"
+  | "underline line-through";
+
 export type TextAnnotation = Base & {
   type: "text";
   x: number;
@@ -40,6 +47,10 @@ export type TextAnnotation = Base & {
   text: string;
   fontSize: number;
   fill: string;
+  fontStyle?: TextFontStyle;
+  textDecoration?: TextDecoration;
+  fontFamily?: string;
+  backgroundColor?: string | null;
 };
 
 export type BlurAnnotation = Base & {
@@ -66,6 +77,7 @@ export type PinAnnotation = Base & {
   number: number;
   color: string;
   size: number;
+  labelColor?: string;
 };
 
 export type Annotation =

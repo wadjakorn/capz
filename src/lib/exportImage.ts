@@ -46,14 +46,9 @@ export async function saveOnly(
   stage: Konva.Stage,
   config: AppConfig,
 ): Promise<ExportResult> {
-  const { output, general } = config;
+  const { output } = config;
   const saved = await saveToFile(stage, output);
-  let copied = false;
-  if (saved && general.copyToClipboardAfterSave) {
-    await copyToClipboard(stage);
-    copied = true;
-  }
-  return { saved, copied };
+  return { saved, copied: false };
 }
 
 export async function saveAndCopy(

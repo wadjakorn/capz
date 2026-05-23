@@ -10,7 +10,6 @@ import {
   Keyboard,
   Download,
   MapPin,
-  Palette,
   Settings as SettingsIcon,
   RefreshCw,
   Bug,
@@ -122,10 +121,6 @@ export default function SettingsPage() {
             <MapPin className="h-3.5 w-3.5" aria-hidden />
             Pins
           </TabsTrigger>
-          <TabsTrigger value="tools" className="gap-1.5">
-            <Palette className="h-3.5 w-3.5" aria-hidden />
-            Tools
-          </TabsTrigger>
           <TabsTrigger value="general" className="gap-1.5">
             <SettingsIcon className="h-3.5 w-3.5" aria-hidden />
             General
@@ -224,106 +219,6 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="tools" className="grid gap-4 pt-4">
-          <div className="grid gap-2">
-            <Label>Rect stroke color</Label>
-            <Input
-              type="color"
-              value={config.tools.rect.strokeColor}
-              onChange={(e) =>
-                update("tools", { rect: { strokeColor: e.target.value, strokeWidth: config.tools.rect.strokeWidth } })
-              }
-              className="h-10 w-20 p-1"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Rect stroke width (px)</Label>
-            <Input
-              type="number"
-              min={1}
-              max={32}
-              value={config.tools.rect.strokeWidth}
-              onChange={(e) =>
-                update("tools", { rect: { strokeColor: config.tools.rect.strokeColor, strokeWidth: Number(e.target.value) } })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Arrow stroke color</Label>
-            <Input
-              type="color"
-              value={config.tools.arrow.strokeColor}
-              onChange={(e) =>
-                update("tools", { arrow: { strokeColor: e.target.value, strokeWidth: config.tools.arrow.strokeWidth } })
-              }
-              className="h-10 w-20 p-1"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Arrow stroke width (px)</Label>
-            <Input
-              type="number"
-              min={1}
-              max={32}
-              value={config.tools.arrow.strokeWidth}
-              onChange={(e) =>
-                update("tools", { arrow: { strokeColor: config.tools.arrow.strokeColor, strokeWidth: Number(e.target.value) } })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Text font size (px)</Label>
-            <Input
-              type="number"
-              min={8}
-              max={128}
-              value={config.tools.text.fontSize}
-              onChange={(e) =>
-                update("tools", {
-                  text: { fontSize: Number(e.target.value), color: config.tools.text.color },
-                })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Text color</Label>
-            <Input
-              type="color"
-              value={config.tools.text.color}
-              onChange={(e) =>
-                update("tools", {
-                  text: { fontSize: config.tools.text.fontSize, color: e.target.value },
-                })
-              }
-              className="h-10 w-20 p-1"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Blur radius (px)</Label>
-            <Input
-              type="number"
-              min={2}
-              max={64}
-              value={config.tools.blur.blurRadius}
-              onChange={(e) =>
-                update("tools", { blur: { blurRadius: Number(e.target.value) } })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Sticker size (px)</Label>
-            <Input
-              type="number"
-              min={12}
-              max={256}
-              value={config.tools.sticker.fontSize}
-              onChange={(e) =>
-                update("tools", { sticker: { fontSize: Number(e.target.value) } })
-              }
-            />
-          </div>
-        </TabsContent>
-
         <TabsContent value="updates" className="grid gap-4 pt-4">
           <UpdatesTab />
         </TabsContent>
@@ -342,11 +237,6 @@ export default function SettingsPage() {
             label="Play sound on capture"
             checked={config.general.playSoundOnCapture}
             onChange={(v) => update("general", { playSoundOnCapture: v })}
-          />
-          <ToggleRow
-            label="Copy to clipboard after save"
-            checked={config.general.copyToClipboardAfterSave}
-            onChange={(v) => update("general", { copyToClipboardAfterSave: v })}
           />
           <ToggleRow
             label="Remember last tool/color/size between captures"

@@ -10,6 +10,8 @@ import {
   Text,
   Circle,
   Group,
+  Label,
+  Tag,
   Transformer,
 } from "react-konva";
 import useImage from "use-image";
@@ -55,13 +57,22 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
     case "arrow":
       return { arrow: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
     case "text":
-      return { text: { color: a.fill, fontSize: a.fontSize } };
+      return {
+        text: {
+          color: a.fill,
+          fontSize: a.fontSize,
+          fontStyle: a.fontStyle,
+          textDecoration: a.textDecoration,
+          fontFamily: a.fontFamily,
+          backgroundColor: a.backgroundColor,
+        },
+      };
     case "blur":
       return { blur: { blurRadius: a.blurRadius } };
     case "sticker":
       return { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
     case "pin":
-      return { pin: { color: a.color, size: a.size } };
+      return { pin: { color: a.color, size: a.size, labelColor: a.labelColor } };
   }
 }
 
@@ -291,6 +302,7 @@ export function EditorStage({ src }: Props) {
         number: n,
         color: toolsCfg.pin.color,
         size: toolsCfg.pin.size,
+        labelColor: toolsCfg.pin.labelColor,
       };
       add(a);
       void useSettings.getState().update("pins", { lastUsedNumber: n });
@@ -326,6 +338,10 @@ export function EditorStage({ src }: Props) {
         text: v,
         fontSize: toolsCfg.text.fontSize,
         fill: toolsCfg.text.color,
+        fontStyle: toolsCfg.text.fontStyle,
+        textDecoration: toolsCfg.text.textDecoration,
+        fontFamily: toolsCfg.text.fontFamily,
+        backgroundColor: toolsCfg.text.backgroundColor,
       };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -553,7 +569,24 @@ export function EditorStage({ src }: Props) {
           </Layer>
         </Stage>
       )}
-      {textEditor && (
+      {textEditor && (() => {
+        const editing = textEditor.id
+          ? (annotations.find(
+              (an) => an.id === textEditor.id && an.type === "text",
+            ) as TextAnnotation | undefined)
+          : undefined;
+        const teFontSize = editing?.fontSize ?? toolsCfg.text.fontSize;
+        const teColor = editing?.fill ?? toolsCfg.text.color;
+        const teStyle = editing?.fontStyle ?? toolsCfg.text.fontStyle;
+        const teDeco = editing?.textDecoration ?? toolsCfg.text.textDecoration;
+        const teFamily = editing?.fontFamily ?? toolsCfg.text.fontFamily;
+        const teBg =
+          editing?.backgroundColor !== undefined
+            ? editing.backgroundColor
+            : toolsCfg.text.backgroundColor;
+        const bold = teStyle.includes("bold");
+        const italic = teStyle.includes("italic");
+        return (
         <textarea
           ref={textareaRef}
           value={textEditor.value}
@@ -574,9 +607,13 @@ export function EditorStage({ src }: Props) {
             position: "fixed",
             left: textEditor.screenX,
             top: textEditor.screenY,
-            font: `${Math.max(14, toolsCfg.text.fontSize * scale)}px sans-serif`,
-            color: toolsCfg.text.color,
-            background: "rgba(20,20,20,0.92)",
+            fontFamily: teFamily,
+            fontSize: Math.max(14, teFontSize * scale),
+            fontWeight: bold ? 700 : 400,
+            fontStyle: italic ? "italic" : "normal",
+            textDecoration: teDeco || "none",
+            color: teColor,
+            background: teBg ?? "rgba(20,20,20,0.92)",
             border: `2px dashed ${toolsCfg.text.color}`,
             outline: "none",
             padding: 4,
@@ -584,10 +621,11 @@ export function EditorStage({ src }: Props) {
             minHeight: Math.max(28, toolsCfg.text.fontSize * scale + 12),
             resize: "none",
             zIndex: 50,
-            caretColor: toolsCfg.text.color,
+            caretColor: teColor,
           }}
         />
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -714,20 +752,19 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
 }
 
 function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
-  const ref = useRef<Konva.Text>(null);
+  const ref = useRef<Konva.Label>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
+  const bg = a.backgroundColor ?? null;
+  const padding = bg ? 4 : 0;
   return (
-    <Text
+    <Label
       ref={ref}
       x={a.x}
       y={a.y}
       rotation={a.rotation ?? 0}
-      text={a.text}
-      fontSize={a.fontSize}
-      fill={a.fill}
       draggable
       {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
@@ -751,7 +788,18 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
           rotation: node.rotation(),
         });
       }}
-    />
+    >
+      <Tag fill={bg ?? "rgba(0,0,0,0)"} />
+      <Text
+        text={a.text}
+        fontSize={a.fontSize}
+        fill={a.fill}
+        fontStyle={a.fontStyle ?? "normal"}
+        textDecoration={a.textDecoration ?? ""}
+        fontFamily={a.fontFamily ?? "system-ui, sans-serif"}
+        padding={padding}
+      />
+    </Label>
   );
 }
 
@@ -853,7 +901,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         text={label}
         fontSize={fontSize}
         fontStyle="bold"
-        fill="#ffffff"
+        fill={a.labelColor ?? "#ffffff"}
         width={textW}
         height={a.size}
         align="center"

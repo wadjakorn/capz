@@ -27,11 +27,11 @@ export type AppConfig = {
     defaultStartNumber: number;
     defaultColor: string;
     defaultSize: number;
+    defaultLabelColor: string;
   };
   general: {
     autostart: boolean;
     playSoundOnCapture: boolean;
-    copyToClipboardAfterSave: boolean;
     rememberLastTool: boolean;
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
@@ -43,15 +43,29 @@ export type AppConfig = {
     stickerEmoji?: string;
     rect?: { strokeColor?: string; strokeWidth?: number };
     arrow?: { strokeColor?: string; strokeWidth?: number };
-    text?: { color?: string; fontSize?: number };
+    text?: {
+      color?: string;
+      fontSize?: number;
+      fontStyle?: "normal" | "bold" | "italic" | "italic bold";
+      textDecoration?: "" | "underline" | "line-through" | "underline line-through";
+      fontFamily?: string;
+      backgroundColor?: string | null;
+    };
     blur?: { blurRadius?: number };
     sticker?: { fontSize?: number };
-    pin?: { color?: string; size?: number };
+    pin?: { color?: string; size?: number; labelColor?: string };
   };
   tools: {
     rect: { strokeColor: string; strokeWidth: number };
     arrow: { strokeColor: string; strokeWidth: number };
-    text: { fontSize: number; color: string };
+    text: {
+      fontSize: number;
+      color: string;
+      fontStyle: "normal" | "bold" | "italic" | "italic bold";
+      textDecoration: "" | "underline" | "line-through" | "underline line-through";
+      fontFamily: string;
+      backgroundColor: string | null;
+    };
     blur: { blurRadius: number };
     sticker: { fontSize: number };
   };
@@ -87,21 +101,28 @@ export const DEFAULT_CONFIG: AppConfig = {
     defaultStartNumber: 1,
     defaultColor: "#E5342B",
     defaultSize: 36,
+    defaultLabelColor: "#ffffff",
   },
   general: {
     autostart: false,
     playSoundOnCapture: false,
-    copyToClipboardAfterSave: false,
     rememberLastTool: true,
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
-    closeAction: "none",
+    closeAction: "copy",
     editorWindow: { width: 1024, height: 680 },
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },
     arrow: { strokeColor: "#ef4444", strokeWidth: 3 },
-    text: { fontSize: 24, color: "#ef4444" },
+    text: {
+      fontSize: 24,
+      color: "#ef4444",
+      fontStyle: "normal",
+      textDecoration: "",
+      fontFamily: "system-ui, sans-serif",
+      backgroundColor: null,
+    },
     blur: { blurRadius: 16 },
     sticker: { fontSize: 48 },
   },
@@ -123,10 +144,17 @@ export const CONFIG_STORE_KEY = "app";
 export type EffectiveTools = {
   rect: { strokeColor: string; strokeWidth: number };
   arrow: { strokeColor: string; strokeWidth: number };
-  text: { color: string; fontSize: number };
+  text: {
+    color: string;
+    fontSize: number;
+    fontStyle: "normal" | "bold" | "italic" | "italic bold";
+    textDecoration: "" | "underline" | "line-through" | "underline line-through";
+    fontFamily: string;
+    backgroundColor: string | null;
+  };
   blur: { blurRadius: number };
   sticker: { fontSize: number };
-  pin: { color: string; size: number };
+  pin: { color: string; size: number; labelColor: string };
 };
 
 export function effectiveTools(cfg: AppConfig): EffectiveTools {
@@ -145,6 +173,13 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
     text: {
       color: lu?.text?.color ?? t.text.color,
       fontSize: lu?.text?.fontSize ?? t.text.fontSize,
+      fontStyle: lu?.text?.fontStyle ?? t.text.fontStyle,
+      textDecoration: lu?.text?.textDecoration ?? t.text.textDecoration,
+      fontFamily: lu?.text?.fontFamily ?? t.text.fontFamily,
+      backgroundColor:
+        lu?.text?.backgroundColor !== undefined
+          ? lu.text.backgroundColor
+          : t.text.backgroundColor,
     },
     blur: {
       blurRadius: lu?.blur?.blurRadius ?? t.blur.blurRadius,
@@ -155,6 +190,7 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
     pin: {
       color: lu?.pin?.color ?? cfg.pins.defaultColor,
       size: lu?.pin?.size ?? cfg.pins.defaultSize,
+      labelColor: lu?.pin?.labelColor ?? cfg.pins.defaultLabelColor,
     },
   };
 }
