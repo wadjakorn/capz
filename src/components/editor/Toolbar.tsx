@@ -2,6 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  MousePointer2,
+  ArrowUpRight,
+  Square,
+  Type,
+  Droplet,
+  Smile,
+  MapPin,
+  Undo2,
+  Redo2,
+  Copy as CopyIcon,
+  Save,
+  SaveAll,
+  type LucideIcon,
+} from "lucide-react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { getStage } from "@/lib/stageBridge";
@@ -9,17 +24,23 @@ import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 
-type ToolDef = { id: Tool; label: string; hint: string };
+type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
 const TOOLS: ToolDef[] = [
-  { id: "select", label: "Select", hint: "V" },
-  { id: "arrow", label: "Arrow", hint: "A" },
-  { id: "rect", label: "Rect", hint: "R" },
-  { id: "text", label: "Text", hint: "T" },
-  { id: "blur", label: "Blur", hint: "B" },
-  { id: "sticker", label: "Sticker", hint: "S" },
-  { id: "pin", label: "Pin", hint: "P" },
+  { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
+  { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight },
+  { id: "rect", label: "Rect", hint: "R", icon: Square },
+  { id: "text", label: "Text", hint: "T", icon: Type },
+  { id: "blur", label: "Blur", hint: "B", icon: Droplet },
+  { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
+  { id: "pin", label: "Pin", hint: "P", icon: MapPin },
 ];
+
+const EXPORT_ICONS: Record<"copy" | "file" | "both", LucideIcon> = {
+  copy: CopyIcon,
+  file: Save,
+  both: SaveAll,
+};
 
 export function Toolbar() {
   const tool = useEditor((s) => s.tool);
@@ -368,20 +389,22 @@ export function Toolbar() {
     <div className="flex items-center gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
       {TOOLS.map((t) => {
         const active = tool === t.id;
+        const Icon = t.icon;
         return (
           <button
             key={t.id}
             type="button"
             onClick={() => setTool(t.id)}
             title={`${t.label} (${t.hint})`}
+            aria-label={t.label}
             className={[
-              "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+              "flex h-8 w-8 items-center justify-center rounded transition-colors",
               active
                 ? "bg-neutral-100 text-neutral-900"
                 : "text-neutral-300 hover:bg-neutral-800",
             ].join(" ")}
           >
-            {t.label}
+            <Icon className="h-4 w-4" aria-hidden />
           </button>
         );
       })}
@@ -391,18 +414,20 @@ export function Toolbar() {
         onClick={undo}
         disabled={!past}
         title="Undo (⌘Z)"
-        className="rounded px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+        aria-label="Undo"
+        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
       >
-        Undo
+        <Undo2 className="h-4 w-4" aria-hidden />
       </button>
       <button
         type="button"
         onClick={redo}
         disabled={!future}
         title="Redo (⇧⌘Z)"
-        className="rounded px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+        aria-label="Redo"
+        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
       >
-        Redo
+        <Redo2 className="h-4 w-4" aria-hidden />
       </button>
       <div className="mx-2 h-5 w-px bg-neutral-800" />
       {(() => {
@@ -411,6 +436,7 @@ export function Toolbar() {
           mode === "clipboard" ? "copy" : mode === "file" ? "file" : "both";
         const btn = (action: ExportAction, label: string, hint: string) => {
           const isPrimary = action === primaryAction;
+          const Icon = EXPORT_ICONS[action];
           return (
             <button
               key={action}
@@ -418,13 +444,15 @@ export function Toolbar() {
               onClick={() => void doExport(action)}
               disabled={exporting}
               title={hint}
+              aria-label={label}
               className={[
-                "rounded px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50",
+                "inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50",
                 isPrimary
                   ? "bg-emerald-600 text-white hover:bg-emerald-500"
                   : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700",
               ].join(" ")}
             >
+              <Icon className="h-3.5 w-3.5" aria-hidden />
               {exporting && isPrimary ? "…" : label}
             </button>
           );
