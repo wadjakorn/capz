@@ -85,3 +85,37 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe.sig
           if-no-files-found: ignore
+
+  # On tag push: pull the freshly-built latest.json off the GitHub Release
+  # (created by tauri-action above, still in draft) and publish it to the
+  # gh-pages branch so the updater endpoint at
+  # https://wadjakorn.github.io/capz/latest.json serves it without the
+  # Azure-Blob redirect that breaks tauri-plugin-updater 2.10.1.
+  publish-meta:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Download latest.json from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            -p latest.json -O latest.json --clobber
+
+      - name: Commit + push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(pages): update channel to ${GITHUB_REF_NAME}"
+          git push origin gh-pages
