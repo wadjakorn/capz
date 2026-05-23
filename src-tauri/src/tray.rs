@@ -54,10 +54,11 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
 
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or_else(|| tauri::Error::AssetNotFound("default window icon".into()))?;
+    let icon_path = app.path().resolve(
+        "icons/tray/tray_22@2x.png",
+        tauri::path::BaseDirectory::Resource,
+    )?;
+    let icon = tauri::image::Image::from_path(&icon_path)?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
