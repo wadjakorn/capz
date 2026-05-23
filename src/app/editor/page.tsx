@@ -79,6 +79,35 @@ export default function EditorPage() {
     return () => unlisten?.();
   }, []);
 
+  // Dedicated Copy shortcut: CmdOrCtrl+C copies the full annotated stage.
+  // Skips when typing, selecting text, or no image is loaded.
+  useEffect(() => {
+    const onKey = async (e: KeyboardEvent) => {
+      if (!(e.key === "c" || e.key === "C")) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey || e.altKey) return;
+      if (!file) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) return;
+      e.preventDefault();
+      try {
+        const { getStage } = await import("@/lib/stageBridge");
+        const { copyOnly } = await import("@/lib/exportImage");
+        const stage = getStage();
+        if (!stage) return;
+        await copyOnly(stage);
+        showToast("Copied");
+      } catch (err) {
+        console.error("copy shortcut failed", err);
+        showToast("Copy failed");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [file, showToast]);
+
   // Paste handler: ask Rust to read clipboard image and load it.
   useEffect(() => {
     const onPaste = async (ev: ClipboardEvent) => {

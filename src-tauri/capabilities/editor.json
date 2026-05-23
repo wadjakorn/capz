@@ -11,10 +11,11 @@
     "core:window:allow-hide",
     "core:webview:default",
     "store:default",
-    "dialog:allow-save",
     "clipboard-manager:allow-write-image",
     "clipboard-manager:allow-read-image",
     "fs:allow-write-file",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
     "fs:allow-remove",
     {
       "identifier": "fs:scope",

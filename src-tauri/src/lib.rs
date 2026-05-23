@@ -27,6 +27,8 @@ pub fn run() {
             commands::pickers::list_capture_windows,
             commands::pickers::capture_full_monitor,
             commands::pickers::capture_window_command,
+            commands::output::default_save_dir,
+            commands::output::reveal_in_finder,
         ])
         .manage(state::AppState::default())
         .setup(|app| {

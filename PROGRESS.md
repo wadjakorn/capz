@@ -20,7 +20,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 7 — output (file/clipboard/both)
 - [x] Phase 8 — multi-source capture (multi-monitor area + full-screen picker + window picker)
 - [x] Phase 9 — editor live controls + session memory (live stroke/color/size, remember last-used)
-- [ ] Phase 10 — dedicated copy action (Ctrl+C + Copy button separate from Save)
+- [x] Phase 10 — dedicated copy action (Ctrl+C + Copy button separate from Save)
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
 - [ ] Phase 12 — onboarding (TCC)
 - [ ] Phase 13 — autostart
@@ -126,6 +126,34 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Tool defaults restored for no-selection** — width slider (rect/arrow/blur) + size slider (text/sticker/pin) now render even without a selected annotation, so the user can dial defaults before drawing the first element. Earlier 9.1 hid them; was reported as bug.
 - **`tauri-plugin-store` autoSave off, explicit `store.save()` per write** — `autoSave: true` debounces ~100 ms, which races a new editor window opening for the next capture. Switched to `autoSave: false` + awaited `save()` in `update`/`setLastUsed`/`reset` so `pins.lastUsedNumber` + `lastUsed.pin.color` are flushed to disk before the next window's `load()` reads them.
 - **Pin counter persisted across `applyFile` (Phase 11 single-editor)** — `useEditor.reset()` was zeroing `nextPinNumber` on every new image load, defeating `continuityMode: "continue"`. Removed `nextPinNumber: 1` from `reset()`; `editor/page.tsx applyFile` now re-derives the counter from `pins.continuityMode` + `pins.lastUsedNumber` after every image swap (cold-start + new capture + clipboard paste). `EditorStage` `pinInit` retained as cold-mount fallback.
+
+### Phase 10 — dedicated copy action (2026-05-23)
+
+- **`exportImage.ts` split.** Old monolithic `exportAnnotated` (mode-driven branching) replaced by three explicit actions: `copyOnly(stage)`, `saveOnly(stage, config)`, `saveAndCopy(stage, config)`. `saveOnly` still honors `general.copyToClipboardAfterSave` (Phase 7 behavior preserved). `exportAnnotated` removed; no remaining callers.
+- **Toolbar: three buttons replace single Save.** [src/components/editor/Toolbar.tsx](src/components/editor/Toolbar.tsx) renders `Copy` / `Save` / `Save & Copy`. Primary emerald highlight tracks `output.defaultMode` (`clipboard` → Copy, `file` → Save, `both` → Save & Copy). Non-primary buttons remain enabled but neutral-styled.
+- **`ExportAction` type local to Toolbar.** `"copy" | "file" | "both"` drives `doExport`. Toast strings: `Copied` / `Saved` / `Saved & Copied`.
+- **Editor-window `CmdOrCtrl+C` handler** ([src/app/editor/page.tsx](src/app/editor/page.tsx)). Conditions to suppress (let native copy through):
+  - Modifier mismatch (Shift/Alt held).
+  - No image loaded (`file === null`).
+  - Focus inside `INPUT` / `TEXTAREA` / contentEditable.
+  - `window.getSelection().toString().length > 0` (a text range is highlighted somewhere on the page).
+- **Lazy imports** in keydown handler avoid loading Konva-touching modules until the shortcut actually fires (matches the existing paste handler's dynamic-import pattern).
+- **No new capabilities.** Clipboard write already granted in [src-tauri/capabilities/editor.json](src-tauri/capabilities/editor.json) from Phase 7.
+
+### Phase 10.1 — default save destination + reveal folder (2026-05-23)
+
+User enhancement on top of Phase 10: drop the per-save file dialog; persist a default destination and expose "Open folder" in Settings.
+
+- **Rust `commands/output.rs`** (new). Two commands registered in [src-tauri/src/lib.rs](src-tauri/src/lib.rs):
+  - `default_save_dir(app) -> String` — returns `<Pictures>/Capz` via `app.path().picture_dir()`. Does **not** mkdir (rule: user-facing writes go through `plugin-fs`, not raw `std::fs`).
+  - `reveal_in_finder(path) -> ()` — spawns `open` (macOS) / `explorer` (Windows). Frontend mkdirs before invoking.
+- **`exportImage.ts saveToFile` rewritten.** No `plugin-dialog save({...})`. Resolves dir from `output.defaultSavePath`, falling back to `invoke("default_save_dir")`. Uses `plugin-fs mkdir({recursive: true})` if missing, then writes via `writeFile`. Filename collision strategy: `name.ext` → `name-1.ext` → `name-2.ext` (existence-checked through `plugin-fs exists`). Path join via `@tauri-apps/api/path`.
+- **`stores/settings.ts init` resolves + persists** the OS default on first launch when `output.defaultSavePath` is null — store gets a concrete path, Settings UI never shows empty, capture pipeline never hits a missing-default branch.
+- **`components/settings/OutputPrefsForm.tsx`** new "Save destination" row: readonly path Input + `Choose…` (`plugin-dialog open({directory:true})`) + `Open folder` (invokes `reveal_in_finder`; mkdirs first so a stale-path setting still opens cleanly).
+- **Capability changes**:
+  - [src-tauri/capabilities/editor.json](src-tauri/capabilities/editor.json): removed `dialog:allow-save` (no save dialog anymore); added `fs:allow-mkdir`, `fs:allow-exists`.
+  - [src-tauri/capabilities/default.json](src-tauri/capabilities/default.json) (settings window): added `dialog:allow-open`, `fs:allow-mkdir`, `fs:allow-exists`, and `fs:scope` mirroring editor scope ($HOME, $DESKTOP, $DOCUMENT, $DOWNLOAD, $PICTURE).
+- **Linux fallthrough.** `reveal_in_finder` returns `Err("unsupported platform")` outside macOS/Windows — matches v1 cross-platform scope (macOS/Windows only) per CLAUDE.md.
 
 ### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
 

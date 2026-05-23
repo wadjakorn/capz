@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { getStage } from "@/lib/stageBridge";
-import { exportAnnotated } from "@/lib/exportImage";
+import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 
 type ToolDef = { id: Tool; label: string; hint: string };
@@ -350,13 +350,19 @@ export function Toolbar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const doExport = async () => {
+  type ExportAction = "copy" | "file" | "both";
+  const doExport = async (action: ExportAction) => {
     const stage = getStage();
     if (!stage || exporting) return;
     setExporting(true);
     try {
-      const r = await exportAnnotated(stage, fullConfig);
-      if (r.saved && r.copied) notify("Saved + copied");
+      const r =
+        action === "copy"
+          ? await copyOnly(stage)
+          : action === "file"
+            ? await saveOnly(stage, fullConfig)
+            : await saveAndCopy(stage, fullConfig);
+      if (r.saved && r.copied) notify("Saved & Copied");
       else if (r.saved) notify("Saved");
       else if (r.copied) notify("Copied");
     } catch (e) {
@@ -408,15 +414,38 @@ export function Toolbar() {
         Redo
       </button>
       <div className="mx-2 h-5 w-px bg-neutral-800" />
-      <button
-        type="button"
-        onClick={() => void doExport()}
-        disabled={exporting}
-        title={`Export (${fullConfig.output.defaultMode})`}
-        className="rounded bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-      >
-        {exporting ? "…" : "Save"}
-      </button>
+      {(() => {
+        const mode = fullConfig.output.defaultMode;
+        const primaryAction: ExportAction =
+          mode === "clipboard" ? "copy" : mode === "file" ? "file" : "both";
+        const btn = (action: ExportAction, label: string, hint: string) => {
+          const isPrimary = action === primaryAction;
+          return (
+            <button
+              key={action}
+              type="button"
+              onClick={() => void doExport(action)}
+              disabled={exporting}
+              title={hint}
+              className={[
+                "rounded px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50",
+                isPrimary
+                  ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                  : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700",
+              ].join(" ")}
+            >
+              {exporting && isPrimary ? "…" : label}
+            </button>
+          );
+        };
+        return (
+          <div className="flex items-center gap-1">
+            {btn("copy", "Copy", "Copy to clipboard (⌘C / Ctrl+C)")}
+            {btn("file", "Save", "Save to file")}
+            {btn("both", "Save & Copy", "Save to file and copy to clipboard")}
+          </div>
+        );
+      })()}
       {colorCtx && (
         <>
           <div className="mx-2 h-5 w-px bg-neutral-800" />

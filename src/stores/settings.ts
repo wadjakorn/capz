@@ -78,7 +78,19 @@ export const useSettings = create<State>((set, get) => ({
     if (get().ready) return;
     const store = await getStore();
     const persisted = await store.get<Partial<AppConfig>>(CONFIG_STORE_KEY);
-    set({ config: merge(DEFAULT_CONFIG, persisted), ready: true });
+    let merged = merge(DEFAULT_CONFIG, persisted);
+    if (!merged.output.defaultSavePath) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const dir = await invoke<string>("default_save_dir");
+        merged = { ...merged, output: { ...merged.output, defaultSavePath: dir } };
+        await store.set(CONFIG_STORE_KEY, merged);
+        await store.save();
+      } catch (e) {
+        console.warn("default_save_dir resolution failed", e);
+      }
+    }
+    set({ config: merged, ready: true });
   },
   update: async (section, patch) => {
     const cur = get().config;

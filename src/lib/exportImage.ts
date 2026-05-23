@@ -37,6 +37,41 @@ async function copyToClipboard(stage: Konva.Stage): Promise<void> {
   await writeImage(bytes);
 }
 
+export async function copyOnly(stage: Konva.Stage): Promise<ExportResult> {
+  await copyToClipboard(stage);
+  return { copied: true };
+}
+
+export async function saveOnly(
+  stage: Konva.Stage,
+  config: AppConfig,
+): Promise<ExportResult> {
+  const { output, general } = config;
+  const saved = await saveToFile(stage, output);
+  let copied = false;
+  if (saved && general.copyToClipboardAfterSave) {
+    await copyToClipboard(stage);
+    copied = true;
+  }
+  return { saved, copied };
+}
+
+export async function saveAndCopy(
+  stage: Konva.Stage,
+  config: AppConfig,
+): Promise<ExportResult> {
+  const { output } = config;
+  const saved = await saveToFile(stage, output);
+  await copyToClipboard(stage);
+  return { saved, copied: true };
+}
+
+async function resolveSaveDir(output: AppConfig["output"]): Promise<string> {
+  if (output.defaultSavePath) return output.defaultSavePath;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return await invoke<string>("default_save_dir");
+}
+
 async function saveToFile(
   stage: Konva.Stage,
   output: AppConfig["output"],
@@ -44,39 +79,22 @@ async function saveToFile(
   const bytes = stageBytes(stage, output);
   const ext = extensionFor(output.fileFormat);
   const baseName = applyFilenameTemplate(output.filenameTemplate);
-  const defaultName = `${baseName}.${ext}`;
 
-  const { save } = await import("@tauri-apps/plugin-dialog");
-  const path = await save({
-    defaultPath: output.defaultSavePath ? `${output.defaultSavePath}/${defaultName}` : defaultName,
-    filters: [{ name: output.fileFormat.toUpperCase(), extensions: [ext] }],
-  });
-  if (!path) return undefined;
+  const dir = await resolveSaveDir(output);
+  const { join } = await import("@tauri-apps/api/path");
+  const { writeFile, mkdir, exists } = await import("@tauri-apps/plugin-fs");
 
-  const { writeFile } = await import("@tauri-apps/plugin-fs");
+  if (!(await exists(dir))) {
+    await mkdir(dir, { recursive: true });
+  }
+
+  let path = await join(dir, `${baseName}.${ext}`);
+  let n = 1;
+  while (await exists(path)) {
+    path = await join(dir, `${baseName}-${n}.${ext}`);
+    n++;
+  }
   await writeFile(path, bytes);
   return path;
 }
 
-export async function exportAnnotated(
-  stage: Konva.Stage,
-  config: AppConfig,
-): Promise<ExportResult> {
-  const { output, general } = config;
-  const mode = output.defaultMode;
-  let saved: string | undefined;
-  let copied = false;
-
-  if (mode === "file" || mode === "both") {
-    saved = await saveToFile(stage, output);
-  }
-  if (mode === "clipboard" || mode === "both") {
-    await copyToClipboard(stage);
-    copied = true;
-  }
-  if (mode === "file" && saved && general.copyToClipboardAfterSave) {
-    await copyToClipboard(stage);
-    copied = true;
-  }
-  return { saved, copied };
-}
