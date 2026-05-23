@@ -6,6 +6,15 @@ import { Toaster, toast } from "sonner";
 import { useNoticeListener } from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Keyboard,
+  Download,
+  MapPin,
+  Palette,
+  Settings as SettingsIcon,
+  RefreshCw,
+  Bug,
+} from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -101,13 +110,34 @@ export default function SettingsPage() {
       <Toaster theme="dark" position="top-right" richColors closeButton />
       <Tabs defaultValue="shortcuts">
         <TabsList className="flex flex-wrap">
-          <TabsTrigger value="shortcuts">Shortcuts</TabsTrigger>
-          <TabsTrigger value="output">Output</TabsTrigger>
-          <TabsTrigger value="pins">Pins</TabsTrigger>
-          <TabsTrigger value="tools">Tools</TabsTrigger>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="updates">Updates</TabsTrigger>
-          <TabsTrigger value="debug">Debug</TabsTrigger>
+          <TabsTrigger value="shortcuts" className="gap-1.5">
+            <Keyboard className="h-3.5 w-3.5" aria-hidden />
+            Shortcuts
+          </TabsTrigger>
+          <TabsTrigger value="output" className="gap-1.5">
+            <Download className="h-3.5 w-3.5" aria-hidden />
+            Output
+          </TabsTrigger>
+          <TabsTrigger value="pins" className="gap-1.5">
+            <MapPin className="h-3.5 w-3.5" aria-hidden />
+            Pins
+          </TabsTrigger>
+          <TabsTrigger value="tools" className="gap-1.5">
+            <Palette className="h-3.5 w-3.5" aria-hidden />
+            Tools
+          </TabsTrigger>
+          <TabsTrigger value="general" className="gap-1.5">
+            <SettingsIcon className="h-3.5 w-3.5" aria-hidden />
+            General
+          </TabsTrigger>
+          <TabsTrigger value="updates" className="gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            Updates
+          </TabsTrigger>
+          <TabsTrigger value="debug" className="gap-1.5">
+            <Bug className="h-3.5 w-3.5" aria-hidden />
+            Debug
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="shortcuts" className="grid gap-4 pt-4">
