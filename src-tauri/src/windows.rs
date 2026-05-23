@@ -25,6 +25,10 @@ pub fn show_onboarding<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    // One-at-a-time: hide editor when settings opens.
+    if let Some(ed) = app.get_webview_window("editor") {
+        let _ = ed.hide();
+    }
     if let Some(win) = app.get_webview_window("settings") {
         win.show()?;
         win.set_focus()?;
@@ -218,6 +222,10 @@ unsafe fn cursor_cg_point() -> Option<(f64, f64)> {
 /// Show (or create) the single persistent editor window. No image is loaded
 /// here — call `load_editor_image` to push a path into the workspace.
 pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    // One-at-a-time: hide settings when editor opens.
+    if let Some(s) = app.get_webview_window("settings") {
+        let _ = s.hide();
+    }
     if let Some(win) = app.get_webview_window("editor") {
         win.show()?;
         win.unminimize().ok();
