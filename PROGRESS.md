@@ -24,7 +24,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
 - [x] Phase 12 — onboarding (TCC)
 - [x] Phase 13 — autostart
-- [~] Phase 14 — polish/logging (14a + 14b done; remaining: disk-full / clipboard-denied recovery flows)
+- [x] Phase 14 — polish/logging (14a logging+sound+About, 14b sonner+notice channel, 14c error classification)
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
 - [ ] Phase 16 — updater + ship
 
@@ -197,6 +197,13 @@ User enhancement on top of Phase 10: drop the per-save file dialog; persist a de
   - `register_shortcuts` failure at setup emits `notice::error` (was log-only before).
 - **`NoticeKind::Info` and `Success`** kept as `#[allow(dead_code)]` — public surface for future callers (no current Rust emitters use them; frontend handles `toast()` and `toast.success()` directly).
 
+### Phase 14c — export error classification (2026-05-23)
+
+- **[src/lib/exportErrors.ts](src/lib/exportErrors.ts)** `describeExportError(e)` returns `{ title, detail }`. Pattern-matches lowercased message for: disk full ("no space left", "disk full", "not enough space"), permission denied ("permission denied", "not permitted", "access is denied", "os error 13"), read-only volumes, clipboard. Fallback `Export failed` with raw detail.
+- **Toolbar.doExport** catch now `toast.error(title, { description: detail })`. Previously single-line plain toast.
+- **Editor copy-shortcut** catch uses same classifier via dynamic import.
+- **Recovery action deferred.** A "Pick folder" toast action that opens Settings → Output would need a `show_settings_command` Tauri command + window-focus tab plumbing — punted; user can open Settings via tray.
+
 ### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
 
 Full signing/notarization deferred (Apple Developer Program $99/yr not funded). Interim path landed so artifacts ship now and Phase 15 proper can layer on later.
@@ -274,6 +281,8 @@ User-noted enhancements deferred until Phase 14 (polish):
 1. **Responsive editor chrome.** Some elements overflow editor window at small sizes — e.g. "Copied" / "Saved" toast/feedback badge, tool controllers with long inline labels or many controls (Tools tab Rect/Arrow/Text/Blur/Sticker rows in Settings). Fix: wrap controllers in horizontal-scroll container or stack vertically below breakpoint; truncate toast text; min-width clamps on toolbar groups.
 2. **Window-capture hotkey.** Settings → Shortcuts currently exposes only `captureFull` and `captureArea`. Wire `captureWindow` (already defined in `config.hotkeys` / `shortcuts.rs`) into the Shortcuts tab via a third `HotkeyRecorder` row. Default `CmdOrCtrl+Alt+Shift+5`.
 3. **Iconified buttons.** Replace bare-text buttons (toolbar tool buttons, Save/Copy/Cancel, Settings tab triggers, onboarding actions) with `lucide-react` icons + tooltip labels. Keep text on primary CTAs.
+4. **Always-on-top toggle.** Settings → General switch. Per-window: editor (helpful while annotating over reference) — and possibly settings. Wire via `tauri::WebviewWindow::set_always_on_top(bool)` on toggle; persist in `general.alwaysOnTop`. Re-apply on window create.
+5. **Context-aware cursors.** Tool-specific cursors in editor: `crosshair` while dragging shape (rect/arrow/blur region), `pointer` for select/pin, `text` for text tool, `move` while dragging existing element. Currently default arrow everywhere. Set via inline `style.cursor` on `EditorStage` container based on active tool + drag state.
 
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 

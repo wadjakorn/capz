@@ -6,6 +6,7 @@ import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { getStage } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
+import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 
 type ToolDef = { id: Tool; label: string; hint: string };
@@ -356,7 +357,8 @@ export function Toolbar() {
       else if (r.copied) notify("Copied");
     } catch (e) {
       console.error("export failed", e);
-      notify(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+      const { title, detail } = describeExportError(e);
+      toast.error(title, { description: detail });
     } finally {
       setExporting(false);
     }

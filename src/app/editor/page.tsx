@@ -98,7 +98,9 @@ export default function EditorPage() {
         toast.success("Copied");
       } catch (err) {
         console.error("copy shortcut failed", err);
-        toast.error("Copy failed");
+        const { describeExportError } = await import("@/lib/exportErrors");
+        const { title, detail } = describeExportError(err);
+        toast.error(title, { description: detail });
       }
     };
     window.addEventListener("keydown", onKey);
