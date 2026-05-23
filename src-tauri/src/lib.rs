@@ -6,6 +6,21 @@ mod state;
 mod tray;
 mod windows;
 
+fn is_onboarding_completed<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
+    use tauri_plugin_store::StoreExt;
+    let store = match app.store("config.json") {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let Some(v) = store.get("app") else {
+        return false;
+    };
+    v.get("general")
+        .and_then(|g| g.get("onboardingCompleted"))
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -29,6 +44,10 @@ pub fn run() {
             commands::pickers::capture_window_command,
             commands::output::default_save_dir,
             commands::output::reveal_in_finder,
+            commands::permissions::has_screen_recording_permission,
+            commands::permissions::request_screen_recording_permission,
+            commands::permissions::open_system_settings_screen_recording,
+            commands::permissions::relaunch_app,
         ])
         .manage(state::AppState::default())
         .setup(|app| {
@@ -45,6 +64,11 @@ pub fn run() {
             tray::create_tray(app.handle())?;
             if let Err(e) = shortcuts::register_shortcuts(app.handle()) {
                 log::error!("global shortcut registration failed: {e}");
+            }
+            if !is_onboarding_completed(app.handle()) {
+                if let Err(e) = windows::show_onboarding(app.handle()) {
+                    log::warn!("show onboarding: {e}");
+                }
             }
             Ok(())
         })

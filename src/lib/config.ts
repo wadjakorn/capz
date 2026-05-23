@@ -31,6 +31,7 @@ export type AppConfig = {
     playSoundOnCapture: boolean;
     copyToClipboardAfterSave: boolean;
     rememberLastTool: boolean;
+    onboardingCompleted: boolean;
   };
   lastUsed?: {
     tool?: Tool;
@@ -78,6 +79,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     playSoundOnCapture: false,
     copyToClipboardAfterSave: false,
     rememberLastTool: true,
+    onboardingCompleted: false,
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },

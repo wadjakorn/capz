@@ -6,6 +6,23 @@ use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::services::monitor_service;
 
+pub fn show_onboarding<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window("onboarding") {
+        win.show()?;
+        win.set_focus()?;
+        macos_activate();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, "onboarding", WebviewUrl::App("onboarding/".into()))
+        .title("capz — Welcome")
+        .inner_size(640.0, 520.0)
+        .resizable(false)
+        .visible(true)
+        .build()?;
+    macos_activate();
+    Ok(())
+}
+
 pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window("settings") {
         win.show()?;

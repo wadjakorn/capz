@@ -22,7 +22,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 9 — editor live controls + session memory (live stroke/color/size, remember last-used)
 - [x] Phase 10 — dedicated copy action (Ctrl+C + Copy button separate from Save)
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
-- [ ] Phase 12 — onboarding (TCC)
+- [x] Phase 12 — onboarding (TCC)
 - [ ] Phase 13 — autostart
 - [ ] Phase 14 — polish/logging
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
@@ -154,6 +154,21 @@ User enhancement on top of Phase 10: drop the per-save file dialog; persist a de
   - [src-tauri/capabilities/editor.json](src-tauri/capabilities/editor.json): removed `dialog:allow-save` (no save dialog anymore); added `fs:allow-mkdir`, `fs:allow-exists`.
   - [src-tauri/capabilities/default.json](src-tauri/capabilities/default.json) (settings window): added `dialog:allow-open`, `fs:allow-mkdir`, `fs:allow-exists`, and `fs:scope` mirroring editor scope ($HOME, $DESKTOP, $DOCUMENT, $DOWNLOAD, $PICTURE).
 - **Linux fallthrough.** `reveal_in_finder` returns `Err("unsupported platform")` outside macOS/Windows — matches v1 cross-platform scope (macOS/Windows only) per CLAUDE.md.
+
+### Phase 12 — first-launch onboarding (2026-05-23)
+
+- **Config flag** `general.onboardingCompleted: boolean` (default false) added in [src/lib/config.ts](src/lib/config.ts). Drives gate logic.
+- **Rust `commands/permissions.rs`** (new). Four commands registered in [src-tauri/src/lib.rs](src-tauri/src/lib.rs):
+  - `has_screen_recording_permission()` — macOS calls `CGPreflightScreenCaptureAccess` via `#[link(name="CoreGraphics", kind="framework")]` extern (no build.rs change, no extra crate). Non-mac returns `true`.
+  - `request_screen_recording_permission()` — `CGRequestScreenCaptureAccess`. Triggers TCC dialog on first call.
+  - `open_system_settings_screen_recording()` — macOS deep link `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture` via `open`. Non-mac returns Err.
+  - `relaunch_app(app)` — calls `AppHandle::restart()`. Avoids pulling `tauri-plugin-process`.
+- **`windows::show_onboarding`** added in [src-tauri/src/windows.rs](src-tauri/src/windows.rs) — non-resizable 640×520 window labeled `onboarding`.
+- **Gate at setup** in [src-tauri/src/lib.rs](src-tauri/src/lib.rs): `is_onboarding_completed(app)` reads `config.json` via `StoreExt` (same pattern as `shortcuts.rs`). If false, `show_onboarding` opens. Tray + global shortcuts register regardless, so user can capture even before finishing onboarding (skip path).
+- **`src/app/onboarding/page.tsx`** (new). 3 steps: Welcome → Permission (macOS only — auto-skipped on Windows) → Done. Permission step shows status badge (unknown / granted / not granted) and 4 actions: Request permission, Open System Settings, Re-check, Relaunch capz. Welcome step shows platform-aware hotkey hints (⌘⌥⇧ vs Ctrl+Alt+Shift+). Done step finalizes by `update("general", { onboardingCompleted: true })` then closes the window via `getCurrentWindow().close()`.
+- **Capability** [src-tauri/capabilities/onboarding.json](src-tauri/capabilities/onboarding.json) — minimum scope (`core:default`, `core:event:default`, `core:window:default`, `core:window:allow-close`, `core:webview:default`, `store:default`). Custom app commands (`has_screen_recording_permission` et al.) are not capability-gated in Tauri v2 — only plugin commands are.
+- **Skip semantics.** "Skip for now" button advances to Done without granting; capture pipeline still works for clipboard mode or screens that don't require TCC. macOS denies actual screen capture until granted — surfaced via existing capture-error toast.
+- **Re-entry.** Mid-flow quit: next launch re-opens onboarding (flag still false). After finish: flag true → tray-only path; user can still access Settings via tray. No tray "Re-open onboarding" entry — kept menu minimal; user can manually clear the flag from Settings → Debug if needed (future enhancement).
 
 ### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
 
