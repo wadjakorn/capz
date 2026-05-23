@@ -68,6 +68,7 @@ function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppCon
     tools: mergeTools(base.tools, partial.tools as Partial<AppConfig["tools"]> | undefined),
     capture: { ...base.capture, ...partial.capture },
     updates: { ...base.updates, ...partial.updates },
+    stickers: { ...base.stickers, ...partial.stickers },
     lastUsed: migrateLastUsed(partial.lastUsed) ?? base.lastUsed,
   };
 }

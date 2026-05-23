@@ -79,6 +79,9 @@ export type AppConfig = {
     skippedVersion: string | null;
     lastCheckedAt: number | null;
   };
+  stickers: {
+    directory: string | null;
+  };
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -90,8 +93,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   output: {
     defaultMode: "clipboard",
-    fileFormat: "png",
-    jpegQuality: 90,
+    fileFormat: "jpeg",
+    jpegQuality: 80,
     defaultSavePath: null,
     filenameTemplate: "capz-{yyyy}{MM}{dd}-{HHmmss}",
   },
@@ -135,6 +138,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     channel: "stable",
     skippedVersion: null,
     lastCheckedAt: null,
+  },
+  stickers: {
+    directory: null,
   },
 };
 

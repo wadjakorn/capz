@@ -66,9 +66,16 @@ export type StickerAnnotation = Base & {
   type: "sticker";
   x: number;
   y: number;
-  char: string;
   fontSize: number;
+  kind?: "emoji" | "image";
+  char?: string;
+  src?: string;
+  name?: string;
 };
+
+export type StickerSelection =
+  | { kind: "emoji"; char: string }
+  | { kind: "image"; src: string; name: string };
 
 export type PinAnnotation = Base & {
   type: "pin";
@@ -107,13 +114,13 @@ type State = {
   tool: Tool;
   annotations: Annotation[];
   selectedId: string | null;
-  stickerChar: string;
+  stickerSelection: StickerSelection;
   nextPinNumber: number;
   past: Snapshot[];
   future: Snapshot[];
 
   setTool: (t: Tool) => void;
-  setStickerChar: (c: string) => void;
+  setStickerSelection: (sel: StickerSelection) => void;
   setNextPinNumber: (n: number) => void;
   select: (id: string | null) => void;
   add: (a: Annotation) => void;
@@ -137,14 +144,14 @@ export const useEditor = create<State>((set, get) => ({
   tool: "select",
   annotations: [],
   selectedId: null,
-  stickerChar: STICKERS[0],
+  stickerSelection: { kind: "emoji", char: STICKERS[0] },
   nextPinNumber: 1,
   past: [],
   future: [],
 
   setTool: (t) =>
     set({ tool: t, selectedId: t === "select" ? get().selectedId : null }),
-  setStickerChar: (c) => set({ stickerChar: c }),
+  setStickerSelection: (sel) => set({ stickerSelection: sel }),
   setNextPinNumber: (n) => set({ nextPinNumber: n }),
   select: (id) => set({ selectedId: id }),
 

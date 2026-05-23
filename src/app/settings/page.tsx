@@ -13,12 +13,14 @@ import {
   Settings as SettingsIcon,
   RefreshCw,
   Bug,
+  Smile,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
+import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
 import {
   enable as enableAutostart,
@@ -121,6 +123,10 @@ export default function SettingsPage() {
             <MapPin className="h-3.5 w-3.5" aria-hidden />
             Pins
           </TabsTrigger>
+          <TabsTrigger value="stickers" className="gap-1.5">
+            <Smile className="h-3.5 w-3.5" aria-hidden />
+            Stickers
+          </TabsTrigger>
           <TabsTrigger value="general" className="gap-1.5">
             <SettingsIcon className="h-3.5 w-3.5" aria-hidden />
             General
@@ -217,6 +223,10 @@ export default function SettingsPage() {
               onChange={(e) => update("pins", { defaultSize: Number(e.target.value) })}
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="stickers" className="pt-4">
+          <StickersForm />
         </TabsContent>
 
         <TabsContent value="updates" className="grid gap-4 pt-4">

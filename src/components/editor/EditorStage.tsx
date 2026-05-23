@@ -27,6 +27,7 @@ import {
   type PinAnnotation,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { useStickers } from "@/stores/stickers";
 import { setStage, setPrepareExport } from "@/lib/stageBridge";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 
@@ -70,7 +71,9 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
     case "blur":
       return { blur: { blurRadius: a.blurRadius } };
     case "sticker":
-      return { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
+      return a.kind === "image" || !a.char
+        ? { sticker: { fontSize: a.fontSize } }
+        : { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
     case "pin":
       return { pin: { color: a.color, size: a.size, labelColor: a.labelColor } };
   }
@@ -92,7 +95,7 @@ export function EditorStage({ src }: Props) {
   const tool = useEditor((s) => s.tool);
   const annotations = useEditor((s) => s.annotations);
   const selectedId = useEditor((s) => s.selectedId);
-  const stickerChar = useEditor((s) => s.stickerChar);
+  const stickerSelection = useEditor((s) => s.stickerSelection);
   const nextPinNumber = useEditor((s) => s.nextPinNumber);
   const setNextPinNumber = useEditor((s) => s.setNextPinNumber);
   const add = useEditor((s) => s.add);
@@ -107,16 +110,17 @@ export function EditorStage({ src }: Props) {
   const toolsCfg = effectiveTools(config);
 
   const setTool = useEditor((s) => s.setTool);
-  const setStickerChar = useEditor((s) => s.setStickerChar);
+  const setStickerSelection = useEditor((s) => s.setStickerSelection);
   const lastUsedInit = useRef(false);
   useEffect(() => {
     if (!settingsReady || lastUsedInit.current) return;
     lastUsedInit.current = true;
     if (config.general.rememberLastTool && config.lastUsed) {
       if (config.lastUsed.tool) setTool(config.lastUsed.tool);
-      if (config.lastUsed.stickerEmoji) setStickerChar(config.lastUsed.stickerEmoji);
+      if (config.lastUsed.stickerEmoji)
+        setStickerSelection({ kind: "emoji", char: config.lastUsed.stickerEmoji });
     }
-  }, [settingsReady, config.general.rememberLastTool, config.lastUsed, setTool, setStickerChar]);
+  }, [settingsReady, config.general.rememberLastTool, config.lastUsed, setTool, setStickerSelection]);
 
   const lastUsedTimer = useRef<number | null>(null);
   const pendingLastUsed = useRef<NonNullable<AppConfig["lastUsed"]>>({});
@@ -130,7 +134,14 @@ export function EditorStage({ src }: Props) {
         ...cur,
         ...pendingLastUsed.current,
         tool: useEditor.getState().tool,
-        stickerEmoji: pendingLastUsed.current.stickerEmoji ?? cur.stickerEmoji ?? useEditor.getState().stickerChar,
+        stickerEmoji: (() => {
+          const sel = useEditor.getState().stickerSelection;
+          return (
+            pendingLastUsed.current.stickerEmoji ??
+            cur.stickerEmoji ??
+            (sel.kind === "emoji" ? sel.char : undefined)
+          );
+        })(),
         rect: { ...cur.rect, ...pendingLastUsed.current.rect },
         arrow: { ...cur.arrow, ...pendingLastUsed.current.arrow },
         text: { ...cur.text, ...pendingLastUsed.current.text },
@@ -149,6 +160,18 @@ export function EditorStage({ src }: Props) {
   useEffect(() => {
     void initSettings();
   }, [initSettings]);
+
+  // Load image stickers from user-configured directory on first ready.
+  // Loaded entries cache in the module-scoped store so subsequent editor
+  // windows in the same webview reuse them (no re-scan per editor open).
+  const stickersLoaded = useStickers((s) => s.loaded);
+  useEffect(() => {
+    if (!settingsReady) return;
+    if (stickersLoaded) return;
+    const dir = config.stickers.directory;
+    if (!dir) return;
+    void useStickers.getState().load(dir);
+  }, [settingsReady, stickersLoaded, config.stickers.directory]);
 
   useEffect(() => {
     setStage(stageRef.current);
@@ -280,14 +303,27 @@ export function EditorStage({ src }: Props) {
       return;
     }
     if (tool === "sticker") {
-      const a: StickerAnnotation = {
-        id: uid(),
-        type: "sticker",
-        x: p.x,
-        y: p.y,
-        char: stickerChar,
-        fontSize: toolsCfg.sticker.fontSize,
-      };
+      const a: StickerAnnotation =
+        stickerSelection.kind === "image"
+          ? {
+              id: uid(),
+              type: "sticker",
+              x: p.x,
+              y: p.y,
+              kind: "image",
+              src: stickerSelection.src,
+              name: stickerSelection.name,
+              fontSize: toolsCfg.sticker.fontSize,
+            }
+          : {
+              id: uid(),
+              type: "sticker",
+              x: p.x,
+              y: p.y,
+              kind: "emoji",
+              char: stickerSelection.char,
+              fontSize: toolsCfg.sticker.fontSize,
+            };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       return;
@@ -916,18 +952,59 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
 }
 
 function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
-  const ref = useRef<Konva.Text>(null);
+  const textRef = useRef<Konva.Text>(null);
+  const imgRef = useRef<Konva.Image>(null);
+  const isImage = a.kind === "image" && !!a.src;
+  const [img] = useImage(isImage ? (a.src as string) : "", "anonymous");
   useEffect(() => {
-    ctx.setRef(ref.current);
+    ctx.setRef(isImage ? imgRef.current : textRef.current);
     return () => ctx.setRef(null);
   });
+  if (isImage) {
+    const naturalW = img?.naturalWidth ?? 0;
+    const naturalH = img?.naturalHeight ?? 0;
+    const ratio = naturalH > 0 ? naturalW / naturalH : 1;
+    const h = a.fontSize;
+    const w = h * ratio;
+    return (
+      <KonvaImage
+        ref={imgRef}
+        image={img}
+        x={a.x}
+        y={a.y}
+        width={w}
+        height={h}
+        rotation={a.rotation ?? 0}
+        draggable
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragEnd={(e) => {
+          ctx.onChange({ x: e.target.x(), y: e.target.y() });
+        }}
+        onTransformEnd={() => {
+          const node = imgRef.current;
+          if (!node) return;
+          const sx = node.scaleX();
+          node.scaleX(1);
+          node.scaleY(1);
+          ctx.onChange({
+            fontSize: Math.round(Math.max(12, a.fontSize * sx)),
+            rotation: node.rotation(),
+          });
+        }}
+      />
+    );
+  }
   return (
     <Text
-      ref={ref}
+      ref={textRef}
       x={a.x}
       y={a.y}
       rotation={a.rotation ?? 0}
-      text={a.char}
+      text={a.char ?? ""}
       fontSize={a.fontSize}
       draggable
       {...hoverHandlers(ctx)}
@@ -939,7 +1016,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
       onTransformEnd={() => {
-        const node = ref.current;
+        const node = textRef.current;
         if (!node) return;
         const sx = node.scaleX();
         node.scaleX(1);

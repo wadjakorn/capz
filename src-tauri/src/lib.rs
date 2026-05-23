@@ -93,6 +93,7 @@ pub fn run() {
             commands::pickers::capture_window_command,
             commands::output::default_save_dir,
             commands::output::reveal_in_finder,
+            commands::stickers::list_stickers,
             commands::permissions::has_screen_recording_permission,
             commands::permissions::request_screen_recording_permission,
             commands::permissions::open_system_settings_screen_recording,

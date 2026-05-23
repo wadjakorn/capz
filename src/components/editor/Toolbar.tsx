@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { useStickers } from "@/stores/stickers";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
@@ -91,8 +92,9 @@ export function Toolbar() {
   const redo = useEditor((s) => s.redo);
   const past = useEditor((s) => s.past.length);
   const future = useEditor((s) => s.future.length);
-  const stickerChar = useEditor((s) => s.stickerChar);
-  const setStickerChar = useEditor((s) => s.setStickerChar);
+  const stickerSelection = useEditor((s) => s.stickerSelection);
+  const setStickerSelection = useEditor((s) => s.setStickerSelection);
+  const stickerEntries = useStickers((s) => s.entries);
   const nextPinNumber = useEditor((s) => s.nextPinNumber);
   const setNextPinNumber = useEditor((s) => s.setNextPinNumber);
   const annotations = useEditor((s) => s.annotations);
@@ -527,11 +529,6 @@ export function Toolbar() {
     }
   };
 
-  const hasOptionsRow =
-    !!(colorCtx || widthCtx || sizeCtx || textStyleCtx || pinLabelCtx) ||
-    tool === "pin" ||
-    tool === "sticker";
-
   return (
     <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 max-h-[40vh] overflow-y-auto">
       <div className="flex flex-wrap items-center gap-1">
@@ -614,8 +611,7 @@ export function Toolbar() {
         );
       })()}
       </div>
-      {hasOptionsRow && (
-      <div className="flex flex-wrap items-center gap-1 border-t border-neutral-800 pt-1">
+      <div className="flex min-h-[36px] flex-wrap items-center gap-1 border-t border-neutral-800 pt-1">
       {colorCtx && (
         <>
           <label
@@ -812,29 +808,63 @@ export function Toolbar() {
       )}
       {tool === "sticker" && (
         <>
-          <div className="flex items-center gap-0.5">
-            {STICKERS.map((c) => {
-              const active = stickerChar === c;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setStickerChar(c)}
-                  title={c}
-                  className={[
-                    "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
-                    active ? "bg-neutral-100" : "hover:bg-neutral-800",
-                  ].join(" ")}
-                >
-                  {c}
-                </button>
-              );
-            })}
+          <div className="flex flex-wrap items-center gap-0.5">
+            {stickerEntries.length > 0
+              ? stickerEntries.map((e) => {
+                  const active =
+                    stickerSelection.kind === "image" &&
+                    stickerSelection.src === e.dataUrl;
+                  return (
+                    <button
+                      key={e.name}
+                      type="button"
+                      onClick={() =>
+                        setStickerSelection({
+                          kind: "image",
+                          src: e.dataUrl,
+                          name: e.name,
+                        })
+                      }
+                      title={e.name}
+                      className={[
+                        "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
+                        active ? "bg-neutral-100" : "hover:bg-neutral-800",
+                      ].join(" ")}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={e.dataUrl}
+                        alt={e.name}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </button>
+                  );
+                })
+              : STICKERS.map((c) => {
+                  const active =
+                    stickerSelection.kind === "emoji" &&
+                    stickerSelection.char === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() =>
+                        setStickerSelection({ kind: "emoji", char: c })
+                      }
+                      title={c}
+                      className={[
+                        "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
+                        active ? "bg-neutral-100" : "hover:bg-neutral-800",
+                      ].join(" ")}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
           </div>
         </>
       )}
       </div>
-      )}
     </div>
   );
 }
