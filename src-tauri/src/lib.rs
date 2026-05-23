@@ -1,5 +1,6 @@
 mod capture_dispatch;
 mod commands;
+mod notice;
 mod services;
 mod shortcuts;
 mod state;
@@ -79,6 +80,10 @@ pub fn run() {
             tray::create_tray(app.handle())?;
             if let Err(e) = shortcuts::register_shortcuts(app.handle()) {
                 log::error!("global shortcut registration failed: {e}");
+                notice::error(
+                    app.handle(),
+                    format!("Global shortcut registration failed: {e}"),
+                );
             }
             if !is_onboarding_completed(app.handle()) {
                 if let Err(e) = windows::show_onboarding(app.handle()) {

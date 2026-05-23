@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { Toaster, toast } from "sonner";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { useNoticeListener } from "@/lib/notice";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -15,15 +17,10 @@ const EditorStage = dynamic(
 export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
   const resetEditor = useEditor((s) => s.reset);
 
   useEditorShortcuts();
-
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 1800);
-  }, []);
+  useNoticeListener();
 
   const applyFile = useCallback(async (path: string | null) => {
     if (!path) {
@@ -98,15 +95,15 @@ export default function EditorPage() {
         const stage = getStage();
         if (!stage) return;
         await copyOnly(stage);
-        showToast("Copied");
+        toast.success("Copied");
       } catch (err) {
         console.error("copy shortcut failed", err);
-        showToast("Copy failed");
+        toast.error("Copy failed");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [file, showToast]);
+  }, [file]);
 
   // Paste handler: ask Rust to read clipboard image and load it.
   useEffect(() => {
@@ -121,12 +118,12 @@ export default function EditorPage() {
         await invoke<string>("paste_into_editor");
       } catch (err) {
         console.warn("paste_into_editor failed", err);
-        showToast("Clipboard has no image");
+        toast.error("Clipboard has no image");
       }
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [showToast]);
+  }, []);
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
@@ -137,12 +134,8 @@ export default function EditorPage() {
         ) : (
           <EmptyState />
         )}
-        {toast && (
-          <div className="pointer-events-none absolute right-4 top-4 rounded bg-black/80 px-3 py-1.5 text-xs text-white shadow">
-            {toast}
-          </div>
-        )}
       </main>
+      <Toaster theme="dark" position="top-right" richColors closeButton />
     </div>
   );
 }

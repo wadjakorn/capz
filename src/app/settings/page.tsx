@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Toaster, toast } from "sonner";
+import { useNoticeListener } from "@/lib/notice";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -29,10 +31,10 @@ async function applyHotkey(
 
 export default function SettingsPage() {
   const { config, ready, init, update } = useSettings();
-  const [flash, setFlash] = useState<string | null>(null);
-  const flashTimer = useRef<number | null>(null);
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
+
+  useNoticeListener();
 
   useEffect(() => {
     init();
@@ -73,17 +75,8 @@ export default function SettingsPage() {
     }
     if (configSig === firstSig.current) return;
     firstSig.current = configSig;
-    setFlash("Saved");
-    if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setFlash(null), 1400);
+    toast.success("Saved", { duration: 1400 });
   }, [configSig, ready]);
-
-  useEffect(
-    () => () => {
-      if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    },
-    [],
-  );
 
   if (!ready) {
     return (
@@ -97,12 +90,8 @@ export default function SettingsPage() {
     <main className="mx-auto max-w-2xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Settings</h1>
-        {flash && (
-          <span className="rounded bg-emerald-600/20 px-2 py-0.5 text-xs text-emerald-300 ring-1 ring-emerald-500/40">
-            {flash}
-          </span>
-        )}
       </div>
+      <Toaster theme="dark" position="top-right" richColors closeButton />
       <Tabs defaultValue="shortcuts">
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="shortcuts">Shortcuts</TabsTrigger>

@@ -52,10 +52,14 @@ where
         Ok(Ok(p)) => p,
         Ok(Err(e)) => {
             tray::set_idle(&app);
+            let msg = format!("Capture failed: {e}");
+            crate::notice::error(&app, &msg);
             return Err(e.to_string());
         }
         Err(e) => {
             tray::set_idle(&app);
+            let msg = format!("Capture failed: {e}");
+            crate::notice::error(&app, &msg);
             return Err(format!("join: {e}"));
         }
     };

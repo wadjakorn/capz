@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { getStage } from "@/lib/stageBridge";
@@ -266,19 +267,7 @@ export function Toolbar() {
     0,
   );
 
-  const [flash, setFlash] = useState<string | null>(null);
-  const flashTimer = useRef<number | null>(null);
-  const notify = (msg: string) => {
-    setFlash(msg);
-    if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setFlash(null), 1600);
-  };
-  useEffect(
-    () => () => {
-      if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    },
-    [],
-  );
+  const notify = (msg: string) => toast(msg);
 
   const clearPersisted = () => {
     const start = pinsCfg.defaultStartNumber;
@@ -578,11 +567,6 @@ export function Toolbar() {
             })}
           </div>
         </>
-      )}
-      {flash && (
-        <span className="ml-auto rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-200">
-          {flash}
-        </span>
       )}
     </div>
   );

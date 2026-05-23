@@ -24,7 +24,7 @@ Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases l
 - [x] Phase 11 — persistent editor workspace (single-instance, hide-on-close, paste-from-clipboard, empty state)
 - [x] Phase 12 — onboarding (TCC)
 - [x] Phase 13 — autostart
-- [~] Phase 14 — polish/logging (14a: file logging + capture sound + About row — done; 14b: toast/Sonner + edge-case surfacing — pending)
+- [~] Phase 14 — polish/logging (14a + 14b done; remaining: disk-full / clipboard-denied recovery flows)
 - [ ] Phase 15 — packaging/signing (CI builds wired 2026-05-23; signing/notarization deferred)
 - [ ] Phase 16 — updater + ship
 
@@ -185,6 +185,17 @@ User enhancement on top of Phase 10: drop the per-save file dialog; persist a de
 - **Capture sound** [src-tauri/src/services/sound.rs](src-tauri/src/services/sound.rs). Originally tried Web Audio API in editor page — failed because the editor webview is often hidden/unfocused when a capture lands and autoplay policy holds AudioContext suspended without prior user gesture. Moved server-side: `play_capture_sound(app)` reads `general.playSoundOnCapture` from store via `StoreExt`, shells out to `afplay /System/Library/Sounds/Tink.aiff` on macOS and `powershell ... [System.Media.SystemSounds]::Asterisk.Play()` on Windows. Fire-and-forget spawn — no wait, no extra crate. Called from `windows::load_editor_image` after the load-image emit.
 - **About row** in Settings → General. Reads `getVersion()` + `getTauriVersion()` from `@tauri-apps/api/app`, renders `vX.Y.Z · Tauri X.Y.Z · <platform>` under the "Re-run onboarding" row.
 - **Deferred to Phase 14b:** Sonner toasts replacing inline `setToast`; surfacing hotkey-registration failures (currently only `log::error!`); recovery flow for capture-permission revoked mid-session; disk-full handling on save.
+
+### Phase 14b — Sonner toasts + cross-window notice channel (2026-05-23)
+
+- **`sonner@2`** added. `<Toaster theme="dark" position="top-right" richColors closeButton />` mounted in editor + settings pages (separate React trees per Tauri window — Toaster must live in each).
+- **Editor inline toast removed.** Previous `useState<string|null>(toast)` + absolutely-positioned div replaced with sonner `toast()/.success()/.error()` calls. Toolbar `flash/setFlash/notify` shim replaced with `notify = (msg) => toast(msg)`; trailing ml-auto flash span removed.
+- **Settings "Saved" badge** replaced with `toast.success("Saved", { duration: 1400 })`.
+- **Rust→frontend notice channel** in [src-tauri/src/notice.rs](src-tauri/src/notice.rs). Emits `app:notice` event with `{ kind: "info"|"success"|"error", message }`. Frontend hook `useNoticeListener()` in [src/lib/notice.ts](src/lib/notice.ts) subscribes and routes by kind.
+- **Wired emitters:**
+  - `capture_to_editor` failure paths (both the inner capture error and the join error) emit `notice::error` so hotkey/tray-driven captures surface failures even when no frontend command is in flight.
+  - `register_shortcuts` failure at setup emits `notice::error` (was log-only before).
+- **`NoticeKind::Info` and `Success`** kept as `#[allow(dead_code)]` — public surface for future callers (no current Rust emitters use them; frontend handles `toast()` and `toast.success()` directly).
 
 ### Phase 15 — interim CI + free-distribution (2026-05-23, partial)
 
