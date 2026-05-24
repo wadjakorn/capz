@@ -55,7 +55,7 @@ Dropped. User decision: not worth implementing. Existing `notice::error` toast o
 ### Known issues / follow-ups
 
 - [ ] **Onboarding "Granted" sticks after mid-session revoke** — `CGPreflightScreenCaptureAccess()` caches the grant for the lifetime of the process, so toggling capz off in System Settings while the app is running still reports `true`. Polling preflight will never flip back to denied. Need an actual capture probe (e.g. `CGWindowListCreateImage` 1×1 or `CGDisplayStream`) and inspect for null/black pixels to detect revocation. The `app:permission-revoked` toast already fires when a real capture fails — this is only the onboarding StatusCard that lies.
-- [ ] **Automated version bump** — replace manual edits across `package.json` / `Cargo.toml` / `tauri.conf.json` / `PROGRESS.md` with a single script (`pnpm release patch|minor|major`) that bumps all three, updates changelog, tags, and pushes.
+- [x] **Automated version bump** (landed 2026-05-25) — [scripts/release.mjs](scripts/release.mjs) wired as `pnpm release patch|minor|major|<x.y.z> [--dry-run] [--no-commit] [--no-tag]`. Bumps `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` `[package].version` in place; refuses to commit if working tree has unrelated dirty files; creates `chore(release): vX.Y.Z` commit + matching `vX.Y.Z` tag. Does NOT push (user runs `git push && git push --tags` manually, matches existing release workflow). No CHANGELOG generation — repo doesn't keep one; commit history + tags are the log.
 
 ### Settings & tray menu revise
 
