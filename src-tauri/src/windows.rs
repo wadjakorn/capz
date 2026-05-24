@@ -7,20 +7,14 @@ use tauri::{PhysicalPosition, PhysicalSize};
 
 use crate::services::monitor_service;
 
+/// Open the editor window and switch its inner view to the onboarding flow.
+/// Onboarding no longer has its own window — it lives inside the editor.
 pub fn show_onboarding<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    if let Some(win) = app.get_webview_window("onboarding") {
-        win.show()?;
-        win.set_focus()?;
-        macos_activate();
-        return Ok(());
+    use tauri::Emitter;
+    show_editor(app)?;
+    if let Err(e) = app.emit_to("editor", "editor:show-onboarding", ()) {
+        log::warn!("emit editor:show-onboarding: {e}");
     }
-    WebviewWindowBuilder::new(app, "onboarding", WebviewUrl::App("onboarding/".into()))
-        .title("capz — Welcome")
-        .inner_size(640.0, 520.0)
-        .resizable(false)
-        .visible(true)
-        .build()?;
-    macos_activate();
     Ok(())
 }
 

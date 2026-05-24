@@ -6,10 +6,11 @@ import { Toaster, toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { SettingsView } from "@/components/settings/SettingsView";
+import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
-import { useNoticeListener } from "@/lib/notice";
+import { useNoticeListener, usePermissionRevokedListener } from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
 
 const EditorStage = dynamic(
@@ -17,7 +18,7 @@ const EditorStage = dynamic(
   { ssr: false },
 );
 
-type View = "editor" | "settings";
+type View = "editor" | "settings" | "onboarding";
 
 export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export default function EditorPage() {
 
   useEditorShortcuts();
   useNoticeListener();
+  usePermissionRevokedListener();
   useUpdateCheckListener();
 
   const applyFile = useCallback(async (path: string | null) => {
@@ -94,6 +96,18 @@ export default function EditorPage() {
         if (typeof tab === "string" && tab.length > 0) {
           void emit("settings:focus-tab", tab);
         }
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
+
+  // Deep-link: open onboarding view (first launch + Settings "Re-run").
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen("editor:show-onboarding", () => {
+        setView("onboarding");
       });
     })();
     return () => unlisten?.();
@@ -186,13 +200,17 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       {view === "settings" ? (
-        <SettingsHeader onBack={() => setView("editor")} />
+        <SubViewHeader title="Settings" onBack={() => setView("editor")} />
+      ) : view === "onboarding" ? (
+        <SubViewHeader title="Welcome" onBack={() => setView("editor")} />
       ) : (
         <Toolbar onOpenSettings={() => setView("settings")} />
       )}
       <main className="relative min-h-0 flex-1 overflow-auto">
         {view === "settings" ? (
           <SettingsView />
+        ) : view === "onboarding" ? (
+          <OnboardingView onDone={() => setView("editor")} />
         ) : file ? (
           <EditorStage src={src} />
         ) : (
@@ -204,7 +222,7 @@ export default function EditorPage() {
   );
 }
 
-function SettingsHeader({ onBack }: { onBack: () => void }) {
+function SubViewHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="flex items-center gap-2 border-b border-neutral-800 bg-neutral-900 px-3 py-2">
       <button
@@ -216,7 +234,7 @@ function SettingsHeader({ onBack }: { onBack: () => void }) {
         <ArrowLeft className="h-4 w-4" aria-hidden />
         Editor
       </button>
-      <h1 className="text-sm font-semibold text-neutral-100">Settings</h1>
+      <h1 className="text-sm font-semibold text-neutral-100">{title}</h1>
     </div>
   );
 }

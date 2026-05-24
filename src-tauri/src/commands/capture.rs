@@ -1,9 +1,26 @@
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
+use crate::commands::permissions::has_screen_recording;
 use crate::services::{capture_service, image_service, monitor_service};
 use crate::tray;
 use crate::windows;
+
+/// Surface a capture error. On macOS, if Screen Recording permission is no
+/// longer granted (revoked mid-session via System Settings, or never granted
+/// and the underlying capture call silently returned an all-black/empty
+/// buffer that hit a downstream error), fire a dedicated event so the
+/// frontend can offer a "Re-run onboarding" action instead of a bare error
+/// toast. Otherwise fall back to the generic notice channel.
+fn emit_capture_error<R: Runtime>(app: &AppHandle<R>, msg: &str) {
+    if cfg!(target_os = "macos") && !has_screen_recording() {
+        if let Err(e) = app.emit("app:permission-revoked", ()) {
+            log::warn!("emit app:permission-revoked: {e}");
+        }
+        return;
+    }
+    crate::notice::error(app, msg);
+}
 
 const STORE_FILE: &str = "config.json";
 const STORE_KEY: &str = "app";
@@ -52,14 +69,12 @@ where
         Ok(Ok(p)) => p,
         Ok(Err(e)) => {
             tray::set_idle(&app);
-            let msg = format!("Capture failed: {e}");
-            crate::notice::error(&app, &msg);
+            emit_capture_error(&app, &format!("Capture failed: {e}"));
             return Err(e.to_string());
         }
         Err(e) => {
             tray::set_idle(&app);
-            let msg = format!("Capture failed: {e}");
-            crate::notice::error(&app, &msg);
+            emit_capture_error(&app, &format!("Capture failed: {e}"));
             return Err(format!("join: {e}"));
         }
     };

@@ -7,8 +7,7 @@ extern "C" {
     fn CGRequestScreenCaptureAccess() -> bool;
 }
 
-#[tauri::command]
-pub fn has_screen_recording_permission() -> bool {
+pub fn has_screen_recording() -> bool {
     #[cfg(target_os = "macos")]
     unsafe {
         CGPreflightScreenCaptureAccess()
@@ -17,6 +16,11 @@ pub fn has_screen_recording_permission() -> bool {
     {
         true
     }
+}
+
+#[tauri::command]
+pub fn has_screen_recording_permission() -> bool {
+    has_screen_recording()
 }
 
 /// Triggers macOS to prompt user (only the first time per TCC lifecycle).
