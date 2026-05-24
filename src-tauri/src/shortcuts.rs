@@ -128,6 +128,16 @@ pub fn reregister_shortcuts<R: Runtime>(app: AppHandle<R>) -> Result<(), String>
     register_shortcuts(&app)
 }
 
+/// Temporarily release all global shortcuts (e.g. while user is recording a new
+/// hotkey in Settings so the existing binding doesn't swallow the keystroke).
+/// Pair with `reregister_shortcuts` on field blur / save.
+#[tauri::command]
+pub fn suspend_shortcuts<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|e| e.to_string())
+}
+
 #[allow(dead_code)]
 pub fn unregister_all<R: Runtime>(app: &AppHandle<R>) {
     if let Err(e) = app.global_shortcut().unregister_all() {

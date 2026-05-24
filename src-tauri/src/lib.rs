@@ -80,6 +80,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             shortcuts::reregister_shortcuts,
+            shortcuts::suspend_shortcuts,
             commands::capture::list_monitors_command,
             commands::capture::capture_full_command,
             commands::capture::capture_monitor_command,

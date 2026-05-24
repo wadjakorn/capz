@@ -24,17 +24,6 @@ pub fn show_onboarding<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Settings is now an in-app view inside the editor window. Open the editor,
-/// then emit `editor:show-settings` so the frontend switches view.
-pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    use tauri::Emitter;
-    show_editor(app)?;
-    if let Err(e) = app.emit_to("editor", "editor:show-settings", Option::<String>::None) {
-        log::warn!("emit editor:show-settings: {e}");
-    }
-    Ok(())
-}
-
 /// Spawn one transparent overlay window per monitor (label `overlay-<id>`).
 /// Each window covers a single screen; v1 area selection stays per-monitor.
 /// xcap on macOS returns CG points (top-left origin) for monitor x/y/w/h, so we

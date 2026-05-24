@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Input } from "@/components/ui/input";
 import { eventToAccelerator, formatShortcut, isReserved } from "@/lib/shortcuts";
 
@@ -13,6 +14,27 @@ export function HotkeyRecorder({ value, onChange }: Props) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
+  const suspended = useRef(false);
+
+  async function suspend() {
+    if (suspended.current) return;
+    suspended.current = true;
+    try {
+      await invoke("suspend_shortcuts");
+    } catch (e) {
+      console.warn("suspend_shortcuts failed", e);
+    }
+  }
+
+  async function resume() {
+    if (!suspended.current) return;
+    suspended.current = false;
+    try {
+      await invoke("reregister_shortcuts");
+    } catch (e) {
+      console.warn("reregister_shortcuts failed", e);
+    }
+  }
 
   function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!recording) return;
@@ -41,8 +63,12 @@ export function HotkeyRecorder({ value, onChange }: Props) {
         onFocus={() => {
           setRecording(true);
           setError(null);
+          void suspend();
         }}
-        onBlur={() => setRecording(false)}
+        onBlur={() => {
+          setRecording(false);
+          void resume();
+        }}
         onKeyDown={handleKey}
         className="font-mono cursor-pointer"
       />

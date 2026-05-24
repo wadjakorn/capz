@@ -26,20 +26,57 @@ import {
   isEnabled as isAutostartEnabled,
 } from "@tauri-apps/plugin-autostart";
 
+type HotkeyPatch = {
+  captureFull?: string;
+  captureArea?: string;
+  captureWindow?: string;
+  showEditor?: string;
+};
+
+const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
+  captureFull: "Capture full screen",
+  captureArea: "Capture area",
+  captureWindow: "Capture window",
+  showEditor: "Show editor",
+};
+
 async function applyHotkey(
+  getState: typeof useSettings.getState,
   update: ReturnType<typeof useSettings.getState>["update"],
-  patch: {
-    captureFull?: string;
-    captureArea?: string;
-    captureWindow?: string;
-    showEditor?: string;
-  },
+  patch: HotkeyPatch,
 ) {
+  const prev = { ...getState().config.hotkeys };
+  const next = { ...prev, ...patch } as Record<keyof HotkeyPatch, string>;
+
+  const changedKey = Object.keys(patch)[0] as keyof HotkeyPatch | undefined;
+  const newAccel = changedKey ? patch[changedKey] : undefined;
+  if (changedKey && newAccel) {
+    const clash = (Object.keys(next) as (keyof HotkeyPatch)[]).find(
+      (k) => k !== changedKey && next[k] === newAccel,
+    );
+    if (clash) {
+      toast.error(`${newAccel} already used by "${HOTKEY_LABELS[clash]}"`, {
+        id: "hotkey-clash",
+      });
+      return;
+    }
+  }
+
   await update("hotkeys", patch);
   try {
     await invoke("reregister_shortcuts");
   } catch (e) {
     console.error("reregister_shortcuts failed", e);
+    await update("hotkeys", prev);
+    try {
+      await invoke("reregister_shortcuts");
+    } catch (e2) {
+      console.error("reregister_shortcuts (revert) failed", e2);
+    }
+    toast.error("Could not register shortcut", {
+      id: "hotkey-register-failed",
+      description: String(e).replace(/^"|"$/g, ""),
+    });
   }
 }
 
@@ -101,7 +138,10 @@ export function SettingsView() {
     }
     if (configSig === firstSig.current) return;
     firstSig.current = configSig;
-    toast.success("Saved", { duration: 1400 });
+    const t = setTimeout(() => {
+      toast.success("Saved", { id: "settings-saved", duration: 1400 });
+    }, 400);
+    return () => clearTimeout(t);
   }, [configSig, ready]);
 
   if (!ready) {
@@ -151,28 +191,28 @@ export function SettingsView() {
             <Label>Capture full screen</Label>
             <HotkeyRecorder
               value={config.hotkeys.captureFull}
-              onChange={(v) => applyHotkey(update, { captureFull: v })}
+              onChange={(v) => applyHotkey(useSettings.getState, update, { captureFull: v })}
             />
           </div>
           <div className="grid gap-2">
             <Label>Capture area</Label>
             <HotkeyRecorder
               value={config.hotkeys.captureArea}
-              onChange={(v) => applyHotkey(update, { captureArea: v })}
+              onChange={(v) => applyHotkey(useSettings.getState, update, { captureArea: v })}
             />
           </div>
           <div className="grid gap-2">
             <Label>Capture window</Label>
             <HotkeyRecorder
               value={config.hotkeys.captureWindow}
-              onChange={(v) => applyHotkey(update, { captureWindow: v })}
+              onChange={(v) => applyHotkey(useSettings.getState, update, { captureWindow: v })}
             />
           </div>
           <div className="grid gap-2">
             <Label>Show editor</Label>
             <HotkeyRecorder
               value={config.hotkeys.showEditor}
-              onChange={(v) => applyHotkey(update, { showEditor: v })}
+              onChange={(v) => applyHotkey(useSettings.getState, update, { showEditor: v })}
             />
           </div>
         </TabsContent>

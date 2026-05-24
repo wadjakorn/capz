@@ -35,9 +35,8 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let capture_window =
         MenuItem::with_id(app, "capture_window", "Capture Window…", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let open_editor = MenuItem::with_id(app, "open_editor", "Open Editor", true, None::<&str>)?;
+    let open_app = MenuItem::with_id(app, "open_app", "Open App", true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
-    let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit capz", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -47,9 +46,8 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             &capture_area,
             &capture_window,
             &sep,
-            &open_editor,
+            &open_app,
             &sep2,
-            &settings,
             &quit,
         ],
     )?;
@@ -77,14 +75,9 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             "capture_window" => {
                 crate::capture_dispatch::dispatch_window(app);
             }
-            "open_editor" => {
+            "open_app" => {
                 if let Err(e) = windows::show_editor(app) {
                     log::error!("show_editor failed: {e}");
-                }
-            }
-            "settings" => {
-                if let Err(e) = windows::show_settings(app) {
-                    log::error!("show_settings failed: {e}");
                 }
             }
             "quit" => {
