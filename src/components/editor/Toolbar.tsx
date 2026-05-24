@@ -15,6 +15,7 @@ import {
   Copy as CopyIcon,
   Save,
   SaveAll,
+  Trash2,
   Bold,
   Italic,
   Underline,
@@ -92,6 +93,7 @@ export function Toolbar() {
   const redo = useEditor((s) => s.redo);
   const past = useEditor((s) => s.past.length);
   const future = useEditor((s) => s.future.length);
+  const hasImage = useEditor((s) => s.hasImage);
   const stickerSelection = useEditor((s) => s.stickerSelection);
   const setStickerSelection = useEditor((s) => s.setStickerSelection);
   const stickerEntries = useStickers((s) => s.entries);
@@ -523,7 +525,28 @@ export function Toolbar() {
     } catch (e) {
       console.error("export failed", e);
       const { title, detail } = describeExportError(e);
-      toast.error(title, { description: detail });
+      const recoverable =
+        title === "Permission denied" ||
+        title === "Read-only volume" ||
+        title === "Disk full";
+      toast.error(title, {
+        description: detail,
+        action: recoverable
+          ? {
+              label: "Pick folder",
+              onClick: () => {
+                void (async () => {
+                  const { invoke } = await import("@tauri-apps/api/core");
+                  try {
+                    await invoke("show_settings_command", { tab: "output" });
+                  } catch (err) {
+                    console.error("show_settings_command failed", err);
+                  }
+                })();
+              },
+            }
+          : undefined,
+      });
     } finally {
       setExporting(false);
     }
@@ -573,6 +596,34 @@ export function Toolbar() {
         className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
       >
         <Redo2 className="h-4 w-4" aria-hidden />
+      </button>
+      <div className="mx-2 h-5 w-px bg-neutral-800" />
+      <button
+        type="button"
+        onClick={() => {
+          void (async () => {
+            try {
+              const { ask } = await import("@tauri-apps/plugin-dialog");
+              const ok = await ask(
+                "Drop the current image and all annotations? This cannot be undone.",
+                { title: "Clear workspace?", kind: "warning", okLabel: "Clear", cancelLabel: "Cancel" },
+              );
+              if (!ok) return;
+              const { invoke } = await import("@tauri-apps/api/core");
+              await invoke("clear_editor_workspace");
+              toast("Workspace cleared");
+            } catch (err) {
+              console.error("clear_editor_workspace failed", err);
+              toast.error("Clear failed", { description: String(err) });
+            }
+          })();
+        }}
+        disabled={!hasImage}
+        title={hasImage ? "Clear workspace (drop image + annotations)" : "Workspace already empty"}
+        aria-label="Clear workspace"
+        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        <Trash2 className="h-4 w-4" aria-hidden />
       </button>
       <div className="mx-2 h-5 w-px bg-neutral-800" />
       {(() => {

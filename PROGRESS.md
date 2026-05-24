@@ -2,6 +2,8 @@
 
 Tracks phase completion + deviations from [PLAN.md](PLAN.md). Update as phases land.
 
+> **Post-v0.1.7 work → [PROGRESS-NEXT.md](PROGRESS-NEXT.md).** This file is frozen as the Phase 0–16 build log. New enhancements, residual deferred items (e.g. 14b perm-revoked recovery), and future ideas land in PROGRESS-NEXT.md. Treat this file as read-mostly history; only back-fill here for corrections to past phase entries.
+
 ## Phases
 
 - [x] Phase 0 — bootstrap (Tauri+Next scaffold, Tailwind 4, shadcn, static export)
@@ -89,7 +91,7 @@ Things added or changed during build that PLAN.md did not specify. Cross-referen
 - **Empty state.** When `editor_current_image` returns null and no event fired, page renders `<EmptyState/>` with paste-hint. `EditorStage` not mounted (skips Konva init).
 - **Store `reset()`** added to [src/stores/editor.ts](src/stores/editor.ts) — wipes annotations / undo stack / pin counter / selection. Existing `clear()` early-returns when annotations empty, doesn't touch history; not suitable for cross-image reset.
 - **Cache-busting `src` URL** (`convertFileSrc(path)?t=<ts>`) so a *replaced* temp file at the same path still triggers a reload. (Currently each capture/paste produces a new timestamped path, so collisions are unlikely — defensive.)
-- **Clear Workspace** *(spec task 9)* deferred. Replace-on-load + tray-Quit cleanup cover the v1 use cases per user decision 2026-05-23.
+- **Clear Workspace** *(spec task 9)* — **landed 2026-05-24.** Rust `clear_editor_workspace` cmd ([src-tauri/src/commands/editor.rs](src-tauri/src/commands/editor.rs)) `state.swap(None)` → `fs::remove_file` prior temp → `emit_to("editor", "editor:clear", ())`. Frontend listener in [src/app/editor/page.tsx](src/app/editor/page.tsx) calls `applyFile(null)` → renders EmptyState. Toolbar Trash2 button between Undo/Redo divider and export buttons; disabled when workspace empty (`useEditor.hasImage` flag, set in [src/app/editor/page.tsx](src/app/editor/page.tsx) `applyFile()`). Native `ask()` confirmation dialog (kind: warning) before invoke — destructive action, no undo. Capability `dialog:allow-ask` added to [editor.json](src-tauri/capabilities/editor.json).
 
 ### Phase 7
 
@@ -286,7 +288,7 @@ Source brief (verbatim, then refined):
 
 1. ~~End-to-end release test.~~ **DONE 2026-05-23** — v0.1.1 tag-push triggered CI matrix; `latest.json` + dmgs landed on release. v0.1.2 re-released after macos-13 runner fix.
 2. ~~CI: confirm Tauri Action publishes `latest.json`.~~ **DONE 2026-05-23** — confirmed live at `https://github.com/wadjakorn/capz/releases/latest/download/latest.json`.
-3. **Key custody.** Confirm offline encrypted backup of `~/.tauri/capz-updater.key` stored separately from password. SPOF — see CLAUDE.md. *(user task — not code)*
+3. ~~**Key custody.**~~ **DONE 2026-05-24** — offline encrypted backup of `~/.tauri/capz-updater.key` confirmed, password stored separately. SPOF mitigated.
 4. **Auto-update smoke test deferred.** Oldest available build = v0.1.2. Re-run on next bump (v0.1.3) by keeping v0.1.2 dmg on hand to install → trigger update prompt → verify install + relaunch.
 
 ### Phase 15/16 — ship (2026-05-23)
@@ -316,7 +318,7 @@ User-noted enhancements deferred until Phase 14 (polish):
 3. ~~**Iconified buttons.** Replace bare-text buttons (toolbar tool buttons, Save/Copy/Cancel, Settings tab triggers, onboarding actions) with `lucide-react` icons + tooltip labels. Keep text on primary CTAs.~~ Done 2026-05-23 — editor toolbar tools (Select/Arrow/Rect/Text/Blur/Sticker/Pin) + Undo/Redo now icon-only with title+aria-label; Copy/Save/Save&Copy keep text + icon; Settings TabsTrigger icons (Keyboard/Download/MapPin/Palette/Settings/RefreshCw/Bug) added. Onboarding kept text-only (primary CTAs benefit from clarity).
 4. ~~**Always-on-top toggle.** Settings → General switch. Per-window: editor (helpful while annotating over reference) — and possibly settings. Wire via `tauri::WebviewWindow::set_always_on_top(bool)` on toggle; persist in `general.alwaysOnTop`. Re-apply on window create.~~ Done 2026-05-23 — `general.alwaysOnTopEditor` config field, Settings → General toggle, Rust `set_editor_always_on_top` cmd, re-applied on `show_editor` create/show via store read.
 5. ~~**Context-aware cursors.** Tool-specific cursors in editor: `crosshair` while dragging shape (rect/arrow/blur region), `pointer` for select/pin, `text` for text tool, `move` while dragging existing element. Currently default arrow everywhere. Set via inline `style.cursor` on `EditorStage` container based on active tool + drag state.~~ Done 2026-05-23 — tool-based cursorClass already covered select/text/crosshair; hover→pointer already wired; added stage `dragstart`/`dragend` listener → `grabbing` while moving existing element.
-6. **App + tray icon.** Replace Tauri default placeholder icons in [src-tauri/icons/](src-tauri/icons/) (32, 128, 128@2x, .icns, .ico) and tray icon. Generate dual-tone macOS template (black/transparent for menu bar auto-tint) + standard Windows multi-res .ico. Verify tray icon honors `set_icon_as_template(true)` on macOS so it inverts with menu bar theme.
+6. ~~**App + tray icon.**~~ Done 2026-05-24 — icons regenerated Phase 17 (`pnpm tauri icon`), tray set in [src-tauri/icons/tray/](src-tauri/icons/tray/) (16/22/24/32 + @2x), `.icon_as_template(true)` set in [src-tauri/src/tray.rs:65](src-tauri/src/tray.rs:65), menubar light/dark inversion visually verified.
 
 ### Phase 17 — Appled UI tokens + new app/tray icons (2026-05-23)
 
@@ -344,12 +346,29 @@ User-noted enhancements deferred until Phase 14 (polish):
 - Auto-update path from v0.1.2 failed (see above). Release otherwise sound — manual install works.
 - No code-level changes vs v0.1.2 in updater path; failure attributed to plugin-CDN interaction, not capz code.
 
-#### v0.1.4 release (2026-05-23, pending)
+#### v0.1.4 release (2026-05-23, shipped)
 
-- Bumped `package.json` + `src-tauri/tauri.conf.json` to 0.1.4.
-- First build under new GitHub Pages endpoint.
-- After tag push: matrix builds → `publish-meta` writes new `latest.json` to gh-pages → manual `gh release edit v0.1.4 --draft=false` → cask workflow updates tap.
-- Smoke test plan: reinstall v0.1.4 via brew, tag v0.1.5, verify Settings → Updates → Check now detects + installs.
+- Bumped `package.json` + `src-tauri/tauri.conf.json` to 0.1.4. First build under GitHub Pages endpoint.
+- CI matrix green, `publish-meta` pushed `latest.json` (v0.1.4) to gh-pages, draft published, cask tap auto-bumped.
+- Endpoint reachability confirmed: `curl -sI https://wadjakorn.github.io/capz/latest.json` → `HTTP/2 200`, no redirect.
+
+#### v0.1.5 release (2026-05-23, shipped — false start then re-tagged)
+
+- First tag pushed without bumping version files → tauri-action `__VERSION__` resolved to `0.1.4` → release titled `capz v0.1.4`, assets named `capz_0.1.4_*.dmg`. Deleted tag + release (`gh release delete v0.1.5 --yes --cleanup-tag`), bumped both version files, re-tagged.
+- Second run clean. `publish-meta` updated gh-pages → version `0.1.5`.
+
+#### v0.1.6 — dialog:allow-ask fix (2026-05-23)
+
+- **Bug.** From v0.1.4: Settings → Updates → Check now updates `Last checked` timestamp but never opens the native "Update Available" prompt. No log line, no error toast. `gh-pages/latest.json` correctly reports v0.1.5.
+- **Root cause.** [src-tauri/capabilities/default.json](src-tauri/capabilities/default.json) granted `dialog:allow-open` but not `dialog:allow-ask` to the `settings` window. [src/lib/updater.ts](src/lib/updater.ts) `promptAndInstall()` calls `@tauri-apps/plugin-dialog` `ask()` → silently rejected by capability ACL → unhandled rejection swallowed in React event handler → no prompt, no toast. `lastCheckedAt` write happens **before** the `ask()` call, so timestamp still updates.
+- **Fix.** Added `dialog:allow-ask` to default.json `permissions`. Bumped to 0.1.6.
+- **Constraint.** v0.1.4 + v0.1.5 ship without the permission — both stuck on Check now. End-to-end updater smoke test = v0.1.6 → v0.1.7.
+
+#### v0.1.7 release (2026-05-23, shipped)
+
+- Trivial bump to drive end-to-end updater test from v0.1.6.
+- CI matrix green, `publish-meta` pushed v0.1.7 metadata to gh-pages, cask tap auto-bumped.
+- **End-to-end verified.** From installed v0.1.6, Settings → Updates → Check now → native dialog "Version 0.1.7 is available" → Install → app downloaded `.app.tar.gz`, verified Ed25519 signature, replaced bundle, relaunched as v0.1.7. Full updater pipeline working end-to-end through GitHub Pages endpoint.
 
 ## Open questions (PLAN.md §9) — RESOLVED 2026-05-22
 

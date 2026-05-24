@@ -12,6 +12,49 @@ pub async fn editor_current_image<R: Runtime>(app: AppHandle<R>) -> Option<Strin
     state.current().map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Drop the active workspace image: clear Rust state, remove the temp PNG,
+/// and notify the editor frontend to render the empty state.
+#[tauri::command]
+pub async fn clear_editor_workspace<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    use tauri::Emitter;
+
+    let state = app.state::<AppState>();
+    if let Some(prev) = state.swap(None) {
+        if let Err(e) = std::fs::remove_file(&prev) {
+            log::warn!("clear_editor_workspace remove {}: {e}", prev.display());
+        }
+    }
+    if let Err(e) = app.emit_to("editor", "editor:clear", ()) {
+        log::warn!("emit editor:clear: {e}");
+    }
+    Ok(())
+}
+
+/// Show the Settings window. Optional `tab` deep-links to a tab via the
+/// `settings:focus-tab` event (frontend picks it up to update controlled Tabs).
+#[tauri::command]
+pub async fn show_settings_command<R: Runtime>(
+    app: AppHandle<R>,
+    tab: Option<String>,
+) -> Result<(), String> {
+    use tauri::Emitter;
+
+    let app2 = app.clone();
+    app.run_on_main_thread(move || {
+        if let Err(e) = windows::show_settings(&app2) {
+            log::error!("show_settings: {e}");
+        }
+    })
+    .map_err(|e| e.to_string())?;
+
+    if let Some(t) = tab {
+        if let Err(e) = app.emit_to("settings", "settings:focus-tab", t) {
+            log::warn!("emit settings:focus-tab: {e}");
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn open_editor<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let app2 = app.clone();

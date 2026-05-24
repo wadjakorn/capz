@@ -45,10 +45,14 @@ async function applyHotkey(
   }
 }
 
+const TAB_VALUES = ["shortcuts", "output", "pins", "stickers", "general", "updates", "logs"] as const;
+type TabValue = (typeof TAB_VALUES)[number];
+
 export default function SettingsPage() {
   const { config, ready, init, update } = useSettings();
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
+  const [tab, setTab] = useState<TabValue>("shortcuts");
 
   useNoticeListener();
   useUpdateCheckListener();
@@ -56,6 +60,19 @@ export default function SettingsPage() {
   useEffect(() => {
     init();
   }, [init]);
+
+  // Deep-link from other windows (e.g. editor "Pick folder" toast action).
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen<string>("settings:focus-tab", (e) => {
+        const v = e.payload as TabValue;
+        if ((TAB_VALUES as readonly string[]).includes(v)) setTab(v);
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
 
   // Sync autostart toggle from OS (source of truth) once settings are ready.
   useEffect(() => {
@@ -109,7 +126,7 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold">Settings</h1>
       </div>
       <Toaster theme="dark" position="top-right" richColors closeButton />
-      <Tabs defaultValue="shortcuts">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="shortcuts" className="gap-1.5">
             <Keyboard className="h-3.5 w-3.5" aria-hidden />

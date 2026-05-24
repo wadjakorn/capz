@@ -88,6 +88,8 @@ pub fn run() {
             commands::editor::editor_current_image,
             commands::editor::open_editor,
             commands::editor::paste_into_editor,
+            commands::editor::clear_editor_workspace,
+            commands::editor::show_settings_command,
             commands::pickers::list_capture_windows,
             commands::pickers::capture_full_monitor,
             commands::pickers::capture_window_command,

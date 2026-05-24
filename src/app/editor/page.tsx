@@ -19,6 +19,7 @@ export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
   const resetEditor = useEditor((s) => s.reset);
+  const setHasImage = useEditor((s) => s.setHasImage);
 
   useEditorShortcuts();
   useNoticeListener();
@@ -28,12 +29,15 @@ export default function EditorPage() {
     if (!path) {
       setFile(null);
       setSrc("");
+      resetEditor();
+      setHasImage(false);
       return;
     }
     const { convertFileSrc } = await import("@tauri-apps/api/core");
     setFile(path);
     setSrc(`${convertFileSrc(path)}?t=${Date.now()}`);
     resetEditor();
+    setHasImage(true);
     await useSettings.getState().init();
     const pins = useSettings.getState().config.pins;
     const start =
@@ -41,7 +45,7 @@ export default function EditorPage() {
         ? Math.max(pins.lastUsedNumber + 1, pins.defaultStartNumber)
         : pins.defaultStartNumber;
     useEditor.getState().setNextPinNumber(start);
-  }, [resetEditor]);
+  }, [resetEditor, setHasImage]);
 
   // Initial load: pull whatever is in Rust state (covers cold-start with prior capture).
   useEffect(() => {
@@ -59,6 +63,18 @@ export default function EditorPage() {
       const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen<string>("editor:load-image", (e) => {
         void applyFile(e.payload);
+      });
+    })();
+    return () => unlisten?.();
+  }, [applyFile]);
+
+  // Clear Workspace: Rust drops the active temp + emits — frontend renders EmptyState.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen("editor:clear", () => {
+        void applyFile(null);
       });
     })();
     return () => unlisten?.();
@@ -107,7 +123,28 @@ export default function EditorPage() {
         console.error("copy shortcut failed", err);
         const { describeExportError } = await import("@/lib/exportErrors");
         const { title, detail } = describeExportError(err);
-        toast.error(title, { description: detail });
+        const recoverable =
+          title === "Permission denied" ||
+          title === "Read-only volume" ||
+          title === "Disk full";
+        toast.error(title, {
+          description: detail,
+          action: recoverable
+            ? {
+                label: "Pick folder",
+                onClick: () => {
+                  void (async () => {
+                    const { invoke } = await import("@tauri-apps/api/core");
+                    try {
+                      await invoke("show_settings_command", { tab: "output" });
+                    } catch (e) {
+                      console.error("show_settings_command failed", e);
+                    }
+                  })();
+                },
+              }
+            : undefined,
+        });
       }
     };
     window.addEventListener("keydown", onKey);

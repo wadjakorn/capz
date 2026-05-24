@@ -10,12 +10,38 @@ Tauri v2 · Rust · Next.js 15 (static export) · TypeScript · Tailwind 4 · sh
 
 Shipping. macOS (arm64 + x64) + Windows (x64) builds released via GitHub. See [PROGRESS.md](PROGRESS.md) for phase log.
 
-## Install (macOS, Homebrew)
+## Install
+
+### macOS (recommended — Homebrew)
 
 ```bash
 brew tap wadjakorn/capz
 brew install --cask capz
 ```
+
+Cask strips the quarantine attribute automatically — no Gatekeeper prompt.
+
+### macOS (manual `.dmg`)
+
+capz is **ad-hoc signed**, not notarized through the Apple Developer Program. On first launch macOS will block with *"capz cannot be opened because Apple cannot check it for malicious software"*.
+
+Unblock once after install:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/capz.app
+```
+
+Or via UI: **System Settings → Privacy & Security → "Open Anyway"** (scroll to the bottom of the Security section after the first blocked launch).
+
+The Homebrew cask path avoids this — prefer it unless you need a specific build.
+
+### Windows (`.msi` / `.exe`)
+
+Builds are **unsigned** (no EV code-signing certificate). First run triggers SmartScreen:
+
+> Windows protected your PC
+
+Click **"More info" → "Run anyway"**. One-time per version. The app itself is fine; the warning reflects the absence of a paid Authenticode cert, not any actual issue with the binary.
 
 ## Develop
 
@@ -45,7 +71,9 @@ pnpm tauri build      # .app (macOS) / .msi (Windows)
 
 ## Auto-update
 
-Background updater polls `https://wadjakorn.github.io/capz/latest.json` (signed via Ed25519 minisign). Manual: Settings → Updates → Check now.
+Background updater polls `https://wadjakorn.github.io/capz/latest.json` (signed via Ed25519 minisign — independent of OS code-signing). Manual: Settings → Updates → Check now.
+
+Homebrew-installed users get auto-updates seamlessly. Manual-install macOS users may need to re-run the `xattr` command above after an update if Gatekeeper re-quarantines the replaced bundle.
 
 ## Docs
 

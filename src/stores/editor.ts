@@ -118,10 +118,12 @@ type State = {
   nextPinNumber: number;
   past: Snapshot[];
   future: Snapshot[];
+  hasImage: boolean;
 
   setTool: (t: Tool) => void;
   setStickerSelection: (sel: StickerSelection) => void;
   setNextPinNumber: (n: number) => void;
+  setHasImage: (v: boolean) => void;
   select: (id: string | null) => void;
   add: (a: Annotation) => void;
   update: (id: string, patch: Partial<Annotation>) => void;
@@ -148,11 +150,13 @@ export const useEditor = create<State>((set, get) => ({
   nextPinNumber: 1,
   past: [],
   future: [],
+  hasImage: false,
 
   setTool: (t) =>
     set({ tool: t, selectedId: t === "select" ? get().selectedId : null }),
   setStickerSelection: (sel) => set({ stickerSelection: sel }),
   setNextPinNumber: (n) => set({ nextPinNumber: n }),
+  setHasImage: (v) => set({ hasImage: v }),
   select: (id) => set({ selectedId: id }),
 
   add: (a) => {
