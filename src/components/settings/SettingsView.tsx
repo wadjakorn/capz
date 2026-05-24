@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Toaster, toast } from "sonner";
-import { useNoticeListener } from "@/lib/notice";
-import { useUpdateCheckListener } from "@/lib/updater";
+import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Keyboard,
@@ -45,23 +43,19 @@ async function applyHotkey(
   }
 }
 
-const TAB_VALUES = ["shortcuts", "output", "pins", "stickers", "general", "updates", "logs"] as const;
+const TAB_VALUES = ["shortcuts", "output", "pins", "stickers", "general", "updates", "debug"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
-export default function SettingsPage() {
+export function SettingsView() {
   const { config, ready, init, update } = useSettings();
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
   const [tab, setTab] = useState<TabValue>("shortcuts");
 
-  useNoticeListener();
-  useUpdateCheckListener();
-
   useEffect(() => {
     init();
   }, [init]);
 
-  // Deep-link from other windows (e.g. editor "Pick folder" toast action).
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
@@ -74,7 +68,6 @@ export default function SettingsPage() {
     return () => unlisten?.();
   }, []);
 
-  // Sync autostart toggle from OS (source of truth) once settings are ready.
   useEffect(() => {
     if (!ready) return;
     (async () => {
@@ -87,7 +80,6 @@ export default function SettingsPage() {
         console.warn("autostart isEnabled failed", e);
       }
     })();
-    // run only once after ready becomes true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
@@ -114,18 +106,14 @@ export default function SettingsPage() {
 
   if (!ready) {
     return (
-      <main className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+      <div className="dark flex h-full items-center justify-center text-sm text-muted-foreground">
         Loading…
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Settings</h1>
-      </div>
-      <Toaster theme="dark" position="top-right" richColors closeButton />
+    <div className="dark mx-auto max-w-2xl p-6 text-foreground">
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="shortcuts" className="gap-1.5">
@@ -366,7 +354,7 @@ export default function SettingsPage() {
           <AboutRow />
         </TabsContent>
       </Tabs>
-    </main>
+    </div>
   );
 }
 

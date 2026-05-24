@@ -20,6 +20,7 @@ import {
   Italic,
   Underline,
   Strikethrough,
+  Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
@@ -86,7 +87,7 @@ function withDeco(
   return "";
 }
 
-export function Toolbar() {
+export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}) {
   const tool = useEditor((s) => s.tool);
   const setTool = useEditor((s) => s.setTool);
   const undo = useEditor((s) => s.undo);
@@ -535,13 +536,10 @@ export function Toolbar() {
           ? {
               label: "Pick folder",
               onClick: () => {
+                onOpenSettings?.();
                 void (async () => {
-                  const { invoke } = await import("@tauri-apps/api/core");
-                  try {
-                    await invoke("show_settings_command", { tab: "output" });
-                  } catch (err) {
-                    console.error("show_settings_command failed", err);
-                  }
+                  const { emit } = await import("@tauri-apps/api/event");
+                  await emit("settings:focus-tab", "output");
                 })();
               },
             }
@@ -661,6 +659,17 @@ export function Toolbar() {
           </div>
         );
       })()}
+      <div className="ml-auto flex items-center">
+        <button
+          type="button"
+          onClick={() => onOpenSettings?.()}
+          title="Settings"
+          aria-label="Settings"
+          className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800"
+        >
+          <SettingsIcon className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
       </div>
       <div className="flex min-h-[36px] flex-wrap items-center gap-1 border-t border-neutral-800 pt-1">
       {colorCtx && (

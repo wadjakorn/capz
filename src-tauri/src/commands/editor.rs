@@ -30,8 +30,9 @@ pub async fn clear_editor_workspace<R: Runtime>(app: AppHandle<R>) -> Result<(),
     Ok(())
 }
 
-/// Show the Settings window. Optional `tab` deep-links to a tab via the
-/// `settings:focus-tab` event (frontend picks it up to update controlled Tabs).
+/// Open Settings (now an in-app view inside the editor window). Optional `tab`
+/// deep-links to a tab via the `editor:show-settings` payload — the editor
+/// frontend switches view and re-emits `settings:focus-tab` for SettingsView.
 #[tauri::command]
 pub async fn show_settings_command<R: Runtime>(
     app: AppHandle<R>,
@@ -41,16 +42,14 @@ pub async fn show_settings_command<R: Runtime>(
 
     let app2 = app.clone();
     app.run_on_main_thread(move || {
-        if let Err(e) = windows::show_settings(&app2) {
-            log::error!("show_settings: {e}");
+        if let Err(e) = windows::show_editor(&app2) {
+            log::error!("show_editor: {e}");
         }
     })
     .map_err(|e| e.to_string())?;
 
-    if let Some(t) = tab {
-        if let Err(e) = app.emit_to("settings", "settings:focus-tab", t) {
-            log::warn!("emit settings:focus-tab: {e}");
-        }
+    if let Err(e) = app.emit_to("editor", "editor:show-settings", tab) {
+        log::warn!("emit editor:show-settings: {e}");
     }
     Ok(())
 }

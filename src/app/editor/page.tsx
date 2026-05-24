@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
+import { SettingsView } from "@/components/settings/SettingsView";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
@@ -15,9 +17,12 @@ const EditorStage = dynamic(
   { ssr: false },
 );
 
+type View = "editor" | "settings";
+
 export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
+  const [view, setView] = useState<View>("editor");
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
 
@@ -47,7 +52,6 @@ export default function EditorPage() {
     useEditor.getState().setNextPinNumber(start);
   }, [resetEditor, setHasImage]);
 
-  // Initial load: pull whatever is in Rust state (covers cold-start with prior capture).
   useEffect(() => {
     (async () => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -56,19 +60,18 @@ export default function EditorPage() {
     })();
   }, [applyFile]);
 
-  // Subsequent loads (new captures / paste): event-driven.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen<string>("editor:load-image", (e) => {
         void applyFile(e.payload);
+        setView("editor");
       });
     })();
     return () => unlisten?.();
   }, [applyFile]);
 
-  // Clear Workspace: Rust drops the active temp + emits — frontend renders EmptyState.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
@@ -80,8 +83,22 @@ export default function EditorPage() {
     return () => unlisten?.();
   }, [applyFile]);
 
-  // Hide-on-close: workspace persists until app quit.
-  // If general.closeAction is set, run the export action first, then hide.
+  // Deep-link from tray/Rust/toast: open settings view, optionally focus a tab.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { listen, emit } = await import("@tauri-apps/api/event");
+      unlisten = await listen<string | null>("editor:show-settings", (e) => {
+        setView("settings");
+        const tab = e.payload;
+        if (typeof tab === "string" && tab.length > 0) {
+          void emit("settings:focus-tab", tab);
+        }
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
@@ -99,14 +116,13 @@ export default function EditorPage() {
     return () => unlisten?.();
   }, []);
 
-  // Dedicated Copy shortcut: CmdOrCtrl+C copies the full annotated stage.
-  // Skips when typing, selecting text, or no image is loaded.
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
       if (!(e.key === "c" || e.key === "C")) return;
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.shiftKey || e.altKey) return;
       if (!file) return;
+      if (view !== "editor") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       const sel = window.getSelection();
@@ -133,13 +149,10 @@ export default function EditorPage() {
             ? {
                 label: "Pick folder",
                 onClick: () => {
+                  setView("settings");
                   void (async () => {
-                    const { invoke } = await import("@tauri-apps/api/core");
-                    try {
-                      await invoke("show_settings_command", { tab: "output" });
-                    } catch (e) {
-                      console.error("show_settings_command failed", e);
-                    }
+                    const { emit } = await import("@tauri-apps/api/event");
+                    await emit("settings:focus-tab", "output");
                   })();
                 },
               }
@@ -149,9 +162,8 @@ export default function EditorPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [file]);
+  }, [file, view]);
 
-  // Paste handler: ask Rust to read clipboard image and load it.
   useEffect(() => {
     const onPaste = async (ev: ClipboardEvent) => {
       const target = ev.target as HTMLElement | null;
@@ -173,15 +185,38 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
-      <Toolbar />
-      <main className="relative min-h-0 flex-1">
-        {file ? (
+      {view === "settings" ? (
+        <SettingsHeader onBack={() => setView("editor")} />
+      ) : (
+        <Toolbar onOpenSettings={() => setView("settings")} />
+      )}
+      <main className="relative min-h-0 flex-1 overflow-auto">
+        {view === "settings" ? (
+          <SettingsView />
+        ) : file ? (
           <EditorStage src={src} />
         ) : (
           <EmptyState />
         )}
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
+    </div>
+  );
+}
+
+function SettingsHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-neutral-800 bg-neutral-900 px-3 py-2">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1.5 rounded px-2 py-1 text-sm text-neutral-200 hover:bg-neutral-800"
+        title="Back to editor"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        Editor
+      </button>
+      <h1 className="text-sm font-semibold text-neutral-100">Settings</h1>
     </div>
   );
 }

@@ -24,22 +24,14 @@ pub fn show_onboarding<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Settings is now an in-app view inside the editor window. Open the editor,
+/// then emit `editor:show-settings` so the frontend switches view.
 pub fn show_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    // One-at-a-time: hide editor when settings opens.
-    if let Some(ed) = app.get_webview_window("editor") {
-        let _ = ed.hide();
+    use tauri::Emitter;
+    show_editor(app)?;
+    if let Err(e) = app.emit_to("editor", "editor:show-settings", Option::<String>::None) {
+        log::warn!("emit editor:show-settings: {e}");
     }
-    if let Some(win) = app.get_webview_window("settings") {
-        win.show()?;
-        win.set_focus()?;
-        return Ok(());
-    }
-    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings/".into()))
-        .title("capz — Settings")
-        .inner_size(720.0, 520.0)
-        .resizable(true)
-        .visible(true)
-        .build()?;
     Ok(())
 }
 
@@ -222,10 +214,6 @@ unsafe fn cursor_cg_point() -> Option<(f64, f64)> {
 /// Show (or create) the single persistent editor window. No image is loaded
 /// here — call `load_editor_image` to push a path into the workspace.
 pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    // One-at-a-time: hide settings when editor opens.
-    if let Some(s) = app.get_webview_window("settings") {
-        let _ = s.hide();
-    }
     if let Some(win) = app.get_webview_window("editor") {
         win.show()?;
         win.unminimize().ok();
