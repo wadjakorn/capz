@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "capz",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "identifier": "dev.baze.capz",
   "build": {
     "frontendDist": "../out",
@@ -16,7 +16,11 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$TEMP/**", "**/capz-temp-*.jpg", "**/capz-temp-*.png"]
+        "scope": [
+          "$TEMP/**",
+          "**/capz-temp-*.jpg",
+          "**/capz-temp-*.png"
+        ]
       }
     }
   },
@@ -31,7 +35,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["icons/tray/*.png"],
+    "resources": [
+      "icons/tray/*.png"
+    ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
     },
