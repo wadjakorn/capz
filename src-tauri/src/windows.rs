@@ -300,13 +300,58 @@ fn macos_activate() {
     }
 }
 
-#[allow(dead_code)]
-pub fn close_overlay<R: Runtime>(app: &AppHandle<R>) {
-    for (label, win) in app.webview_windows() {
-        if label.starts_with("overlay-") || label == "overlay" {
-            if let Err(e) = win.close() {
-                log::warn!("close {label} failed: {e}");
+fn is_overlay_label(label: &str) -> bool {
+    label.starts_with("overlay-") || label == "overlay"
+}
+
+/// Hide every overlay window on the main thread, then poll until the OS
+/// reports all of them invisible (with a settle delay so the compositor has
+/// presented a frame without the overlay). Used before `xcap` reads the
+/// screen so the overlay does not bleed into the captured image.
+pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let app_hide = app.clone();
+    app.run_on_main_thread(move || {
+        for (label, win) in app_hide.webview_windows() {
+            if is_overlay_label(&label) {
+                if let Err(e) = win.hide() {
+                    log::warn!("hide {label} failed: {e}");
+                }
             }
         }
+    })
+    .map_err(|e| e.to_string())?;
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(400);
+    loop {
+        let all_hidden = app
+            .webview_windows()
+            .iter()
+            .filter(|(label, _)| is_overlay_label(label))
+            .all(|(_, w)| !w.is_visible().unwrap_or(true));
+        if all_hidden {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            log::warn!("hide_overlays_and_wait: timed out waiting for overlays to hide");
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(16)).await;
     }
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    Ok(())
+}
+
+/// Destroy any overlay windows still around. Safe to call after capture
+/// regardless of whether the overlays were hidden first.
+pub fn close_overlays<R: Runtime>(app: &AppHandle<R>) {
+    let app_close = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        for (label, win) in app_close.webview_windows() {
+            if is_overlay_label(&label) {
+                if let Err(e) = win.close() {
+                    log::warn!("close {label} failed: {e}");
+                }
+            }
+        }
+    });
 }

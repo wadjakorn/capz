@@ -1,10 +1,11 @@
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_store::StoreExt;
 
 use crate::commands::permissions::has_screen_recording;
 use crate::services::{capture_service, image_service, monitor_service};
 use crate::tray;
 use crate::windows;
+use crate::windows::{close_overlays, hide_overlays_and_wait};
 
 /// Surface a capture error. On macOS, if Screen Recording permission is no
 /// longer granted (revoked mid-session via System Settings, or never granted
@@ -118,20 +119,13 @@ pub async fn capture_region_command<R: Runtime>(
     h: u32,
 ) -> Result<String, String> {
     tray::set_busy(&app, "Capturing…");
-    let app_close = app.clone();
-    app.run_on_main_thread(move || {
-        for (label, win) in app_close.webview_windows() {
-            if label.starts_with("overlay-") || label == "overlay" {
-                let _ = win.close();
-            }
-        }
-    })
-    .map_err(|e| e.to_string())?;
-    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-    capture_to_editor(
-        app,
+    hide_overlays_and_wait(&app).await?;
+    let res = capture_to_editor(
+        app.clone(),
         format!("capture_region(mon={monitor_id}, {x},{y} {w}x{h})"),
         move || capture_service::capture_region(monitor_id, x, y, w, h),
     )
-    .await
+    .await;
+    close_overlays(&app);
+    res
 }

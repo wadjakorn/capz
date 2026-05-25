@@ -122,6 +122,9 @@ function OverlayInner() {
     if (busy || !active) return;
     if (mode === "full") {
       setBusy(true);
+      getCurrentWindow()
+        .hide()
+        .catch((e) => console.warn("hide overlay failed", e));
       try {
         await invoke<string>("capture_full_monitor", { monitorId });
       } catch (err) {
@@ -131,6 +134,9 @@ function OverlayInner() {
     } else if (mode === "window") {
       if (!hovered) return;
       setBusy(true);
+      getCurrentWindow()
+        .hide()
+        .catch((e) => console.warn("hide overlay failed", e));
       try {
         await invoke<string>("capture_window_command", { windowId: hovered.id });
       } catch (err) {
@@ -151,6 +157,9 @@ function OverlayInner() {
       return;
     }
     setBusy(true);
+    getCurrentWindow()
+      .hide()
+      .catch((e) => console.warn("hide overlay failed", e));
     try {
       const path = await invoke<string>("capture_region_command", {
         monitorId,
