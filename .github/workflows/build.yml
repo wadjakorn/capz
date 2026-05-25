@@ -7,7 +7,45 @@ on:
       - "v*"
 
 jobs:
+  # Pre-create the draft release once so all matrix jobs upload into the
+  # same release. tauri-action's "find-or-create by tag" is not atomic; when
+  # matrix jobs race they each create their own draft (caused split v0.1.9
+  # drafts). With releaseId pinned here, no race.
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - uses: actions/github-script@v7
+        id: create
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const version = tag.replace(/^v/, '');
+            // Reuse an existing draft for this tag if one exists; otherwise create.
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner, repo: context.repo.repo, per_page: 100,
+            });
+            let release = releases.find(r => r.tag_name === tag && r.draft);
+            if (!release) {
+              const res = await github.rest.repos.createRelease({
+                owner: context.repo.owner, repo: context.repo.repo,
+                tag_name: tag,
+                name: `capz v${version}`,
+                body: 'See assets below. Auto-update will pick this up on the next interval (default 24h) or via Settings → Updates → Check now.',
+                draft: true,
+                prerelease: false,
+              });
+              release = res.data;
+            }
+            core.setOutput('release_id', release.id);
+
   build:
+    needs: [create-release]
+    if: ${{ always() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     permissions:
       contents: write
     strategy:
@@ -61,9 +99,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: "capz v__VERSION__"
-          releaseBody: |
-            See assets below. Auto-update will pick this up on the next interval (default 24h) or via Settings → Updates → Check now.
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
