@@ -418,15 +418,17 @@ fn apply_overlay_region<R: Runtime>(
 ) -> Result<(), String> {
     use windows_sys::Win32::Foundation::{HWND, TRUE};
     use windows_sys::Win32::Graphics::Gdi::{
-        CombineRgn, CreateRectRgn, DeleteObject, RGN_DIFF,
+        CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, RGN_DIFF, RGN_ERROR,
     };
-    use windows_sys::Win32::UI::WindowsAndMessaging::SetWindowRgn;
 
     let hwnd = win.hwnd().map_err(|e| e.to_string())?.0 as HWND;
 
     if w == 0 || h == 0 {
+        // NULL region restores default (full client area). Windows owns any
+        // HRGN from a prior successful SetWindowRgn and frees it for us; we
+        // only need to delete a region ourselves when SetWindowRgn *fails*
+        // (see below).
         unsafe {
-            // NULL region = restore default (full client area).
             SetWindowRgn(hwnd, std::ptr::null_mut(), TRUE);
         }
         return Ok(());
@@ -445,20 +447,33 @@ fn apply_overlay_region<R: Runtime>(
     unsafe {
         let outer = CreateRectRgn(0, 0, outer_w, outer_h);
         let hole = CreateRectRgn(hx, hy, hr, hb);
-        if outer.is_null() || hole.is_null() {
+        let result = CreateRectRgn(0, 0, 0, 0);
+        if outer.is_null() || hole.is_null() || result.is_null() {
             if !outer.is_null() {
                 DeleteObject(outer as _);
             }
             if !hole.is_null() {
                 DeleteObject(hole as _);
             }
+            if !result.is_null() {
+                DeleteObject(result as _);
+            }
             return Err("CreateRectRgn returned NULL".into());
         }
-        CombineRgn(outer, outer, hole, RGN_DIFF);
-        DeleteObject(hole as _);
-        // SetWindowRgn takes ownership of `outer` on success; do not delete.
-        if SetWindowRgn(hwnd, outer, TRUE) == 0 {
+        // Use a distinct destination HRGN so the inputs aren't aliased during
+        // the combine — defensive against GDI implementations that might read
+        // src after writing dst.
+        if CombineRgn(result, outer, hole, RGN_DIFF) == RGN_ERROR {
             DeleteObject(outer as _);
+            DeleteObject(hole as _);
+            DeleteObject(result as _);
+            return Err("CombineRgn failed".into());
+        }
+        DeleteObject(outer as _);
+        DeleteObject(hole as _);
+        // SetWindowRgn takes ownership of `result` on success; delete only on failure.
+        if SetWindowRgn(hwnd, result, TRUE) == 0 {
+            DeleteObject(result as _);
             return Err("SetWindowRgn failed".into());
         }
     }
@@ -476,7 +491,10 @@ pub fn set_overlay_cutout<R: Runtime>(
     w: u32,
     h: u32,
 ) -> Result<(), String> {
-    let _ = (app, monitor_id, x, y, w, h);
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, monitor_id, x, y, w, h);
+    }
     #[cfg(target_os = "windows")]
     {
         let label = format!("overlay-{monitor_id}");

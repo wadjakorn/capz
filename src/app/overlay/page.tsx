@@ -105,6 +105,10 @@ function OverlayInner() {
       window.removeEventListener("keydown", onKey);
       document.body.style.background = prevBody;
       document.documentElement.style.background = prevHtml;
+      if (cutoutRafRef.current != null) {
+        cancelAnimationFrame(cutoutRafRef.current);
+        cutoutRafRef.current = null;
+      }
     };
   }, []);
 
@@ -258,6 +262,8 @@ function OverlayInner() {
         />
       )}
 
+      {/* OuterDim children are pointer-events:none so clicks pass through to
+          the root div's handlers (which guard via active/start/hovered checks). */}
       {cutoutRect && <OuterDim rect={cutoutRect} />}
 
       {mode === "area" && dragRect && (
