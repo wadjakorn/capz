@@ -103,6 +103,7 @@ pub fn run() {
             commands::permissions::relaunch_app,
             commands::permissions::show_onboarding_window,
             windows::set_editor_always_on_top,
+            windows::set_overlay_cutout,
         ])
         .manage(state::AppState::default())
         .setup(|app| {

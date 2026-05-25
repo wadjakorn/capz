@@ -59,6 +59,35 @@ function OverlayInner() {
   const [windows, setWindows] = useState<WindowOverlayInfo[]>([]);
   const [hovered, setHovered] = useState<WindowOverlayInfo | null>(null);
   const fetchedRef = useRef(false);
+  const cutoutRafRef = useRef<number | null>(null);
+  const lastCutoutRef = useRef<Rect | null>(null);
+
+  // Rust-side HWND region cutout (Windows-only no-op elsewhere). Coalesced to
+  // one call per animation frame so high-frequency mousemove doesn't thrash
+  // SetWindowRgn.
+  const requestCutout = (rect: Rect | null) => {
+    const next = rect && rect.w > 0 && rect.h > 0
+      ? { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) }
+      : { x: 0, y: 0, w: 0, h: 0 };
+    const prev = lastCutoutRef.current;
+    if (prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h) {
+      return;
+    }
+    lastCutoutRef.current = next;
+    if (cutoutRafRef.current != null) return;
+    cutoutRafRef.current = requestAnimationFrame(() => {
+      cutoutRafRef.current = null;
+      const r = lastCutoutRef.current;
+      if (!r) return;
+      invoke("set_overlay_cutout", {
+        monitorId,
+        x: r.x,
+        y: r.y,
+        w: r.w,
+        h: r.h,
+      }).catch((e) => console.warn("set_overlay_cutout failed", e));
+    });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,17 +126,24 @@ function OverlayInner() {
 
   const onPointerLeave = () => {
     if (!start) setActive(false);
-    if (mode === "window") setHovered(null);
+    if (mode === "window") {
+      setHovered(null);
+      requestCutout(null);
+    }
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
     if (!active) setActive(true);
     if (mode === "area") {
       if (!start || busy) return;
-      setEnd({ x: e.clientX, y: e.clientY });
+      const next = { x: e.clientX, y: e.clientY };
+      setEnd(next);
+      requestCutout(normalize(start, next));
     } else if (mode === "window") {
       if (busy) return;
-      setHovered(hitTest(windows, { x: e.clientX, y: e.clientY }));
+      const hit = hitTest(windows, { x: e.clientX, y: e.clientY });
+      setHovered(hit);
+      requestCutout(hit ? { x: hit.x, y: hit.y, w: hit.width, h: hit.height } : null);
     }
   };
 
@@ -150,12 +186,17 @@ function OverlayInner() {
     if (mode !== "area") return;
     if (!start || !end || busy) return;
     const rect = normalize(start, end);
-    setStart(null);
-    setEnd(null);
     if (rect.w < 4 || rect.h < 4) {
+      setStart(null);
+      setEnd(null);
+      requestCutout(null);
       closeOverlay();
       return;
     }
+    // Keep dragRect rendered (cutout + 4-div dim) until Rust hides the
+    // overlay inside capture_region_command. Clearing start/end here would
+    // briefly revert to full-screen dim that BitBlt could bake into the
+    // capture.
     setBusy(true);
     getCurrentWindow()
       .hide()
@@ -189,12 +230,19 @@ function OverlayInner() {
     }
   }, [active, mode]);
 
+  const cutoutRect: Rect | null =
+    mode === "area"
+      ? dragRect
+      : mode === "window" && active && hovered
+      ? { x: hovered.x, y: hovered.y, w: hovered.width, h: hovered.height }
+      : null;
+
   return (
     <div
       className={`fixed inset-0 select-none ${active ? "cursor-crosshair" : "cursor-default"}`}
       style={{
-        background: active ? "rgba(0, 0, 0, 0.35)" : "rgba(0, 0, 0, 0.12)",
-        transition: "background 80ms ease-out",
+        background: cutoutRect ? "transparent" : active ? "rgba(0, 0, 0, 0.35)" : "rgba(0, 0, 0, 0.12)",
+        transition: cutoutRect ? "none" : "background 80ms ease-out",
       }}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
@@ -203,22 +251,23 @@ function OverlayInner() {
       onMouseUp={onMouseUp}
       onClick={onClick}
     >
-      {active && (
+      {active && !cutoutRect && (
         <div
           className="pointer-events-none absolute inset-0"
           style={{ boxShadow: "inset 0 0 0 3px rgba(56, 189, 248, 0.6)" }}
         />
       )}
 
+      {cutoutRect && <OuterDim rect={cutoutRect} />}
+
       {mode === "area" && dragRect && (
         <div
-          className="absolute border-2 border-sky-400"
+          className="pointer-events-none absolute border-2 border-sky-400"
           style={{
             left: dragRect.x,
             top: dragRect.y,
             width: dragRect.w,
             height: dragRect.h,
-            background: "rgba(56, 189, 248, 0.1)",
           }}
         >
           <div className="absolute -top-6 left-0 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
@@ -235,7 +284,6 @@ function OverlayInner() {
             top: hovered.y,
             width: hovered.width,
             height: hovered.height,
-            background: "rgba(56, 189, 248, 0.12)",
           }}
         >
           <div className="absolute -top-6 left-0 max-w-[80vw] truncate rounded bg-black/80 px-2 py-0.5 text-xs text-white">
@@ -249,6 +297,30 @@ function OverlayInner() {
         {hintText}
       </div>
     </div>
+  );
+}
+
+function OuterDim({ rect }: { rect: Rect }) {
+  const dim = "rgba(0, 0, 0, 0.4)";
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute left-0 right-0"
+        style={{ top: 0, height: Math.max(0, rect.y), background: dim }}
+      />
+      <div
+        className="pointer-events-none absolute left-0 right-0"
+        style={{ top: rect.y + rect.h, bottom: 0, background: dim }}
+      />
+      <div
+        className="pointer-events-none absolute"
+        style={{ top: rect.y, height: rect.h, left: 0, width: Math.max(0, rect.x), background: dim }}
+      />
+      <div
+        className="pointer-events-none absolute"
+        style={{ top: rect.y, height: rect.h, left: rect.x + rect.w, right: 0, background: dim }}
+      />
+    </>
   );
 }
 

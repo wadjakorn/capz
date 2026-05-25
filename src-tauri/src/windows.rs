@@ -87,6 +87,9 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
             win.set_size(PhysicalSize::new(m.width, m.height))?;
         }
 
+        #[cfg(target_os = "windows")]
+        disable_dwm_transitions(&win);
+
         win.show()?;
 
         #[cfg(target_os = "macos")]
@@ -305,9 +308,13 @@ fn is_overlay_label(label: &str) -> bool {
 }
 
 /// Hide every overlay window on the main thread, then poll until the OS
-/// reports all of them invisible (with a settle delay so the compositor has
-/// presented a frame without the overlay). Used before `xcap` reads the
-/// screen so the overlay does not bleed into the captured image.
+/// reports all of them invisible. Used before `xcap` reads the screen so the
+/// overlay does not bleed into the captured image.
+///
+/// Windows: each overlay HWND has `DWMWA_TRANSITIONS_FORCEDISABLED` set at
+/// build (see `disable_dwm_transitions`), so `hide()` is instant — no shrink
+/// animation for BitBlt to bake into the capture. Without that flag, DWM
+/// animates the window out and xcap can grab a mid-shrink frame.
 pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let app_hide = app.clone();
     app.run_on_main_thread(move || {
@@ -359,6 +366,124 @@ pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<()
     #[cfg(not(target_os = "windows"))]
     {
         tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+    Ok(())
+}
+
+/// Windows: disable DWM open/close shrink animation for this HWND so
+/// subsequent `hide()` / `close()` are instant. Without this, xcap (BitBlt
+/// path) can read a mid-shrink frame and bake a smaller overlay into the
+/// capture on machines with "Animate windows when minimizing/maximizing" on.
+#[cfg(target_os = "windows")]
+fn disable_dwm_transitions<R: Runtime>(win: &tauri::WebviewWindow<R>) {
+    use windows_sys::Win32::Foundation::{BOOL, HWND, TRUE};
+    use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_TRANSITIONS_FORCEDISABLED};
+    let hwnd = match win.hwnd() {
+        Ok(h) => h.0 as HWND,
+        Err(e) => {
+            log::warn!("hwnd() for overlay failed: {e}");
+            return;
+        }
+    };
+    let on: BOOL = TRUE;
+    let res = unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_TRANSITIONS_FORCEDISABLED as u32,
+            &on as *const _ as *const _,
+            std::mem::size_of::<BOOL>() as u32,
+        )
+    };
+    if res < 0 {
+        log::warn!("DwmSetWindowAttribute(TRANSITIONS_FORCEDISABLED) failed: 0x{res:08x}");
+    }
+}
+
+/// Windows: cut a transparent hole at `(x,y,w,h)` (overlay-local logical px)
+/// in the overlay HWND for the given monitor. `w==0 || h==0` restores the
+/// full overlay rect (no cutout). Coordinates are scaled by the window's
+/// device-pixel ratio before calling the Win32 region API since SetWindowRgn
+/// expects physical-pixel client coords.
+///
+/// Belt to the suspenders of `disable_dwm_transitions`: removes the inner
+/// rect from the overlay's DWM composition entirely, so even if DWM ever
+/// holds a stale frame, BitBlt reads through to the real screen pixels.
+#[cfg(target_os = "windows")]
+fn apply_overlay_region<R: Runtime>(
+    win: &tauri::WebviewWindow<R>,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+) -> Result<(), String> {
+    use windows_sys::Win32::Foundation::{HWND, TRUE};
+    use windows_sys::Win32::Graphics::Gdi::{
+        CombineRgn, CreateRectRgn, DeleteObject, RGN_DIFF,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetWindowRgn;
+
+    let hwnd = win.hwnd().map_err(|e| e.to_string())?.0 as HWND;
+
+    if w == 0 || h == 0 {
+        unsafe {
+            // NULL region = restore default (full client area).
+            SetWindowRgn(hwnd, std::ptr::null_mut(), TRUE);
+        }
+        return Ok(());
+    }
+
+    let scale = win.scale_factor().map_err(|e| e.to_string())?;
+    let size = win.inner_size().map_err(|e| e.to_string())?;
+    let px = |v: f64| (v * scale).round() as i32;
+    let outer_w = size.width as i32;
+    let outer_h = size.height as i32;
+    let hx = px(x as f64).max(0).min(outer_w);
+    let hy = px(y as f64).max(0).min(outer_h);
+    let hr = (hx + px(w as f64)).max(0).min(outer_w);
+    let hb = (hy + px(h as f64)).max(0).min(outer_h);
+
+    unsafe {
+        let outer = CreateRectRgn(0, 0, outer_w, outer_h);
+        let hole = CreateRectRgn(hx, hy, hr, hb);
+        if outer.is_null() || hole.is_null() {
+            if !outer.is_null() {
+                DeleteObject(outer as _);
+            }
+            if !hole.is_null() {
+                DeleteObject(hole as _);
+            }
+            return Err("CreateRectRgn returned NULL".into());
+        }
+        CombineRgn(outer, outer, hole, RGN_DIFF);
+        DeleteObject(hole as _);
+        // SetWindowRgn takes ownership of `outer` on success; do not delete.
+        if SetWindowRgn(hwnd, outer, TRUE) == 0 {
+            DeleteObject(outer as _);
+            return Err("SetWindowRgn failed".into());
+        }
+    }
+    Ok(())
+}
+
+/// Frontend-callable: update overlay cutout for the overlay window covering
+/// `monitor_id`. No-op on non-Windows. Called from area drag + window hover.
+#[tauri::command]
+pub fn set_overlay_cutout<R: Runtime>(
+    app: AppHandle<R>,
+    monitor_id: u32,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+) -> Result<(), String> {
+    let _ = (app, monitor_id, x, y, w, h);
+    #[cfg(target_os = "windows")]
+    {
+        let label = format!("overlay-{monitor_id}");
+        let win = app
+            .get_webview_window(&label)
+            .ok_or_else(|| format!("no overlay window: {label}"))?;
+        apply_overlay_region(&win, x, y, w, h)?;
     }
     Ok(())
 }
