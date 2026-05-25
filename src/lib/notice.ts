@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { CONFIG_STORE_FILE } from "@/lib/config";
+
+const IS_MAC =
+  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 
 type NoticeKind = "info" | "success" | "error";
 type NoticePayload = { kind: NoticeKind; message: string };
@@ -53,5 +57,65 @@ export function usePermissionRevokedListener() {
       });
     })();
     return () => unlisten?.();
+  }, []);
+}
+
+/**
+ * macOS only. On launch, compares the current binary's version against the
+ * last version that successfully obtained Screen Recording permission. If a
+ * grant was recorded for an earlier build but the current build reports
+ * denied, the TCC entry is stale across the update (ad-hoc signing changes
+ * the cdhash, so System Settings still lists capz but the new binary's
+ * identity no longer matches the granted row). Surfaces a persistent toast
+ * with copy that tells the user to toggle the entry off+on.
+ *
+ * Side-effect: when the current run is granted, records the current version
+ * as the last-granted marker. First install with no prior marker stays
+ * silent — onboarding owns the never-granted path.
+ */
+export function useStalePermissionAfterUpdateListener() {
+  useEffect(() => {
+    if (!IS_MAC) return;
+    let cancelled = false;
+    (async () => {
+      const [{ invoke }, { getVersion }, { load }] = await Promise.all([
+        import("@tauri-apps/api/core"),
+        import("@tauri-apps/api/app"),
+        import("@tauri-apps/plugin-store"),
+      ]);
+      const [granted, currentVersion, store] = await Promise.all([
+        invoke<boolean>("has_screen_recording_permission"),
+        getVersion(),
+        load(CONFIG_STORE_FILE, { autoSave: false, defaults: {} }),
+      ]);
+      if (cancelled) return;
+      const prior = (
+        await store.get<{ lastGrantedVersion?: string }>("permissions")
+      )?.lastGrantedVersion;
+      if (granted) {
+        if (prior !== currentVersion) {
+          await store.set("permissions", { lastGrantedVersion: currentVersion });
+          await store.save();
+        }
+        return;
+      }
+      if (prior && prior !== currentVersion) {
+        toast.error("Screen Recording permission needs re-grant after update", {
+          id: "permission-stale-after-update",
+          description:
+            "macOS keeps the previous version’s entry, but the new build needs a fresh approval. Toggle capz off and on in System Settings → Privacy & Security → Screen Recording, then relaunch.",
+          duration: 20_000,
+          action: {
+            label: "Open Privacy Settings",
+            onClick: () => {
+              void invoke("open_system_settings_screen_recording");
+            },
+          },
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 }

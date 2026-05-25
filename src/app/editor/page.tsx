@@ -10,7 +10,11 @@ import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
-import { useNoticeListener, usePermissionRevokedListener } from "@/lib/notice";
+import {
+  useNoticeListener,
+  usePermissionRevokedListener,
+  useStalePermissionAfterUpdateListener,
+} from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
 
 const EditorStage = dynamic(
@@ -30,6 +34,7 @@ export default function EditorPage() {
   useEditorShortcuts();
   useNoticeListener();
   usePermissionRevokedListener();
+  useStalePermissionAfterUpdateListener();
   useUpdateCheckListener();
 
   const applyFile = useCallback(async (path: string | null) => {
