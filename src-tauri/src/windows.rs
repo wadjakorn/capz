@@ -337,7 +337,29 @@ pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<()
         }
         tokio::time::sleep(std::time::Duration::from_millis(16)).await;
     }
-    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    // Settle: block until the next compositor frame is presented so the
+    // hidden state is guaranteed to be in the buffer xcap reads. Windows uses
+    // DwmFlush() — deterministic, frame-rate independent. macOS / Linux fall
+    // back to a short fixed delay (CA recomposites within ~1 frame of
+    // orderOut: and the bug rarely repros there).
+    #[cfg(target_os = "windows")]
+    {
+        tokio::task::spawn_blocking(|| {
+            // SAFETY: DwmFlush takes no parameters and is documented thread-safe.
+            // Returns S_OK on success, error HRESULT otherwise. We don't propagate
+            // the error: a failed flush degrades to a no-op which leaves the
+            // prior poll-visibility loop as the only guard — acceptable fallback.
+            unsafe {
+                let _ = windows_sys::Win32::Graphics::Dwm::DwmFlush();
+            }
+        })
+        .await
+        .map_err(|e| format!("DwmFlush join: {e}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
     Ok(())
 }
 
