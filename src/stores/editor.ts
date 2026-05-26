@@ -119,6 +119,8 @@ type State = {
   past: Snapshot[];
   future: Snapshot[];
   hasImage: boolean;
+  /** 0 = uninitialised; EditorStage fits on first image load and on `reset`. */
+  displayScale: number;
 
   setTool: (t: Tool) => void;
   setStickerSelection: (sel: StickerSelection) => void;
@@ -132,7 +134,14 @@ type State = {
   reset: () => void;
   undo: () => void;
   redo: () => void;
+  setDisplayScale: (s: number) => void;
+  zoomFit: (size: { vw: number; vh: number; iw: number; ih: number }) => void;
+  zoomReset100: () => void;
 };
+
+export const ZOOM_MIN = 0.05;
+export const ZOOM_MAX = 32;
+export const clampZoom = (s: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, s));
 
 const HISTORY_LIMIT = 100;
 
@@ -151,6 +160,7 @@ export const useEditor = create<State>((set, get) => ({
   past: [],
   future: [],
   hasImage: false,
+  displayScale: 0,
 
   setTool: (t) =>
     set({ tool: t, selectedId: t === "select" ? get().selectedId : null }),
@@ -210,6 +220,7 @@ export const useEditor = create<State>((set, get) => ({
       selectedId: null,
       past: [],
       future: [],
+      displayScale: 0,
     }),
 
   undo: () => {
@@ -237,4 +248,11 @@ export const useEditor = create<State>((set, get) => ({
       selectedId: null,
     });
   },
+
+  setDisplayScale: (s) => set({ displayScale: clampZoom(s) }),
+  zoomFit: ({ vw, vh, iw, ih }) => {
+    if (iw <= 0 || ih <= 0 || vw <= 0 || vh <= 0) return;
+    set({ displayScale: clampZoom(Math.min(vw / iw, vh / ih)) });
+  },
+  zoomReset100: () => set({ displayScale: 1 }),
 }));

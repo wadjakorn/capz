@@ -18,6 +18,7 @@ import useImage from "use-image";
 import Konva from "konva";
 import {
   useEditor,
+  clampZoom,
   type Annotation,
   type RectAnnotation,
   type ArrowAnnotation,
@@ -28,7 +29,13 @@ import {
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
-import { setStage, setPrepareExport } from "@/lib/stageBridge";
+import {
+  setStage,
+  setPrepareExport,
+  setStageImageSize,
+  clearStageImageSize,
+  setScrollContainer,
+} from "@/lib/stageBridge";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 
 type Props = { src: string };
@@ -79,6 +86,9 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
   }
 }
 
+const MIN_PADDING = 24;
+const FIT_INSET = 32;
+
 export function EditorStage({ src }: Props) {
   const [image, status] = useImage(src, "anonymous");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +101,9 @@ export function EditorStage({ src }: Props) {
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const displayScale = useEditor((s) => s.displayScale);
+  const zoomFit = useEditor((s) => s.zoomFit);
+  const setDisplayScale = useEditor((s) => s.setDisplayScale);
 
   const tool = useEditor((s) => s.tool);
   const annotations = useEditor((s) => s.annotations);
@@ -213,12 +226,102 @@ export function EditorStage({ src }: Props) {
   useEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
+    setScrollContainer(el);
     const ro = new ResizeObserver(() => {
       setContainer({ w: el.clientWidth, h: el.clientHeight });
     });
     ro.observe(el);
     setContainer({ w: el.clientWidth, h: el.clientHeight });
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      setScrollContainer(null);
+    };
+  }, []);
+
+  // Cursor-anchored zoom: keep the image-coord point under the cursor pinned.
+  const zoomAtClient = useRef<(factor: number, cx: number, cy: number) => void>(
+    () => {},
+  );
+  useEffect(() => {
+    zoomAtClient.current = (factor: number, clientX: number, clientY: number) => {
+      const el = containerRef.current;
+      const stage = stageRef.current;
+      if (!el || !stage) return;
+      const oldScale = useEditor.getState().displayScale || 1;
+      const newScale = clampZoom(oldScale * factor);
+      if (newScale === oldScale) return;
+      const r0 = stage.container().getBoundingClientRect();
+      const imgX = (clientX - r0.left) / oldScale;
+      const imgY = (clientY - r0.top) / oldScale;
+      setDisplayScale(newScale);
+      requestAnimationFrame(() => {
+        const r1 = stage.container().getBoundingClientRect();
+        const wantLeft = clientX - imgX * newScale;
+        const wantTop = clientY - imgY * newScale;
+        el.scrollLeft += r1.left - wantLeft;
+        el.scrollTop += r1.top - wantTop;
+      });
+    };
+  }, [setDisplayScale]);
+
+  // Wheel: Cmd/Ctrl → zoom; Shift → horizontal scroll; else → native vertical
+  // (and trackpad horizontal) scroll. Middle-mouse drag → pan.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        zoomAtClient.current(factor, e.clientX, e.clientY);
+        return;
+      }
+      if (e.shiftKey && e.deltaX === 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+
+    let panning = false;
+    let startClientX = 0;
+    let startClientY = 0;
+    let startScrollLeft = 0;
+    let startScrollTop = 0;
+    let prevCursor = "";
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      panning = true;
+      startClientX = e.clientX;
+      startClientY = e.clientY;
+      startScrollLeft = el.scrollLeft;
+      startScrollTop = el.scrollTop;
+      prevCursor = el.style.cursor;
+      el.style.cursor = "grabbing";
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!panning) return;
+      el.scrollLeft = startScrollLeft - (e.clientX - startClientX);
+      el.scrollTop = startScrollTop - (e.clientY - startClientY);
+    };
+    const endPan = () => {
+      if (!panning) return;
+      panning = false;
+      el.style.cursor = prevCursor;
+    };
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", endPan);
+    el.addEventListener("mouseleave", endPan);
+
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", endPan);
+      el.removeEventListener("mouseleave", endPan);
+    };
   }, []);
 
   useEffect(() => {
@@ -261,13 +364,69 @@ export function EditorStage({ src }: Props) {
 
   const imgW = image?.naturalWidth ?? 0;
   const imgH = image?.naturalHeight ?? 0;
-  const padding = 24;
-  const availW = Math.max(container.w - padding * 2, 1);
-  const availH = Math.max(container.h - padding * 2, 1);
-  const scale =
-    imgW && imgH ? Math.min(availW / imgW, availH / imgH, 1) : 1;
+
+  // When useImage swaps to a new HTMLImageElement (next capture, paste, etc.),
+  // reset displayScale to the 0 sentinel so the fit effect re-runs with the
+  // new dimensions and the centering effect re-fires.
+  const prevImageRef = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!image) return;
+    if (prevImageRef.current === image) return;
+    prevImageRef.current = image;
+    setDisplayScale(0);
+  }, [image, setDisplayScale]);
+
+  // Publish the native image size for the export pipeline.
+  useEffect(() => {
+    if (imgW > 0 && imgH > 0) setStageImageSize(imgW, imgH);
+    return () => clearStageImageSize();
+  }, [imgW, imgH]);
+
+  // First-load fit: when an image becomes available and the container has a
+  // measurable size, derive an initial scale via zoomFit if the user hasn't
+  // zoomed yet (displayScale === 0 sentinel).
+  useEffect(() => {
+    if (!imgW || !imgH) return;
+    if (container.w <= 0 || container.h <= 0) return;
+    if (displayScale !== 0) return;
+    zoomFit({
+      vw: Math.max(container.w - FIT_INSET * 2, 1),
+      vh: Math.max(container.h - FIT_INSET * 2, 1),
+      iw: imgW,
+      ih: imgH,
+    });
+  }, [imgW, imgH, container.w, container.h, displayScale, zoomFit]);
+
+  const scale = displayScale > 0 ? displayScale : 1;
   const stageW = imgW * scale;
   const stageH = imgH * scale;
+
+  const padX = Math.max(MIN_PADDING, container.w);
+  const padY = Math.max(MIN_PADDING, container.h);
+
+  // After first-load fit, center image in viewport via scroll.
+  // Re-arms whenever displayScale resets to 0 (sentinel) — happens on
+  // editor reset() for new captures, clipboard paste, or editor:clear.
+  const centerOnNextFitRef = useRef(true);
+  useEffect(() => {
+    if (displayScale === 0) centerOnNextFitRef.current = true;
+  }, [displayScale]);
+  useEffect(() => {
+    if (!centerOnNextFitRef.current) return;
+    if (stageW <= 0 || stageH <= 0) return;
+    if (container.w <= 0 || container.h <= 0) return;
+    if (displayScale === 0) return;
+    centerOnNextFitRef.current = false;
+    const el = containerRef.current;
+    if (!el) return;
+    const left = padX + stageW / 2 - container.w / 2;
+    const top = padY + stageH / 2 - container.h / 2;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollTo({ left, top, behavior: "instant" as ScrollBehavior });
+      });
+    });
+  }, [stageW, stageH, container.w, container.h, padX, padY, displayScale]);
 
   function getPointer(): { x: number; y: number } | null {
     const stage = stageRef.current;
@@ -281,6 +440,7 @@ export function EditorStage({ src }: Props) {
   }
 
   function handleMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (e.evt.button !== 0) return;
     const p = getPointer();
     if (!p) return;
     const empty = isEmptyTarget(e);
@@ -494,18 +654,39 @@ export function EditorStage({ src }: Props) {
         ? "cursor-text"
         : "cursor-crosshair";
 
+  const sizerW = stageW > 0 ? stageW + padX * 2 : 0;
+  const sizerH = stageH > 0 ? stageH + padY * 2 : 0;
+
   return (
     <div
       ref={containerRef}
-      className="flex h-full w-full items-center justify-center overflow-hidden bg-neutral-900"
+      className="relative h-full w-full overflow-auto bg-neutral-900"
     >
       {status === "failed" && (
-        <div className="text-sm text-red-400">Failed to load image: {src}</div>
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
+          Failed to load image: {src}
+        </div>
       )}
       {status === "loading" && (
-        <div className="text-sm text-neutral-400">Loading…</div>
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-neutral-400">
+          Loading…
+        </div>
       )}
       {image && (
+        <div
+          style={{
+            width: sizerW,
+            height: sizerH,
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: padX,
+              top: padY,
+            }}
+          >
         <Stage
           ref={stageRef}
           width={stageW}
@@ -604,6 +785,8 @@ export function EditorStage({ src }: Props) {
             />
           </Layer>
         </Stage>
+          </div>
+        </div>
       )}
       {textEditor && (() => {
         const editing = textEditor.id

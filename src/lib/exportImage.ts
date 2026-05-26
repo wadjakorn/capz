@@ -1,6 +1,7 @@
 import type Konva from "konva";
 import type { AppConfig } from "@/lib/config";
 import { applyFilenameTemplate, extensionFor } from "@/lib/filename";
+import { getStageImageSize } from "@/lib/stageBridge";
 
 type ExportResult = {
   saved?: string;
@@ -15,9 +16,33 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return bytes;
 }
 
-function stageBytes(stage: Konva.Stage, output: AppConfig["output"]): Uint8Array {
+/**
+ * Region-explicit export. Image always renders at (0, 0) in stage-local coords
+ * regardless of the Stage's DOM position or the scroll-container's scroll
+ * offset, so the (x: 0, y: 0, width: iw*scale, height: ih*scale) rect with
+ * `pixelRatio = 1/scale` yields a native-resolution snapshot of the image
+ * region — independent of viewport zoom and pan.
+ */
+function exportRegion(
+  stage: Konva.Stage,
+  opts: { mimeType: string; quality?: number },
+): string {
   const scale = stage.scaleX() || 1;
-  const pixelRatio = 1 / scale;
+  const size = getStageImageSize();
+  const iw = size?.w ?? stage.width() / scale;
+  const ih = size?.h ?? stage.height() / scale;
+  return stage.toDataURL({
+    x: 0,
+    y: 0,
+    width: iw * scale,
+    height: ih * scale,
+    pixelRatio: 1 / scale,
+    mimeType: opts.mimeType,
+    quality: opts.quality,
+  });
+}
+
+function stageBytes(stage: Konva.Stage, output: AppConfig["output"]): Uint8Array {
   const mimeType =
     output.fileFormat === "jpeg"
       ? "image/jpeg"
@@ -25,13 +50,12 @@ function stageBytes(stage: Konva.Stage, output: AppConfig["output"]): Uint8Array
         ? "image/webp"
         : "image/png";
   const quality = output.fileFormat === "png" ? undefined : output.jpegQuality / 100;
-  const dataUrl = stage.toDataURL({ mimeType, quality, pixelRatio });
+  const dataUrl = exportRegion(stage, { mimeType, quality });
   return dataUrlToBytes(dataUrl);
 }
 
 async function copyToClipboard(stage: Konva.Stage): Promise<void> {
-  const pixelRatio = 1 / (stage.scaleX() || 1);
-  const dataUrl = stage.toDataURL({ mimeType: "image/png", pixelRatio });
+  const dataUrl = exportRegion(stage, { mimeType: "image/png" });
   const bytes = dataUrlToBytes(dataUrl);
   const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
   await writeImage(bytes);

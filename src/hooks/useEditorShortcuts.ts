@@ -3,6 +3,11 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useEditor, type Tool } from "@/stores/editor";
+import {
+  zoomAtViewportCenter,
+  zoomToFit,
+  zoomTo100,
+} from "@/lib/zoom";
 
 const ESC_HIDE_WINDOW_MS = 2000;
 const ESC_TOAST_ID = "editor-esc-hide-arm";
@@ -42,6 +47,27 @@ export function useEditorShortcuts() {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+        return;
+      }
+
+      if (mod && (key === "=" || key === "+")) {
+        e.preventDefault();
+        zoomAtViewportCenter(1.2);
+        return;
+      }
+      if (mod && key === "-") {
+        e.preventDefault();
+        zoomAtViewportCenter(1 / 1.2);
+        return;
+      }
+      if (mod && key === "0") {
+        e.preventDefault();
+        zoomToFit();
+        return;
+      }
+      if (mod && key === "1") {
+        e.preventDefault();
+        zoomTo100();
         return;
       }
 

@@ -24,8 +24,12 @@ import {
   Monitor,
   Crop,
   AppWindow,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
   type LucideIcon,
 } from "lucide-react";
+import { zoomAtViewportCenter, zoomToFit, zoomTo100 } from "@/lib/zoom";
 import { formatShortcut } from "@/lib/shortcuts";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
@@ -99,6 +103,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
   const past = useEditor((s) => s.past.length);
   const future = useEditor((s) => s.future.length);
   const hasImage = useEditor((s) => s.hasImage);
+  const displayScale = useEditor((s) => s.displayScale);
   const stickerSelection = useEditor((s) => s.stickerSelection);
   const setStickerSelection = useEditor((s) => s.setStickerSelection);
   const stickerEntries = useStickers((s) => s.entries);
@@ -697,6 +702,47 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           </div>
         );
       })()}
+      <div className="mx-2 h-5 w-px bg-neutral-800" />
+      <button
+        type="button"
+        onClick={() => zoomAtViewportCenter(1 / 1.2)}
+        disabled={!hasImage}
+        title="Zoom out (⌘-)"
+        aria-label="Zoom out"
+        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        <ZoomOut className="h-4 w-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={() => zoomTo100()}
+        disabled={!hasImage}
+        title="Zoom to 100% (⌘1)"
+        aria-label="Zoom to 100%"
+        className="min-w-[44px] rounded px-2 py-1 text-xs tabular-nums text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        {displayScale > 0 ? `${Math.round(displayScale * 100)}%` : "—"}
+      </button>
+      <button
+        type="button"
+        onClick={() => zoomAtViewportCenter(1.2)}
+        disabled={!hasImage}
+        title="Zoom in (⌘+)"
+        aria-label="Zoom in"
+        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        <ZoomIn className="h-4 w-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={() => zoomToFit()}
+        disabled={!hasImage}
+        title="Fit to window (⌘0)"
+        aria-label="Fit to window"
+        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        <Maximize2 className="h-4 w-4" aria-hidden />
+      </button>
       <div className="ml-auto flex items-center">
         <button
           type="button"
