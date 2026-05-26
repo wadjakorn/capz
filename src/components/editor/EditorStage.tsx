@@ -289,6 +289,8 @@ export function EditorStage({ src }: Props) {
     let startScrollLeft = 0;
     let startScrollTop = 0;
     let prevCursor = "";
+    let prevBodyCursor = "";
+    let prevUserSelect = "";
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
@@ -299,6 +301,12 @@ export function EditorStage({ src }: Props) {
       startScrollTop = el.scrollTop;
       prevCursor = el.style.cursor;
       el.style.cursor = "grabbing";
+      prevBodyCursor = document.body.style.cursor;
+      document.body.style.cursor = "grabbing";
+      prevUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+      const sc = stageRef.current?.container();
+      if (sc) sc.style.cursor = "grabbing";
     };
     const onMouseMove = (e: MouseEvent) => {
       if (!panning) return;
@@ -309,6 +317,10 @@ export function EditorStage({ src }: Props) {
       if (!panning) return;
       panning = false;
       el.style.cursor = prevCursor;
+      document.body.style.cursor = prevBodyCursor;
+      document.body.style.userSelect = prevUserSelect;
+      const sc = stageRef.current?.container();
+      if (sc) sc.style.cursor = "";
     };
     el.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
