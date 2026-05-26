@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
+import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
@@ -14,6 +15,7 @@ import {
   useNoticeListener,
   usePermissionRevokedListener,
   useStalePermissionAfterUpdateListener,
+  useInertGrantAfterUpdateListener,
 } from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
 
@@ -28,13 +30,16 @@ export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
   const [view, setView] = useState<View>("editor");
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
+  const openRecovery = useCallback(() => setRecoveryOpen(true), []);
 
   useEditorShortcuts();
   useNoticeListener();
   usePermissionRevokedListener();
   useStalePermissionAfterUpdateListener();
+  useInertGrantAfterUpdateListener(openRecovery);
   useUpdateCheckListener();
 
   const applyFile = useCallback(async (path: string | null) => {
@@ -213,7 +218,7 @@ export default function EditorPage() {
       )}
       <main className="relative min-h-0 flex-1 overflow-auto">
         {view === "settings" ? (
-          <SettingsView />
+          <SettingsView onOpenInertRecovery={openRecovery} />
         ) : view === "onboarding" ? (
           <OnboardingView onDone={() => setView("editor")} />
         ) : file ? (
@@ -223,6 +228,10 @@ export default function EditorPage() {
         )}
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
+      <InertGrantRecoveryDialog
+        open={recoveryOpen}
+        onClose={() => setRecoveryOpen(false)}
+      />
     </div>
   );
 }

@@ -119,3 +119,77 @@ export function useStalePermissionAfterUpdateListener() {
     };
   }, []);
 }
+
+const INERT_TOAST_ID = "permission-inert-after-update";
+
+/**
+ * macOS only. Detects the post-update "inert grant" state where preflight
+ * reports granted but a real capture still fails — TCC's row is keyed to the
+ * prior build's cdhash, so the new binary reads zero pixels. Distinct from
+ * `useStalePermissionAfterUpdateListener` which only fires on the *denied*
+ * case. On mount (and on each window focus) runs `probe_capture_command`; if
+ * preflight = granted but probe = false, surfaces a persistent toast whose
+ * action opens the Remove → Relaunch → Re-grant recovery dialog.
+ *
+ * Version-gated: once the probe succeeds on the current binary version, that
+ * version is recorded in `permissions.lastProbeOkVersion` and subsequent
+ * launches stay silent until the version changes.
+ */
+export function useInertGrantAfterUpdateListener(onOpenRecovery: () => void) {
+  useEffect(() => {
+    if (!IS_MAC) return;
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+
+    const probe = async () => {
+      const [{ invoke }, { getVersion }, { load }] = await Promise.all([
+        import("@tauri-apps/api/core"),
+        import("@tauri-apps/api/app"),
+        import("@tauri-apps/plugin-store"),
+      ]);
+      const granted = await invoke<boolean>("has_screen_recording_permission");
+      if (cancelled) return;
+      if (!granted) return; // stale-after-update hook owns this path
+      const currentVersion = await getVersion();
+      const store = await load(CONFIG_STORE_FILE, { autoSave: false, defaults: {} });
+      const perms =
+        (await store.get<{ lastProbeOkVersion?: string }>("permissions")) ?? {};
+      if (perms.lastProbeOkVersion === currentVersion) return;
+      const ok = await invoke<boolean>("probe_capture_command");
+      if (cancelled) return;
+      if (ok) {
+        await store.set("permissions", {
+          ...perms,
+          lastProbeOkVersion: currentVersion,
+        });
+        await store.save();
+        toast.dismiss(INERT_TOAST_ID);
+        return;
+      }
+      toast.error("Capture is broken after the macOS update", {
+        id: INERT_TOAST_ID,
+        description:
+          "System Settings shows capz as allowed, but the entry is keyed to the previous build. TCC needs a full reset: remove the row, relaunch, re-grant.",
+        duration: Infinity,
+        action: {
+          label: "Fix permission…",
+          onClick: onOpenRecovery,
+        },
+      });
+    };
+
+    void probe();
+    (async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow();
+      unlisten = await win.onFocusChanged(({ payload: focused }) => {
+        if (focused) void probe();
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [onOpenRecovery]);
+}

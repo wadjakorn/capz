@@ -99,6 +99,7 @@ pub fn run() {
             commands::output::reveal_in_finder,
             commands::stickers::list_stickers,
             commands::permissions::has_screen_recording_permission,
+            commands::permissions::probe_capture_command,
             commands::permissions::request_screen_recording_permission,
             commands::permissions::open_system_settings_screen_recording,
             commands::permissions::relaunch_app,

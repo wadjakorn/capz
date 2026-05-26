@@ -83,7 +83,14 @@ async function applyHotkey(
 const TAB_VALUES = ["shortcuts", "output", "pins", "stickers", "general", "updates", "debug"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
-export function SettingsView() {
+type SettingsViewProps = {
+  onOpenInertRecovery?: () => void;
+};
+
+const IS_MAC =
+  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+
+export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
   const { config, ready, init, update } = useSettings();
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
@@ -396,6 +403,24 @@ export function SettingsView() {
               Re-run
             </button>
           </div>
+          {IS_MAC && onOpenInertRecovery && (
+            <div className="flex items-center justify-between">
+              <div className="grid gap-0.5">
+                <Label>Fix permission after macOS update</Label>
+                <span className="text-xs text-muted-foreground">
+                  Walks through removing the stale TCC entry, relaunching, and
+                  re-granting.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenInertRecovery}
+                className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                Fix…
+              </button>
+            </div>
+          )}
           <AboutRow />
         </TabsContent>
       </Tabs>
