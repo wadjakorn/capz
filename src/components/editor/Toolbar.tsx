@@ -21,8 +21,12 @@ import {
   Underline,
   Strikethrough,
   Settings as SettingsIcon,
+  Monitor,
+  Crop,
+  AppWindow,
   type LucideIcon,
 } from "lucide-react";
+import { formatShortcut } from "@/lib/shortcuts";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -550,9 +554,43 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     }
   };
 
+  const triggerCapture = (kind: "full" | "area" | "window") => {
+    void (async () => {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("trigger_capture_command", { kind });
+      } catch (err) {
+        console.error("trigger_capture_command failed", err);
+        toast.error("Capture failed", { description: String(err) });
+      }
+    })();
+  };
+
+  const captureButtons: { kind: "full" | "area" | "window"; label: string; accel: string; icon: LucideIcon }[] = [
+    { kind: "full", label: "Capture full screen", accel: fullConfig.hotkeys.captureFull, icon: Monitor },
+    { kind: "area", label: "Capture area", accel: fullConfig.hotkeys.captureArea, icon: Crop },
+    { kind: "window", label: "Capture window", accel: fullConfig.hotkeys.captureWindow, icon: AppWindow },
+  ];
+
   return (
     <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 max-h-[40vh] overflow-y-auto">
       <div className="flex flex-wrap items-center gap-1">
+      {captureButtons.map((b) => {
+        const Icon = b.icon;
+        return (
+          <button
+            key={b.kind}
+            type="button"
+            onClick={() => triggerCapture(b.kind)}
+            title={`${b.label} (${formatShortcut(b.accel)})`}
+            aria-label={b.label}
+            className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800"
+          >
+            <Icon className="h-4 w-4" aria-hidden />
+          </button>
+        );
+      })}
+      <div className="mx-2 h-5 w-px bg-neutral-800" />
       {TOOLS.map((t) => {
         const active = tool === t.id;
         const Icon = t.icon;

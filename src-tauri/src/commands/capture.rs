@@ -151,6 +151,20 @@ pub async fn capture_monitor_command<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn trigger_capture_command<R: Runtime>(
+    app: AppHandle<R>,
+    kind: String,
+) -> Result<(), String> {
+    let parsed = match kind.as_str() {
+        "full" => crate::shortcuts::CaptureKind::Full,
+        "area" => crate::shortcuts::CaptureKind::Area,
+        "window" => crate::shortcuts::CaptureKind::Window,
+        other => return Err(format!("unknown capture kind: {other}")),
+    };
+    crate::capture_dispatch::trigger_capture(app, parsed).await
+}
+
+#[tauri::command]
 pub async fn capture_region_command<R: Runtime>(
     app: AppHandle<R>,
     monitor_id: u32,

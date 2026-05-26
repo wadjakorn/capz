@@ -155,13 +155,10 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
     if let Err(e) = app.emit("shortcut://triggered", ShortcutPayload { kind }) {
         log::warn!("emit shortcut://triggered failed: {e}");
     }
-    match kind {
-        CaptureKind::Full => crate::capture_dispatch::dispatch_full(app),
-        CaptureKind::Area => {
-            if let Err(e) = windows::show_overlay(app) {
-                log::error!("show_overlay failed: {e}");
-            }
+    let app_dispatch = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = crate::capture_dispatch::trigger_capture(app_dispatch, kind).await {
+            log::error!("trigger_capture failed: {e}");
         }
-        CaptureKind::Window => crate::capture_dispatch::dispatch_window(app),
-    }
+    });
 }

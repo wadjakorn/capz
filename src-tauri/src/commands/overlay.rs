@@ -1,5 +1,7 @@
 use tauri::{AppHandle, Manager, Runtime};
 
+use crate::windows;
+
 #[tauri::command]
 pub fn close_overlay_command<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     for (label, win) in app.webview_windows() {
@@ -9,5 +11,6 @@ pub fn close_overlay_command<R: Runtime>(app: AppHandle<R>) -> Result<(), String
             }
         }
     }
+    windows::show_editor_if_hidden(&app);
     Ok(())
 }

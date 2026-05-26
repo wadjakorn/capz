@@ -85,6 +85,7 @@ pub fn run() {
             commands::capture::capture_full_command,
             commands::capture::capture_monitor_command,
             commands::capture::capture_region_command,
+            commands::capture::trigger_capture_command,
             commands::overlay::close_overlay_command,
             commands::editor::editor_current_image,
             commands::editor::open_editor,

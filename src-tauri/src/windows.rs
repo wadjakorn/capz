@@ -370,6 +370,68 @@ pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<()
     Ok(())
 }
 
+/// Hide the editor window (if it exists and is visible) and wait until the
+/// OS reports it invisible. Used before xcap reads the screen so the editor
+/// chrome doesn't appear in captures initiated from inside the editor.
+pub async fn hide_editor_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let Some(win) = app.get_webview_window("editor") else {
+        return Ok(());
+    };
+    if !win.is_visible().unwrap_or(false) {
+        return Ok(());
+    }
+    let app_hide = app.clone();
+    app.run_on_main_thread(move || {
+        if let Some(w) = app_hide.get_webview_window("editor") {
+            if let Err(e) = w.hide() {
+                log::warn!("hide editor failed: {e}");
+            }
+        }
+    })
+    .map_err(|e| e.to_string())?;
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(400);
+    loop {
+        let hidden = app
+            .get_webview_window("editor")
+            .map(|w| !w.is_visible().unwrap_or(true))
+            .unwrap_or(true);
+        if hidden {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            log::warn!("hide_editor_and_wait: timed out");
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        tokio::task::spawn_blocking(|| unsafe {
+            let _ = windows_sys::Win32::Graphics::Dwm::DwmFlush();
+        })
+        .await
+        .map_err(|e| format!("DwmFlush join: {e}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+    Ok(())
+}
+
+/// Show the editor window only if it exists and is currently hidden.
+/// No-op when already visible (so we don't steal focus mid-overlay).
+pub fn show_editor_if_hidden<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("editor") {
+        if !win.is_visible().unwrap_or(true) {
+            if let Err(e) = win.show() {
+                log::warn!("show_editor_if_hidden: {e}");
+            }
+        }
+    }
+}
+
 /// Windows: disable DWM open/close shrink animation for this HWND so
 /// subsequent `hide()` / `close()` are instant. Without this, xcap (BitBlt
 /// path) can read a mid-shrink frame and bake a smaller overlay into the
