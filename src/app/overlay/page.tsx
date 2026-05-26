@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useSettings } from "@/stores/settings";
 
 type Point = { x: number; y: number };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -52,8 +53,14 @@ function OverlayInner() {
   const monitorId = Number(params.get("monitor") ?? "0");
   const mode = (params.get("mode") ?? "area") as Mode;
 
+  const initSettings = useSettings((s) => s.init);
+  const settingsReady = useSettings((s) => s.ready);
+  const rememberLastRegion = useSettings((s) => s.config.general.rememberLastRegion);
+  const lastRegion = useSettings((s) => s.config.lastUsed?.region);
+
   const [start, setStart] = useState<Point | null>(null);
   const [end, setEnd] = useState<Point | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(false);
   const [windows, setWindows] = useState<WindowOverlayInfo[]>([]);
@@ -90,6 +97,26 @@ function OverlayInner() {
   };
 
   useEffect(() => {
+    void initSettings();
+  }, [initSettings]);
+
+  // Prefill drag rect with last region if toggle on and region matches this monitor.
+  useEffect(() => {
+    if (mode !== "area" || !settingsReady) return;
+    if (!rememberLastRegion || !lastRegion) return;
+    if (lastRegion.monitorId !== monitorId) return;
+    if (start || end) return;
+    const a = { x: lastRegion.x, y: lastRegion.y };
+    const b = { x: lastRegion.x + lastRegion.w, y: lastRegion.y + lastRegion.h };
+    setStart(a);
+    setEnd(b);
+    setPrefilled(true);
+    setActive(true);
+    requestCutout({ x: a.x, y: a.y, w: lastRegion.w, h: lastRegion.h });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsReady, rememberLastRegion, lastRegion, mode, monitorId]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -111,6 +138,20 @@ function OverlayInner() {
       }
     };
   }, []);
+
+  // Enter confirms current area selection (prefilled or freshly drawn).
+  useEffect(() => {
+    if (mode !== "area") return;
+    const onEnter = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || busy || !start || !end) return;
+      e.preventDefault();
+      const rect = normalize(start, end);
+      if (rect.w >= 4 && rect.h >= 4) void confirmRegion(rect);
+    };
+    window.addEventListener("keydown", onEnter);
+    return () => window.removeEventListener("keydown", onEnter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, busy, start, end]);
 
   // window-mode: fetch list once when this overlay becomes active.
   useEffect(() => {
@@ -139,7 +180,7 @@ function OverlayInner() {
   const onMouseMove = (e: React.MouseEvent) => {
     if (!active) setActive(true);
     if (mode === "area") {
-      if (!start || busy) return;
+      if (!start || busy || prefilled) return;
       const next = { x: e.clientX, y: e.clientY };
       setEnd(next);
       requestCutout(normalize(start, next));
@@ -154,8 +195,10 @@ function OverlayInner() {
   const onMouseDown = (e: React.MouseEvent) => {
     if (busy || !active) return;
     if (mode !== "area") return;
+    setPrefilled(false);
     setStart({ x: e.clientX, y: e.clientY });
     setEnd({ x: e.clientX, y: e.clientY });
+    requestCutout(null);
   };
 
   const onClick = async () => {
@@ -186,6 +229,39 @@ function OverlayInner() {
     }
   };
 
+  const confirmRegion = async (rect: Rect) => {
+    setBusy(true);
+    const rounded = {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      w: Math.round(rect.w),
+      h: Math.round(rect.h),
+    };
+    if (rememberLastRegion) {
+      try {
+        await useSettings.getState().setLastUsed({
+          ...(useSettings.getState().config.lastUsed ?? {}),
+          region: { monitorId, ...rounded },
+        });
+      } catch (e) {
+        console.warn("persist lastUsed.region failed", e);
+      }
+    }
+    getCurrentWindow()
+      .hide()
+      .catch((e) => console.warn("hide overlay failed", e));
+    try {
+      const path = await invoke<string>("capture_region_command", {
+        monitorId,
+        ...rounded,
+      });
+      console.info("capture_region_command → editor", path);
+    } catch (e) {
+      console.error("capture_region_command failed", e);
+      closeOverlay();
+    }
+  };
+
   const onMouseUp = async () => {
     if (mode !== "area") return;
     if (!start || !end || busy) return;
@@ -201,23 +277,7 @@ function OverlayInner() {
     // overlay inside capture_region_command. Clearing start/end here would
     // briefly revert to full-screen dim that BitBlt could bake into the
     // capture.
-    setBusy(true);
-    getCurrentWindow()
-      .hide()
-      .catch((e) => console.warn("hide overlay failed", e));
-    try {
-      const path = await invoke<string>("capture_region_command", {
-        monitorId,
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        w: Math.round(rect.w),
-        h: Math.round(rect.h),
-      });
-      console.info("capture_region_command → editor", path);
-    } catch (e) {
-      console.error("capture_region_command failed", e);
-      closeOverlay();
-    }
+    await confirmRegion(rect);
   };
 
   const dragRect = start && end ? normalize(start, end) : null;
@@ -226,13 +286,15 @@ function OverlayInner() {
     if (!active) return "Move cursor here to select on this screen";
     switch (mode) {
       case "area":
-        return "Drag to select · Esc to cancel";
+        return start && end
+          ? "Enter to capture · Drag to adjust · Esc to cancel"
+          : "Drag to select · Esc to cancel";
       case "full":
         return "Click to capture this screen · Esc to cancel";
       case "window":
         return "Click a window to capture · Esc to cancel";
     }
-  }, [active, mode]);
+  }, [active, mode, start, end]);
 
   const cutoutRect: Rect | null =
     mode === "area"

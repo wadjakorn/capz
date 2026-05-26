@@ -30,7 +30,8 @@ function isPlainLastUsed(v: unknown): v is NonNullable<AppConfig["lastUsed"]> {
     "sticker" in obj ||
     "pin" in obj ||
     "tool" in obj ||
-    "stickerEmoji" in obj
+    "stickerEmoji" in obj ||
+    "region" in obj
   );
 }
 

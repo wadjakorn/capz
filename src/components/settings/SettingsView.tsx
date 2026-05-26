@@ -298,6 +298,11 @@ export function SettingsView() {
             checked={config.general.rememberLastTool}
             onChange={(v) => update("general", { rememberLastTool: v })}
           />
+          <ToggleRow
+            label="Remember last area-capture region"
+            checked={config.general.rememberLastRegion}
+            onChange={(v) => update("general", { rememberLastRegion: v })}
+          />
           <div className="flex items-center justify-between">
             <div className="grid gap-0.5">
               <Label>On editor close/hide</Label>

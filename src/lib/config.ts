@@ -33,6 +33,7 @@ export type AppConfig = {
     autostart: boolean;
     playSoundOnCapture: boolean;
     rememberLastTool: boolean;
+    rememberLastRegion: boolean;
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
@@ -41,6 +42,7 @@ export type AppConfig = {
   lastUsed?: {
     tool?: Tool;
     stickerEmoji?: string;
+    region?: { monitorId: number; x: number; y: number; w: number; h: number };
     rect?: { strokeColor?: string; strokeWidth?: number };
     arrow?: { strokeColor?: string; strokeWidth?: number };
     text?: {
@@ -112,6 +114,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     autostart: false,
     playSoundOnCapture: false,
     rememberLastTool: true,
+    rememberLastRegion: false,
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
     closeAction: "copy",
