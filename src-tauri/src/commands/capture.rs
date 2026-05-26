@@ -27,19 +27,57 @@ const STORE_FILE: &str = "config.json";
 const STORE_KEY: &str = "app";
 const DEFAULT_JPEG_QUALITY: u8 = 85;
 
-fn read_temp_jpeg_quality<R: Runtime>(app: &AppHandle<R>) -> u8 {
+#[derive(Clone, Copy)]
+enum IntermediateFormat {
+    Png,
+    Jpeg(u8),
+}
+
+#[derive(Clone, Copy)]
+struct IntermediateSpec {
+    format: IntermediateFormat,
+    max_edge: Option<u32>,
+}
+
+impl Default for IntermediateSpec {
+    fn default() -> Self {
+        Self {
+            format: IntermediateFormat::Png,
+            max_edge: None,
+        }
+    }
+}
+
+fn read_capture_intermediate<R: Runtime>(app: &AppHandle<R>) -> IntermediateSpec {
     let Ok(store) = app.store(STORE_FILE) else {
-        return DEFAULT_JPEG_QUALITY;
+        return IntermediateSpec::default();
     };
     let Some(value) = store.get(STORE_KEY) else {
-        return DEFAULT_JPEG_QUALITY;
+        return IntermediateSpec::default();
     };
-    value
-        .get("capture")
+    let capture = value.get("capture");
+
+    let quality = capture
         .and_then(|c| c.get("tempJpegQuality"))
         .and_then(|q| q.as_u64())
         .and_then(|q| u8::try_from(q.clamp(1, 100)).ok())
-        .unwrap_or(DEFAULT_JPEG_QUALITY)
+        .unwrap_or(DEFAULT_JPEG_QUALITY);
+
+    let format = match capture
+        .and_then(|c| c.get("intermediateFormat"))
+        .and_then(|v| v.as_str())
+    {
+        Some("jpeg") => IntermediateFormat::Jpeg(quality),
+        _ => IntermediateFormat::Png,
+    };
+
+    let max_edge = capture
+        .and_then(|c| c.get("intermediateMaxEdge"))
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u32::try_from(v).ok())
+        .filter(|v| *v > 0);
+
+    IntermediateSpec { format, max_edge }
 }
 
 #[tauri::command]
@@ -60,10 +98,13 @@ where
     F: FnOnce() -> anyhow::Result<image::RgbaImage> + Send + 'static,
 {
     tray::set_busy(&app, "Capturing…");
-    let quality = read_temp_jpeg_quality(&app);
+    let spec = read_capture_intermediate(&app);
     let res = tokio::task::spawn_blocking(move || -> anyhow::Result<std::path::PathBuf> {
         let img = capture()?;
-        image_service::write_temp_jpeg(&img, quality)
+        match spec.format {
+            IntermediateFormat::Png => image_service::write_temp_png(&img, spec.max_edge),
+            IntermediateFormat::Jpeg(q) => image_service::write_temp_jpeg(&img, q, spec.max_edge),
+        }
     })
     .await;
     let path = match res {

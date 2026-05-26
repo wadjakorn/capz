@@ -42,20 +42,58 @@ export function OutputPrefsForm() {
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label>Capture JPEG quality ({capture.tempJpegQuality})</Label>
+        <Label>Capture intermediate</Label>
+        <Select
+          value={capture.intermediateFormat}
+          onValueChange={(v) =>
+            update("capture", { intermediateFormat: v as typeof capture.intermediateFormat })
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="png">PNG (lossless, recommended)</SelectItem>
+            <SelectItem value="jpeg">JPEG (smaller / faster)</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">
+          Intermediate buffer the editor loads from. PNG preserves every pixel; JPEG re-encodes lossily and caps final-export quality regardless of File format below.
+        </span>
+      </div>
+
+      {capture.intermediateFormat === "jpeg" && (
+        <div className="grid gap-2">
+          <Label>Intermediate JPEG quality ({capture.tempJpegQuality})</Label>
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            value={capture.tempJpegQuality}
+            onChange={(e) =>
+              update("capture", {
+                tempJpegQuality: Math.max(1, Math.min(100, Number(e.target.value))),
+              })
+            }
+          />
+        </div>
+      )}
+
+      <div className="grid gap-2">
+        <Label>Limit longest edge (px)</Label>
         <Input
           type="number"
-          min={1}
-          max={100}
-          value={capture.tempJpegQuality}
-          onChange={(e) =>
-            update("capture", {
-              tempJpegQuality: Math.max(1, Math.min(100, Number(e.target.value))),
-            })
-          }
+          min={0}
+          placeholder="No limit"
+          value={capture.intermediateMaxEdge ?? ""}
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            const next = raw === "" ? null : Math.max(0, Math.floor(Number(raw)));
+            update("capture", { intermediateMaxEdge: next });
+          }}
         />
         <span className="text-xs text-muted-foreground">
-          Lower = faster capture, smaller temp file, more artifacts. Affects intermediate only; final export honors File format below.
+          Downscale captures whose longest side exceeds this. Blank or 0 = native resolution. Use only if huge captures feel slow.
         </span>
       </div>
       <div className="grid gap-2">

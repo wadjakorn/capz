@@ -3,10 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, Result};
 use image::{
-    codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, ImageEncoder, RgbaImage,
+    codecs::jpeg::JpegEncoder, codecs::png::PngEncoder, imageops::FilterType, DynamicImage,
+    ExtendedColorType, ImageEncoder, RgbaImage,
 };
-
-pub const MAX_LONGEST_EDGE: u32 = 2560;
 
 fn downscale_to_max_edge(img: &RgbaImage, max_edge: u32) -> RgbaImage {
     let (w, h) = img.dimensions();
@@ -20,8 +19,45 @@ fn downscale_to_max_edge(img: &RgbaImage, max_edge: u32) -> RgbaImage {
     image::imageops::resize(img, nw, nh, FilterType::Triangle)
 }
 
-pub fn write_temp_jpeg(img: &RgbaImage, quality: u8) -> Result<PathBuf> {
-    let scaled = downscale_to_max_edge(img, MAX_LONGEST_EDGE);
+fn maybe_downscale(img: &RgbaImage, max_edge: Option<u32>) -> RgbaImage {
+    match max_edge {
+        Some(edge) if edge > 0 => downscale_to_max_edge(img, edge),
+        _ => img.clone(),
+    }
+}
+
+fn temp_path(ext: &str) -> Result<PathBuf> {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| anyhow!("time: {e}"))?
+        .as_millis();
+    Ok(std::env::temp_dir().join(format!("capz-temp-{ts}.{ext}")))
+}
+
+/// Encode RGBA capture as lossless PNG. Preserves pixel-perfect fidelity —
+/// the editor stage then renders from a buffer identical to xcap's output.
+/// `max_edge: None` keeps native resolution.
+pub fn write_temp_png(img: &RgbaImage, max_edge: Option<u32>) -> Result<PathBuf> {
+    let scaled = maybe_downscale(img, max_edge);
+    let mut buf = Vec::with_capacity((scaled.width() * scaled.height()) as usize * 4 / 2);
+    PngEncoder::new(&mut buf)
+        .write_image(
+            &scaled,
+            scaled.width(),
+            scaled.height(),
+            ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| anyhow!("png encode failed: {e}"))?;
+    let path = temp_path("png")?;
+    std::fs::write(&path, &buf).map_err(|e| anyhow!("write {}: {e}", path.display()))?;
+    Ok(path)
+}
+
+/// Encode RGBA capture as JPEG. Smaller / faster but lossy — text and
+/// high-contrast edges ring at quality <100. `max_edge: None` keeps native
+/// resolution.
+pub fn write_temp_jpeg(img: &RgbaImage, quality: u8, max_edge: Option<u32>) -> Result<PathBuf> {
+    let scaled = maybe_downscale(img, max_edge);
     let rgb = DynamicImage::ImageRgba8(scaled).to_rgb8();
     let mut buf = Vec::with_capacity((rgb.width() * rgb.height() * 3) as usize / 4);
     let enc = JpegEncoder::new_with_quality(&mut buf, quality);
@@ -29,14 +65,10 @@ pub fn write_temp_jpeg(img: &RgbaImage, quality: u8) -> Result<PathBuf> {
         rgb.as_raw(),
         rgb.width(),
         rgb.height(),
-        image::ExtendedColorType::Rgb8,
+        ExtendedColorType::Rgb8,
     )
     .map_err(|e| anyhow!("jpeg encode failed: {e}"))?;
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| anyhow!("time: {e}"))?
-        .as_millis();
-    let path = std::env::temp_dir().join(format!("capz-temp-{ts}.jpg"));
+    let path = temp_path("jpg")?;
     std::fs::write(&path, &buf).map_err(|e| anyhow!("write {}: {e}", path.display()))?;
     Ok(path)
 }

@@ -70,6 +70,8 @@ export type AppConfig = {
     sticker: { fontSize: number };
   };
   capture: {
+    intermediateFormat: "png" | "jpeg";
+    intermediateMaxEdge: number | null;
     tempJpegQuality: number;
   };
   updates: {
@@ -130,6 +132,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     sticker: { fontSize: 48 },
   },
   capture: {
+    intermediateFormat: "png",
+    intermediateMaxEdge: null,
     tempJpegQuality: 85,
   },
   updates: {
