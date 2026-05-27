@@ -80,6 +80,8 @@ export function useEditorShortcuts() {
           escArmedAt.current = 0;
           toast.dismiss(ESC_TOAST_ID);
           select(null);
+          const { tool, setTool } = useEditor.getState();
+          if (tool !== "select" && tool !== "pin") setTool("select");
           return;
         }
         // No selection → double-Esc hides window.

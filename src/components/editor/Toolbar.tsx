@@ -662,7 +662,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
   const Divider = () => <div className="mx-1 h-5 w-px bg-neutral-800" />;
 
   return (
-    <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
+    <div className="relative flex flex-col border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
       <div className="flex items-center gap-1">
         {/* Output group */}
         <div className="flex items-center gap-1">
@@ -725,7 +725,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         />
       </div>
       {hasContext && (
-      <div className="flex min-h-[36px] flex-wrap items-center gap-1 border-t border-neutral-800 pt-1">
+      <div className="absolute left-0 right-0 top-full z-40 flex flex-wrap items-center gap-1 border-b border-neutral-800 bg-neutral-900/95 px-2 py-1.5 shadow-lg backdrop-blur">
       {colorCtx && (
         <>
           <label

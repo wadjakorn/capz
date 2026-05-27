@@ -496,7 +496,20 @@ export function EditorStage({ src }: Props) {
     if (!p) return;
     const empty = isEmptyTarget(e);
 
-    if (empty) select(null);
+    if (empty) {
+      const hadSelection = useEditor.getState().selectedId !== null;
+      if (hadSelection) {
+        select(null);
+        if (tool !== "select" && tool !== "pin") setTool("select");
+        return;
+      }
+      select(null);
+    }
+
+    if (textEditor) {
+      commitTextEditor();
+      return;
+    }
 
     if (tool === "select") return;
     if (!empty) return;
