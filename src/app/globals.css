@@ -2,6 +2,22 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@source "../components";
+@source "../app";
+@source "../../.ladle";
+
+@font-face {
+  font-family: "Noto Sans Thai";
+  src: url("./fonts/NotoSansThai.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-sans: "Noto Sans Thai";
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -100,6 +116,46 @@
   --ls-snug: -0.015em;
   --ls-eyebrow: 0.06em;
 
+  /* Blur scale */
+  --blur-sm: 8px;
+  --blur-md: 14px;
+  --blur-lg: 20px;
+  --blur-xl: 28px;
+
+  /* Liquid glass — iOS 26 inspired */
+  --lg-fill: rgba(255, 255, 255, 0.06);
+  --lg-fill-soft: rgba(255, 255, 255, 0.03);
+  --lg-fill-strong: rgba(255, 255, 255, 0.10);
+  --lg-blur: 30px;
+  --lg-saturate: 180%;
+  --lg-rim: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 22%,
+    rgba(255, 255, 255, 0.04) 60%,
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  --lg-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0) 38%
+  );
+  --lg-halo: 0 24px 60px -20px rgba(0, 0, 0, 0.55),
+    0 2px 0 rgba(255, 255, 255, 0.04);
+
+  /* iOS-glass elevation */
+  --depth-1: 0 1px 2px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --depth-2: 0 6px 20px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --depth-3: 0 18px 40px -10px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --depth-4: 0 30px 60px -20px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+
+  /* Type scale */
+  --text-eyebrow: 12px;
+  --text-body: 14px;
+  --text-title: 18px;
+  --text-headline: 28px;
+  --text-display: 44px;
+
   --sidebar: rgba(255, 255, 255, 0.04);
   --sidebar-foreground: #f5f3ff;
   --sidebar-primary: #a78bfa;
@@ -121,7 +177,7 @@
   body {
     color: var(--foreground);
     font-family: var(--font-sans), -apple-system, BlinkMacSystemFont,
-      "Helvetica Neue", Helvetica, Arial, sans-serif;
+      "Segoe UI", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -184,25 +240,80 @@
 /* ---------------- Playful utilities ---------------- */
 
 @layer components {
+  .glass-card,
+  .glass-pill,
+  .glass-pill-soft,
+  .glass-button,
+  .glass-button-primary,
+  .glow-tile {
+    position: relative;
+    isolation: isolate;
+  }
+  .glass-card::before,
+  .glass-pill::before,
+  .glass-pill-soft::before,
+  .glass-button::before,
+  .glass-button-primary::before,
+  .glow-tile::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--lg-rim);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .glass-card::after,
+  .glass-pill::after,
+  .glass-pill-soft::after,
+  .glass-button::after,
+  .glass-button-primary::after,
+  .glow-tile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--lg-sheen);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .glass-card > *,
+  .glass-pill > *,
+  .glass-pill-soft > *,
+  .glass-button > *,
+  .glass-button-primary > *,
+  .glow-tile > * {
+    position: relative;
+    z-index: 2;
+  }
+
   .glass-card {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    border-radius: 1.25rem;
+    background: var(--lg-fill);
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    box-shadow: var(--lg-halo);
+    border-radius: 1.5rem;
   }
 
   .glass-pill {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(18px) saturate(140%);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    box-shadow:
-      0 6px 24px rgba(0, 0, 0, 0.32),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: var(--lg-fill);
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    box-shadow: var(--lg-halo);
+    border-radius: 9999px;
+  }
+
+  .glass-pill-soft {
+    background: var(--lg-fill-strong);
+    backdrop-filter: blur(48px) saturate(var(--lg-saturate));
+    -webkit-backdrop-filter: blur(48px) saturate(var(--lg-saturate));
+    box-shadow: var(--lg-halo);
     border-radius: 9999px;
   }
 
@@ -211,18 +322,25 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%),
+      rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px) saturate(var(--lg-saturate));
+    -webkit-backdrop-filter: blur(20px) saturate(var(--lg-saturate));
     color: var(--foreground);
-    padding: 0.5rem 0.875rem;
-    border-radius: 0.75rem;
-    font-size: 0.875rem;
+    padding: 0.6rem 1.25rem;
+    border-radius: 9999px;
+    font-size: 0.9375rem;
     font-weight: 500;
-    transition: background 120ms ease, transform 80ms ease, border-color 120ms ease;
+    box-shadow:
+      0 0 2px rgba(0, 0, 0, 0.10),
+      0 1px 8px rgba(0, 0, 0, 0.12);
+    transition: background 120ms ease, transform 80ms ease;
   }
   .glass-button:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.10);
-    border-color: rgba(255, 255, 255, 0.18);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.10) 100%),
+      rgba(255, 255, 255, 0.06);
   }
   .glass-button:active:not(:disabled) {
     transform: translateY(1px);
@@ -237,19 +355,21 @@
     justify-content: center;
     gap: 0.5rem;
     color: #ffffff;
-    padding: 0.55rem 1rem;
-    border-radius: 0.75rem;
-    font-size: 0.875rem;
+    padding: 0.6rem 1.25rem;
+    border-radius: 9999px;
+    font-size: 0.9375rem;
     font-weight: 600;
-    background: linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background:
+      linear-gradient(180deg, rgba(167, 139, 250, 0.95) 0%, rgba(124, 58, 237, 1) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      0 6px 18px rgba(124, 58, 237, 0.45);
+      0 0 2px rgba(0, 0, 0, 0.10),
+      0 1px 8px rgba(0, 0, 0, 0.20);
     transition: filter 120ms ease, transform 80ms ease;
   }
   .glass-button-primary:hover:not(:disabled) {
-    filter: brightness(1.08);
+    filter: brightness(1.06);
   }
   .glass-button-primary:active:not(:disabled) {
     transform: translateY(1px);
@@ -294,53 +414,17 @@
     color: #ffffff;
   }
 
-  /* Glossy gradient icon tiles — CleanMyMac style. */
   .glow-tile {
-    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 1rem;
     color: #ffffff;
     overflow: hidden;
-  }
-  .glow-tile::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      inset 0 -2px 6px rgba(0, 0, 0, 0.25);
-    pointer-events: none;
-  }
-  .glow-tile-violet {
-    background: radial-gradient(circle at 30% 28%, #d8b4fe 0%, #a78bfa 35%, #7c3aed 65%, #4c1d95 100%);
-    box-shadow: 0 10px 24px rgba(124, 58, 237, 0.40);
-  }
-  .glow-tile-emerald {
-    background: radial-gradient(circle at 30% 28%, #bbf7d0 0%, #34d399 35%, #10b981 65%, #064e3b 100%);
-    box-shadow: 0 10px 24px rgba(16, 185, 129, 0.40);
-  }
-  .glow-tile-rose {
-    background: radial-gradient(circle at 30% 28%, #fecdd3 0%, #fb7185 35%, #e11d48 65%, #881337 100%);
-    box-shadow: 0 10px 24px rgba(225, 29, 72, 0.42);
-  }
-  .glow-tile-amber {
-    background: radial-gradient(circle at 30% 28%, #fde68a 0%, #fbbf24 35%, #f59e0b 65%, #78350f 100%);
-    box-shadow: 0 10px 24px rgba(245, 158, 11, 0.42);
-  }
-  .glow-tile-sky {
-    background: radial-gradient(circle at 30% 28%, #bae6fd 0%, #38bdf8 35%, #0284c7 65%, #0c4a6e 100%);
-    box-shadow: 0 10px 24px rgba(2, 132, 199, 0.42);
-  }
-  .glow-tile-cyan {
-    background: radial-gradient(circle at 30% 28%, #a5f3fc 0%, #22d3ee 35%, #0891b2 65%, #164e63 100%);
-    box-shadow: 0 10px 24px rgba(8, 145, 178, 0.42);
-  }
-  .glow-tile-fuchsia {
-    background: radial-gradient(circle at 30% 28%, #f5d0fe 0%, #e879f9 35%, #c026d3 65%, #701a75 100%);
-    box-shadow: 0 10px 24px rgba(192, 38, 211, 0.42);
+    background: var(--lg-fill);
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    box-shadow: var(--lg-halo);
   }
 
   .rail-button {
@@ -359,11 +443,13 @@
     color: #ffffff;
   }
   .rail-button[data-active] {
-    background: linear-gradient(180deg, rgba(167, 139, 250, 0.55) 0%, rgba(124, 58, 237, 0.65) 100%);
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
     color: #ffffff;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      0 6px 16px rgba(124, 58, 237, 0.45);
+      0 4px 12px rgba(0, 0, 0, 0.18);
   }
   .rail-button[data-active]::after {
     content: "";
@@ -376,5 +462,93 @@
     background: linear-gradient(180deg, #34d399, #10b981);
     border: 2px solid #1a0533;
     box-shadow: 0 2px 6px rgba(16, 185, 129, 0.5);
+  }
+
+  /* Toggle (role="switch") — track + thumb */
+  .glass-toggle {
+    position: relative;
+    height: 1.5rem;
+    width: 2.75rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: background 120ms ease;
+    cursor: pointer;
+  }
+  .glass-toggle[aria-checked="true"] {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  .glass-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+  .glass-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    height: 1.25rem;
+    width: 1.25rem;
+    border-radius: 9999px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    transition: left 140ms ease;
+  }
+  .glass-toggle[aria-checked="true"] .glass-toggle-thumb {
+    left: 22px;
+  }
+
+  /* Pill-tab active modifier (horizontal tabs + toolbar tools) */
+  .glass-tab {
+    color: rgba(245, 243, 255, 0.85);
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .glass-tab:hover {
+    color: #ffffff;
+  }
+  .glass-tab[data-active] {
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    color: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 4px 12px rgba(0, 0, 0, 0.18);
+  }
+
+  /* Row-list inside a .glass-card — hairline separator between rows */
+  .glass-row-list > * + * {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* GlowTile tone variants (chart palette tints) */
+  .glow-tile-violet {
+    background: linear-gradient(180deg, rgba(167, 139, 250, 0.55), rgba(124, 58, 237, 0.65)),
+      var(--lg-fill);
+  }
+  .glow-tile-emerald {
+    background: linear-gradient(180deg, rgba(52, 211, 153, 0.55), rgba(16, 185, 129, 0.65)),
+      var(--lg-fill);
+  }
+  .glow-tile-rose {
+    background: linear-gradient(180deg, rgba(244, 114, 182, 0.55), rgba(219, 39, 119, 0.65)),
+      var(--lg-fill);
+  }
+  .glow-tile-amber {
+    background: linear-gradient(180deg, rgba(251, 191, 36, 0.55), rgba(245, 158, 11, 0.65)),
+      var(--lg-fill);
+  }
+  .glow-tile-sky {
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.55), rgba(2, 132, 199, 0.65)),
+      var(--lg-fill);
+  }
+  .glow-tile-cyan {
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.55), rgba(8, 145, 178, 0.65)),
+      var(--lg-fill);
+  }
+  .glow-tile-fuchsia {
+    background: linear-gradient(180deg, rgba(232, 121, 249, 0.55), rgba(162, 28, 175, 0.65)),
+      var(--lg-fill);
   }
 }

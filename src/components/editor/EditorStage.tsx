@@ -726,7 +726,7 @@ export function EditorStage({ src }: Props) {
     <div className="relative h-full w-full">
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-auto bg-[#0d021f]"
+      className="relative h-full w-full overflow-auto bg-[#0d021f] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
     >
       {status === "failed" && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
@@ -759,7 +759,7 @@ export function EditorStage({ src }: Props) {
           height={stageH}
           scaleX={scale}
           scaleY={scale}
-          className={`bg-white shadow-lg ${cursorClass}`}
+          className={`bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -835,7 +835,7 @@ export function EditorStage({ src }: Props) {
               ref={hoverTrRef}
               resizeEnabled={false}
               rotateEnabled={false}
-              borderStroke="#38bdf8"
+              borderStroke="#a78bfa"
               borderStrokeWidth={1.5}
               listening={false}
             />
@@ -857,7 +857,7 @@ export function EditorStage({ src }: Props) {
               <Line
                 key={`gx-${i}`}
                 points={[gx, 0, gx, imgH]}
-                stroke="#ec4899"
+                stroke="#34d399"
                 strokeWidth={1 / scale}
               />
             ))}
@@ -865,7 +865,7 @@ export function EditorStage({ src }: Props) {
               <Line
                 key={`gy-${i}`}
                 points={[0, gy, imgW, gy]}
-                stroke="#ec4899"
+                stroke="#34d399"
                 strokeWidth={1 / scale}
               />
             ))}

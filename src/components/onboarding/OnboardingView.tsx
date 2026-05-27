@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Camera, ShieldCheck, Sparkles } from "lucide-react";
+import { Camera, Check, Clock, ShieldCheck, Sparkles } from "lucide-react";
+import { GlowTile } from "@/components/design/tiles/GlowTile";
 import { useSettings } from "@/stores/settings";
 
 type Step = "welcome" | "permission" | "done";
@@ -332,39 +333,57 @@ function StatusCard({
 }) {
   const map: Record<
     typeof state,
-    { tone: string; dot: string; label: string }
+    { tile: string; tone: string; icon: typeof Check; label: string; eyebrow: string }
   > = {
     unknown: {
-      tone: "text-muted-foreground",
-      dot: "bg-muted-foreground/40",
-      label: "Checking…",
+      tile: "glow-tile-violet",
+      tone: "text-[var(--color-fg-2)]",
+      icon: Clock,
+      eyebrow: "Checking",
+      label: "Polling system permission…",
     },
     ready: {
-      tone: "text-emerald-300",
-      dot: "bg-emerald-400",
-      label: "Granted — ready to capture",
+      tile: "glow-tile-emerald",
+      tone: "text-emerald-200",
+      icon: Check,
+      eyebrow: "Granted",
+      label: "Ready to capture",
     },
     "needs-relaunch": {
-      tone: "text-amber-300",
-      dot: "bg-amber-400",
+      tile: "glow-tile-amber",
+      tone: "text-amber-200",
+      icon: ShieldCheck,
+      eyebrow: "Relaunch",
       label: "Granted — relaunch required",
     },
     ask: {
-      tone: "text-amber-300",
-      dot: "bg-amber-400",
+      tile: "glow-tile-amber",
+      tone: "text-amber-200",
+      icon: ShieldCheck,
+      eyebrow: "Pending",
       label: "Not granted yet",
     },
     "open-settings": {
-      tone: "text-amber-300",
-      dot: "bg-amber-400",
+      tile: "glow-tile-amber",
+      tone: "text-amber-200",
+      icon: ShieldCheck,
+      eyebrow: "Pending",
       label: "Awaiting toggle in System Settings",
     },
   };
   const s = map[state];
+  const Icon = s.icon;
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm">
-      <span className={`h-2 w-2 rounded-full ${s.dot}`} aria-hidden />
-      <span className={s.tone}>{s.label}</span>
+    <div className="glass-card flex items-center gap-3 p-3">
+      <GlowTile
+        size={40}
+        className={s.tile}
+        icon={<Icon className="h-4 w-4" aria-hidden />}
+      />
+      <div className="flex flex-col">
+        <span className="eyebrow">{s.eyebrow}</span>
+        <span className={`text-sm ${s.tone}`}>{s.label}</span>
+      </div>
     </div>
   );
 }

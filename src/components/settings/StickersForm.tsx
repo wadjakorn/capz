@@ -113,7 +113,7 @@ export function StickersForm() {
       </div>
 
       {error && (
-        <span className="text-xs text-red-500">Sync failed: {error}</span>
+        <span className="text-xs text-destructive">Sync failed: {error}</span>
       )}
     </div>
   );

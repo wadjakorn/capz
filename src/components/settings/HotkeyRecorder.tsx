@@ -72,7 +72,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
         onKeyDown={handleKey}
         className="font-mono cursor-pointer"
       />
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );
 }

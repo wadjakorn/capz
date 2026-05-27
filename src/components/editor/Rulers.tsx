@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 const RULER_SIZE = 20;
-const BG = "#0a0a0a";
-const TICK_MINOR = "#3f3f46";
-const TICK_MAJOR = "#71717a";
-const TEXT = "#a1a1aa";
-const CROSS = "#38bdf8";
+const BG = "#150330";
+const TICK_MINOR = "rgba(255,255,255,0.10)";
+const TICK_MAJOR = "rgba(245,243,255,0.45)";
+const TEXT = "rgba(245,243,255,0.55)";
+const CROSS = "#a78bfa";
 
 type Props = {
   containerEl: HTMLDivElement | null;
@@ -215,8 +215,8 @@ export function Rulers({
           width: RULER_SIZE,
           height: RULER_SIZE,
           background: BG,
-          borderRight: "1px solid #27272a",
-          borderBottom: "1px solid #27272a",
+          borderRight: "1px solid rgba(255,255,255,0.08)",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
           pointerEvents: "none",
           zIndex: 6,
         }}

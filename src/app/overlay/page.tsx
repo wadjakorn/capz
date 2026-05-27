@@ -320,7 +320,7 @@ function OverlayInner() {
       {active && !cutoutRect && (
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ boxShadow: "inset 0 0 0 3px rgba(56, 189, 248, 0.6)" }}
+          style={{ boxShadow: "inset 0 0 0 3px rgba(167, 139, 250, 0.6)" }}
         />
       )}
 
@@ -330,15 +330,29 @@ function OverlayInner() {
 
       {mode === "area" && dragRect && (
         <div
-          className="pointer-events-none absolute border-2 border-sky-400"
+          className="pointer-events-none absolute"
           style={{
             left: dragRect.x,
             top: dragRect.y,
             width: dragRect.w,
             height: dragRect.h,
+            border: prefilled
+              ? "2px dashed #34d399"
+              : "2px solid #a78bfa",
+            boxShadow: prefilled
+              ? "0 0 0 1px rgba(52, 211, 153, 0.25), 0 8px 24px -8px rgba(52, 211, 153, 0.45)"
+              : "0 0 0 1px rgba(167, 139, 250, 0.25), 0 8px 24px -8px rgba(124, 58, 237, 0.45)",
           }}
         >
-          <div className="absolute -top-6 left-0 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
+          <div
+            className="absolute -top-7 left-0 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/90"
+            style={{
+              background: "rgba(22, 6, 47, 0.88)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px -10px rgba(0,0,0,0.55)",
+              border: "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
             {Math.round(dragRect.w)} × {Math.round(dragRect.h)}
           </div>
         </div>
@@ -346,22 +360,41 @@ function OverlayInner() {
 
       {mode === "window" && active && hovered && (
         <div
-          className="pointer-events-none absolute border-2 border-sky-400"
+          className="pointer-events-none absolute"
           style={{
             left: hovered.x,
             top: hovered.y,
             width: hovered.width,
             height: hovered.height,
+            border: "2px solid #a78bfa",
+            boxShadow:
+              "0 0 0 1px rgba(167, 139, 250, 0.25), 0 8px 24px -8px rgba(124, 58, 237, 0.45)",
           }}
         >
-          <div className="absolute -top-6 left-0 max-w-[80vw] truncate rounded bg-black/80 px-2 py-0.5 text-xs text-white">
+          <div
+            className="absolute -top-7 left-0 max-w-[80vw] truncate rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/90"
+            style={{
+              background: "rgba(22, 6, 47, 0.88)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px -10px rgba(0,0,0,0.55)",
+              border: "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
             {(hovered.app_name || "") +
               (hovered.title ? ` — ${hovered.title}` : "")}
           </div>
         </div>
       )}
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-1.5 text-xs text-white">
+      <div
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-white/85"
+        style={{
+          background: "rgba(22, 6, 47, 0.88)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
+        }}
+      >
         {hintText}
       </div>
     </div>

@@ -289,7 +289,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   type="color"
                   value={config.pins.defaultColor}
                   onChange={(e) => update("pins", { defaultColor: e.target.value })}
-                  className="h-10 w-20 cursor-pointer rounded-lg border border-white/10 bg-black/30 p-1"
+                  className="h-10 w-20 cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] p-1"
                 />
               </FieldRow>
               <FieldRow label="Default size (px)">
@@ -646,7 +646,7 @@ function AboutRow() {
   }, []);
 
   return (
-    <div className="flex items-center justify-between border-t border-white/10 pt-4">
+    <div className="flex items-center justify-between border-t border-white/[0.06] pt-4">
       <div className="grid gap-0.5">
         <Label>About capz</Label>
         <span className="text-xs text-muted-foreground">

@@ -221,6 +221,11 @@ export default function EditorPage() {
         style={view === "editor" ? { backgroundColor: "#0d021f" } : undefined}
       >
         <div
+          id="tool-options-slot"
+          className="pointer-events-none absolute inset-x-0 top-0 z-40"
+          aria-hidden
+        />
+        <div
           className="absolute inset-0"
           style={{
             visibility: view === "editor" ? "visible" : "hidden",

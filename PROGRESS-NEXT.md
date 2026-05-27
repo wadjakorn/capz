@@ -1,6 +1,6 @@
 # PROGRESS-NEXT — index
 
-Post-v0.1.7 enhancement tracker. Active work split by category for faster agent navigation. Phase 0–16 build log remains in [PROGRESS.md](PROGRESS.md).
+Post-v0.1.7 enhancement tracker. Active work split by category for faster agent navigation. Phase 0–16 build log archived at [docs/archive/PROGRESS-PHASES.md](docs/archive/PROGRESS-PHASES.md).
 
 ## Trackers
 
