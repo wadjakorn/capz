@@ -242,6 +242,7 @@
 @layer components {
   .glass-card,
   .glass-pill,
+  .glass-pill-soft,
   .glass-button,
   .glass-button-primary,
   .glow-tile {
@@ -250,6 +251,7 @@
   }
   .glass-card::before,
   .glass-pill::before,
+  .glass-pill-soft::before,
   .glass-button::before,
   .glass-button-primary::before,
   .glow-tile::before {
@@ -269,6 +271,7 @@
   }
   .glass-card::after,
   .glass-pill::after,
+  .glass-pill-soft::after,
   .glass-button::after,
   .glass-button-primary::after,
   .glow-tile::after {
@@ -282,6 +285,7 @@
   }
   .glass-card > *,
   .glass-pill > *,
+  .glass-pill-soft > *,
   .glass-button > *,
   .glass-button-primary > *,
   .glow-tile > * {
@@ -301,6 +305,14 @@
     background: var(--lg-fill);
     backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
     -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    box-shadow: var(--lg-halo);
+    border-radius: 9999px;
+  }
+
+  .glass-pill-soft {
+    background: var(--lg-fill-strong);
+    backdrop-filter: blur(48px) saturate(var(--lg-saturate));
+    -webkit-backdrop-filter: blur(48px) saturate(var(--lg-saturate));
     box-shadow: var(--lg-halo);
     border-radius: 9999px;
   }

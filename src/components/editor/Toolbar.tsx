@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   MousePointer2,
@@ -135,6 +136,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
 
   const [exporting, setExporting] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalTarget(document.getElementById("tool-options-slot"));
+  }, []);
 
   const selected = selectedId
     ? annotations.find((a) => a.id === selectedId) ?? null
@@ -724,8 +729,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           onClick={() => onOpenSettings?.()}
         />
       </div>
-      {hasContext && (
-      <div className="absolute left-0 right-0 top-full z-40 flex flex-wrap items-center gap-1 border-b border-white/10 bg-[var(--lg-fill)] px-2 py-1.5 shadow-lg backdrop-blur-[20px] backdrop-saturate-[180%]">
+      {hasContext && portalTarget && createPortal((
+      <div className="glass-pill-soft pointer-events-auto absolute left-1/2 -translate-x-1/2 top-7 z-40 flex flex-wrap items-center justify-center gap-1 px-3 py-1.5">
       {colorCtx && (
         <>
           <label
@@ -983,7 +988,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         </>
       )}
       </div>
-      )}
+      ), portalTarget)}
     </div>
   );
 }
