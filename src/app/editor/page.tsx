@@ -216,15 +216,26 @@ export default function EditorPage() {
       ) : (
         <Toolbar onOpenSettings={() => setView("settings")} />
       )}
-      <main className="relative min-h-0 flex-1 overflow-auto">
-        {view === "settings" ? (
-          <SettingsView onOpenInertRecovery={openRecovery} />
-        ) : view === "onboarding" ? (
-          <OnboardingView onDone={() => setView("editor")} />
-        ) : file ? (
-          <EditorStage src={src} />
-        ) : (
-          <EmptyState />
+      <main className="relative min-h-0 flex-1 overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{
+            visibility: view === "editor" ? "visible" : "hidden",
+            pointerEvents: view === "editor" ? "auto" : "none",
+          }}
+          aria-hidden={view !== "editor"}
+        >
+          {file ? <EditorStage src={src} /> : <EmptyState />}
+        </div>
+        {view === "settings" && (
+          <div className="absolute inset-0 overflow-auto">
+            <SettingsView onOpenInertRecovery={openRecovery} />
+          </div>
+        )}
+        {view === "onboarding" && (
+          <div className="absolute inset-0 overflow-auto">
+            <OnboardingView onDone={() => setView("editor")} />
+          </div>
         )}
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
