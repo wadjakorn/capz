@@ -12,7 +12,7 @@ function Toggle({ initial = false }: { initial?: boolean }) {
       onClick={() => setOn((v) => !v)}
       className="relative h-6 w-11 rounded-full border border-white/10 transition"
       style={{
-        background: on ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)",
+        background: on ? "rgba(52,211,153,0.75)" : "rgba(255,255,255,0.10)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}
