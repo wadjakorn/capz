@@ -8,7 +8,7 @@ Tauri v2 · Rust · Next.js 15 (static export) · TypeScript · Tailwind 4 · sh
 
 ## Status
 
-Shipping. macOS (arm64 + x64) + Windows (x64) builds released via GitHub. See [PROGRESS.md](PROGRESS.md) for phase log.
+Shipping. macOS (arm64 + x64) + Windows (x64) builds released via GitHub. Active work in [PROGRESS-NEXT.md](PROGRESS-NEXT.md); Phase 0–16 build log archived at [docs/archive/PROGRESS-PHASES.md](docs/archive/PROGRESS-PHASES.md).
 
 ## Install
 

@@ -662,7 +662,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
   const Divider = () => <div className="mx-1 h-5 w-px bg-white/10" />;
 
   return (
-    <div className="relative z-20 flex flex-col border-b border-white/10 bg-white/[0.04] px-2 py-1.5 backdrop-blur-xl">
+    <div className="relative z-20 flex flex-col border-b border-white/10 bg-[var(--lg-fill)] px-2 py-1.5 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
       <div className="flex items-center gap-1">
         {/* Output group */}
         <div className="flex items-center gap-1">
@@ -725,7 +725,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         />
       </div>
       {hasContext && (
-      <div className="absolute left-0 right-0 top-full z-40 flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#1a0533]/85 px-2 py-1.5 shadow-lg backdrop-blur-xl">
+      <div className="absolute left-0 right-0 top-full z-40 flex flex-wrap items-center gap-1 border-b border-white/10 bg-[var(--lg-fill)] px-2 py-1.5 shadow-lg backdrop-blur-[20px] backdrop-saturate-[180%]">
       {colorCtx && (
         <>
           <label
@@ -738,7 +738,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               type="color"
               value={colorCtx.value}
               onChange={(e) => colorCtx!.onChange(e.target.value)}
-              className="h-6 w-8 cursor-pointer rounded border border-white/15 bg-black/40 p-0.5"
+              className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
             />
           </label>
         </>
@@ -753,7 +753,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             type="color"
             value={pinLabelCtx.value}
             onChange={(e) => pinLabelCtx!.onChange(e.target.value)}
-            className="h-6 w-8 cursor-pointer rounded border border-white/15 bg-black/40 p-0.5"
+            className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
           />
         </label>
       )}
@@ -817,8 +817,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             className={[
               "flex h-7 w-7 items-center justify-center rounded transition-colors",
               active
-                ? "bg-white text-[#1a0533] shadow-[inset_0_-1px_0_rgba(0,0,0,0.15)]"
-                : "text-foreground/80 hover:bg-white/10",
+                ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
+                : "text-foreground/80 hover:bg-white/[0.08]",
             ].join(" ")}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -837,7 +837,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               <select
                 value={tsc.fontFamily}
                 onChange={(e) => tsc.setFontFamily(e.target.value)}
-                className="rounded-md border border-white/15 bg-black/40 px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-violet-400"
+                className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-violet-400"
               >
                 {FONT_FAMILIES.map((f) => (
                   <option key={f.value} value={f.value}>
@@ -852,7 +852,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                 type="color"
                 value={tsc.backgroundColor ?? "#ffff00"}
                 onChange={(e) => tsc.setBackgroundColor(e.target.value)}
-                className="h-6 w-8 cursor-pointer rounded border border-white/15 bg-black/40 p-0.5"
+                className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
                 disabled={tsc.backgroundColor === null}
               />
               <button
@@ -862,8 +862,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                 className={[
                   "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                   tsc.backgroundColor === null
-                    ? "bg-white/10 text-foreground/80 hover:bg-white/15"
-                    : "bg-white text-[#1a0533] hover:bg-white/90",
+                    ? "bg-white/[0.08] text-foreground/80 hover:bg-white/[0.12]"
+                    : "bg-gradient-to-b from-violet-400 to-violet-600 text-white hover:brightness-110",
                 ].join(" ")}
               >
                 {tsc.backgroundColor === null ? "None" : "On"}
@@ -885,7 +885,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                   const v = parseInt(e.target.value, 10);
                   if (!Number.isNaN(v) && v >= 0) onChangeNext(v);
                 }}
-                className="w-14 rounded-md border border-white/15 bg-black/40 px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-violet-400"
+                className="w-14 rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-violet-400"
               />
             </label>
             <button
@@ -942,7 +942,9 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                       title={e.name}
                       className={[
                         "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
-                        active ? "bg-white text-[#1a0533]" : "hover:bg-white/10",
+                        active
+                          ? "bg-gradient-to-b from-violet-400 to-violet-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
+                          : "hover:bg-white/[0.08]",
                       ].join(" ")}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -968,7 +970,9 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                       title={c}
                       className={[
                         "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
-                        active ? "bg-white text-[#1a0533]" : "hover:bg-white/10",
+                        active
+                          ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
+                          : "hover:bg-white/[0.08]",
                       ].join(" ")}
                     >
                       {c}

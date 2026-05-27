@@ -14,6 +14,13 @@
       "runtimeArgs": ["tauri", "dev"],
       "port": 3000,
       "autoPort": false
+    },
+    {
+      "name": "Ladle (design system)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["ladle"],
+      "port": 61000,
+      "autoPort": false
     }
   ]
 }
