@@ -45,6 +45,7 @@ export type AppConfig = {
     tool?: Tool;
     stickerEmoji?: string;
     region?: { monitorId: number; x: number; y: number; w: number; h: number };
+    lastCaptureKind?: "full" | "area" | "window";
     rect?: { strokeColor?: string; strokeWidth?: number };
     arrow?: { strokeColor?: string; strokeWidth?: number };
     text?: {

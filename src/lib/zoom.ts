@@ -66,3 +66,11 @@ export function zoomTo100() {
   useEditor.getState().zoomReset100();
   recenterScroll();
 }
+
+/** Set absolute zoom, anchored at viewport center. */
+export function setZoom(scale: number) {
+  const cur = useEditor.getState().displayScale || 1;
+  if (!Number.isFinite(scale) || scale <= 0) return;
+  const factor = scale / cur;
+  zoomAtViewportCenter(factor);
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   MousePointer2,
@@ -21,16 +21,9 @@ import {
   Underline,
   Strikethrough,
   Settings as SettingsIcon,
-  Monitor,
-  Crop,
-  AppWindow,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
   Ruler,
   type LucideIcon,
 } from "lucide-react";
-import { zoomAtViewportCenter, zoomToFit, zoomTo100 } from "@/lib/zoom";
 import { formatShortcut } from "@/lib/shortcuts";
 import { useEditor, STICKERS, type Tool } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
@@ -39,6 +32,11 @@ import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
+import { ToolButton } from "./toolbar/ToolButton";
+import { useOverflowSlots } from "./toolbar/useOverflowSlots";
+import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
+import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
+import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
@@ -560,7 +558,11 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     }
   };
 
-  const triggerCapture = (kind: "full" | "area" | "window") => {
+  const lastCaptureKind: CaptureKind =
+    fullConfig.lastUsed?.lastCaptureKind ?? "full";
+
+  const triggerCapture = (kind: CaptureKind) => {
+    patchLastUsed({ lastCaptureKind: kind });
     void (async () => {
       try {
         const { invoke } = await import("@tauri-apps/api/core");
@@ -572,207 +574,157 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     })();
   };
 
-  const captureButtons: { kind: "full" | "area" | "window"; label: string; accel: string; icon: LucideIcon }[] = [
-    { kind: "full", label: "Capture full screen", accel: fullConfig.hotkeys.captureFull, icon: Monitor },
-    { kind: "area", label: "Capture area", accel: fullConfig.hotkeys.captureArea, icon: Crop },
-    { kind: "window", label: "Capture window", accel: fullConfig.hotkeys.captureWindow, icon: AppWindow },
-  ];
+  const captureAccelerators: Record<CaptureKind, string> = {
+    full: fullConfig.hotkeys.captureFull,
+    area: fullConfig.hotkeys.captureArea,
+    window: fullConfig.hotkeys.captureWindow,
+  };
 
-  return (
-    <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5 max-h-[40vh] overflow-y-auto">
-      <div className="flex flex-wrap items-center gap-1">
-      {captureButtons.map((b) => {
-        const Icon = b.icon;
-        return (
-          <button
-            key={b.kind}
-            type="button"
-            onClick={() => triggerCapture(b.kind)}
-            title={`${b.label} (${formatShortcut(b.accel)})`}
-            aria-label={b.label}
-            className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800"
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </button>
+  const onClearWorkspace = () => {
+    void (async () => {
+      try {
+        const { ask } = await import("@tauri-apps/plugin-dialog");
+        const ok = await ask(
+          "Drop the current image and all annotations? This cannot be undone.",
+          { title: "Clear workspace?", kind: "warning", okLabel: "Clear", cancelLabel: "Cancel" },
         );
-      })}
-      <div className="mx-2 h-5 w-px bg-neutral-800" />
-      {TOOLS.map((t) => {
-        const active = tool === t.id;
-        const Icon = t.icon;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTool(t.id)}
-            title={`${t.label} (${t.hint})`}
-            aria-label={t.label}
-            className={[
-              "flex h-8 w-8 items-center justify-center rounded transition-colors",
-              active
-                ? "bg-neutral-100 text-neutral-900"
-                : "text-neutral-300 hover:bg-neutral-800",
-            ].join(" ")}
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </button>
-        );
-      })}
-      <div className="mx-2 h-5 w-px bg-neutral-800" />
+        if (!ok) return;
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("clear_editor_workspace");
+        toast("Workspace cleared");
+      } catch (err) {
+        console.error("clear_editor_workspace failed", err);
+        toast.error("Clear failed", { description: String(err) });
+      }
+    })();
+  };
+
+  // Tool palette overflow zone
+  const paletteRef = useRef<HTMLDivElement | null>(null);
+  const activeToolIndex = TOOLS.findIndex((t) => t.id === tool);
+  const { visible: visibleTools, overflow: overflowTools } = useOverflowSlots(
+    TOOLS,
+    paletteRef,
+    0,
+    36,
+    activeToolIndex >= 0 ? activeToolIndex : undefined,
+  );
+  const overflowItems: OverflowItem[] = useMemo(
+    () =>
+      overflowTools.map((t) => ({
+        key: t.id,
+        label: t.label,
+        icon: t.icon,
+        hint: t.hint,
+        active: tool === t.id,
+        onSelect: () => setTool(t.id),
+      })),
+    [overflowTools, tool, setTool],
+  );
+
+  const hasContext = !!(
+    colorCtx ||
+    widthCtx ||
+    sizeCtx ||
+    textStyleCtx ||
+    pinLabelCtx ||
+    tool === "pin" ||
+    tool === "sticker"
+  );
+
+  const exportMode = fullConfig.output.defaultMode;
+  const primaryAction: ExportAction =
+    exportMode === "clipboard" ? "copy" : exportMode === "file" ? "file" : "both";
+
+  const renderExportButton = (action: ExportAction, label: string, hint: string) => {
+    const isPrimary = action === primaryAction;
+    const Icon = EXPORT_ICONS[action];
+    return (
       <button
+        key={action}
         type="button"
-        onClick={undo}
-        disabled={!past}
-        title="Undo (⌘Z)"
-        aria-label="Undo"
-        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <Undo2 className="h-4 w-4" aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={redo}
-        disabled={!future}
-        title="Redo (⇧⌘Z)"
-        aria-label="Redo"
-        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <Redo2 className="h-4 w-4" aria-hidden />
-      </button>
-      <div className="mx-2 h-5 w-px bg-neutral-800" />
-      <button
-        type="button"
-        onClick={() => {
-          void (async () => {
-            try {
-              const { ask } = await import("@tauri-apps/plugin-dialog");
-              const ok = await ask(
-                "Drop the current image and all annotations? This cannot be undone.",
-                { title: "Clear workspace?", kind: "warning", okLabel: "Clear", cancelLabel: "Cancel" },
-              );
-              if (!ok) return;
-              const { invoke } = await import("@tauri-apps/api/core");
-              await invoke("clear_editor_workspace");
-              toast("Workspace cleared");
-            } catch (err) {
-              console.error("clear_editor_workspace failed", err);
-              toast.error("Clear failed", { description: String(err) });
-            }
-          })();
-        }}
-        disabled={!hasImage}
-        title={hasImage ? "Clear workspace (drop image + annotations)" : "Workspace already empty"}
-        aria-label="Clear workspace"
-        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-      </button>
-      <div className="mx-2 h-5 w-px bg-neutral-800" />
-      {(() => {
-        const mode = fullConfig.output.defaultMode;
-        const primaryAction: ExportAction =
-          mode === "clipboard" ? "copy" : mode === "file" ? "file" : "both";
-        const btn = (action: ExportAction, label: string, hint: string) => {
-          const isPrimary = action === primaryAction;
-          const Icon = EXPORT_ICONS[action];
-          return (
-            <button
-              key={action}
-              type="button"
-              onClick={() => void doExport(action)}
-              disabled={exporting}
-              title={hint}
-              aria-label={label}
-              className={[
-                "inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50",
-                isPrimary
-                  ? "bg-emerald-600 text-white hover:bg-emerald-500"
-                  : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700",
-              ].join(" ")}
-            >
-              <Icon className="h-3.5 w-3.5" aria-hidden />
-              {exporting && isPrimary ? "…" : label}
-            </button>
-          );
-        };
-        return (
-          <div className="flex items-center gap-1">
-            {btn("copy", "Copy", "Copy to clipboard (⌘C / Ctrl+C)")}
-            {btn("file", "Save", "Save to file")}
-            {btn("both", "Save & Copy", "Save to file and copy to clipboard")}
-          </div>
-        );
-      })()}
-      <div className="mx-2 h-5 w-px bg-neutral-800" />
-      <button
-        type="button"
-        onClick={() => zoomAtViewportCenter(1 / 1.2)}
-        disabled={!hasImage}
-        title="Zoom out (⌘-)"
-        aria-label="Zoom out"
-        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <ZoomOut className="h-4 w-4" aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={() => zoomTo100()}
-        disabled={!hasImage}
-        title="Zoom to 100% (⌘1)"
-        aria-label="Zoom to 100%"
-        className="min-w-[44px] rounded px-2 py-1 text-xs tabular-nums text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        {displayScale > 0 ? `${Math.round(displayScale * 100)}%` : "—"}
-      </button>
-      <button
-        type="button"
-        onClick={() => zoomAtViewportCenter(1.2)}
-        disabled={!hasImage}
-        title="Zoom in (⌘+)"
-        aria-label="Zoom in"
-        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <ZoomIn className="h-4 w-4" aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={() => zoomToFit()}
-        disabled={!hasImage}
-        title="Fit to window (⌘0)"
-        aria-label="Fit to window"
-        className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <Maximize2 className="h-4 w-4" aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          void updateSettings("general", {
-            showRulers: !fullConfig.general.showRulers,
-          })
-        }
-        title={fullConfig.general.showRulers ? "Hide rulers" : "Show rulers"}
-        aria-label="Toggle rulers"
-        aria-pressed={fullConfig.general.showRulers}
+        onClick={() => void doExport(action)}
+        disabled={exporting}
+        title={hint}
+        aria-label={label}
         className={[
-          "flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800",
-          fullConfig.general.showRulers ? "bg-neutral-800 text-sky-300" : "",
+          "flex h-8 w-8 items-center justify-center rounded transition-colors disabled:opacity-50",
+          isPrimary
+            ? "bg-emerald-600 text-white hover:bg-emerald-500"
+            : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700",
         ].join(" ")}
       >
-        <Ruler className="h-4 w-4" aria-hidden />
+        <Icon className="h-4 w-4" aria-hidden />
       </button>
-      <div className="ml-auto flex items-center">
-        <button
-          type="button"
+    );
+  };
+
+  const Divider = () => <div className="mx-1 h-5 w-px bg-neutral-800" />;
+
+  return (
+    <div className="flex flex-col gap-1 border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
+      <div className="flex items-center gap-1">
+        {/* Output group */}
+        <div className="flex items-center gap-1">
+          {renderExportButton("copy", "Copy", "Copy to clipboard (⌘C / Ctrl+C)")}
+          {renderExportButton("file", "Save", "Save to file")}
+          {renderExportButton("both", "Save & Copy", "Save to file and copy to clipboard")}
+        </div>
+        <Divider />
+        {/* Capture split */}
+        <CaptureSplitButton
+          lastKind={lastCaptureKind}
+          onCapture={triggerCapture}
+          accelerators={captureAccelerators}
+        />
+        <Divider />
+        {/* History group */}
+        <ToolButton icon={Undo2} label="Undo" hint="⌘Z" disabled={!past} onClick={undo} />
+        <ToolButton icon={Redo2} label="Redo" hint="⇧⌘Z" disabled={!future} onClick={redo} />
+        <ToolButton
+          icon={Trash2}
+          label={hasImage ? "Clear workspace" : "Workspace already empty"}
+          disabled={!hasImage}
+          onClick={onClearWorkspace}
+        />
+        <Divider />
+        {/* View group */}
+        <ZoomMenuButton displayScale={displayScale} disabled={!hasImage} />
+        <Divider />
+        {/* Ruler toggle */}
+        <ToolButton
+          icon={Ruler}
+          label={fullConfig.general.showRulers ? "Hide rulers" : "Show rulers"}
+          pressed={fullConfig.general.showRulers}
+          onClick={() =>
+            void updateSettings("general", {
+              showRulers: !fullConfig.general.showRulers,
+            })
+          }
+        />
+        <Divider />
+        {/* Tool palette with responsive overflow */}
+        <div ref={paletteRef} className="flex min-w-0 flex-1 items-center gap-1">
+          {visibleTools.map((t) => (
+            <ToolButton
+              key={t.id}
+              icon={t.icon}
+              label={t.label}
+              hint={t.hint}
+              active={tool === t.id}
+              onClick={() => setTool(t.id)}
+            />
+          ))}
+          <OverflowMenu items={overflowItems} />
+        </div>
+        {/* Settings — far right */}
+        <ToolButton
+          icon={SettingsIcon}
+          label="Settings"
           onClick={() => onOpenSettings?.()}
-          title="Settings"
-          aria-label="Settings"
-          className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800"
-        >
-          <SettingsIcon className="h-4 w-4" aria-hidden />
-        </button>
+        />
       </div>
-      </div>
+      {hasContext && (
       <div className="flex min-h-[36px] flex-wrap items-center gap-1 border-t border-neutral-800 pt-1">
       {colorCtx && (
         <>
@@ -1027,6 +979,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         </>
       )}
       </div>
+      )}
     </div>
   );
 }
