@@ -11,6 +11,7 @@ import {
   Circle,
   Group,
   Label,
+  Line,
   Tag,
   Transformer,
 } from "react-konva";
@@ -37,6 +38,11 @@ import {
   setScrollContainer,
 } from "@/lib/stageBridge";
 import { effectiveTools, type AppConfig } from "@/lib/config";
+import { Rulers } from "@/components/editor/Rulers";
+import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
+import { snapAxis } from "@/lib/snap";
+
+const SNAP_SCREEN_PX = 6;
 
 type Props = { src: string };
 
@@ -104,6 +110,8 @@ export function EditorStage({ src }: Props) {
   const displayScale = useEditor((s) => s.displayScale);
   const zoomFit = useEditor((s) => s.zoomFit);
   const setDisplayScale = useEditor((s) => s.setDisplayScale);
+  const guides = useEditor((s) => s.guides);
+  const setGuides = useEditor((s) => s.setGuides);
 
   const tool = useEditor((s) => s.tool);
   const annotations = useEditor((s) => s.annotations);
@@ -416,6 +424,37 @@ export function EditorStage({ src }: Props) {
   const padX = Math.max(MIN_PADDING, container.w);
   const padY = Math.max(MIN_PADDING, container.h);
 
+  const snapEnabled = config.general.snapEnabled;
+  const showRulers = config.general.showRulers;
+
+  const snapDrag = (
+    id: string,
+    b: AABB,
+    altKey: boolean,
+  ): { dx: number; dy: number } => {
+    if (!snapEnabled || altKey) {
+      const cur = useEditor.getState().guides;
+      if (cur.x.length || cur.y.length) setGuides({ x: [], y: [] });
+      return { dx: 0, dy: 0 };
+    }
+    const xT: number[] = imgW > 0 ? [0, imgW / 2, imgW] : [];
+    const yT: number[] = imgH > 0 ? [0, imgH / 2, imgH] : [];
+    const all = useEditor.getState().annotations;
+    for (const an of all) {
+      if (an.id === id) continue;
+      const ab = annotationAABB(an);
+      if (!ab) continue;
+      xT.push(...aabbSnapLinesX(ab));
+      yT.push(...aabbSnapLinesY(ab));
+    }
+    const t = SNAP_SCREEN_PX / scale;
+    const sx = snapAxis(b.x, b.w, xT, t);
+    const sy = snapAxis(b.y, b.h, yT, t);
+    setGuides({ x: sx ? [sx.guide] : [], y: sy ? [sy.guide] : [] });
+    return { dx: sx?.delta ?? 0, dy: sy?.delta ?? 0 };
+  };
+  const endSnap = () => setGuides({ x: [], y: [] });
+
   // After first-load fit, center image in viewport via scroll.
   // Re-arms whenever displayScale resets to 0 (sentinel) — happens on
   // editor reset() for new captures, clipboard paste, or editor:clear.
@@ -568,6 +607,7 @@ export function EditorStage({ src }: Props) {
     setPrepareExport(() => {
       if (textEditorOpenRef.current) commitTextRef.current();
       useEditor.getState().select(null);
+      useEditor.getState().setGuides({ x: [], y: [] });
       const tr = trRef.current;
       const htr = hoverTrRef.current;
       if (tr) {
@@ -670,6 +710,7 @@ export function EditorStage({ src }: Props) {
   const sizerH = stageH > 0 ? stageH + padY * 2 : 0;
 
   return (
+    <div className="relative h-full w-full">
     <div
       ref={containerRef}
       className="relative h-full w-full overflow-auto bg-neutral-900"
@@ -738,6 +779,8 @@ export function EditorStage({ src }: Props) {
                     value: t.text,
                     id: t.id,
                   }),
+                snapDrag,
+                endSnap,
               }),
             )}
             {draft?.kind === "rect" && (
@@ -795,6 +838,24 @@ export function EditorStage({ src }: Props) {
                 return newBox;
               }}
             />
+          </Layer>
+          <Layer listening={false}>
+            {guides.x.map((gx, i) => (
+              <Line
+                key={`gx-${i}`}
+                points={[gx, 0, gx, imgH]}
+                stroke="#ec4899"
+                strokeWidth={1 / scale}
+              />
+            ))}
+            {guides.y.map((gy, i) => (
+              <Line
+                key={`gy-${i}`}
+                points={[0, gy, imgW, gy]}
+                stroke="#ec4899"
+                strokeWidth={1 / scale}
+              />
+            ))}
           </Layer>
         </Stage>
           </div>
@@ -858,6 +919,17 @@ export function EditorStage({ src }: Props) {
         );
       })()}
     </div>
+    {showRulers && (
+      <Rulers
+        containerEl={containerRef.current}
+        containerW={container.w}
+        containerH={container.h}
+        padX={padX}
+        padY={padY}
+        scale={scale}
+      />
+    )}
+    </div>
   );
 }
 
@@ -868,6 +940,8 @@ type ShapeCtx = {
   onChange: (patch: Partial<Annotation>) => void;
   setRef: (n: Konva.Node | null) => void;
   onEditText?: (a: TextAnnotation, screenX: number, screenY: number) => void;
+  snapDrag: (id: string, b: AABB, altKey: boolean) => { dx: number; dy: number };
+  endSnap: () => void;
 };
 
 function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
@@ -917,7 +991,17 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x(), y: node.y(), w: a.w, h: a.h },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
       onDragEnd={(e) => {
+        ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
       onTransformEnd={() => {
@@ -962,7 +1046,21 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const baseX = Math.min(a.x1, a.x2);
+        const baseY = Math.min(a.y1, a.y2);
+        const w = Math.abs(a.x2 - a.x1);
+        const h = Math.abs(a.y2 - a.y1);
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: baseX + node.x(), y: baseY + node.y(), w, h },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
       onDragEnd={(e) => {
+        ctx.endSnap();
         const dx = e.target.x();
         const dy = e.target.y();
         e.target.position({ x: 0, y: 0 });
@@ -1005,7 +1103,19 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       onDblClick={(e) => {
         ctx.onEditText?.(a, e.evt.clientX, e.evt.clientY);
       }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const ab = annotationAABB(a);
+        if (!ab) return;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x(), y: node.y(), w: ab.w, h: ab.h },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
       onDragEnd={(e) => {
+        ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
       onTransformEnd={() => {
@@ -1065,7 +1175,17 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x(), y: node.y(), w: a.w, h: a.h },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
       onDragEnd={(e) => {
+        ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
       onTransformEnd={() => {
@@ -1110,7 +1230,18 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const s = a.size;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x() - s / 2, y: node.y() - s / 2, w: s, h: s },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
       onDragEnd={(e) => {
+        ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
       onTransformEnd={() => {
@@ -1176,7 +1307,17 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
+        onDragMove={(e) => {
+          const node = e.target;
+          const { dx, dy } = ctx.snapDrag(
+            a.id,
+            { x: node.x(), y: node.y(), w, h },
+            e.evt.altKey,
+          );
+          if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+        }}
         onDragEnd={(e) => {
+          ctx.endSnap();
           ctx.onChange({ x: e.target.x(), y: e.target.y() });
         }}
         onTransformEnd={() => {
@@ -1207,7 +1348,18 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const s = a.fontSize;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x(), y: node.y(), w: s, h: s * 1.2 },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
       onDragEnd={(e) => {
+        ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
       onTransformEnd={() => {

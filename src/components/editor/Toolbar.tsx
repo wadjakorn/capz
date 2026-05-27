@@ -27,6 +27,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Ruler,
   type LucideIcon,
 } from "lucide-react";
 import { zoomAtViewportCenter, zoomToFit, zoomTo100 } from "@/lib/zoom";
@@ -742,6 +743,23 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
       >
         <Maximize2 className="h-4 w-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void updateSettings("general", {
+            showRulers: !fullConfig.general.showRulers,
+          })
+        }
+        title={fullConfig.general.showRulers ? "Hide rulers" : "Show rulers"}
+        aria-label="Toggle rulers"
+        aria-pressed={fullConfig.general.showRulers}
+        className={[
+          "flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800",
+          fullConfig.general.showRulers ? "bg-neutral-800 text-sky-300" : "",
+        ].join(" ")}
+      >
+        <Ruler className="h-4 w-4" aria-hidden />
       </button>
       <div className="ml-auto flex items-center">
         <button

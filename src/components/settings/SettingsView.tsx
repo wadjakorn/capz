@@ -310,6 +310,16 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
             checked={config.general.rememberLastRegion}
             onChange={(v) => update("general", { rememberLastRegion: v })}
           />
+          <ToggleRow
+            label="Show rulers in editor"
+            checked={config.general.showRulers}
+            onChange={(v) => update("general", { showRulers: v })}
+          />
+          <ToggleRow
+            label="Snap to edges and other elements (hold Alt to bypass)"
+            checked={config.general.snapEnabled}
+            onChange={(v) => update("general", { snapEnabled: v })}
+          />
           <div className="flex items-center justify-between">
             <div className="grid gap-0.5">
               <Label>On editor close/hide</Label>

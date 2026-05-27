@@ -38,6 +38,8 @@ export type AppConfig = {
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
     editorWindow: { width: number; height: number };
+    showRulers: boolean;
+    snapEnabled: boolean;
   };
   lastUsed?: {
     tool?: Tool;
@@ -119,6 +121,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     alwaysOnTopEditor: false,
     closeAction: "copy",
     editorWindow: { width: 1024, height: 680 },
+    showRulers: false,
+    snapEnabled: true,
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },

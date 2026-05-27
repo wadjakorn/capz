@@ -121,6 +121,8 @@ type State = {
   hasImage: boolean;
   /** 0 = uninitialised; EditorStage fits on first image load and on `reset`. */
   displayScale: number;
+  /** Transient snap guide lines (image-pixel coords). Not in undo history. */
+  guides: { x: number[]; y: number[] };
 
   setTool: (t: Tool) => void;
   setStickerSelection: (sel: StickerSelection) => void;
@@ -137,6 +139,7 @@ type State = {
   setDisplayScale: (s: number) => void;
   zoomFit: (size: { vw: number; vh: number; iw: number; ih: number }) => void;
   zoomReset100: () => void;
+  setGuides: (g: { x: number[]; y: number[] }) => void;
 };
 
 export const ZOOM_MIN = 0.05;
@@ -161,6 +164,7 @@ export const useEditor = create<State>((set, get) => ({
   future: [],
   hasImage: false,
   displayScale: 0,
+  guides: { x: [], y: [] },
 
   setTool: (t) =>
     set({ tool: t, selectedId: t === "select" ? get().selectedId : null }),
@@ -221,6 +225,7 @@ export const useEditor = create<State>((set, get) => ({
       past: [],
       future: [],
       displayScale: 0,
+      guides: { x: [], y: [] },
     }),
 
   undo: () => {
@@ -255,4 +260,5 @@ export const useEditor = create<State>((set, get) => ({
     set({ displayScale: clampZoom(Math.min(vw / iw, vh / ih)) });
   },
   zoomReset100: () => set({ displayScale: 1 }),
+  setGuides: (g) => set({ guides: g }),
 }));
