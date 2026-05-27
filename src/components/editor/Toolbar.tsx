@@ -648,10 +648,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         title={hint}
         aria-label={label}
         className={[
-          "flex h-8 w-8 items-center justify-center rounded transition-colors disabled:opacity-50",
+          "flex h-8 w-8 items-center justify-center rounded-lg transition-all disabled:opacity-50",
           isPrimary
-            ? "bg-emerald-600 text-white hover:bg-emerald-500"
-            : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700",
+            ? "bg-gradient-to-b from-emerald-400 to-emerald-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_4px_14px_rgba(16,185,129,0.45)] hover:brightness-110"
+            : "bg-white/[0.06] text-foreground/85 hover:bg-white/[0.12] hover:text-foreground",
         ].join(" ")}
       >
         <Icon className="h-4 w-4" aria-hidden />
@@ -659,10 +659,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     );
   };
 
-  const Divider = () => <div className="mx-1 h-5 w-px bg-neutral-800" />;
+  const Divider = () => <div className="mx-1 h-5 w-px bg-white/10" />;
 
   return (
-    <div className="relative flex flex-col border-b border-neutral-800 bg-neutral-900 px-2 py-1.5">
+    <div className="relative z-20 flex flex-col border-b border-white/10 bg-white/[0.04] px-2 py-1.5 backdrop-blur-xl">
       <div className="flex items-center gap-1">
         {/* Output group */}
         <div className="flex items-center gap-1">
@@ -725,11 +725,11 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         />
       </div>
       {hasContext && (
-      <div className="absolute left-0 right-0 top-full z-40 flex flex-wrap items-center gap-1 border-b border-neutral-800 bg-neutral-900/95 px-2 py-1.5 shadow-lg backdrop-blur">
+      <div className="absolute left-0 right-0 top-full z-40 flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#1a0533]/85 px-2 py-1.5 shadow-lg backdrop-blur-xl">
       {colorCtx && (
         <>
           <label
-            className="flex items-center gap-1.5 text-xs text-neutral-300"
+            className="flex items-center gap-1.5 text-xs text-foreground/80"
             title={selected ? "Edit selected element color" : "Default color for next element"}
           >
             {colorCtx.label}
@@ -738,14 +738,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               type="color"
               value={colorCtx.value}
               onChange={(e) => colorCtx!.onChange(e.target.value)}
-              className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-neutral-950 p-0.5"
+              className="h-6 w-8 cursor-pointer rounded border border-white/15 bg-black/40 p-0.5"
             />
           </label>
         </>
       )}
       {pinLabelCtx && (
         <label
-          className="flex items-center gap-1.5 text-xs text-neutral-300"
+          className="flex items-center gap-1.5 text-xs text-foreground/80"
           title="Pin number color"
         >
           {pinLabelCtx.label}
@@ -753,14 +753,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             type="color"
             value={pinLabelCtx.value}
             onChange={(e) => pinLabelCtx!.onChange(e.target.value)}
-            className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-neutral-950 p-0.5"
+            className="h-6 w-8 cursor-pointer rounded border border-white/15 bg-black/40 p-0.5"
           />
         </label>
       )}
       {widthCtx && (
         <>
           <label
-            className="flex items-center gap-1.5 text-xs text-neutral-300"
+            className="flex items-center gap-1.5 text-xs text-foreground/80"
             title={`${widthCtx.label}: [/]`}
           >
             {widthCtx.label}
@@ -771,7 +771,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               step={widthCtx.step}
               value={Math.round(widthCtx.value)}
               onChange={(e) => widthCtx!.onChange(parseInt(e.target.value, 10))}
-              className="h-1 w-24 cursor-pointer accent-neutral-200"
+              className="h-1 w-24 cursor-pointer accent-violet-400"
             />
             <span className="w-6 text-right tabular-nums">{Math.round(widthCtx.value)}</span>
           </label>
@@ -780,7 +780,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
       {sizeCtx && (
         <>
           <label
-            className="flex items-center gap-1.5 text-xs text-neutral-300"
+            className="flex items-center gap-1.5 text-xs text-foreground/80"
             title={`${sizeCtx.label}: -/+`}
           >
             {sizeCtx.label}
@@ -791,7 +791,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               step={sizeCtx.step}
               value={Math.round(sizeCtx.value)}
               onChange={(e) => sizeCtx!.onChange(parseInt(e.target.value, 10))}
-              className="h-1 w-24 cursor-pointer accent-neutral-200"
+              className="h-1 w-24 cursor-pointer accent-violet-400"
             />
             <span className="w-8 text-right tabular-nums">{Math.round(sizeCtx.value)}</span>
           </label>
@@ -817,8 +817,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             className={[
               "flex h-7 w-7 items-center justify-center rounded transition-colors",
               active
-                ? "bg-neutral-100 text-neutral-900"
-                : "text-neutral-300 hover:bg-neutral-800",
+                ? "bg-white text-[#1a0533] shadow-[inset_0_-1px_0_rgba(0,0,0,0.15)]"
+                : "text-foreground/80 hover:bg-white/10",
             ].join(" ")}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -832,12 +832,12 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               {togBtn(ul, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul)), "Underline", Underline)}
               {togBtn(st, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st)), "Strike", Strikethrough)}
             </div>
-            <label className="flex items-center gap-1.5 text-xs text-neutral-300" title="Font family">
+            <label className="flex items-center gap-1.5 text-xs text-foreground/80" title="Font family">
               Font
               <select
                 value={tsc.fontFamily}
                 onChange={(e) => tsc.setFontFamily(e.target.value)}
-                className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-xs text-neutral-100 outline-none focus:border-neutral-500"
+                className="rounded-md border border-white/15 bg-black/40 px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-violet-400"
               >
                 {FONT_FAMILIES.map((f) => (
                   <option key={f.value} value={f.value}>
@@ -846,13 +846,13 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-neutral-300" title="Background / highlight">
+            <label className="flex items-center gap-1.5 text-xs text-foreground/80" title="Background / highlight">
               Bg
               <input
                 type="color"
                 value={tsc.backgroundColor ?? "#ffff00"}
                 onChange={(e) => tsc.setBackgroundColor(e.target.value)}
-                className="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-neutral-950 p-0.5"
+                className="h-6 w-8 cursor-pointer rounded border border-white/15 bg-black/40 p-0.5"
                 disabled={tsc.backgroundColor === null}
               />
               <button
@@ -862,8 +862,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                 className={[
                   "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                   tsc.backgroundColor === null
-                    ? "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                    : "bg-neutral-100 text-neutral-900 hover:bg-neutral-200",
+                    ? "bg-white/10 text-foreground/80 hover:bg-white/15"
+                    : "bg-white text-[#1a0533] hover:bg-white/90",
                 ].join(" ")}
               >
                 {tsc.backgroundColor === null ? "None" : "On"}
@@ -874,7 +874,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
       })()}
       {tool === "pin" && (
         <>
-          <div className="flex items-center gap-2 text-xs text-neutral-300">
+          <div className="flex items-center gap-2 text-xs text-foreground/80">
             <label className="flex items-center gap-1">
               Next:
               <input
@@ -885,14 +885,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                   const v = parseInt(e.target.value, 10);
                   if (!Number.isNaN(v) && v >= 0) onChangeNext(v);
                 }}
-                className="w-14 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 text-center text-xs text-neutral-100 outline-none focus:border-neutral-500"
+                className="w-14 rounded-md border border-white/15 bg-black/40 px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-violet-400"
               />
             </label>
             <button
               type="button"
               onClick={savePersisted}
               title="Persist current as latest used number"
-              className="rounded px-2 py-1 hover:bg-neutral-800"
+              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-white/10 hover:text-foreground"
             >
               Save
             </button>
@@ -900,7 +900,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               type="button"
               onClick={clearPersisted}
               title={`Clear persisted (reset to ${pinsCfg.defaultStartNumber - 1})`}
-              className="rounded px-2 py-1 hover:bg-neutral-800"
+              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-white/10 hover:text-foreground"
             >
               Clear
             </button>
@@ -909,10 +909,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               onClick={toggleContinuity}
               title="Toggle continuity across captures"
               className={[
-                "rounded px-2 py-1 transition-colors",
+                "rounded-md px-2 py-1 transition-colors",
                 pinsCfg.continuityMode === "continue"
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "hover:bg-neutral-800",
+                  ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_4px_10px_rgba(124,58,237,0.4)]"
+                  : "text-foreground/85 hover:bg-white/10",
               ].join(" ")}
             >
               Continue
@@ -942,7 +942,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                       title={e.name}
                       className={[
                         "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
-                        active ? "bg-neutral-100" : "hover:bg-neutral-800",
+                        active ? "bg-white text-[#1a0533]" : "hover:bg-white/10",
                       ].join(" ")}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -968,7 +968,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                       title={c}
                       className={[
                         "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
-                        active ? "bg-neutral-100" : "hover:bg-neutral-800",
+                        active ? "bg-white text-[#1a0533]" : "hover:bg-white/10",
                       ].join(" ")}
                     >
                       {c}

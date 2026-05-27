@@ -67,7 +67,7 @@ export function StickersForm() {
           <button
             type="button"
             onClick={onChoose}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+            className="glass-button"
           >
             Choose…
           </button>
@@ -75,7 +75,7 @@ export function StickersForm() {
             type="button"
             onClick={() => openFolder(directory)}
             disabled={!directory}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+            className="glass-button"
           >
             Open folder
           </button>
@@ -83,7 +83,7 @@ export function StickersForm() {
             type="button"
             onClick={onClear}
             disabled={!directory}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+            className="glass-button"
           >
             Clear
           </button>
@@ -99,7 +99,7 @@ export function StickersForm() {
           type="button"
           onClick={onSync}
           disabled={!directory || loading}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+          className="glass-button"
         >
           {loading ? "Syncing…" : "Sync now"}
         </button>

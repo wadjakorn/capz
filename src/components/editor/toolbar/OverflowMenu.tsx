@@ -29,7 +29,7 @@ export function OverflowMenu({ items }: { items: OverflowItem[] }) {
             type="button"
             title="More tools"
             aria-label="More tools"
-            className="flex h-8 w-8 items-center justify-center rounded text-neutral-300 hover:bg-neutral-800"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground"
           >
             <MoreHorizontal className="h-4 w-4" aria-hidden />
           </button>
@@ -43,7 +43,7 @@ export function OverflowMenu({ items }: { items: OverflowItem[] }) {
               key={it.key}
               onClick={it.onSelect}
               disabled={it.disabled}
-              className={it.active ? "bg-neutral-800 text-neutral-50" : undefined}
+              className={it.active ? "bg-violet-500/25 text-white" : undefined}
             >
               <Icon aria-hidden />
               <span>{it.label}</span>

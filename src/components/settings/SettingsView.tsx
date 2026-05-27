@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
+import { TabsContent } from "@/components/ui/tabs";
 import {
   Keyboard,
   Download,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   Bug,
   Smile,
+  type LucideIcon,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -83,6 +85,23 @@ async function applyHotkey(
 const TAB_VALUES = ["shortcuts", "output", "pins", "stickers", "general", "updates", "debug"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
+type TabDef = {
+  value: TabValue;
+  label: string;
+  icon: LucideIcon;
+  tone: "violet" | "emerald" | "rose" | "amber" | "sky" | "cyan" | "fuchsia";
+};
+
+const TABS: TabDef[] = [
+  { value: "shortcuts", label: "Shortcuts", icon: Keyboard, tone: "violet" },
+  { value: "output", label: "Output", icon: Download, tone: "emerald" },
+  { value: "pins", label: "Pins", icon: MapPin, tone: "rose" },
+  { value: "stickers", label: "Stickers", icon: Smile, tone: "amber" },
+  { value: "general", label: "General", icon: SettingsIcon, tone: "sky" },
+  { value: "updates", label: "Updates", icon: RefreshCw, tone: "cyan" },
+  { value: "debug", label: "Debug", icon: Bug, tone: "fuchsia" },
+];
+
 type SettingsViewProps = {
   onOpenInertRecovery?: () => void;
 };
@@ -153,287 +172,320 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
 
   if (!ready) {
     return (
-      <div className="dark flex h-full items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Loading…
       </div>
     );
   }
 
+  const activeTab = TABS.find((t) => t.value === tab) ?? TABS[0];
+
   return (
-    <div className="dark mx-auto max-w-2xl p-6 text-foreground">
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
-        <TabsList className="flex flex-wrap">
-          <TabsTrigger value="shortcuts" className="gap-1.5">
-            <Keyboard className="h-3.5 w-3.5" aria-hidden />
-            Shortcuts
-          </TabsTrigger>
-          <TabsTrigger value="output" className="gap-1.5">
-            <Download className="h-3.5 w-3.5" aria-hidden />
-            Output
-          </TabsTrigger>
-          <TabsTrigger value="pins" className="gap-1.5">
-            <MapPin className="h-3.5 w-3.5" aria-hidden />
-            Pins
-          </TabsTrigger>
-          <TabsTrigger value="stickers" className="gap-1.5">
-            <Smile className="h-3.5 w-3.5" aria-hidden />
-            Stickers
-          </TabsTrigger>
-          <TabsTrigger value="general" className="gap-1.5">
-            <SettingsIcon className="h-3.5 w-3.5" aria-hidden />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="updates" className="gap-1.5">
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            Updates
-          </TabsTrigger>
-          <TabsTrigger value="debug" className="gap-1.5">
-            <Bug className="h-3.5 w-3.5" aria-hidden />
-            Debug
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="shortcuts" className="grid gap-4 pt-4">
-          <div className="grid gap-2">
-            <Label>Capture full screen</Label>
-            <HotkeyRecorder
-              value={config.hotkeys.captureFull}
-              onChange={(v) => applyHotkey(useSettings.getState, update, { captureFull: v })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Capture area</Label>
-            <HotkeyRecorder
-              value={config.hotkeys.captureArea}
-              onChange={(v) => applyHotkey(useSettings.getState, update, { captureArea: v })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Capture window</Label>
-            <HotkeyRecorder
-              value={config.hotkeys.captureWindow}
-              onChange={(v) => applyHotkey(useSettings.getState, update, { captureWindow: v })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Show editor</Label>
-            <HotkeyRecorder
-              value={config.hotkeys.showEditor}
-              onChange={(v) => applyHotkey(useSettings.getState, update, { showEditor: v })}
-            />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="output" className="pt-4">
-          <OutputPrefsForm />
-        </TabsContent>
-
-        <TabsContent value="pins" className="grid gap-4 pt-4">
-          <div className="grid gap-2">
-            <Label>Continuity</Label>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={config.pins.continuityMode === "continue"}
-                onCheckedChange={(v) =>
-                  update("pins", { continuityMode: v ? "continue" : "reset" })
-                }
-              />
-              <span className="text-sm">
-                {config.pins.continuityMode === "continue"
-                  ? "Continue numbering across captures"
-                  : "Reset each capture"}
-              </span>
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label>Default start number</Label>
-            <Input
-              type="number"
-              min={0}
-              value={config.pins.defaultStartNumber}
-              onChange={(e) =>
-                update("pins", { defaultStartNumber: Number(e.target.value) })
-              }
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Default color</Label>
-            <Input
-              type="color"
-              value={config.pins.defaultColor}
-              onChange={(e) => update("pins", { defaultColor: e.target.value })}
-              className="h-10 w-20 p-1"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Default size (px)</Label>
-            <Input
-              type="number"
-              min={12}
-              max={128}
-              value={config.pins.defaultSize}
-              onChange={(e) => update("pins", { defaultSize: Number(e.target.value) })}
-            />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="stickers" className="pt-4">
-          <StickersForm />
-        </TabsContent>
-
-        <TabsContent value="updates" className="grid gap-4 pt-4">
-          <UpdatesTab />
-        </TabsContent>
-
-        <TabsContent value="debug" className="grid gap-3 pt-4">
-          <CaptureDebug />
-        </TabsContent>
-
-        <TabsContent value="general" className="grid gap-4 pt-4">
-          <ToggleRow
-            label="Launch at login"
-            checked={config.general.autostart}
-            onChange={applyAutostart}
-          />
-          <ToggleRow
-            label="Play sound on capture"
-            checked={config.general.playSoundOnCapture}
-            onChange={(v) => update("general", { playSoundOnCapture: v })}
-          />
-          <ToggleRow
-            label="Remember last tool/color/size between captures"
-            checked={config.general.rememberLastTool}
-            onChange={(v) => update("general", { rememberLastTool: v })}
-          />
-          <ToggleRow
-            label="Remember last area-capture region"
-            checked={config.general.rememberLastRegion}
-            onChange={(v) => update("general", { rememberLastRegion: v })}
-          />
-          <ToggleRow
-            label="Show rulers in editor"
-            checked={config.general.showRulers}
-            onChange={(v) => update("general", { showRulers: v })}
-          />
-          <ToggleRow
-            label="Snap to edges and other elements (hold Alt to bypass)"
-            checked={config.general.snapEnabled}
-            onChange={(v) => update("general", { snapEnabled: v })}
-          />
-          <div className="flex items-center justify-between">
-            <div className="grid gap-0.5">
-              <Label>On editor close/hide</Label>
-              <span className="text-xs text-muted-foreground">
-                Run an export action when the editor window is closed or Esc-hidden.
-              </span>
-            </div>
-            <select
-              className="rounded border bg-background px-2 py-1.5 text-sm"
-              value={config.general.closeAction}
-              onChange={(e) =>
-                update("general", {
-                  closeAction: e.target.value as "none" | "copy" | "file" | "both",
-                })
-              }
-            >
-              <option value="none">Nothing</option>
-              <option value="copy">Copy to clipboard</option>
-              <option value="file">Save to file</option>
-              <option value="both">Save & Copy</option>
-            </select>
-          </div>
-          <ToggleRow
-            label="Editor window always on top"
-            checked={config.general.alwaysOnTopEditor}
-            onChange={async (v) => {
-              await update("general", { alwaysOnTopEditor: v });
-              try {
-                await invoke("set_editor_always_on_top", { on: v });
-              } catch (e) {
-                console.error("set_editor_always_on_top failed", e);
-              }
-            }}
-          />
-          <div className="flex items-center justify-between">
-            <div className="grid gap-0.5">
-              <Label>Editor window default size</Label>
-              <span className="text-xs text-muted-foreground">
-                Initial width × height (px). Applies the next time the editor opens. Min 1024 × 680.
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min={1024}
-                step={8}
-                value={config.general.editorWindow.width}
-                onChange={(e) => {
-                  const w = Math.max(1024, parseInt(e.target.value, 10) || 1024);
-                  update("general", {
-                    editorWindow: { width: w, height: config.general.editorWindow.height },
-                  });
-                }}
-                className="w-20 rounded border bg-background px-2 py-1 text-sm"
-              />
-              <span className="text-xs text-muted-foreground">×</span>
-              <input
-                type="number"
-                min={680}
-                step={8}
-                value={config.general.editorWindow.height}
-                onChange={(e) => {
-                  const h = Math.max(680, parseInt(e.target.value, 10) || 680);
-                  update("general", {
-                    editorWindow: { width: config.general.editorWindow.width, height: h },
-                  });
-                }}
-                className="w-20 rounded border bg-background px-2 py-1 text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-between border-t pt-4">
-            <div className="grid gap-0.5">
-              <Label>Re-run onboarding</Label>
-              <span className="text-xs text-muted-foreground">
-                Opens the welcome / permissions flow again.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={async () => {
-                await update("general", { onboardingCompleted: false });
-                try {
-                  await invoke("show_onboarding_window");
-                } catch (e) {
-                  console.error("show_onboarding_window failed", e);
-                }
-              }}
-              className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              Re-run
-            </button>
-          </div>
-          {IS_MAC && onOpenInertRecovery && (
-            <div className="flex items-center justify-between">
-              <div className="grid gap-0.5">
-                <Label>Fix permission after macOS update</Label>
-                <span className="text-xs text-muted-foreground">
-                  Walks through removing the stale TCC entry, relaunching, and
-                  re-granting.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenInertRecovery}
-                className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+    <div className="min-h-full px-6 py-8 text-foreground">
+      <TabsPrimitive.Root
+        value={tab}
+        onValueChange={(v) => setTab(v as TabValue)}
+        orientation="vertical"
+        className="mx-auto flex w-full max-w-5xl gap-6"
+      >
+        <TabsPrimitive.List className="flex shrink-0 flex-col gap-2">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <TabsPrimitive.Tab
+                key={t.value}
+                value={t.value}
+                className="rail-button"
+                title={t.label}
+                aria-label={t.label}
               >
-                Fix…
-              </button>
+                <Icon className="h-5 w-5" aria-hidden />
+              </TabsPrimitive.Tab>
+            );
+          })}
+        </TabsPrimitive.List>
+
+        <main className="glass-card min-w-0 flex-1 p-8">
+          <header className="mb-6 flex items-center gap-4">
+            <div className={`glow-tile glow-tile-${activeTab.tone} h-14 w-14`}>
+              <activeTab.icon className="h-6 w-6" aria-hidden />
             </div>
-          )}
-          <AboutRow />
-        </TabsContent>
-      </Tabs>
+            <h1 className="headline-xl">{activeTab.label}</h1>
+          </header>
+
+          <TabsContent value="shortcuts" className="grid gap-4">
+            <SectionCard>
+              <FieldRow label="Capture full screen">
+                <HotkeyRecorder
+                  value={config.hotkeys.captureFull}
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { captureFull: v })
+                  }
+                />
+              </FieldRow>
+              <FieldRow label="Capture area">
+                <HotkeyRecorder
+                  value={config.hotkeys.captureArea}
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { captureArea: v })
+                  }
+                />
+              </FieldRow>
+              <FieldRow label="Capture window">
+                <HotkeyRecorder
+                  value={config.hotkeys.captureWindow}
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { captureWindow: v })
+                  }
+                />
+              </FieldRow>
+              <FieldRow label="Show editor">
+                <HotkeyRecorder
+                  value={config.hotkeys.showEditor}
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { showEditor: v })
+                  }
+                />
+              </FieldRow>
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="output">
+            <SectionCard>
+              <OutputPrefsForm />
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="pins" className="grid gap-4">
+            <SectionCard>
+              <FieldRow label="Continuity">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={config.pins.continuityMode === "continue"}
+                    onCheckedChange={(v) =>
+                      update("pins", { continuityMode: v ? "continue" : "reset" })
+                    }
+                  />
+                  <span className="text-sm text-foreground/80">
+                    {config.pins.continuityMode === "continue"
+                      ? "Continue numbering across captures"
+                      : "Reset each capture"}
+                  </span>
+                </div>
+              </FieldRow>
+              <FieldRow label="Default start number">
+                <Input
+                  type="number"
+                  min={0}
+                  value={config.pins.defaultStartNumber}
+                  onChange={(e) =>
+                    update("pins", { defaultStartNumber: Number(e.target.value) })
+                  }
+                  className="w-32"
+                />
+              </FieldRow>
+              <FieldRow label="Default color">
+                <input
+                  type="color"
+                  value={config.pins.defaultColor}
+                  onChange={(e) => update("pins", { defaultColor: e.target.value })}
+                  className="h-10 w-20 cursor-pointer rounded-lg border border-white/10 bg-black/30 p-1"
+                />
+              </FieldRow>
+              <FieldRow label="Default size (px)">
+                <Input
+                  type="number"
+                  min={12}
+                  max={128}
+                  value={config.pins.defaultSize}
+                  onChange={(e) => update("pins", { defaultSize: Number(e.target.value) })}
+                  className="w-32"
+                />
+              </FieldRow>
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="stickers">
+            <SectionCard>
+              <StickersForm />
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="updates" className="grid gap-4">
+            <SectionCard>
+              <UpdatesTab />
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="debug">
+            <SectionCard>
+              <CaptureDebug />
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="general" className="grid gap-4">
+            <SectionCard>
+              <ToggleRow
+                label="Launch at login"
+                checked={config.general.autostart}
+                onChange={applyAutostart}
+              />
+              <ToggleRow
+                label="Play sound on capture"
+                checked={config.general.playSoundOnCapture}
+                onChange={(v) => update("general", { playSoundOnCapture: v })}
+              />
+              <ToggleRow
+                label="Remember last tool/color/size between captures"
+                checked={config.general.rememberLastTool}
+                onChange={(v) => update("general", { rememberLastTool: v })}
+              />
+              <ToggleRow
+                label="Remember last area-capture region"
+                checked={config.general.rememberLastRegion}
+                onChange={(v) => update("general", { rememberLastRegion: v })}
+              />
+              <ToggleRow
+                label="Show rulers in editor"
+                checked={config.general.showRulers}
+                onChange={(v) => update("general", { showRulers: v })}
+              />
+              <ToggleRow
+                label="Snap to edges and other elements (hold Alt to bypass)"
+                checked={config.general.snapEnabled}
+                onChange={(v) => update("general", { snapEnabled: v })}
+              />
+              <FieldRow
+                label="On editor close/hide"
+                hint="Run an export action when the editor window is closed or Esc-hidden."
+              >
+                <select
+                  className="glass-select"
+                  value={config.general.closeAction}
+                  onChange={(e) =>
+                    update("general", {
+                      closeAction: e.target.value as "none" | "copy" | "file" | "both",
+                    })
+                  }
+                >
+                  <option value="none">Nothing</option>
+                  <option value="copy">Copy to clipboard</option>
+                  <option value="file">Save to file</option>
+                  <option value="both">Save & Copy</option>
+                </select>
+              </FieldRow>
+              <ToggleRow
+                label="Editor window always on top"
+                checked={config.general.alwaysOnTopEditor}
+                onChange={async (v) => {
+                  await update("general", { alwaysOnTopEditor: v });
+                  try {
+                    await invoke("set_editor_always_on_top", { on: v });
+                  } catch (e) {
+                    console.error("set_editor_always_on_top failed", e);
+                  }
+                }}
+              />
+              <FieldRow
+                label="Editor window default size"
+                hint="Initial width × height (px). Applies the next time the editor opens. Min 1024 × 680."
+              >
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1024}
+                    step={8}
+                    value={config.general.editorWindow.width}
+                    onChange={(e) => {
+                      const w = Math.max(1024, parseInt(e.target.value, 10) || 1024);
+                      update("general", {
+                        editorWindow: { width: w, height: config.general.editorWindow.height },
+                      });
+                    }}
+                    className="glass-input w-20 text-center"
+                  />
+                  <span className="text-xs text-muted-foreground">×</span>
+                  <input
+                    type="number"
+                    min={680}
+                    step={8}
+                    value={config.general.editorWindow.height}
+                    onChange={(e) => {
+                      const h = Math.max(680, parseInt(e.target.value, 10) || 680);
+                      update("general", {
+                        editorWindow: { width: config.general.editorWindow.width, height: h },
+                      });
+                    }}
+                    className="glass-input w-20 text-center"
+                  />
+                </div>
+              </FieldRow>
+              <FieldRow
+                label="Re-run onboarding"
+                hint="Opens the welcome / permissions flow again."
+              >
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await update("general", { onboardingCompleted: false });
+                    try {
+                      await invoke("show_onboarding_window");
+                    } catch (e) {
+                      console.error("show_onboarding_window failed", e);
+                    }
+                  }}
+                  className="glass-button"
+                >
+                  Re-run
+                </button>
+              </FieldRow>
+              {IS_MAC && onOpenInertRecovery && (
+                <FieldRow
+                  label="Fix permission after macOS update"
+                  hint="Walks through removing the stale TCC entry, relaunching, and re-granting."
+                >
+                  <button
+                    type="button"
+                    onClick={onOpenInertRecovery}
+                    className="glass-button"
+                  >
+                    Fix…
+                  </button>
+                </FieldRow>
+              )}
+              <AboutRow />
+            </SectionCard>
+          </TabsContent>
+        </main>
+      </TabsPrimitive.Root>
+    </div>
+  );
+}
+
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+      {children}
+    </div>
+  );
+}
+
+function FieldRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="grid max-w-md gap-0.5">
+        <Label className="text-foreground">{label}</Label>
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      </div>
+      <div className="flex items-center">{children}</div>
     </div>
   );
 }
@@ -469,21 +521,21 @@ function CaptureDebug() {
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+          className="glass-button"
           disabled={busy}
           onClick={() => run("list_monitors", () => invoke<MonitorInfo[]>("list_monitors_command"))}
         >
           list_monitors
         </button>
         <button
-          className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+          className="glass-button"
           disabled={busy}
           onClick={() => run("capture_full", () => invoke<string>("capture_full_command"))}
         >
           capture_full
         </button>
         <button
-          className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+          className="glass-button"
           disabled={busy}
           onClick={async () => {
             const mons = await invoke<MonitorInfo[]>("list_monitors_command");
@@ -503,7 +555,7 @@ function CaptureDebug() {
           capture_region (0,0 400x300)
         </button>
       </div>
-      <pre className="rounded bg-muted p-2 text-xs whitespace-pre-wrap break-all min-h-[6rem]">
+      <pre className="min-h-[6rem] whitespace-pre-wrap break-all rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-foreground/85">
         {out || "click a button…"}
       </pre>
     </div>
@@ -539,10 +591,9 @@ function UpdatesTab() {
         checked={u.autoCheck}
         onChange={(v) => update("updates", { autoCheck: v })}
       />
-      <div className="grid gap-2">
-        <Label>Check interval</Label>
+      <FieldRow label="Check interval">
         <select
-          className="rounded border bg-background px-2 py-1.5 text-sm"
+          className="glass-select"
           value={u.checkIntervalHours}
           onChange={(e) =>
             update("updates", { checkIntervalHours: Number(e.target.value) })
@@ -552,21 +603,17 @@ function UpdatesTab() {
           <option value={24}>Every 24 hours</option>
           <option value={168}>Every 7 days</option>
         </select>
-      </div>
-      <div className="flex items-center justify-between border-t pt-4">
-        <div className="grid gap-0.5">
-          <Label>Last checked</Label>
-          <span className="text-xs text-muted-foreground">{lastChecked}</span>
-        </div>
+      </FieldRow>
+      <FieldRow label="Last checked" hint={lastChecked}>
         <button
           type="button"
           onClick={onCheckNow}
           disabled={checking}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+          className="glass-button"
         >
           {checking ? "Checking…" : "Check now"}
         </button>
-      </div>
+      </FieldRow>
       {u.skippedVersion && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Skipped version: {u.skippedVersion}</span>
@@ -599,7 +646,7 @@ function AboutRow() {
   }, []);
 
   return (
-    <div className="flex items-center justify-between border-t pt-4">
+    <div className="flex items-center justify-between border-t border-white/10 pt-4">
       <div className="grid gap-0.5">
         <Label>About capz</Label>
         <span className="text-xs text-muted-foreground">
@@ -622,8 +669,8 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <Label>{label}</Label>
+    <div className="flex items-center justify-between gap-3">
+      <Label className="text-foreground">{label}</Label>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   );

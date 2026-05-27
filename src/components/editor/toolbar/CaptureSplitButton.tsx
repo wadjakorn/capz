@@ -37,13 +37,13 @@ export function CaptureSplitButton({
   const PrimaryIcon = primary.icon;
 
   return (
-    <div className="inline-flex items-stretch overflow-hidden rounded">
+    <div className="inline-flex items-stretch overflow-hidden rounded-lg">
       <button
         type="button"
         onClick={() => onCapture(primary.kind)}
         title={`${primary.label} (${formatShortcut(accelerators[primary.kind])})`}
         aria-label={primary.label}
-        className="flex h-8 w-8 items-center justify-center text-neutral-300 hover:bg-neutral-800"
+        className="flex h-8 w-8 items-center justify-center text-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground"
       >
         <PrimaryIcon className="h-4 w-4" aria-hidden />
       </button>
@@ -54,7 +54,7 @@ export function CaptureSplitButton({
               type="button"
               title="Capture options"
               aria-label="Capture options"
-              className="flex h-8 w-4 items-center justify-center text-neutral-400 hover:bg-neutral-800"
+              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-white/10 hover:text-foreground"
             >
               <ChevronDown className="h-3 w-3" aria-hidden />
             </button>

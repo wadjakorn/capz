@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Camera, ShieldCheck, Sparkles } from "lucide-react";
 import { useSettings } from "@/stores/settings";
 
 type Step = "welcome" | "permission" | "done";
@@ -26,9 +27,6 @@ export function OnboardingView({ onDone }: Props) {
     init();
   }, [init]);
 
-  // Poll Screen Recording status while on the Permission step so the UI
-  // updates the moment the user grants in System Settings — no manual
-  // "Re-check" tap required.
   useEffect(() => {
     if (step !== "permission") return;
     let cancelled = false;
@@ -40,14 +38,12 @@ export function OnboardingView({ onDone }: Props) {
           if (initialGrantedRef.current === null) {
             initialGrantedRef.current = ok;
           } else if (!initialGrantedRef.current && ok && prev !== ok) {
-            // Transitioned denied → granted within the same process. macOS
-            // applies the new TCC grant only after relaunch.
             setNeedsRelaunch(true);
           }
           return ok;
         });
       } catch {
-        // ignore — keep polling
+        // ignore
       }
     };
     void tick();
@@ -98,40 +94,53 @@ export function OnboardingView({ onDone }: Props) {
 
   if (!ready) {
     return (
-      <main className="dark flex h-full items-center justify-center text-sm text-muted-foreground">
+      <main className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Loading…
       </main>
     );
   }
 
+  const tile =
+    step === "permission"
+      ? { cls: "glow-tile-amber", icon: ShieldCheck }
+      : step === "done"
+        ? { cls: "glow-tile-emerald", icon: Sparkles }
+        : { cls: "glow-tile-violet", icon: Camera };
+
   return (
-    <main className="dark mx-auto flex h-full max-w-xl flex-col p-8 text-foreground">
-      <Stepper step={step} showMac={IS_MAC} />
-      <div className="flex-1 pt-6">
-        {step === "welcome" && (
-          <Welcome
-            onNext={() => {
-              if (IS_MAC) {
-                setStep("permission");
-              } else {
-                setStep("done");
-              }
-            }}
-          />
-        )}
-        {step === "permission" && (
-          <Permission
-            granted={granted}
-            requested={requested}
-            needsRelaunch={needsRelaunch}
-            busy={busy}
-            onRequest={requestPermission}
-            onOpenSettings={openSettings}
-            onRelaunch={relaunch}
-            onNext={() => setStep("done")}
-          />
-        )}
-        {step === "done" && <Done onFinish={finish} />}
+    <main className="flex min-h-full items-center justify-center p-8 text-foreground">
+      <div className="glass-card w-full max-w-xl p-8">
+        <div className="mb-6 flex items-center gap-4">
+          <div className={`glow-tile ${tile.cls} h-16 w-16`}>
+            <tile.icon className="h-7 w-7" aria-hidden />
+          </div>
+          <div className="flex-1">
+            <Stepper step={step} showMac={IS_MAC} />
+          </div>
+        </div>
+        <div className="pt-2">
+          {step === "welcome" && (
+            <Welcome
+              onNext={() => {
+                if (IS_MAC) setStep("permission");
+                else setStep("done");
+              }}
+            />
+          )}
+          {step === "permission" && (
+            <Permission
+              granted={granted}
+              requested={requested}
+              needsRelaunch={needsRelaunch}
+              busy={busy}
+              onRequest={requestPermission}
+              onOpenSettings={openSettings}
+              onRelaunch={relaunch}
+              onNext={() => setStep("done")}
+            />
+          )}
+          {step === "done" && <Done onFinish={finish} />}
+        </div>
       </div>
     </main>
   );
@@ -149,30 +158,30 @@ function Stepper({ step, showMac }: { step: Step; showMac: boolean }) {
         { id: "done", label: "Done" },
       ];
   return (
-    <ol className="flex items-center justify-between text-xs">
+    <ol className="flex items-center gap-2 text-xs">
       {steps.map((s, i) => {
         const active = s.id === step;
         const passed =
           steps.findIndex((x) => x.id === step) >
           steps.findIndex((x) => x.id === s.id);
         return (
-          <li key={s.id} className="flex flex-1 items-center gap-2">
+          <li key={s.id} className="flex items-center gap-2">
             <span
-              className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] ${
+              className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
                 active
-                  ? "border-foreground bg-foreground text-background"
+                  ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[0_0_0_3px_rgba(167,139,250,0.25)]"
                   : passed
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
-                    : "border-muted-foreground/40 text-muted-foreground"
+                    ? "bg-emerald-500/25 text-emerald-200 ring-1 ring-emerald-400/50"
+                    : "bg-white/5 text-muted-foreground ring-1 ring-white/10"
               }`}
             >
               {i + 1}
             </span>
-            <span className={active ? "font-medium" : "text-muted-foreground"}>
+            <span className={active ? "font-medium text-white" : "text-muted-foreground"}>
               {s.label}
             </span>
             {i < steps.length - 1 && (
-              <span className="mx-2 h-px flex-1 bg-muted-foreground/30" />
+              <span className="mx-1 h-px w-8 bg-white/15" />
             )}
           </li>
         );
@@ -185,32 +194,35 @@ function Welcome({ onNext }: { onNext: () => void }) {
   const mod = IS_MAC ? "⌘⌥⇧" : "Ctrl+Alt+Shift+";
   return (
     <div className="grid gap-4">
-      <h1 className="text-2xl font-semibold">Welcome to capz</h1>
+      <h1 className="headline-xl">Welcome to capz</h1>
       <p className="text-sm text-muted-foreground">
         Fast screenshots with annotation. Default hotkeys:
       </p>
-      <ul className="grid gap-1 text-sm">
-        <li>
-          <kbd className="rounded border px-1.5 py-0.5 text-xs">{mod}3</kbd>{" "}
-          — full screen capture
+      <ul className="grid gap-2 text-sm">
+        <li className="flex items-center gap-2">
+          <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
+            {mod}3
+          </kbd>
+          <span className="text-foreground/80">full screen capture</span>
         </li>
-        <li>
-          <kbd className="rounded border px-1.5 py-0.5 text-xs">{mod}4</kbd>{" "}
-          — area capture
+        <li className="flex items-center gap-2">
+          <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
+            {mod}4
+          </kbd>
+          <span className="text-foreground/80">area capture</span>
         </li>
-        <li>
-          <kbd className="rounded border px-1.5 py-0.5 text-xs">{mod}5</kbd>{" "}
-          — window capture
+        <li className="flex items-center gap-2">
+          <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
+            {mod}5
+          </kbd>
+          <span className="text-foreground/80">window capture</span>
         </li>
       </ul>
       <p className="text-xs text-muted-foreground">
         Change these any time from Settings.
       </p>
       <div className="mt-4 flex justify-end">
-        <button
-          onClick={onNext}
-          className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
-        >
+        <button onClick={onNext} className="glass-button-primary">
           Next
         </button>
       </div>
@@ -239,13 +251,6 @@ function Permission({
   onRelaunch: () => void;
   onNext: () => void;
 }) {
-  // State derivation:
-  //   - unknown      : first paint, awaiting initial poll
-  //   - granted+ok   : ready to continue, no relaunch needed
-  //   - granted+rel  : granted *during* this session — must relaunch first
-  //   - denied+fresh : never asked → CGRequestScreenCaptureAccess prompt
-  //   - denied+asked : already prompted (or system never showed dialog) →
-  //                    user must toggle in System Settings
   const state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings" =
     granted === null
       ? "unknown"
@@ -259,7 +264,7 @@ function Permission({
 
   return (
     <div className="grid gap-4">
-      <h2 className="text-xl font-semibold">Screen Recording permission</h2>
+      <h2 className="headline-xl">Screen Recording permission</h2>
       <p className="text-sm text-muted-foreground">
         macOS asks every app for explicit permission to read your screen
         contents. Without it capz can&apos;t capture anything.
@@ -300,7 +305,7 @@ function Permission({
           <button
             onClick={onOpenSettings}
             disabled={busy !== ""}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+            className="glass-button"
           >
             Open System Settings
           </button>
@@ -335,29 +340,29 @@ function StatusCard({
       label: "Checking…",
     },
     ready: {
-      tone: "text-emerald-400",
-      dot: "bg-emerald-500",
+      tone: "text-emerald-300",
+      dot: "bg-emerald-400",
       label: "Granted — ready to capture",
     },
     "needs-relaunch": {
-      tone: "text-amber-400",
-      dot: "bg-amber-500",
+      tone: "text-amber-300",
+      dot: "bg-amber-400",
       label: "Granted — relaunch required",
     },
     ask: {
-      tone: "text-amber-400",
-      dot: "bg-amber-500",
+      tone: "text-amber-300",
+      dot: "bg-amber-400",
       label: "Not granted yet",
     },
     "open-settings": {
-      tone: "text-amber-400",
-      dot: "bg-amber-500",
+      tone: "text-amber-300",
+      dot: "bg-amber-400",
       label: "Awaiting toggle in System Settings",
     },
   };
   const s = map[state];
   return (
-    <div className="flex items-center gap-2 rounded border p-3 text-sm">
+    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm">
       <span className={`h-2 w-2 rounded-full ${s.dot}`} aria-hidden />
       <span className={s.tone}>{s.label}</span>
     </div>
@@ -373,8 +378,8 @@ function Guidance({
 }) {
   const cls =
     tone === "warning"
-      ? "rounded border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-200"
-      : "rounded border p-3 text-xs text-muted-foreground";
+      ? "rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100"
+      : "rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-muted-foreground";
   return <div className={cls}>{children}</div>;
 }
 
@@ -393,38 +398,36 @@ function PrimaryButton({
   onRelaunch: () => void;
   onNext: () => void;
 }) {
-  const cls =
-    "rounded bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50";
   if (state === "ready") {
     return (
-      <button onClick={onNext} disabled={busy !== ""} className={cls}>
+      <button onClick={onNext} disabled={busy !== ""} className="glass-button-primary">
         Continue
       </button>
     );
   }
   if (state === "needs-relaunch") {
     return (
-      <button onClick={onRelaunch} disabled={busy !== ""} className={cls}>
+      <button onClick={onRelaunch} disabled={busy !== ""} className="glass-button-primary">
         {busy === "relaunch" ? "Relaunching…" : "Relaunch capz"}
       </button>
     );
   }
   if (state === "ask") {
     return (
-      <button onClick={onRequest} disabled={busy !== ""} className={cls}>
+      <button onClick={onRequest} disabled={busy !== ""} className="glass-button-primary">
         {busy === "request" ? "Requesting…" : "Request permission"}
       </button>
     );
   }
   if (state === "open-settings") {
     return (
-      <button onClick={onOpenSettings} disabled={busy !== ""} className={cls}>
+      <button onClick={onOpenSettings} disabled={busy !== ""} className="glass-button-primary">
         {busy === "open" ? "Opening…" : "Open System Settings"}
       </button>
     );
   }
   return (
-    <button disabled className={cls}>
+    <button disabled className="glass-button-primary">
       Checking…
     </button>
   );
@@ -433,7 +436,7 @@ function PrimaryButton({
 function Done({ onFinish }: { onFinish: () => void }) {
   return (
     <div className="grid gap-4">
-      <h2 className="text-xl font-semibold">You&apos;re all set</h2>
+      <h2 className="headline-xl">You&apos;re all set</h2>
       <p className="text-sm text-muted-foreground">
         capz lives in your menu bar / system tray. Use the hotkeys, or click
         the tray icon for capture options.
@@ -442,10 +445,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
         Tweak everything later from the Settings view.
       </p>
       <div className="mt-4 flex justify-end">
-        <button
-          onClick={onFinish}
-          className="rounded bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
-        >
+        <button onClick={onFinish} className="glass-button-primary">
           Finish
         </button>
       </div>

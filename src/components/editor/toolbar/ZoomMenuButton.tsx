@@ -21,14 +21,14 @@ export function ZoomMenuButton({
   const pct = displayScale > 0 ? Math.round(displayScale * 100) : null;
 
   return (
-    <div className="inline-flex items-stretch overflow-hidden rounded">
+    <div className="inline-flex items-stretch overflow-hidden rounded-lg">
       <button
         type="button"
         onClick={() => zoomTo100()}
         disabled={disabled}
         title="Zoom to 100% (⌘1)"
         aria-label="Zoom to 100%"
-        className="min-w-[44px] px-2 py-1 text-xs tabular-nums text-neutral-300 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+        className="min-w-[44px] px-2 py-1 text-xs tabular-nums text-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
       >
         {pct !== null ? `${pct}%` : "—"}
       </button>
@@ -40,7 +40,7 @@ export function ZoomMenuButton({
               disabled={disabled}
               title="Zoom options"
               aria-label="Zoom options"
-              className="flex h-8 w-4 items-center justify-center text-neutral-400 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronDown className="h-3 w-3" aria-hidden />
             </button>
@@ -69,7 +69,7 @@ export function ZoomMenuButton({
             <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <div className="px-2 py-1.5 text-[10px] text-neutral-500">Set zoom</div>
+          <div className="px-2 py-1.5 text-[10px] text-muted-foreground">Set zoom</div>
           <div className="px-2 pb-1.5">
             <input
               type="number"
@@ -91,7 +91,7 @@ export function ZoomMenuButton({
                   setZoom(v / 100);
                 }
               }}
-              className="w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-100 outline-none focus:border-neutral-500"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-foreground outline-none focus:border-violet-400"
             />
           </div>
         </DropdownMenuContent>

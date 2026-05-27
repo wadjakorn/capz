@@ -726,7 +726,7 @@ export function EditorStage({ src }: Props) {
     <div className="relative h-full w-full">
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-auto bg-neutral-900"
+      className="relative h-full w-full overflow-auto bg-[#0d021f]"
     >
       {status === "failed" && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
@@ -734,7 +734,7 @@ export function EditorStage({ src }: Props) {
         </div>
       )}
       {status === "loading" && (
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-neutral-400">
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-foreground/60">
           Loading…
         </div>
       )}

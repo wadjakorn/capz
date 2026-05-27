@@ -157,7 +157,7 @@ export function OutputPrefsForm() {
           <button
             type="button"
             onClick={onChoose}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+            className="glass-button"
           >
             Choose…
           </button>
@@ -165,7 +165,7 @@ export function OutputPrefsForm() {
             type="button"
             onClick={() => openFolder(config.defaultSavePath)}
             disabled={!config.defaultSavePath}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+            className="glass-button"
           >
             Open folder
           </button>
