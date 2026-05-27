@@ -1,6 +1,6 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime,
 };
 
@@ -63,6 +63,19 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .icon_as_template(true)
         .tooltip("capz")
         .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                if let Err(e) = windows::show_editor(tray.app_handle()) {
+                    log::error!("tray left-click show_editor failed: {e}");
+                }
+            }
+        })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "capture_full" => {
                 crate::capture_dispatch::dispatch_full(app);
