@@ -7,6 +7,12 @@ let scrollContainer: HTMLDivElement | null = null;
 
 export function setStage(s: Konva.Stage | null) {
   stage = s;
+  if (
+    typeof window !== "undefined" &&
+    process.env.NEXT_PUBLIC_TEST === "1"
+  ) {
+    (window as unknown as { __capzStage: Konva.Stage | null }).__capzStage = s;
+  }
 }
 
 export function getStage(): Konva.Stage | null {
