@@ -2,13 +2,23 @@
 
 import { create } from "zustand";
 import { load, type Store } from "@tauri-apps/plugin-store";
-import { CONFIG_STORE_FILE, CONFIG_STORE_KEY, DEFAULT_CONFIG, type AppConfig } from "@/lib/config";
+import {
+  CONFIG_SCHEMA_VERSION,
+  CONFIG_STORE_FILE,
+  CONFIG_STORE_KEY,
+  DEFAULT_CONFIG,
+  migrateConfig,
+  type AppConfig,
+} from "@/lib/config";
 
 type State = {
   config: AppConfig;
   ready: boolean;
   init: () => Promise<void>;
-  update: <K extends keyof AppConfig>(section: K, patch: Partial<AppConfig[K]>) => Promise<void>;
+  update: <K extends Exclude<keyof AppConfig, "schemaVersion">>(
+    section: K,
+    patch: Partial<AppConfig[K]>,
+  ) => Promise<void>;
   setLastUsed: (v: NonNullable<AppConfig["lastUsed"]>) => Promise<void>;
   reset: () => Promise<void>;
 };
@@ -62,6 +72,7 @@ function mergeTools(
 function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppConfig {
   if (!partial) return base;
   return {
+    schemaVersion: CONFIG_SCHEMA_VERSION,
     hotkeys: { ...base.hotkeys, ...partial.hotkeys },
     output: { ...base.output, ...partial.output },
     pins: { ...base.pins, ...partial.pins },
@@ -80,8 +91,19 @@ export const useSettings = create<State>((set, get) => ({
   init: async () => {
     if (get().ready) return;
     const store = await getStore();
-    const persisted = await store.get<Partial<AppConfig>>(CONFIG_STORE_KEY);
-    let merged = merge(DEFAULT_CONFIG, persisted);
+    const raw = await store.get<unknown>(CONFIG_STORE_KEY);
+    const migrated = migrateConfig(raw);
+    let merged = merge(DEFAULT_CONFIG, migrated);
+    // Write back if the persisted shape was missing schemaVersion (pre-v1
+    // store) so subsequent launches can detect old shapes via the version.
+    const persistedVersion =
+      raw && typeof raw === "object"
+        ? (raw as Record<string, unknown>).schemaVersion
+        : undefined;
+    if (persistedVersion !== CONFIG_SCHEMA_VERSION) {
+      await store.set(CONFIG_STORE_KEY, merged);
+      await store.save();
+    }
     if (!merged.output.defaultSavePath) {
       try {
         const { invoke } = await import("@tauri-apps/api/core");

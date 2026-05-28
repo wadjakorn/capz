@@ -9,14 +9,16 @@ use std::process::Command;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 
-const STORE_FILE: &str = "config.json";
-const STORE_KEY: &str = "app";
+use crate::services::config_store::{config_store_path, CONFIG_STORE_KEY};
 
 fn enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
-    let Ok(store) = app.store(STORE_FILE) else {
+    let Ok(path) = config_store_path(app) else {
         return false;
     };
-    let Some(v) = store.get(STORE_KEY) else {
+    let Ok(store) = app.store(path) else {
+        return false;
+    };
+    let Some(v) = store.get(CONFIG_STORE_KEY) else {
         return false;
     };
     v.get("general")

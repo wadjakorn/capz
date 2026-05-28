@@ -5,6 +5,7 @@ use tauri::{LogicalPosition, LogicalSize};
 #[cfg(not(target_os = "macos"))]
 use tauri::{PhysicalPosition, PhysicalSize};
 
+use crate::services::config_store::{config_store_path, CONFIG_STORE_KEY};
 use crate::services::monitor_service;
 
 /// Open the editor window and switch its inner view to the onboarding flow.
@@ -228,10 +229,13 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 fn read_editor_window_size<R: Runtime>(app: &AppHandle<R>) -> (f64, f64) {
     let default = (1024.0_f64, 680.0_f64);
-    let Ok(store) = app.store("config.json") else {
+    let Ok(path) = config_store_path(app) else {
         return default;
     };
-    let Some(v) = store.get("app") else {
+    let Ok(store) = app.store(path) else {
+        return default;
+    };
+    let Some(v) = store.get(CONFIG_STORE_KEY) else {
         return default;
     };
     let ew = v.get("general").and_then(|g| g.get("editorWindow"));
@@ -249,10 +253,13 @@ fn read_editor_window_size<R: Runtime>(app: &AppHandle<R>) -> (f64, f64) {
 }
 
 fn read_always_on_top_editor<R: Runtime>(app: &AppHandle<R>) -> bool {
-    let Ok(store) = app.store("config.json") else {
+    let Ok(path) = config_store_path(app) else {
         return false;
     };
-    let Some(v) = store.get("app") else {
+    let Ok(store) = app.store(path) else {
+        return false;
+    };
+    let Some(v) = store.get(CONFIG_STORE_KEY) else {
         return false;
     };
     v.get("general")

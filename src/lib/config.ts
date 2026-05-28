@@ -8,6 +8,7 @@ export type Tool =
   | "pin";
 
 export type AppConfig = {
+  schemaVersion: number;
   hotkeys: {
     captureFull: string;
     captureArea: string;
@@ -91,7 +92,10 @@ export type AppConfig = {
   };
 };
 
+export const CONFIG_SCHEMA_VERSION = 1;
+
 export const DEFAULT_CONFIG: AppConfig = {
+  schemaVersion: CONFIG_SCHEMA_VERSION,
   hotkeys: {
     captureFull: "CmdOrCtrl+Alt+Shift+3",
     captureArea: "CmdOrCtrl+Alt+Shift+4",
@@ -158,6 +162,22 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 export const CONFIG_STORE_FILE = "config.json";
 export const CONFIG_STORE_KEY = "app";
+
+// Forward-compatible migration entry point. v1 = initial schema, so any
+// persisted shape (including pre-versioned stores) is passed through.
+// Future schema bumps add cases that transform `raw` to the latest shape
+// before merge() in useSettings.init() fills in defaults.
+export function migrateConfig(raw: unknown): Partial<AppConfig> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const v = typeof obj.schemaVersion === "number" ? obj.schemaVersion : 0;
+  if (v > CONFIG_SCHEMA_VERSION) {
+    console.warn(
+      `config schemaVersion ${v} newer than supported ${CONFIG_SCHEMA_VERSION}; loading as-is`,
+    );
+  }
+  return obj as Partial<AppConfig>;
+}
 
 export type EffectiveTools = {
   rect: { strokeColor: string; strokeWidth: number };
