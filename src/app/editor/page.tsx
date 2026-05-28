@@ -16,6 +16,7 @@ import {
   usePermissionRevokedListener,
   useStalePermissionAfterUpdateListener,
   useInertGrantAfterUpdateListener,
+  useScreenRecordingHealthCheck,
 } from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
 
@@ -40,6 +41,7 @@ export default function EditorPage() {
   usePermissionRevokedListener();
   useStalePermissionAfterUpdateListener();
   useInertGrantAfterUpdateListener(openRecovery);
+  useScreenRecordingHealthCheck(openRecovery);
   useUpdateCheckListener();
 
   const applyFile = useCallback(async (path: string | null) => {
@@ -242,7 +244,10 @@ export default function EditorPage() {
         )}
         {view === "onboarding" && (
           <div className="absolute inset-0 overflow-auto">
-            <OnboardingView onDone={() => setView("editor")} />
+            <OnboardingView
+              onDone={() => setView("editor")}
+              onOpenInertRecovery={openRecovery}
+            />
           </div>
         )}
       </main>

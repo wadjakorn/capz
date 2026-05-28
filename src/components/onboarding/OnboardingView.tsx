@@ -13,16 +13,19 @@ const IS_MAC =
 
 type Props = {
   onDone: () => void;
+  onOpenInertRecovery?: () => void;
 };
 
-export function OnboardingView({ onDone }: Props) {
+export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
   const { ready, init, update } = useSettings();
   const [step, setStep] = useState<Step>("welcome");
   const [granted, setGranted] = useState<boolean | null>(null);
   const [requested, setRequested] = useState(false);
   const [needsRelaunch, setNeedsRelaunch] = useState(false);
+  const [inert, setInert] = useState(false);
   const [busy, setBusy] = useState<"" | "request" | "open" | "relaunch">("");
   const initialGrantedRef = useRef<boolean | null>(null);
+  const probedRef = useRef(false);
 
   useEffect(() => {
     init();
@@ -43,6 +46,20 @@ export function OnboardingView({ onDone }: Props) {
           }
           return ok;
         });
+        if (ok && !probedRef.current) {
+          probedRef.current = true;
+          try {
+            const probeOk = await invoke<boolean>("probe_capture_command");
+            if (cancelled) return;
+            if (!probeOk) setInert(true);
+          } catch {
+            // ignore probe errors
+          }
+        }
+        if (!ok) {
+          probedRef.current = false;
+          setInert(false);
+        }
       } catch {
         // ignore
       }
@@ -133,10 +150,12 @@ export function OnboardingView({ onDone }: Props) {
               granted={granted}
               requested={requested}
               needsRelaunch={needsRelaunch}
+              inert={inert}
               busy={busy}
               onRequest={requestPermission}
               onOpenSettings={openSettings}
               onRelaunch={relaunch}
+              onOpenInertRecovery={onOpenInertRecovery}
               onNext={() => setStep("done")}
             />
           )}
@@ -237,28 +256,34 @@ function Permission({
   granted,
   requested,
   needsRelaunch,
+  inert,
   busy,
   onRequest,
   onOpenSettings,
   onRelaunch,
+  onOpenInertRecovery,
   onNext,
 }: {
   granted: boolean | null;
   requested: boolean;
   needsRelaunch: boolean;
+  inert: boolean;
   busy: Busy;
   onRequest: () => void;
   onOpenSettings: () => void;
   onRelaunch: () => void;
+  onOpenInertRecovery?: () => void;
   onNext: () => void;
 }) {
-  const state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings" =
+  const state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings" | "inert" =
     granted === null
       ? "unknown"
       : granted
-        ? needsRelaunch
-          ? "needs-relaunch"
-          : "ready"
+        ? inert
+          ? "inert"
+          : needsRelaunch
+            ? "needs-relaunch"
+            : "ready"
         : requested
           ? "open-settings"
           : "ask";
@@ -292,6 +317,14 @@ function Permission({
           <em> after</em> the change. Relaunch capz to finish.
         </Guidance>
       )}
+      {state === "inert" && (
+        <Guidance tone="warning">
+          System Settings shows capz as allowed, but the entry is keyed to the
+          previous build and the new binary cannot capture. The stale row must
+          be removed (minus button) — toggling won&apos;t recover. Use{" "}
+          <strong>Fix permission…</strong> below for the guided steps.
+        </Guidance>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <PrimaryButton
@@ -300,9 +333,10 @@ function Permission({
           onRequest={onRequest}
           onOpenSettings={onOpenSettings}
           onRelaunch={onRelaunch}
+          onOpenInertRecovery={onOpenInertRecovery}
           onNext={onNext}
         />
-        {state !== "ready" && (
+        {state !== "ready" && state !== "inert" && (
           <button
             onClick={onOpenSettings}
             disabled={busy !== ""}
@@ -329,7 +363,7 @@ function Permission({
 function StatusCard({
   state,
 }: {
-  state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings";
+  state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings" | "inert";
 }) {
   const map: Record<
     typeof state,
@@ -370,6 +404,13 @@ function StatusCard({
       eyebrow: "Pending",
       label: "Awaiting toggle in System Settings",
     },
+    inert: {
+      tile: "glow-tile-amber",
+      tone: "text-amber-200",
+      icon: ShieldCheck,
+      eyebrow: "Stale grant",
+      label: "Granted on paper — capture returns blank frames",
+    },
   };
   const s = map[state];
   const Icon = s.icon;
@@ -408,13 +449,15 @@ function PrimaryButton({
   onRequest,
   onOpenSettings,
   onRelaunch,
+  onOpenInertRecovery,
   onNext,
 }: {
-  state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings";
+  state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings" | "inert";
   busy: Busy;
   onRequest: () => void;
   onOpenSettings: () => void;
   onRelaunch: () => void;
+  onOpenInertRecovery?: () => void;
   onNext: () => void;
 }) {
   if (state === "ready") {
@@ -442,6 +485,17 @@ function PrimaryButton({
     return (
       <button onClick={onOpenSettings} disabled={busy !== ""} className="glass-button-primary">
         {busy === "open" ? "Opening…" : "Open System Settings"}
+      </button>
+    );
+  }
+  if (state === "inert") {
+    return (
+      <button
+        onClick={onOpenInertRecovery}
+        disabled={busy !== "" || !onOpenInertRecovery}
+        className="glass-button-primary disabled:opacity-50"
+      >
+        Fix permission…
       </button>
     );
   }

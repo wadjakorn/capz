@@ -73,6 +73,9 @@ export function usePermissionRevokedListener() {
  * as the last-granted marker. First install with no prior marker stays
  * silent — onboarding owns the never-granted path.
  */
+// Marker writer for "current version successfully passed preflight". Toast
+// emission lives in `useScreenRecordingHealthCheck`; keeping this hook so the
+// marker is maintained for telemetry / future diagnostics.
 export function useStalePermissionAfterUpdateListener() {
   useEffect(() => {
     if (!IS_MAC) return;
@@ -88,30 +91,13 @@ export function useStalePermissionAfterUpdateListener() {
         getVersion(),
         load(CONFIG_STORE_FILE, { autoSave: false, defaults: {} }),
       ]);
-      if (cancelled) return;
+      if (cancelled || !granted) return;
       const prior = (
         await store.get<{ lastGrantedVersion?: string }>("permissions")
       )?.lastGrantedVersion;
-      if (granted) {
-        if (prior !== currentVersion) {
-          await store.set("permissions", { lastGrantedVersion: currentVersion });
-          await store.save();
-        }
-        return;
-      }
-      if (prior && prior !== currentVersion) {
-        toast.error("Screen Recording permission needs re-grant after update", {
-          id: "permission-stale-after-update",
-          description:
-            "macOS keeps the previous version’s entry, but the new build needs a fresh approval. Toggle capz off and on in System Settings → Privacy & Security → Screen Recording, then relaunch.",
-          duration: 20_000,
-          action: {
-            label: "Open Privacy Settings",
-            onClick: () => {
-              void invoke("open_system_settings_screen_recording");
-            },
-          },
-        });
+      if (prior !== currentVersion) {
+        await store.set("permissions", { lastGrantedVersion: currentVersion });
+        await store.save();
       }
     })();
     return () => {
@@ -184,6 +170,92 @@ export function useInertGrantAfterUpdateListener(onOpenRecovery: () => void) {
       const win = getCurrentWindow();
       unlisten = await win.onFocusChanged(({ payload: focused }) => {
         if (focused) void probe();
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [onOpenRecovery]);
+}
+
+const HEALTH_TOAST_ID = "permission-health";
+
+/**
+ * macOS only. Proactive Screen Recording health check that supersedes the
+ * narrow scenarios in the stale/inert listeners — runs preflight + real
+ * capture probe on mount and on every window focus. If permission is denied
+ * OR the grant is inert (preflight=true, probe=false), surfaces a persistent
+ * toast that routes directly to the recovery dialog. Dismisses the toast as
+ * soon as a probe confirms a healthy state.
+ *
+ * Suppresses re-emission for the same `(state, version)` pair within a
+ * session so focus changes don't spam the toaster. Not gated on onboarding —
+ * the editor is the primary surface and the health check should always nag if
+ * capture is broken regardless of whether onboarding ever ran.
+ */
+export function useScreenRecordingHealthCheck(onOpenRecovery: () => void) {
+  useEffect(() => {
+    if (!IS_MAC) return;
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    let lastKey = "";
+
+    const tick = async () => {
+      const [{ invoke }, { getVersion }] = await Promise.all([
+        import("@tauri-apps/api/core"),
+        import("@tauri-apps/api/app"),
+      ]);
+      if (cancelled) return;
+
+      const granted = await invoke<boolean>("has_screen_recording_permission");
+      if (cancelled) return;
+      let brokenState: "denied" | "inert" | "" = "";
+      if (!granted) {
+        brokenState = "denied";
+      } else {
+        const probeOk = await invoke<boolean>("probe_capture_command");
+        if (cancelled) return;
+        if (!probeOk) brokenState = "inert";
+      }
+      console.log(
+        `[health-check] granted=${granted} broken=${brokenState || "none"}`,
+      );
+
+      if (!brokenState) {
+        toast.dismiss(HEALTH_TOAST_ID);
+        lastKey = "";
+        return;
+      }
+
+      const version = await getVersion();
+      const key = `${brokenState}:${version}`;
+      if (key === lastKey) return;
+      lastKey = key;
+
+      const description =
+        brokenState === "denied"
+          ? "macOS Screen Recording is denied. capz can't capture until you re-grant it."
+          : "macOS shows capz as allowed, but the entry is stale and capture returns blank frames.";
+
+      toast.error("Screen Recording is not working", {
+        id: HEALTH_TOAST_ID,
+        description,
+        duration: Infinity,
+        action: {
+          label: "Fix permission…",
+          onClick: onOpenRecovery,
+        },
+      });
+    };
+
+    void tick();
+    (async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow();
+      unlisten = await win.onFocusChanged(({ payload: focused }) => {
+        if (focused) void tick();
       });
     })();
 
