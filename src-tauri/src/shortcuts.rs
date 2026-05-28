@@ -3,10 +3,8 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 
+use crate::services::config_store::{config_store_path, CONFIG_STORE_KEY};
 use crate::windows;
-
-const STORE_FILE: &str = "config.json";
-const STORE_KEY: &str = "app";
 
 const DEFAULT_FULL: &str = "CmdOrCtrl+Alt+Shift+3";
 const DEFAULT_AREA: &str = "CmdOrCtrl+Alt+Shift+4";
@@ -27,18 +25,22 @@ struct ShortcutPayload {
 }
 
 fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, String) {
-    let store = match app.store(STORE_FILE) {
-        Ok(s) => s,
-        Err(_) => {
-            return (
-                DEFAULT_FULL.into(),
-                DEFAULT_AREA.into(),
-                DEFAULT_WINDOW.into(),
-                DEFAULT_SHOW_EDITOR.into(),
-            )
-        }
+    let defaults = || {
+        (
+            DEFAULT_FULL.into(),
+            DEFAULT_AREA.into(),
+            DEFAULT_WINDOW.into(),
+            DEFAULT_SHOW_EDITOR.into(),
+        )
     };
-    let value = store.get(STORE_KEY);
+    let Ok(path) = config_store_path(app) else {
+        return defaults();
+    };
+    let store = match app.store(path) {
+        Ok(s) => s,
+        Err(_) => return defaults(),
+    };
+    let value = store.get(CONFIG_STORE_KEY);
     let mut full = DEFAULT_FULL.to_string();
     let mut area = DEFAULT_AREA.to_string();
     let mut window = DEFAULT_WINDOW.to_string();

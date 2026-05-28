@@ -2,6 +2,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_store::StoreExt;
 
 use crate::commands::permissions::has_screen_recording;
+use crate::services::config_store::{config_store_path, CONFIG_STORE_KEY};
 use crate::services::{capture_service, image_service, monitor_service};
 use crate::tray;
 use crate::windows;
@@ -23,8 +24,6 @@ fn emit_capture_error<R: Runtime>(app: &AppHandle<R>, msg: &str) {
     crate::notice::error(app, msg);
 }
 
-const STORE_FILE: &str = "config.json";
-const STORE_KEY: &str = "app";
 const DEFAULT_JPEG_QUALITY: u8 = 85;
 
 #[derive(Clone, Copy)]
@@ -49,10 +48,13 @@ impl Default for IntermediateSpec {
 }
 
 fn read_capture_intermediate<R: Runtime>(app: &AppHandle<R>) -> IntermediateSpec {
-    let Ok(store) = app.store(STORE_FILE) else {
+    let Ok(path) = config_store_path(app) else {
         return IntermediateSpec::default();
     };
-    let Some(value) = store.get(STORE_KEY) else {
+    let Ok(store) = app.store(path) else {
+        return IntermediateSpec::default();
+    };
+    let Some(value) = store.get(CONFIG_STORE_KEY) else {
         return IntermediateSpec::default();
     };
     let capture = value.get("capture");

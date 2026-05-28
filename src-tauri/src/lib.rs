@@ -10,10 +10,14 @@ mod windows;
 /// Reads `updates.{autoCheck, checkIntervalHours}` from the store with safe defaults.
 fn read_update_prefs<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> (bool, u64) {
     use tauri_plugin_store::StoreExt;
-    let Ok(store) = app.store("config.json") else {
+    use services::config_store::{config_store_path, CONFIG_STORE_KEY};
+    let Ok(path) = config_store_path(app) else {
         return (true, 24);
     };
-    let Some(v) = store.get("app") else {
+    let Ok(store) = app.store(path) else {
+        return (true, 24);
+    };
+    let Some(v) = store.get(CONFIG_STORE_KEY) else {
         return (true, 24);
     };
     let auto = v
@@ -49,13 +53,47 @@ fn spawn_update_checker<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
     });
 }
 
+/// Logs the resolved settings-store path, existence, size, and last-modified
+/// time on every launch. Used to diagnose the "settings wiped after updater"
+/// bug: comparing pre-update and post-update log lines confirms whether the
+/// store path drifted or the file was replaced.
+fn log_store_path_diagnostics<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    match services::config_store::config_store_path(app) {
+        Ok(path) => match std::fs::metadata(&path) {
+            Ok(meta) => {
+                let modified = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                log::info!(
+                    "config store: path={} exists=true size={} mtime_unix={}",
+                    path.display(),
+                    meta.len(),
+                    modified
+                );
+            }
+            Err(e) => log::info!(
+                "config store: path={} exists=false ({e})",
+                path.display()
+            ),
+        },
+        Err(e) => log::warn!("config store path resolution failed: {e}"),
+    }
+}
+
 fn is_onboarding_completed<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
     use tauri_plugin_store::StoreExt;
-    let store = match app.store("config.json") {
+    use services::config_store::{config_store_path, CONFIG_STORE_KEY};
+    let Ok(path) = config_store_path(app) else {
+        return false;
+    };
+    let store = match app.store(path) {
         Ok(s) => s,
         Err(_) => return false,
     };
-    let Some(v) = store.get("app") else {
+    let Some(v) = store.get(CONFIG_STORE_KEY) else {
         return false;
     };
     v.get("general")
@@ -128,6 +166,7 @@ pub fn run() {
                     .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                     .build(),
             )?;
+            log_store_path_diagnostics(app.handle());
             services::image_service::sweep_stale_temp();
             tray::create_tray(app.handle())?;
             if let Err(e) = shortcuts::register_shortcuts(app.handle()) {
