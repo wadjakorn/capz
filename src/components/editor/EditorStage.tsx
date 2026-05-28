@@ -498,12 +498,13 @@ export function EditorStage({ src }: Props) {
 
     if (empty) {
       const hadSelection = useEditor.getState().selectedId !== null;
-      if (hadSelection) {
+      const continuable = tool === "pin";
+      if (hadSelection && !continuable) {
         select(null);
-        if (tool !== "select" && tool !== "pin") setTool("select");
+        if (tool !== "select") setTool("select");
         return;
       }
-      select(null);
+      if (!continuable) select(null);
     }
 
     if (textEditor) {
