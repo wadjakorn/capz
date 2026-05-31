@@ -76,8 +76,20 @@ export function eventToAccelerator(e: KeyboardEvent): string | null {
   const key = e.key;
   if (!key || MODIFIERS.has(key) || key === "Meta" || key === "Control") return null;
 
+  // Derive the token from the physical key (e.code) so it is independent of
+  // Shift (Shift+1 stays "1", not "!") and of the active keyboard layout
+  // (Thai physical P labelled "ญ" stays "P"). Fall back to e.key for keys that
+  // e.code does not cleanly map (Enter, Escape, arrows, etc.).
+  const code = e.code;
   let token: string;
-  if (key.length === 1) {
+  let m: RegExpMatchArray | null;
+  if ((m = code.match(/^Digit([0-9])$/)) || (m = code.match(/^Numpad([0-9])$/))) {
+    token = m[1];
+  } else if ((m = code.match(/^Key([A-Z])$/))) {
+    token = m[1];
+  } else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) {
+    token = code;
+  } else if (key.length === 1) {
     token = key.toUpperCase();
   } else if (key.startsWith("Arrow")) {
     token = key;
