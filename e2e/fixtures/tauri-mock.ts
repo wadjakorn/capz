@@ -52,7 +52,9 @@ export const defaultHandlers: InvokeHandlers = {
   // tauri-plugin-store — load returns a resource id (rid), other ops keyed by it.
   "plugin:store|load": () => 1,
   "plugin:store|create_store": () => 1,
-  "plugin:store|get": () => null,
+  // plugin-store's Store.get destructures `[value, exists]`. Even when there's
+  // no stateful backing, return the tuple shape so consumers don't crash.
+  "plugin:store|get": () => [null, false],
   "plugin:store|set": () => null,
   "plugin:store|save": () => null,
   "plugin:store|reload": () => null,
@@ -125,6 +127,63 @@ export async function installTauriMock(
       return await h(args);
     };
 
+    // event-name -> Set<callbackId> mapping for test-driven emits.
+    const eventSubs = new Map<string, Set<number>>();
+    (window as any).__capzEventSubs = eventSubs;
+
+    // Stateful tauri-plugin-store backing: a simple in-memory key/value bag so
+    // store.get / set / save round-trip and consumers (useSettings.init) can
+    // flip `ready` true without a real backend.
+    const storeData = new Map<string, unknown>();
+    (window as any).__capzStoreData = storeData;
+    const storeGet = (args: any) => {
+      // plugin-store's Store.get destructures `[value, exists]`. Returning a
+      // bare value here crashes useSettings.init at the destructure step.
+      const key = String(args?.key ?? "");
+      if (storeData.has(key)) return [storeData.get(key), true];
+      return [null, false];
+    };
+    const storeSet = (args: any) => {
+      const key = String(args?.key ?? "");
+      storeData.set(key, args?.value);
+      return null;
+    };
+    const storeHas = (args: any) => storeData.has(String(args?.key ?? ""));
+    const storeKeys = () => Array.from(storeData.keys());
+    const storeEntries = () => Array.from(storeData.entries());
+    const storeValues = () => Array.from(storeData.values());
+    // Wire stateful store ops only when the consumer didn't supply their own
+    // override (e.g. a test that wants to track writes). User-supplied handler
+    // remains in handlerMap.get() because we register stateful ops via fallback.
+    const installFallback = (cmd: string, fn: (a: any) => unknown) => {
+      const userFn = handlerMap.get(cmd);
+      // The default handlers stored at install-time are simple constant
+      // returns; replace them with the stateful version. If the user passed
+      // a custom override via opts.handlers, leave it in place so they can
+      // observe writes (storeWrites pattern in settings-hotkey.spec.ts).
+      const isDefault = userFn && userFn.toString().length < 80;
+      if (!userFn || isDefault) handlerMap.set(cmd, fn);
+    };
+    installFallback("plugin:store|get", storeGet);
+    installFallback("plugin:store|set", storeSet);
+    installFallback("plugin:store|has", storeHas);
+    installFallback("plugin:store|keys", storeKeys);
+    installFallback("plugin:store|entries", storeEntries);
+    installFallback("plugin:store|values", storeValues);
+    installFallback("plugin:store|length", () => storeData.size);
+
+    // Intercept plugin:event|listen to record subscriptions.
+    const originalListen = handlerMap.get("plugin:event|listen");
+    handlerMap.set("plugin:event|listen", (args: any) => {
+      const ev = args?.event;
+      const cbId = args?.handler;
+      if (typeof ev === "string" && typeof cbId === "number") {
+        if (!eventSubs.has(ev)) eventSubs.set(ev, new Set());
+        eventSubs.get(ev)!.add(cbId);
+      }
+      return originalListen ? originalListen(args) : cbId ?? 0;
+    });
+
     (window as any).__TAURI_INTERNALS__ = {
       invoke,
       transformCallback: (cb: any) => {
@@ -140,9 +199,42 @@ export async function installTauriMock(
       plugins: {},
       ipc: { postMessage: () => {} },
     };
+
+    // Test helper: fire a Tauri event payload to all registered listeners.
+    (window as any).__capzEmit = (event: string, payload: unknown) => {
+      const subs = eventSubs.get(event);
+      const cbs = (window as any).__TAURI_INTERNALS__.callbacks as
+        | Map<number, (e: unknown) => void>
+        | undefined;
+      if (!subs || !cbs) return 0;
+      let n = 0;
+      for (const id of subs) {
+        const cb = cbs.get(id);
+        if (cb) {
+          cb({ event, id, payload });
+          n++;
+        }
+      }
+      return n;
+    };
   }, Array.from(Object.entries(handlers)).map(([k, v]) => [k, v.toString()]));
 }
 
 export async function getInvokeCalls(page: Page): Promise<Array<{ cmd: string; args: unknown }>> {
   return await page.evaluate(() => (window as any).__capzInvokeCalls ?? []);
+}
+
+/**
+ * Fire a Tauri event payload to all listeners that subscribed via
+ * @tauri-apps/api/event#listen. Returns the number of callbacks invoked.
+ */
+export async function emitTauriEvent(
+  page: Page,
+  event: string,
+  payload: unknown = null,
+): Promise<number> {
+  return await page.evaluate(
+    ({ event, payload }) => (window as any).__capzEmit?.(event, payload) ?? 0,
+    { event, payload },
+  );
 }
