@@ -32,11 +32,14 @@ import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
 import {
   setStage,
+  getStage,
+  runPrepareExport,
   setPrepareExport,
   setStageImageSize,
   clearStageImageSize,
   setScrollContainer,
 } from "@/lib/stageBridge";
+import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { Rulers } from "@/components/editor/Rulers";
 import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
@@ -106,6 +109,7 @@ export function EditorStage({ src }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const displayScale = useEditor((s) => s.displayScale);
   const zoomFit = useEditor((s) => s.zoomFit);
@@ -723,8 +727,58 @@ export function EditorStage({ src }: Props) {
   const sizerW = stageW > 0 ? stageW + padX * 2 : 0;
   const sizerH = stageH > 0 ? stageH + padY * 2 : 0;
 
+  // Custom right-click menu. The native WebView "Copy image" grabs a single
+  // (often transparent) Konva canvas layer → black paste; route Copy/Paste
+  // through the working stage-export + paste_into_editor paths instead.
+  function handleContextMenu(e: React.MouseEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+      return; // keep native menu for real text fields
+    }
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
+
+  async function ctxCopy() {
+    setCtxMenu(null);
+    const stage = getStage();
+    if (!stage) return;
+    runPrepareExport();
+    try {
+      const { copyOnly } = await import("@/lib/exportImage");
+      await copyOnly(stage);
+      toast.success("Copied");
+    } catch (err) {
+      console.error("context copy failed", err);
+      const { describeExportError } = await import("@/lib/exportErrors");
+      const { title, detail } = describeExportError(err);
+      toast.error(title, { description: detail });
+    }
+  }
+
+  async function ctxPaste() {
+    setCtxMenu(null);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke<string>("paste_into_editor");
+    } catch (err) {
+      console.warn("paste_into_editor failed", err);
+      toast.error("Clipboard has no image");
+    }
+  }
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ctxMenu]);
+
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full" onContextMenu={handleContextMenu}>
     <div
       ref={containerRef}
       className="relative h-full w-full overflow-auto bg-[#0d021f] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
@@ -942,6 +996,39 @@ export function EditorStage({ src }: Props) {
         padY={padY}
         scale={scale}
       />
+    )}
+    {ctxMenu && (
+      <>
+        <div
+          className="fixed inset-0 z-50"
+          onMouseDown={() => setCtxMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setCtxMenu(null);
+          }}
+        />
+        <div
+          className="glass-card fixed z-50 min-w-36 overflow-hidden rounded-xl p-1 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            disabled={!image}
+            onClick={() => void ctxCopy()}
+            className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={() => void ctxPaste()}
+            className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-white/10"
+          >
+            Paste
+          </button>
+        </div>
+      </>
     )}
     </div>
   );

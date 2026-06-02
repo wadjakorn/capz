@@ -552,3 +552,22 @@
       var(--lg-fill);
   }
 }
+
+/* Windows hybrid glass fallback. WebView2 doesn't render backdrop-filter blur
+   over the editor canvas, so the translucent white fills read as near-invisible.
+   Keep backdrop-filter (harmless if it ever paints) but swap the fill vars to an
+   opaque violet-dark tint matching the app background so floating bars look
+   intentional. The main toolbar and glow-tile consume var(--lg-fill);
+   glass-pill-soft uses var(--lg-fill-strong).
+   Kept UNLAYERED (and scoped to html[...]) so it wins over the unlayered :root
+   var defaults — a copy inside @layer components would lose to them. */
+html[data-os="windows"] {
+  --lg-fill: rgba(30, 12, 56, 0.86);
+  --lg-fill-soft: rgba(30, 12, 56, 0.78);
+  --lg-fill-strong: rgba(30, 12, 56, 0.92);
+}
+html[data-os="windows"] .glass-button {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 100%),
+    rgba(30, 12, 56, 0.82);
+}

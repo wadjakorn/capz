@@ -209,6 +209,18 @@ export default function EditorPage() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
+  // Tag the document with the OS so glass surfaces can fall back to a more
+  // opaque fill on Windows, where WebView2 doesn't render backdrop-filter blur
+  // over the editor canvas (macOS WKWebView does).
+  useEffect(() => {
+    const p = typeof navigator !== "undefined" ? navigator.platform : "";
+    document.documentElement.dataset.os = /Win/i.test(p)
+      ? "windows"
+      : /Mac/i.test(p)
+        ? "macos"
+        : "other";
+  }, []);
+
   return (
     <div className="flex h-screen flex-col text-foreground">
       {view === "settings" ? (
