@@ -215,6 +215,15 @@ const inSet =
   (v) =>
     opts.includes(v);
 
+/** Warn about keys present in the persisted object but absent from the schema. */
+function warnUnknownKeys(path: string, obj: Record<string, unknown>, allowed: readonly string[]) {
+  for (const key of Object.keys(obj)) {
+    if (!allowed.includes(key)) {
+      console.warn(`config: unknown key ${path}.${key}, ignoring`);
+    }
+  }
+}
+
 /** Validate a flat section: copy each known leaf if valid, else warn + default. */
 function vsec<T extends Record<string, unknown>>(
   path: string,
@@ -229,6 +238,7 @@ function vsec<T extends Record<string, unknown>>(
     return out;
   }
   const obj = raw as Record<string, unknown>;
+  warnUnknownKeys(path, obj, Object.keys(def));
   for (const key of Object.keys(def) as (keyof T & string)[]) {
     if (!(key in obj)) continue; // missing → keep default silently
     const spec = specs[key];
@@ -270,6 +280,7 @@ function vGeneral(
 
 function vTools(raw: unknown, def: AppConfig["tools"]): AppConfig["tools"] {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  if (raw && typeof raw === "object") warnUnknownKeys("tools", r, Object.keys(def));
   return {
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
@@ -358,6 +369,8 @@ export function validateConfig(raw: unknown): AppConfig {
     console.warn("config: persisted value is not an object, using defaults");
   }
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  // `lastUsed` is optional → absent from DEFAULT_CONFIG; allow it explicitly.
+  warnUnknownKeys("config", r, [...Object.keys(d), "lastUsed"]);
   return {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     hotkeys: vsec("hotkeys", r.hotkeys, d.hotkeys, {
