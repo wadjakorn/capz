@@ -254,8 +254,9 @@ function vsec<T extends Record<string, unknown>>(
   for (const key of Object.keys(def) as (keyof T & string)[]) {
     if (!(key in obj)) continue; // missing → keep default silently
     const spec = specs[key];
+    if (!spec) continue; // no validator → nested key handled by the caller
     const val = obj[key];
-    if (spec && spec(val)) {
+    if (spec(val)) {
       (out as Record<string, unknown>)[key] = val;
     } else {
       note(issues, `invalid ${path}.${key}, using default`);

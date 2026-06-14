@@ -93,8 +93,10 @@ export default function EditorPage() {
     }
     issueToastShown.current = true;
     const n = configIssues.length;
-    toast.error("Some settings couldn't be loaded", {
-      description: `${n} invalid ${n === 1 ? "entry was" : "entries were"} ignored. Reset to defaults to clean it up — your other settings are kept.`,
+    const shown = configIssues.slice(0, 6).join(" · ");
+    const more = n > 6 ? ` · …and ${n - 6} more` : "";
+    toast.error(`${n} invalid setting${n === 1 ? "" : "s"} ignored`, {
+      description: `${shown}${more}. Reset to defaults to clean it up — your valid settings are kept.`,
       duration: Infinity,
       action: {
         label: "Reset settings",
