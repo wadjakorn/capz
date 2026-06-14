@@ -1,4 +1,4 @@
-import type { PinShapeKind } from "@/stores/editor";
+import type { PinShapeKind, PinTailDir } from "@/stores/editor";
 
 export type Tool =
   | "select"
@@ -34,6 +34,7 @@ export type AppConfig = {
     defaultBorderColor: string;
     defaultBorderWidth: number;
     defaultShape: PinShapeKind;
+    defaultBubbleTail: PinTailDir;
   };
   general: {
     autostart: boolean;
@@ -71,6 +72,7 @@ export type AppConfig = {
       borderColor?: string;
       borderWidth?: number;
       shape?: PinShapeKind;
+      bubbleTail?: PinTailDir;
     };
   };
   tools: {
@@ -131,6 +133,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     defaultBorderColor: "#ffffff",
     defaultBorderWidth: 2,
     defaultShape: "circle",
+    defaultBubbleTail: "down",
   },
   general: {
     autostart: false,
@@ -387,6 +390,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     borderColor: isStr,
     borderWidth: isNum,
     shape: inSet("circle", "bubble", "mappin"),
+    bubbleTail: inSet("down", "up", "left", "right"),
   });
   return Object.keys(out).length ? out : undefined;
 }
@@ -427,6 +431,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       defaultBorderColor: isStr,
       defaultBorderWidth: isNum,
       defaultShape: inSet("circle", "bubble", "mappin"),
+      defaultBubbleTail: inSet("down", "up", "left", "right"),
     }, issues),
     general: vGeneral(r.general, d.general, issues),
     tools: vTools(r.tools, d.tools, issues),
@@ -470,6 +475,7 @@ export type EffectiveTools = {
     borderColor: string;
     borderWidth: number;
     shape: PinShapeKind;
+    bubbleTail: PinTailDir;
   };
 };
 
@@ -510,6 +516,7 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       borderColor: lu?.pin?.borderColor ?? cfg.pins.defaultBorderColor,
       borderWidth: lu?.pin?.borderWidth ?? cfg.pins.defaultBorderWidth,
       shape: lu?.pin?.shape ?? cfg.pins.defaultShape,
+      bubbleTail: lu?.pin?.bubbleTail ?? cfg.pins.defaultBubbleTail,
     },
   };
 }

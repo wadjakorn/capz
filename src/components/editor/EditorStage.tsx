@@ -100,6 +100,7 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           borderColor: a.borderColor,
           borderWidth: a.borderWidth,
           shape: a.shape,
+          bubbleTail: a.bubbleTail,
         },
       };
   }
@@ -581,6 +582,7 @@ export function EditorStage({ src }: Props) {
         borderColor: toolsCfg.pin.borderColor,
         borderWidth: toolsCfg.pin.borderWidth,
         shape: toolsCfg.pin.shape,
+        bubbleTail: toolsCfg.pin.bubbleTail,
       };
       add(a);
       void useSettings.getState().update("pins", { lastUsedNumber: n });
@@ -1330,13 +1332,14 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
   const r = a.size / 2;
   const label = String(a.number);
   const shape = a.shape ?? "circle";
-  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.46 : 0.55));
+  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.5 : 0.55));
   const textW = a.size;
   const rot = a.rotation ?? 0;
   const borderColor = a.borderColor ?? "#ffffff";
   const borderWidth = a.borderWidth ?? 2;
-  // Vertical nudge so the number sits in the visual centre of each shape.
-  const labelDy = shape === "mappin" ? -a.size * 0.12 : 0;
+  // Vertical nudge so the number sits in the visual centre of each shape
+  // (the map-pin bulb centre is above the geometric box centre).
+  const labelDy = shape === "mappin" ? -a.size * 0.18 : 0;
   return (
     <Group
       ref={ref}
@@ -1396,19 +1399,39 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
             const rr = a.size * 0.2;
             const x = -w / 2;
             const y = -h / 2;
-            const tailW = a.size * 0.16;
-            const tailH = a.size * 0.26;
+            const tw = a.size * 0.16; // tail half-base
+            const th = a.size * 0.26; // tail length
+            const dir = a.bubbleTail ?? "down";
+            // Walk the rounded-rect perimeter, injecting the triangular tail
+            // mid-edge on the chosen side so the outline stays a single path.
             c.beginPath();
             c.moveTo(x + rr, y);
+            if (dir === "up") {
+              c.lineTo(-tw, y);
+              c.lineTo(0, y - th);
+              c.lineTo(tw, y);
+            }
             c.lineTo(x + w - rr, y);
             c.quadraticCurveTo(x + w, y, x + w, y + rr);
+            if (dir === "right") {
+              c.lineTo(x + w, -tw);
+              c.lineTo(x + w + th, 0);
+              c.lineTo(x + w, tw);
+            }
             c.lineTo(x + w, y + h - rr);
             c.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-            c.lineTo(tailW, y + h);
-            c.lineTo(0, y + h + tailH);
-            c.lineTo(-tailW, y + h);
+            if (dir === "down") {
+              c.lineTo(tw, y + h);
+              c.lineTo(0, y + h + th);
+              c.lineTo(-tw, y + h);
+            }
             c.lineTo(x + rr, y + h);
             c.quadraticCurveTo(x, y + h, x, y + h - rr);
+            if (dir === "left") {
+              c.lineTo(x, tw);
+              c.lineTo(x - th, 0);
+              c.lineTo(x, -tw);
+            }
             c.lineTo(x, y + rr);
             c.quadraticCurveTo(x, y, x + rr, y);
             c.closePath();
@@ -1423,11 +1446,12 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
           strokeWidth={borderWidth}
           sceneFunc={(c, sh) => {
             const R = a.size * 0.5;
-            const tip = a.size * 0.92;
+            const tip = a.size * 0.78; // shorter point → less blank below number
             c.beginPath();
             c.moveTo(0, tip);
-            c.bezierCurveTo(-R * 1.3, R * 0.2, -R, -R, 0, -R);
-            c.bezierCurveTo(R, -R, R * 1.3, R * 0.2, 0, tip);
+            // Wider control spread makes the head read as a round bulb.
+            c.bezierCurveTo(-R * 1.5, R * 0.1, -R * 1.05, -R, 0, -R);
+            c.bezierCurveTo(R * 1.05, -R, R * 1.5, R * 0.1, 0, tip);
             c.closePath();
             c.fillStrokeShape(sh);
           }}

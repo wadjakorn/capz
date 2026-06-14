@@ -13,6 +13,10 @@ import {
   MapPin,
   Circle as CircleIcon,
   MessageCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   Undo2,
   Redo2,
   Copy as CopyIcon,
@@ -33,6 +37,7 @@ import {
   STICKERS,
   type Tool,
   type PinShapeKind,
+  type PinTailDir,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -179,6 +184,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     value: PinShapeKind;
     onChange: (v: PinShapeKind) => void;
   };
+  type PinTailCtx = {
+    value: PinTailDir;
+    onChange: (v: PinTailDir) => void;
+  };
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
@@ -187,6 +196,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
   let pinBorderCtx: ColorCtx | null = null;
   let pinBorderWidthCtx: NumCtx | null = null;
   let pinShapeCtx: PinShapeCtx | null = null;
+  let pinTailCtx: PinTailCtx | null = null;
 
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
@@ -316,7 +326,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         label: "Border W",
         value: selected.borderWidth ?? toolsCfg.pin.borderWidth,
         min: 0,
-        max: 12,
+        max: 100,
         step: 1,
         onChange: (v) => {
           updateAnnotation(selected.id, { borderWidth: v });
@@ -330,6 +340,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           updateAnnotation(selected.id, { shape: v });
           if (remember) patchLastUsed({ pin: { shape: v } });
           else void updateSettings("pins", { defaultShape: v });
+        },
+      };
+      pinTailCtx = {
+        value: selected.bubbleTail ?? toolsCfg.pin.bubbleTail,
+        onChange: (v) => {
+          updateAnnotation(selected.id, { bubbleTail: v });
+          if (remember) patchLastUsed({ pin: { bubbleTail: v } });
+          else void updateSettings("pins", { defaultBubbleTail: v });
         },
       };
     } else if (selected.type === "sticker") {
@@ -470,7 +488,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
       label: "Border W",
       value: toolsCfg.pin.borderWidth,
       min: 0,
-      max: 12,
+      max: 100,
       step: 1,
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { borderWidth: v } });
@@ -482,6 +500,13 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { shape: v } });
         else void updateSettings("pins", { defaultShape: v });
+      },
+    };
+    pinTailCtx = {
+      value: toolsCfg.pin.bubbleTail,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { bubbleTail: v } });
+        else void updateSettings("pins", { defaultBubbleTail: v });
       },
     };
   } else if (tool === "sticker") {
@@ -897,6 +922,37 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             {shapeBtn("circle", "Circle", CircleIcon)}
             {shapeBtn("bubble", "Message bubble", MessageCircle)}
             {shapeBtn("mappin", "Map pin", MapPin)}
+          </div>
+        );
+      })()}
+      {pinTailCtx && pinShapeCtx?.value === "bubble" && (() => {
+        const ptc = pinTailCtx;
+        const tailBtn = (
+          v: PinTailDir,
+          title: string,
+          Icon: LucideIcon,
+        ) => (
+          <button
+            type="button"
+            onClick={() => ptc.onChange(v)}
+            title={title}
+            aria-pressed={ptc.value === v}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              ptc.value === v
+                ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
+                : "text-foreground/80 hover:bg-white/[0.08]",
+            ].join(" ")}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+        return (
+          <div className="flex items-center gap-0.5" title="Tail direction">
+            {tailBtn("up", "Tail up", ArrowUp)}
+            {tailBtn("down", "Tail down", ArrowDown)}
+            {tailBtn("left", "Tail left", ArrowLeft)}
+            {tailBtn("right", "Tail right", ArrowRight)}
           </div>
         );
       })()}
