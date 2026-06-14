@@ -1,3 +1,5 @@
+import type { PinShapeKind } from "@/stores/editor";
+
 export type Tool =
   | "select"
   | "arrow"
@@ -29,6 +31,9 @@ export type AppConfig = {
     defaultColor: string;
     defaultSize: number;
     defaultLabelColor: string;
+    defaultBorderColor: string;
+    defaultBorderWidth: number;
+    defaultShape: PinShapeKind;
   };
   general: {
     autostart: boolean;
@@ -59,7 +64,14 @@ export type AppConfig = {
     };
     blur?: { blurRadius?: number };
     sticker?: { fontSize?: number };
-    pin?: { color?: string; size?: number; labelColor?: string };
+    pin?: {
+      color?: string;
+      size?: number;
+      labelColor?: string;
+      borderColor?: string;
+      borderWidth?: number;
+      shape?: PinShapeKind;
+    };
   };
   tools: {
     rect: { strokeColor: string; strokeWidth: number };
@@ -116,6 +128,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     defaultColor: "#E5342B",
     defaultSize: 36,
     defaultLabelColor: "#ffffff",
+    defaultBorderColor: "#ffffff",
+    defaultBorderWidth: 2,
+    defaultShape: "circle",
   },
   general: {
     autostart: false,
@@ -179,6 +194,217 @@ export function migrateConfig(raw: unknown): Partial<AppConfig> | undefined {
   return obj as Partial<AppConfig>;
 }
 
+// ---------------------------------------------------------------------------
+// Field-by-field config validation.
+//
+// Goal: a corrupt or partially-invalid persisted config must NOT wipe the whole
+// thing back to defaults. Each leaf is validated independently — valid values
+// are kept, invalid/wrong-typed ones are warned about and replaced with that
+// single field's default. Always returns a fully-valid AppConfig.
+// ---------------------------------------------------------------------------
+
+type Validator = (v: unknown) => boolean;
+const isStr: Validator = (v) => typeof v === "string";
+const isBool: Validator = (v) => typeof v === "boolean";
+const isNum: Validator = (v) => typeof v === "number" && Number.isFinite(v);
+const isStrOrNull: Validator = (v) => v === null || typeof v === "string";
+const isNumOrNull: Validator = (v) =>
+  v === null || (typeof v === "number" && Number.isFinite(v));
+const inSet =
+  (...opts: unknown[]): Validator =>
+  (v) =>
+    opts.includes(v);
+
+/** Validate a flat section: copy each known leaf if valid, else warn + default. */
+function vsec<T extends Record<string, unknown>>(
+  path: string,
+  raw: unknown,
+  def: T,
+  specs: { [K in keyof T]?: Validator },
+): T {
+  const out = { ...def };
+  if (raw === undefined) return out;
+  if (!raw || typeof raw !== "object") {
+    console.warn(`config: invalid ${path} (not an object), using defaults`);
+    return out;
+  }
+  const obj = raw as Record<string, unknown>;
+  for (const key of Object.keys(def) as (keyof T & string)[]) {
+    if (!(key in obj)) continue; // missing → keep default silently
+    const spec = specs[key];
+    const val = obj[key];
+    if (spec && spec(val)) {
+      (out as Record<string, unknown>)[key] = val;
+    } else {
+      console.warn(`config: invalid ${path}.${key}, using default`);
+    }
+  }
+  return out;
+}
+
+function vGeneral(
+  raw: unknown,
+  def: AppConfig["general"],
+): AppConfig["general"] {
+  const flat = vsec("general", raw, def, {
+    autostart: isBool,
+    playSoundOnCapture: isBool,
+    rememberLastTool: isBool,
+    rememberLastRegion: isBool,
+    onboardingCompleted: isBool,
+    alwaysOnTopEditor: isBool,
+    closeAction: inSet("none", "copy", "file", "both"),
+    showRulers: isBool,
+    snapEnabled: isBool,
+  });
+  const ewRaw =
+    raw && typeof raw === "object"
+      ? (raw as Record<string, unknown>).editorWindow
+      : undefined;
+  flat.editorWindow = vsec("general.editorWindow", ewRaw, def.editorWindow, {
+    width: isNum,
+    height: isNum,
+  });
+  return flat;
+}
+
+function vTools(raw: unknown, def: AppConfig["tools"]): AppConfig["tools"] {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    rect: vsec("tools.rect", r.rect, def.rect, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+    }),
+    arrow: vsec("tools.arrow", r.arrow, def.arrow, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+    }),
+    text: vsec("tools.text", r.text, def.text, {
+      fontSize: isNum,
+      color: isStr,
+      fontStyle: inSet("normal", "bold", "italic", "italic bold"),
+      textDecoration: inSet("", "underline", "line-through", "underline line-through"),
+      fontFamily: isStr,
+      backgroundColor: isStrOrNull,
+    }),
+    blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }),
+    sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }),
+  };
+}
+
+/** lastUsed is non-critical (drives "remember last tool"); validate leniently,
+ * dropping only the sub-fields that are malformed. */
+function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const out: NonNullable<AppConfig["lastUsed"]> = {};
+  if (inSet("select", "arrow", "rect", "text", "blur", "sticker", "pin")(o.tool))
+    out.tool = o.tool as Tool;
+  if (isStr(o.stickerEmoji)) out.stickerEmoji = o.stickerEmoji as string;
+  if (inSet("full", "area", "window")(o.lastCaptureKind))
+    out.lastCaptureKind = o.lastCaptureKind as "full" | "area" | "window";
+  const reg = o.region;
+  if (reg && typeof reg === "object") {
+    const rr = reg as Record<string, unknown>;
+    if ([rr.monitorId, rr.x, rr.y, rr.w, rr.h].every(isNum)) {
+      out.region = {
+        monitorId: rr.monitorId as number,
+        x: rr.x as number,
+        y: rr.y as number,
+        w: rr.w as number,
+        h: rr.h as number,
+      };
+    }
+  }
+  const keep = (
+    key: keyof NonNullable<AppConfig["lastUsed"]>,
+    specs: Record<string, Validator>,
+  ) => {
+    const sub = o[key];
+    if (!sub || typeof sub !== "object") return;
+    const s = sub as Record<string, unknown>;
+    const acc: Record<string, unknown> = {};
+    for (const [k, ok] of Object.entries(specs)) {
+      if (k in s && ok(s[k])) acc[k] = s[k];
+    }
+    if (Object.keys(acc).length) (out as Record<string, unknown>)[key] = acc;
+  };
+  keep("rect", { strokeColor: isStr, strokeWidth: isNum });
+  keep("arrow", { strokeColor: isStr, strokeWidth: isNum });
+  keep("text", {
+    color: isStr,
+    fontSize: isNum,
+    fontStyle: inSet("normal", "bold", "italic", "italic bold"),
+    textDecoration: inSet("", "underline", "line-through", "underline line-through"),
+    fontFamily: isStr,
+    backgroundColor: isStrOrNull,
+  });
+  keep("blur", { blurRadius: isNum });
+  keep("sticker", { fontSize: isNum });
+  keep("pin", {
+    color: isStr,
+    size: isNum,
+    labelColor: isStr,
+    borderColor: isStr,
+    borderWidth: isNum,
+    shape: inSet("circle", "bubble", "mappin"),
+  });
+  return Object.keys(out).length ? out : undefined;
+}
+
+export function validateConfig(raw: unknown): AppConfig {
+  const d = DEFAULT_CONFIG;
+  if (raw !== undefined && (!raw || typeof raw !== "object")) {
+    console.warn("config: persisted value is not an object, using defaults");
+  }
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    schemaVersion: CONFIG_SCHEMA_VERSION,
+    hotkeys: vsec("hotkeys", r.hotkeys, d.hotkeys, {
+      captureFull: isStr,
+      captureArea: isStr,
+      captureWindow: isStr,
+      showEditor: isStr,
+    }),
+    output: vsec("output", r.output, d.output, {
+      defaultMode: inSet("file", "clipboard", "both"),
+      fileFormat: inSet("png", "jpeg", "webp"),
+      jpegQuality: isNum,
+      defaultSavePath: isStrOrNull,
+      filenameTemplate: isStr,
+    }),
+    pins: vsec("pins", r.pins, d.pins, {
+      continuityMode: inSet("reset", "continue"),
+      lastUsedNumber: isNum,
+      defaultStartNumber: isNum,
+      defaultColor: isStr,
+      defaultSize: isNum,
+      defaultLabelColor: isStr,
+      defaultBorderColor: isStr,
+      defaultBorderWidth: isNum,
+      defaultShape: inSet("circle", "bubble", "mappin"),
+    }),
+    general: vGeneral(r.general, d.general),
+    tools: vTools(r.tools, d.tools),
+    capture: vsec("capture", r.capture, d.capture, {
+      intermediateFormat: inSet("png", "jpeg"),
+      intermediateMaxEdge: isNumOrNull,
+      tempJpegQuality: isNum,
+    }),
+    updates: vsec("updates", r.updates, d.updates, {
+      autoCheck: isBool,
+      checkIntervalHours: isNum,
+      channel: inSet("stable", "beta"),
+      skippedVersion: isStrOrNull,
+      lastCheckedAt: isNumOrNull,
+    }),
+    stickers: vsec("stickers", r.stickers, d.stickers, {
+      directory: isStrOrNull,
+    }),
+    lastUsed: vLastUsed(r.lastUsed),
+  };
+}
+
 export type EffectiveTools = {
   rect: { strokeColor: string; strokeWidth: number };
   arrow: { strokeColor: string; strokeWidth: number };
@@ -192,7 +418,14 @@ export type EffectiveTools = {
   };
   blur: { blurRadius: number };
   sticker: { fontSize: number };
-  pin: { color: string; size: number; labelColor: string };
+  pin: {
+    color: string;
+    size: number;
+    labelColor: string;
+    borderColor: string;
+    borderWidth: number;
+    shape: PinShapeKind;
+  };
 };
 
 export function effectiveTools(cfg: AppConfig): EffectiveTools {
@@ -229,6 +462,9 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       color: lu?.pin?.color ?? cfg.pins.defaultColor,
       size: lu?.pin?.size ?? cfg.pins.defaultSize,
       labelColor: lu?.pin?.labelColor ?? cfg.pins.defaultLabelColor,
+      borderColor: lu?.pin?.borderColor ?? cfg.pins.defaultBorderColor,
+      borderWidth: lu?.pin?.borderWidth ?? cfg.pins.defaultBorderWidth,
+      shape: lu?.pin?.shape ?? cfg.pins.defaultShape,
     },
   };
 }

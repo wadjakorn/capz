@@ -11,6 +11,8 @@ import {
   Droplet,
   Smile,
   MapPin,
+  Circle as CircleIcon,
+  MessageCircle,
   Undo2,
   Redo2,
   Copy as CopyIcon,
@@ -26,7 +28,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
-import { useEditor, STICKERS, type Tool } from "@/stores/editor";
+import {
+  useEditor,
+  STICKERS,
+  type Tool,
+  type PinShapeKind,
+} from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
@@ -168,11 +175,18 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     setFontFamily: (v: string) => void;
     setBackgroundColor: (v: string | null) => void;
   };
+  type PinShapeCtx = {
+    value: PinShapeKind;
+    onChange: (v: PinShapeKind) => void;
+  };
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
   let textStyleCtx: TextStyleCtx | null = null;
   let pinLabelCtx: ColorCtx | null = null;
+  let pinBorderCtx: ColorCtx | null = null;
+  let pinBorderWidthCtx: NumCtx | null = null;
+  let pinShapeCtx: PinShapeCtx | null = null;
 
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
@@ -287,6 +301,35 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           updateAnnotation(selected.id, { labelColor: v });
           if (remember) patchLastUsed({ pin: { labelColor: v } });
           else void updateSettings("pins", { defaultLabelColor: v });
+        },
+      };
+      pinBorderCtx = {
+        label: "Border",
+        value: selected.borderColor ?? toolsCfg.pin.borderColor,
+        onChange: (v) => {
+          updateAnnotation(selected.id, { borderColor: v });
+          if (remember) patchLastUsed({ pin: { borderColor: v } });
+          else void updateSettings("pins", { defaultBorderColor: v });
+        },
+      };
+      pinBorderWidthCtx = {
+        label: "Border W",
+        value: selected.borderWidth ?? toolsCfg.pin.borderWidth,
+        min: 0,
+        max: 12,
+        step: 1,
+        onChange: (v) => {
+          updateAnnotation(selected.id, { borderWidth: v });
+          if (remember) patchLastUsed({ pin: { borderWidth: v } });
+          else void updateSettings("pins", { defaultBorderWidth: v });
+        },
+      };
+      pinShapeCtx = {
+        value: selected.shape ?? toolsCfg.pin.shape,
+        onChange: (v) => {
+          updateAnnotation(selected.id, { shape: v });
+          if (remember) patchLastUsed({ pin: { shape: v } });
+          else void updateSettings("pins", { defaultShape: v });
         },
       };
     } else if (selected.type === "sticker") {
@@ -413,6 +456,32 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { labelColor: v } });
         else void updateSettings("pins", { defaultLabelColor: v });
+      },
+    };
+    pinBorderCtx = {
+      label: "Border",
+      value: toolsCfg.pin.borderColor,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { borderColor: v } });
+        else void updateSettings("pins", { defaultBorderColor: v });
+      },
+    };
+    pinBorderWidthCtx = {
+      label: "Border W",
+      value: toolsCfg.pin.borderWidth,
+      min: 0,
+      max: 12,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { borderWidth: v } });
+        else void updateSettings("pins", { defaultBorderWidth: v });
+      },
+    };
+    pinShapeCtx = {
+      value: toolsCfg.pin.shape,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { shape: v } });
+        else void updateSettings("pins", { defaultShape: v });
       },
     };
   } else if (tool === "sticker") {
@@ -762,6 +831,75 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           />
         </label>
       )}
+      {pinBorderCtx && (
+        <label
+          className="flex items-center gap-1.5 text-xs text-foreground/80"
+          title="Pin border color"
+        >
+          {pinBorderCtx.label}
+          <input
+            type="color"
+            value={pinBorderCtx.value}
+            onChange={(e) => pinBorderCtx!.onChange(e.target.value)}
+            className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
+          />
+        </label>
+      )}
+      {pinBorderWidthCtx && (
+        <label
+          className="flex items-center gap-1.5 text-xs text-foreground/80"
+          title={pinBorderWidthCtx.label}
+        >
+          {pinBorderWidthCtx.label}
+          <input
+            type="range"
+            min={pinBorderWidthCtx.min}
+            max={pinBorderWidthCtx.max}
+            step={pinBorderWidthCtx.step}
+            value={Math.round(pinBorderWidthCtx.value)}
+            onChange={(e) =>
+              pinBorderWidthCtx!.onChange(parseInt(e.target.value, 10))
+            }
+            className="h-1 w-20 cursor-pointer accent-violet-400"
+          />
+          <span className="w-5 text-right tabular-nums">
+            {Math.round(pinBorderWidthCtx.value)}
+          </span>
+        </label>
+      )}
+      {pinShapeCtx && (() => {
+        const psc = pinShapeCtx;
+        const shapeBtn = (
+          v: PinShapeKind,
+          title: string,
+          Icon: LucideIcon,
+        ) => (
+          <button
+            type="button"
+            onClick={() => psc.onChange(v)}
+            title={title}
+            aria-pressed={psc.value === v}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              psc.value === v
+                ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
+                : "text-foreground/80 hover:bg-white/[0.08]",
+            ].join(" ")}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+        return (
+          <div
+            className="flex items-center gap-0.5"
+            title="Pin shape"
+          >
+            {shapeBtn("circle", "Circle", CircleIcon)}
+            {shapeBtn("bubble", "Message bubble", MessageCircle)}
+            {shapeBtn("mappin", "Map pin", MapPin)}
+          </div>
+        );
+      })()}
       {widthCtx && (
         <>
           <label

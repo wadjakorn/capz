@@ -8,7 +8,6 @@ import { TabsContent } from "@/components/ui/tabs";
 import {
   Keyboard,
   Download,
-  MapPin,
   Settings as SettingsIcon,
   RefreshCw,
   Bug,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
@@ -82,7 +80,7 @@ async function applyHotkey(
   }
 }
 
-const TAB_VALUES = ["shortcuts", "output", "pins", "stickers", "general", "updates", "debug"] as const;
+const TAB_VALUES = ["shortcuts", "output", "stickers", "general", "updates", "debug"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 type TabDef = {
@@ -95,7 +93,6 @@ type TabDef = {
 const TABS: TabDef[] = [
   { value: "shortcuts", label: "Shortcuts", icon: Keyboard, tone: "violet" },
   { value: "output", label: "Output", icon: Download, tone: "emerald" },
-  { value: "pins", label: "Pins", icon: MapPin, tone: "rose" },
   { value: "stickers", label: "Stickers", icon: Smile, tone: "amber" },
   { value: "general", label: "General", icon: SettingsIcon, tone: "sky" },
   { value: "updates", label: "Updates", icon: RefreshCw, tone: "cyan" },
@@ -110,7 +107,7 @@ const IS_MAC =
   typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 
 export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
-  const { config, ready, init, update } = useSettings();
+  const { config, ready, init, update, reset } = useSettings();
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
   const [tab, setTab] = useState<TabValue>("shortcuts");
@@ -253,55 +250,6 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
           <TabsContent value="output">
             <SectionCard>
               <OutputPrefsForm />
-            </SectionCard>
-          </TabsContent>
-
-          <TabsContent value="pins" className="grid gap-4">
-            <SectionCard>
-              <FieldRow label="Continuity">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={config.pins.continuityMode === "continue"}
-                    onCheckedChange={(v) =>
-                      update("pins", { continuityMode: v ? "continue" : "reset" })
-                    }
-                  />
-                  <span className="text-sm text-foreground/80">
-                    {config.pins.continuityMode === "continue"
-                      ? "Continue numbering across captures"
-                      : "Reset each capture"}
-                  </span>
-                </div>
-              </FieldRow>
-              <FieldRow label="Default start number">
-                <Input
-                  type="number"
-                  min={0}
-                  value={config.pins.defaultStartNumber}
-                  onChange={(e) =>
-                    update("pins", { defaultStartNumber: Number(e.target.value) })
-                  }
-                  className="w-32"
-                />
-              </FieldRow>
-              <FieldRow label="Default color">
-                <input
-                  type="color"
-                  value={config.pins.defaultColor}
-                  onChange={(e) => update("pins", { defaultColor: e.target.value })}
-                  className="h-10 w-20 cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] p-1"
-                />
-              </FieldRow>
-              <FieldRow label="Default size (px)">
-                <Input
-                  type="number"
-                  min={12}
-                  max={128}
-                  value={config.pins.defaultSize}
-                  onChange={(e) => update("pins", { defaultSize: Number(e.target.value) })}
-                  className="w-32"
-                />
-              </FieldRow>
             </SectionCard>
           </TabsContent>
 
@@ -453,6 +401,22 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   </button>
                 </FieldRow>
               )}
+              <FieldRow
+                label="Reset settings"
+                hint="Restore every setting to its default. Cannot be undone."
+              >
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm("Reset all settings to defaults?")) return;
+                    await reset();
+                    toast.success("Settings reset", { duration: 1600 });
+                  }}
+                  className="glass-button text-rose-300 hover:text-rose-200"
+                >
+                  Reset…
+                </button>
+              </FieldRow>
               <AboutRow />
             </SectionCard>
           </TabsContent>

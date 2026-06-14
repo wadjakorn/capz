@@ -8,6 +8,7 @@ import {
   CONFIG_STORE_KEY,
   DEFAULT_CONFIG,
   migrateConfig,
+  validateConfig,
   type AppConfig,
 } from "@/lib/config";
 
@@ -29,32 +30,6 @@ function getStore(): Promise<Store> {
   return storePromise;
 }
 
-function isPlainLastUsed(v: unknown): v is NonNullable<AppConfig["lastUsed"]> {
-  if (!v || typeof v !== "object") return false;
-  const obj = v as Record<string, unknown>;
-  return (
-    "rect" in obj ||
-    "arrow" in obj ||
-    "text" in obj ||
-    "blur" in obj ||
-    "sticker" in obj ||
-    "pin" in obj ||
-    "tool" in obj ||
-    "stickerEmoji" in obj ||
-    "region" in obj
-  );
-}
-
-function migrateLastUsed(v: unknown): AppConfig["lastUsed"] | undefined {
-  if (!v || typeof v !== "object") return undefined;
-  const o = v as Record<string, unknown>;
-  if ("color" in o || "strokeWidth" in o || "fontSize" in o || "stickerFontSize" in o) {
-    return undefined;
-  }
-  if (isPlainLastUsed(v)) return v;
-  return undefined;
-}
-
 function mergeTools(
   base: AppConfig["tools"],
   partial: Partial<AppConfig["tools"]> | undefined,
@@ -69,22 +44,6 @@ function mergeTools(
   };
 }
 
-function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppConfig {
-  if (!partial) return base;
-  return {
-    schemaVersion: CONFIG_SCHEMA_VERSION,
-    hotkeys: { ...base.hotkeys, ...partial.hotkeys },
-    output: { ...base.output, ...partial.output },
-    pins: { ...base.pins, ...partial.pins },
-    general: { ...base.general, ...partial.general },
-    tools: mergeTools(base.tools, partial.tools as Partial<AppConfig["tools"]> | undefined),
-    capture: { ...base.capture, ...partial.capture },
-    updates: { ...base.updates, ...partial.updates },
-    stickers: { ...base.stickers, ...partial.stickers },
-    lastUsed: migrateLastUsed(partial.lastUsed) ?? base.lastUsed,
-  };
-}
-
 export const useSettings = create<State>((set, get) => ({
   config: DEFAULT_CONFIG,
   ready: false,
@@ -93,7 +52,7 @@ export const useSettings = create<State>((set, get) => ({
     const store = await getStore();
     const raw = await store.get<unknown>(CONFIG_STORE_KEY);
     const migrated = migrateConfig(raw);
-    let merged = merge(DEFAULT_CONFIG, migrated);
+    let merged = validateConfig(migrated);
     // Write back if the persisted shape was missing schemaVersion (pre-v1
     // store) so subsequent launches can detect old shapes via the version.
     const persistedVersion =
@@ -122,7 +81,7 @@ export const useSettings = create<State>((set, get) => ({
     try {
       await store.onKeyChange<Partial<AppConfig>>(CONFIG_STORE_KEY, (value) => {
         if (!value) return;
-        const next = merge(DEFAULT_CONFIG, value);
+        const next = validateConfig(value);
         set({ config: next });
       });
     } catch (e) {

@@ -12,6 +12,7 @@ import {
   Group,
   Label,
   Line,
+  Shape,
   Tag,
   Transformer,
 } from "react-konva";
@@ -91,7 +92,16 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
         ? { sticker: { fontSize: a.fontSize } }
         : { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
     case "pin":
-      return { pin: { color: a.color, size: a.size, labelColor: a.labelColor } };
+      return {
+        pin: {
+          color: a.color,
+          size: a.size,
+          labelColor: a.labelColor,
+          borderColor: a.borderColor,
+          borderWidth: a.borderWidth,
+          shape: a.shape,
+        },
+      };
   }
 }
 
@@ -568,6 +578,9 @@ export function EditorStage({ src }: Props) {
         color: toolsCfg.pin.color,
         size: toolsCfg.pin.size,
         labelColor: toolsCfg.pin.labelColor,
+        borderColor: toolsCfg.pin.borderColor,
+        borderWidth: toolsCfg.pin.borderWidth,
+        shape: toolsCfg.pin.shape,
       };
       add(a);
       void useSettings.getState().update("pins", { lastUsedNumber: n });
@@ -1316,9 +1329,14 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
   });
   const r = a.size / 2;
   const label = String(a.number);
-  const fontSize = Math.max(10, a.size * 0.55);
+  const shape = a.shape ?? "circle";
+  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.46 : 0.55));
   const textW = a.size;
   const rot = a.rotation ?? 0;
+  const borderColor = a.borderColor ?? "#ffffff";
+  const borderWidth = a.borderWidth ?? 2;
+  // Vertical nudge so the number sits in the visual centre of each shape.
+  const labelDy = shape === "mappin" ? -a.size * 0.12 : 0;
   return (
     <Group
       ref={ref}
@@ -1359,7 +1377,62 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         });
       }}
     >
-      <Circle radius={r} fill={a.color} stroke="#ffffff" strokeWidth={2} />
+      {shape === "circle" && (
+        <Circle
+          radius={r}
+          fill={a.color}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+        />
+      )}
+      {shape === "bubble" && (
+        <Shape
+          fill={a.color}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+          sceneFunc={(c, sh) => {
+            const w = a.size;
+            const h = a.size * 0.78;
+            const rr = a.size * 0.2;
+            const x = -w / 2;
+            const y = -h / 2;
+            const tailW = a.size * 0.16;
+            const tailH = a.size * 0.26;
+            c.beginPath();
+            c.moveTo(x + rr, y);
+            c.lineTo(x + w - rr, y);
+            c.quadraticCurveTo(x + w, y, x + w, y + rr);
+            c.lineTo(x + w, y + h - rr);
+            c.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+            c.lineTo(tailW, y + h);
+            c.lineTo(0, y + h + tailH);
+            c.lineTo(-tailW, y + h);
+            c.lineTo(x + rr, y + h);
+            c.quadraticCurveTo(x, y + h, x, y + h - rr);
+            c.lineTo(x, y + rr);
+            c.quadraticCurveTo(x, y, x + rr, y);
+            c.closePath();
+            c.fillStrokeShape(sh);
+          }}
+        />
+      )}
+      {shape === "mappin" && (
+        <Shape
+          fill={a.color}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+          sceneFunc={(c, sh) => {
+            const R = a.size * 0.5;
+            const tip = a.size * 0.92;
+            c.beginPath();
+            c.moveTo(0, tip);
+            c.bezierCurveTo(-R * 1.3, R * 0.2, -R, -R, 0, -R);
+            c.bezierCurveTo(R, -R, R * 1.3, R * 0.2, 0, tip);
+            c.closePath();
+            c.fillStrokeShape(sh);
+          }}
+        />
+      )}
       <Text
         text={label}
         fontSize={fontSize}
@@ -1370,7 +1443,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         align="center"
         verticalAlign="middle"
         offsetX={textW / 2}
-        offsetY={a.size / 2}
+        offsetY={a.size / 2 - labelDy}
         rotation={-rot}
         listening={false}
       />
