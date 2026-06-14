@@ -12,6 +12,7 @@ import {
   Group,
   Label,
   Line,
+  Shape,
   Tag,
   Transformer,
 } from "react-konva";
@@ -91,7 +92,17 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
         ? { sticker: { fontSize: a.fontSize } }
         : { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
     case "pin":
-      return { pin: { color: a.color, size: a.size, labelColor: a.labelColor } };
+      return {
+        pin: {
+          color: a.color,
+          size: a.size,
+          labelColor: a.labelColor,
+          borderColor: a.borderColor,
+          borderWidth: a.borderWidth,
+          shape: a.shape,
+          bubbleTail: a.bubbleTail,
+        },
+      };
   }
 }
 
@@ -568,6 +579,10 @@ export function EditorStage({ src }: Props) {
         color: toolsCfg.pin.color,
         size: toolsCfg.pin.size,
         labelColor: toolsCfg.pin.labelColor,
+        borderColor: toolsCfg.pin.borderColor,
+        borderWidth: toolsCfg.pin.borderWidth,
+        shape: toolsCfg.pin.shape,
+        bubbleTail: toolsCfg.pin.bubbleTail,
       };
       add(a);
       void useSettings.getState().update("pins", { lastUsedNumber: n });
@@ -1316,9 +1331,18 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
   });
   const r = a.size / 2;
   const label = String(a.number);
-  const fontSize = Math.max(10, a.size * 0.55);
+  const shape = a.shape ?? "circle";
+  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.46 : 0.55));
   const textW = a.size;
   const rot = a.rotation ?? 0;
+  const borderColor = a.borderColor ?? "#ffffff";
+  const borderWidth = a.borderWidth ?? 2;
+  // Keep the number's text box inside the visible shape so it never inflates
+  // the transformer bounds. For map-pin the number sits in the head bulb,
+  // which is above the geometric centre; its box must still stay within the
+  // centred size×size footprint (else the frame gets a gap above the bulb).
+  const textH = shape === "mappin" ? a.size * 0.8 : a.size;
+  const textCenterY = shape === "mappin" ? -a.size * 0.1 : 0;
   return (
     <Group
       ref={ref}
@@ -1359,18 +1383,98 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         });
       }}
     >
-      <Circle radius={r} fill={a.color} stroke="#ffffff" strokeWidth={2} />
+      {shape === "circle" && (
+        <Circle
+          radius={r}
+          fill={a.color}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+        />
+      )}
+      {shape === "bubble" && (
+        <Shape
+          fill={a.color}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+          sceneFunc={(c, sh) => {
+            const w = a.size;
+            const h = a.size * 0.78;
+            const rr = a.size * 0.2;
+            const x = -w / 2;
+            const y = -h / 2;
+            const tw = a.size * 0.16; // tail half-base
+            const th = a.size * 0.26; // tail length
+            const dir = a.bubbleTail ?? "down";
+            // Walk the rounded-rect perimeter, injecting the triangular tail
+            // mid-edge on the chosen side so the outline stays a single path.
+            c.beginPath();
+            c.moveTo(x + rr, y);
+            if (dir === "up") {
+              c.lineTo(-tw, y);
+              c.lineTo(0, y - th);
+              c.lineTo(tw, y);
+            }
+            c.lineTo(x + w - rr, y);
+            c.quadraticCurveTo(x + w, y, x + w, y + rr);
+            if (dir === "right") {
+              c.lineTo(x + w, -tw);
+              c.lineTo(x + w + th, 0);
+              c.lineTo(x + w, tw);
+            }
+            c.lineTo(x + w, y + h - rr);
+            c.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+            if (dir === "down") {
+              c.lineTo(tw, y + h);
+              c.lineTo(0, y + h + th);
+              c.lineTo(-tw, y + h);
+            }
+            c.lineTo(x + rr, y + h);
+            c.quadraticCurveTo(x, y + h, x, y + h - rr);
+            if (dir === "left") {
+              c.lineTo(x, tw);
+              c.lineTo(x - th, 0);
+              c.lineTo(x, -tw);
+            }
+            c.lineTo(x, y + rr);
+            c.quadraticCurveTo(x, y, x + rr, y);
+            c.closePath();
+            c.fillStrokeShape(sh);
+          }}
+        />
+      )}
+      {shape === "mappin" && (
+        <Shape
+          fill={a.color}
+          stroke={borderColor}
+          strokeWidth={borderWidth}
+          sceneFunc={(c, sh) => {
+            // Centred size×size footprint: head top at the box top, tip at the
+            // box bottom → the transformer frame is a tight, centred square.
+            const half = a.size * 0.5;
+            const R = a.size * 0.4; // fat head radius
+            const cY = -half + R; // head centre (-0.1*size)
+            const tipY = half; // tip on the bottom edge
+            const topY = -half; // head top on the top edge
+            c.beginPath();
+            c.moveTo(0, tipY);
+            c.bezierCurveTo(-R * 1.6, cY + R * 0.55, -R * 1.15, topY, 0, topY);
+            c.bezierCurveTo(R * 1.15, topY, R * 1.6, cY + R * 0.55, 0, tipY);
+            c.closePath();
+            c.fillStrokeShape(sh);
+          }}
+        />
+      )}
       <Text
         text={label}
         fontSize={fontSize}
         fontStyle="bold"
         fill={a.labelColor ?? "#ffffff"}
         width={textW}
-        height={a.size}
+        height={textH}
         align="center"
         verticalAlign="middle"
         offsetX={textW / 2}
-        offsetY={a.size / 2}
+        offsetY={textH / 2 - textCenterY}
         rotation={-rot}
         listening={false}
       />

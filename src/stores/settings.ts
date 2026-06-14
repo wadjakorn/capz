@@ -8,12 +8,15 @@ import {
   CONFIG_STORE_KEY,
   DEFAULT_CONFIG,
   migrateConfig,
+  validateConfig,
   type AppConfig,
 } from "@/lib/config";
 
 type State = {
   config: AppConfig;
   ready: boolean;
+  /** Problems found while validating the persisted config on load (empty = clean). */
+  issues: string[];
   init: () => Promise<void>;
   update: <K extends Exclude<keyof AppConfig, "schemaVersion">>(
     section: K,
@@ -27,32 +30,6 @@ let storePromise: Promise<Store> | null = null;
 function getStore(): Promise<Store> {
   if (!storePromise) storePromise = load(CONFIG_STORE_FILE, { autoSave: false, defaults: {} });
   return storePromise;
-}
-
-function isPlainLastUsed(v: unknown): v is NonNullable<AppConfig["lastUsed"]> {
-  if (!v || typeof v !== "object") return false;
-  const obj = v as Record<string, unknown>;
-  return (
-    "rect" in obj ||
-    "arrow" in obj ||
-    "text" in obj ||
-    "blur" in obj ||
-    "sticker" in obj ||
-    "pin" in obj ||
-    "tool" in obj ||
-    "stickerEmoji" in obj ||
-    "region" in obj
-  );
-}
-
-function migrateLastUsed(v: unknown): AppConfig["lastUsed"] | undefined {
-  if (!v || typeof v !== "object") return undefined;
-  const o = v as Record<string, unknown>;
-  if ("color" in o || "strokeWidth" in o || "fontSize" in o || "stickerFontSize" in o) {
-    return undefined;
-  }
-  if (isPlainLastUsed(v)) return v;
-  return undefined;
 }
 
 function mergeTools(
@@ -69,40 +46,33 @@ function mergeTools(
   };
 }
 
-function merge(base: AppConfig, partial: Partial<AppConfig> | undefined): AppConfig {
-  if (!partial) return base;
-  return {
-    schemaVersion: CONFIG_SCHEMA_VERSION,
-    hotkeys: { ...base.hotkeys, ...partial.hotkeys },
-    output: { ...base.output, ...partial.output },
-    pins: { ...base.pins, ...partial.pins },
-    general: { ...base.general, ...partial.general },
-    tools: mergeTools(base.tools, partial.tools as Partial<AppConfig["tools"]> | undefined),
-    capture: { ...base.capture, ...partial.capture },
-    updates: { ...base.updates, ...partial.updates },
-    stickers: { ...base.stickers, ...partial.stickers },
-    lastUsed: migrateLastUsed(partial.lastUsed) ?? base.lastUsed,
-  };
-}
-
 export const useSettings = create<State>((set, get) => ({
   config: DEFAULT_CONFIG,
   ready: false,
+  issues: [],
   init: async () => {
     if (get().ready) return;
     const store = await getStore();
     const raw = await store.get<unknown>(CONFIG_STORE_KEY);
     const migrated = migrateConfig(raw);
-    let merged = merge(DEFAULT_CONFIG, migrated);
-    // Write back if the persisted shape was missing schemaVersion (pre-v1
-    // store) so subsequent launches can detect old shapes via the version.
+    const { config: validated, issues } = validateConfig(migrated);
+    let merged = validated;
+    // Self-heal the persisted store when either:
+    //  - the shape was missing/wrong schemaVersion (pre-v1 store), or
+    //  - validation found invalid/unknown entries.
+    // Writing the cleaned config back drops the bad keys on disk so the warning
+    // doesn't recur on every launch. Valid settings are preserved.
     const persistedVersion =
       raw && typeof raw === "object"
         ? (raw as Record<string, unknown>).schemaVersion
         : undefined;
-    if (persistedVersion !== CONFIG_SCHEMA_VERSION) {
-      await store.set(CONFIG_STORE_KEY, merged);
-      await store.save();
+    if (persistedVersion !== CONFIG_SCHEMA_VERSION || issues.length > 0) {
+      try {
+        await store.set(CONFIG_STORE_KEY, merged);
+        await store.save();
+      } catch (e) {
+        console.error("config self-heal write failed", e);
+      }
     }
     if (!merged.output.defaultSavePath) {
       try {
@@ -115,14 +85,14 @@ export const useSettings = create<State>((set, get) => ({
         console.warn("default_save_dir resolution failed", e);
       }
     }
-    set({ config: merged, ready: true });
+    set({ config: merged, ready: true, issues });
     // Cross-window sync: another webview (e.g. Settings) may write the store.
     // Pull updates into this window's in-memory state so changes (closeAction,
     // hotkeys, etc.) take effect without restart.
     try {
       await store.onKeyChange<Partial<AppConfig>>(CONFIG_STORE_KEY, (value) => {
         if (!value) return;
-        const next = merge(DEFAULT_CONFIG, value);
+        const { config: next } = validateConfig(value);
         set({ config: next });
       });
     } catch (e) {
@@ -149,8 +119,16 @@ export const useSettings = create<State>((set, get) => ({
     await store.save();
   },
   reset: async () => {
-    set({ config: DEFAULT_CONFIG });
+    // Wipe the whole store file (drops any stray root-level keys too), write a
+    // clean default, and clear the surfaced issues. Throws on failure so the
+    // caller's toast can reflect it instead of silently leaving a dirty file.
+    set({ config: DEFAULT_CONFIG, issues: [] });
     const store = await getStore();
+    try {
+      await store.clear();
+    } catch (e) {
+      console.warn("config store clear failed (continuing with set)", e);
+    }
     await store.set(CONFIG_STORE_KEY, DEFAULT_CONFIG);
     await store.save();
   },

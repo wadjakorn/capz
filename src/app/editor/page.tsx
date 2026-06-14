@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
@@ -35,6 +35,11 @@ export default function EditorPage() {
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
   const openRecovery = useCallback(() => setRecoveryOpen(true), []);
+
+  const configIssues = useSettings((s) => s.issues);
+  const configReady = useSettings((s) => s.ready);
+  const resetSettings = useSettings((s) => s.reset);
+  const issueToastShown = useRef(false);
 
   useEditorShortcuts();
   useNoticeListener();
@@ -73,6 +78,39 @@ export default function EditorPage() {
       if (path) await applyFile(path);
     })();
   }, [applyFile]);
+
+  // Load settings on mount (even before an image) so config-validation issues
+  // surface immediately. init() is idempotent.
+  useEffect(() => {
+    void useSettings.getState().init();
+  }, []);
+
+  // If the persisted config had invalid/unknown entries, tell the user and
+  // offer a one-click reset instead of only logging to the console.
+  useEffect(() => {
+    if (!configReady || issueToastShown.current || configIssues.length === 0) {
+      return;
+    }
+    issueToastShown.current = true;
+    const n = configIssues.length;
+    const shown = configIssues.slice(0, 6).join(" · ");
+    const more = n > 6 ? ` · …and ${n - 6} more` : "";
+    toast.error(`${n} invalid setting${n === 1 ? "" : "s"} ignored`, {
+      description: `${shown}${more}. Reset to defaults to clean it up — your valid settings are kept.`,
+      duration: Infinity,
+      action: {
+        label: "Reset settings",
+        onClick: () => {
+          void resetSettings()
+            .then(() => toast.success("Settings reset to defaults"))
+            .catch((e) => {
+              console.error("settings reset failed", e);
+              toast.error("Reset failed", { description: String(e) });
+            });
+        },
+      },
+    });
+  }, [configReady, configIssues, resetSettings]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

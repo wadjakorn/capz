@@ -77,6 +77,9 @@ export type StickerSelection =
   | { kind: "emoji"; char: string }
   | { kind: "image"; src: string; name: string };
 
+export type PinShapeKind = "circle" | "bubble" | "mappin";
+export type PinTailDir = "down" | "up" | "left" | "right";
+
 export type PinAnnotation = Base & {
   type: "pin";
   x: number;
@@ -85,6 +88,10 @@ export type PinAnnotation = Base & {
   color: string;
   size: number;
   labelColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  shape?: PinShapeKind;
+  bubbleTail?: PinTailDir;
 };
 
 export type Annotation =
