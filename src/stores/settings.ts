@@ -57,15 +57,22 @@ export const useSettings = create<State>((set, get) => ({
     const migrated = migrateConfig(raw);
     const { config: validated, issues } = validateConfig(migrated);
     let merged = validated;
-    // Write back if the persisted shape was missing schemaVersion (pre-v1
-    // store) so subsequent launches can detect old shapes via the version.
+    // Self-heal the persisted store when either:
+    //  - the shape was missing/wrong schemaVersion (pre-v1 store), or
+    //  - validation found invalid/unknown entries.
+    // Writing the cleaned config back drops the bad keys on disk so the warning
+    // doesn't recur on every launch. Valid settings are preserved.
     const persistedVersion =
       raw && typeof raw === "object"
         ? (raw as Record<string, unknown>).schemaVersion
         : undefined;
-    if (persistedVersion !== CONFIG_SCHEMA_VERSION) {
-      await store.set(CONFIG_STORE_KEY, merged);
-      await store.save();
+    if (persistedVersion !== CONFIG_SCHEMA_VERSION || issues.length > 0) {
+      try {
+        await store.set(CONFIG_STORE_KEY, merged);
+        await store.save();
+      } catch (e) {
+        console.error("config self-heal write failed", e);
+      }
     }
     if (!merged.output.defaultSavePath) {
       try {
@@ -112,10 +119,16 @@ export const useSettings = create<State>((set, get) => ({
     await store.save();
   },
   reset: async () => {
-    // Overwrites the persisted store with a clean default, dropping any
-    // invalid/unknown keys, and clears the surfaced issues.
+    // Wipe the whole store file (drops any stray root-level keys too), write a
+    // clean default, and clear the surfaced issues. Throws on failure so the
+    // caller's toast can reflect it instead of silently leaving a dirty file.
     set({ config: DEFAULT_CONFIG, issues: [] });
     const store = await getStore();
+    try {
+      await store.clear();
+    } catch (e) {
+      console.warn("config store clear failed (continuing with set)", e);
+    }
     await store.set(CONFIG_STORE_KEY, DEFAULT_CONFIG);
     await store.save();
   },

@@ -99,9 +99,12 @@ export default function EditorPage() {
       action: {
         label: "Reset settings",
         onClick: () => {
-          void resetSettings().then(() =>
-            toast.success("Settings reset to defaults"),
-          );
+          void resetSettings()
+            .then(() => toast.success("Settings reset to defaults"))
+            .catch((e) => {
+              console.error("settings reset failed", e);
+              toast.error("Reset failed", { description: String(e) });
+            });
         },
       },
     });
