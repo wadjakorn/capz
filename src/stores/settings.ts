@@ -15,6 +15,8 @@ import {
 type State = {
   config: AppConfig;
   ready: boolean;
+  /** Problems found while validating the persisted config on load (empty = clean). */
+  issues: string[];
   init: () => Promise<void>;
   update: <K extends Exclude<keyof AppConfig, "schemaVersion">>(
     section: K,
@@ -47,12 +49,14 @@ function mergeTools(
 export const useSettings = create<State>((set, get) => ({
   config: DEFAULT_CONFIG,
   ready: false,
+  issues: [],
   init: async () => {
     if (get().ready) return;
     const store = await getStore();
     const raw = await store.get<unknown>(CONFIG_STORE_KEY);
     const migrated = migrateConfig(raw);
-    let merged = validateConfig(migrated);
+    const { config: validated, issues } = validateConfig(migrated);
+    let merged = validated;
     // Write back if the persisted shape was missing schemaVersion (pre-v1
     // store) so subsequent launches can detect old shapes via the version.
     const persistedVersion =
@@ -74,14 +78,14 @@ export const useSettings = create<State>((set, get) => ({
         console.warn("default_save_dir resolution failed", e);
       }
     }
-    set({ config: merged, ready: true });
+    set({ config: merged, ready: true, issues });
     // Cross-window sync: another webview (e.g. Settings) may write the store.
     // Pull updates into this window's in-memory state so changes (closeAction,
     // hotkeys, etc.) take effect without restart.
     try {
       await store.onKeyChange<Partial<AppConfig>>(CONFIG_STORE_KEY, (value) => {
         if (!value) return;
-        const next = validateConfig(value);
+        const { config: next } = validateConfig(value);
         set({ config: next });
       });
     } catch (e) {
@@ -108,7 +112,9 @@ export const useSettings = create<State>((set, get) => ({
     await store.save();
   },
   reset: async () => {
-    set({ config: DEFAULT_CONFIG });
+    // Overwrites the persisted store with a clean default, dropping any
+    // invalid/unknown keys, and clears the surfaced issues.
+    set({ config: DEFAULT_CONFIG, issues: [] });
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, DEFAULT_CONFIG);
     await store.save();

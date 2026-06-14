@@ -215,11 +215,22 @@ const inSet =
   (v) =>
     opts.includes(v);
 
+/** Record a validation problem: collect for the UI and mirror to the console. */
+function note(issues: string[], msg: string) {
+  issues.push(msg);
+  console.warn(`config: ${msg}`);
+}
+
 /** Warn about keys present in the persisted object but absent from the schema. */
-function warnUnknownKeys(path: string, obj: Record<string, unknown>, allowed: readonly string[]) {
+function warnUnknownKeys(
+  path: string,
+  obj: Record<string, unknown>,
+  allowed: readonly string[],
+  issues: string[],
+) {
   for (const key of Object.keys(obj)) {
     if (!allowed.includes(key)) {
-      console.warn(`config: unknown key ${path}.${key}, ignoring`);
+      note(issues, `unknown key ${path}.${key}, ignoring`);
     }
   }
 }
@@ -230,15 +241,16 @@ function vsec<T extends Record<string, unknown>>(
   raw: unknown,
   def: T,
   specs: { [K in keyof T]?: Validator },
+  issues: string[],
 ): T {
   const out = { ...def };
   if (raw === undefined) return out;
   if (!raw || typeof raw !== "object") {
-    console.warn(`config: invalid ${path} (not an object), using defaults`);
+    note(issues, `invalid ${path} (not an object), using defaults`);
     return out;
   }
   const obj = raw as Record<string, unknown>;
-  warnUnknownKeys(path, obj, Object.keys(def));
+  warnUnknownKeys(path, obj, Object.keys(def), issues);
   for (const key of Object.keys(def) as (keyof T & string)[]) {
     if (!(key in obj)) continue; // missing → keep default silently
     const spec = specs[key];
@@ -246,7 +258,7 @@ function vsec<T extends Record<string, unknown>>(
     if (spec && spec(val)) {
       (out as Record<string, unknown>)[key] = val;
     } else {
-      console.warn(`config: invalid ${path}.${key}, using default`);
+      note(issues, `invalid ${path}.${key}, using default`);
     }
   }
   return out;
@@ -255,41 +267,56 @@ function vsec<T extends Record<string, unknown>>(
 function vGeneral(
   raw: unknown,
   def: AppConfig["general"],
+  issues: string[],
 ): AppConfig["general"] {
-  const flat = vsec("general", raw, def, {
-    autostart: isBool,
-    playSoundOnCapture: isBool,
-    rememberLastTool: isBool,
-    rememberLastRegion: isBool,
-    onboardingCompleted: isBool,
-    alwaysOnTopEditor: isBool,
-    closeAction: inSet("none", "copy", "file", "both"),
-    showRulers: isBool,
-    snapEnabled: isBool,
-  });
+  const flat = vsec(
+    "general",
+    raw,
+    def,
+    {
+      autostart: isBool,
+      playSoundOnCapture: isBool,
+      rememberLastTool: isBool,
+      rememberLastRegion: isBool,
+      onboardingCompleted: isBool,
+      alwaysOnTopEditor: isBool,
+      closeAction: inSet("none", "copy", "file", "both"),
+      showRulers: isBool,
+      snapEnabled: isBool,
+    },
+    issues,
+  );
   const ewRaw =
     raw && typeof raw === "object"
       ? (raw as Record<string, unknown>).editorWindow
       : undefined;
-  flat.editorWindow = vsec("general.editorWindow", ewRaw, def.editorWindow, {
-    width: isNum,
-    height: isNum,
-  });
+  flat.editorWindow = vsec(
+    "general.editorWindow",
+    ewRaw,
+    def.editorWindow,
+    { width: isNum, height: isNum },
+    issues,
+  );
   return flat;
 }
 
-function vTools(raw: unknown, def: AppConfig["tools"]): AppConfig["tools"] {
+function vTools(
+  raw: unknown,
+  def: AppConfig["tools"],
+  issues: string[],
+): AppConfig["tools"] {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  if (raw && typeof raw === "object") warnUnknownKeys("tools", r, Object.keys(def));
+  if (raw && typeof raw === "object")
+    warnUnknownKeys("tools", r, Object.keys(def), issues);
   return {
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
       strokeWidth: isNum,
-    }),
+    }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
       strokeColor: isStr,
       strokeWidth: isNum,
-    }),
+    }, issues),
     text: vsec("tools.text", r.text, def.text, {
       fontSize: isNum,
       color: isStr,
@@ -297,9 +324,9 @@ function vTools(raw: unknown, def: AppConfig["tools"]): AppConfig["tools"] {
       textDecoration: inSet("", "underline", "line-through", "underline line-through"),
       fontFamily: isStr,
       backgroundColor: isStrOrNull,
-    }),
-    blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }),
-    sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }),
+    }, issues),
+    blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }, issues),
+    sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }, issues),
   };
 }
 
@@ -363,29 +390,32 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-export function validateConfig(raw: unknown): AppConfig {
+export type ValidatedConfig = { config: AppConfig; issues: string[] };
+
+export function validateConfig(raw: unknown): ValidatedConfig {
   const d = DEFAULT_CONFIG;
+  const issues: string[] = [];
   if (raw !== undefined && (!raw || typeof raw !== "object")) {
-    console.warn("config: persisted value is not an object, using defaults");
+    note(issues, "persisted value is not an object, using defaults");
   }
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   // `lastUsed` is optional → absent from DEFAULT_CONFIG; allow it explicitly.
-  warnUnknownKeys("config", r, [...Object.keys(d), "lastUsed"]);
-  return {
+  warnUnknownKeys("config", r, [...Object.keys(d), "lastUsed"], issues);
+  const config: AppConfig = {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     hotkeys: vsec("hotkeys", r.hotkeys, d.hotkeys, {
       captureFull: isStr,
       captureArea: isStr,
       captureWindow: isStr,
       showEditor: isStr,
-    }),
+    }, issues),
     output: vsec("output", r.output, d.output, {
       defaultMode: inSet("file", "clipboard", "both"),
       fileFormat: inSet("png", "jpeg", "webp"),
       jpegQuality: isNum,
       defaultSavePath: isStrOrNull,
       filenameTemplate: isStr,
-    }),
+    }, issues),
     pins: vsec("pins", r.pins, d.pins, {
       continuityMode: inSet("reset", "continue"),
       lastUsedNumber: isNum,
@@ -396,26 +426,27 @@ export function validateConfig(raw: unknown): AppConfig {
       defaultBorderColor: isStr,
       defaultBorderWidth: isNum,
       defaultShape: inSet("circle", "bubble", "mappin"),
-    }),
-    general: vGeneral(r.general, d.general),
-    tools: vTools(r.tools, d.tools),
+    }, issues),
+    general: vGeneral(r.general, d.general, issues),
+    tools: vTools(r.tools, d.tools, issues),
     capture: vsec("capture", r.capture, d.capture, {
       intermediateFormat: inSet("png", "jpeg"),
       intermediateMaxEdge: isNumOrNull,
       tempJpegQuality: isNum,
-    }),
+    }, issues),
     updates: vsec("updates", r.updates, d.updates, {
       autoCheck: isBool,
       checkIntervalHours: isNum,
       channel: inSet("stable", "beta"),
       skippedVersion: isStrOrNull,
       lastCheckedAt: isNumOrNull,
-    }),
+    }, issues),
     stickers: vsec("stickers", r.stickers, d.stickers, {
       directory: isStrOrNull,
-    }),
+    }, issues),
     lastUsed: vLastUsed(r.lastUsed),
   };
+  return { config, issues };
 }
 
 export type EffectiveTools = {
