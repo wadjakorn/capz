@@ -1332,14 +1332,17 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
   const r = a.size / 2;
   const label = String(a.number);
   const shape = a.shape ?? "circle";
-  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.5 : 0.55));
+  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.46 : 0.55));
   const textW = a.size;
   const rot = a.rotation ?? 0;
   const borderColor = a.borderColor ?? "#ffffff";
   const borderWidth = a.borderWidth ?? 2;
-  // Vertical nudge so the number sits in the visual centre of each shape
-  // (the map-pin bulb centre is above the geometric box centre).
-  const labelDy = shape === "mappin" ? -a.size * 0.18 : 0;
+  // Keep the number's text box inside the visible shape so it never inflates
+  // the transformer bounds. For map-pin the number sits in the head bulb,
+  // which is above the geometric centre; its box must still stay within the
+  // centred size×size footprint (else the frame gets a gap above the bulb).
+  const textH = shape === "mappin" ? a.size * 0.8 : a.size;
+  const textCenterY = shape === "mappin" ? -a.size * 0.1 : 0;
   return (
     <Group
       ref={ref}
@@ -1445,13 +1448,17 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
           stroke={borderColor}
           strokeWidth={borderWidth}
           sceneFunc={(c, sh) => {
-            const R = a.size * 0.5;
-            const tip = a.size * 0.78; // shorter point → less blank below number
+            // Centred size×size footprint: head top at the box top, tip at the
+            // box bottom → the transformer frame is a tight, centred square.
+            const half = a.size * 0.5;
+            const R = a.size * 0.4; // fat head radius
+            const cY = -half + R; // head centre (-0.1*size)
+            const tipY = half; // tip on the bottom edge
+            const topY = -half; // head top on the top edge
             c.beginPath();
-            c.moveTo(0, tip);
-            // Wider control spread makes the head read as a round bulb.
-            c.bezierCurveTo(-R * 1.5, R * 0.1, -R * 1.05, -R, 0, -R);
-            c.bezierCurveTo(R * 1.05, -R, R * 1.5, R * 0.1, 0, tip);
+            c.moveTo(0, tipY);
+            c.bezierCurveTo(-R * 1.6, cY + R * 0.55, -R * 1.15, topY, 0, topY);
+            c.bezierCurveTo(R * 1.15, topY, R * 1.6, cY + R * 0.55, 0, tipY);
             c.closePath();
             c.fillStrokeShape(sh);
           }}
@@ -1463,11 +1470,11 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         fontStyle="bold"
         fill={a.labelColor ?? "#ffffff"}
         width={textW}
-        height={a.size}
+        height={textH}
         align="center"
         verticalAlign="middle"
         offsetX={textW / 2}
-        offsetY={a.size / 2 - labelDy}
+        offsetY={textH / 2 - textCenterY}
         rotation={-rot}
         listening={false}
       />
