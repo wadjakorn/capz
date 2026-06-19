@@ -44,7 +44,6 @@ import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
-import { useOcr } from "@/stores/ocr";
 import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
 
