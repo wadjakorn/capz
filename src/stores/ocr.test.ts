@@ -19,6 +19,7 @@ beforeEach(() => {
   detectText.mockReset();
   toast.mockReset();
   useOcr.getState().reset();
+  useOcr.setState({ thaiNoticeShown: false });
 });
 
 describe("useOcr", () => {
