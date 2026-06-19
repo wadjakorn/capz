@@ -53,6 +53,15 @@ describe("useOcr", () => {
     expect(Object.keys(useOcr.getState().resultByKey)).toHaveLength(0);
   });
 
+  it("reset preserves thaiNoticeShown (once-per-session notice)", async () => {
+    detectText.mockResolvedValue(fake("x", false)); // thaiAvailable=false → sets the flag
+    useOcr.getState().setKey("/img/a.png");
+    await useOcr.getState().detect();
+    expect(useOcr.getState().thaiNoticeShown).toBe(true);
+    useOcr.getState().reset();
+    expect(useOcr.getState().thaiNoticeShown).toBe(true); // survives reset
+  });
+
   it("shows the Thai notice once when Thai is unavailable", async () => {
     detectText.mockResolvedValue(fake("x", false));
     useOcr.getState().setKey("/img/a.png");
