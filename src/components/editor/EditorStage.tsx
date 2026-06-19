@@ -43,6 +43,8 @@ import {
 import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { Rulers } from "@/components/editor/Rulers";
+import { OcrLayer } from "@/components/editor/OcrLayer";
+import { useOcr } from "@/stores/ocr";
 import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
 
@@ -750,6 +752,10 @@ export function EditorStage({ src }: Props) {
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
       return; // keep native menu for real text fields
     }
+    // Over the OCR text layer, let the native Copy menu handle the selection.
+    if (t && t.closest("[data-ocr-layer]")) {
+      return;
+    }
     e.preventDefault();
     setCtxMenu({ x: e.clientX, y: e.clientY });
   }
@@ -941,6 +947,7 @@ export function EditorStage({ src }: Props) {
             ))}
           </Layer>
         </Stage>
+        <OcrLayer scale={scale} />
           </div>
         </div>
       )}
