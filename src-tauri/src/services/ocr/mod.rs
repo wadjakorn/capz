@@ -85,6 +85,9 @@ pub fn run_detect<B: OcrBackend>(backend: &B, image_path: &str) -> anyhow::Resul
     })
 }
 
+#[cfg(target_os = "macos")]
+pub mod macos;
+
 #[cfg(test)]
 mod tests {
     use super::*;
