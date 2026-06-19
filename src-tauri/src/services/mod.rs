@@ -2,5 +2,6 @@ pub mod capture_service;
 pub mod config_store;
 pub mod image_service;
 pub mod monitor_service;
+pub mod ocr;
 pub mod sound;
 pub mod window_service;
