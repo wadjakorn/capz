@@ -21,26 +21,6 @@
 import { test, expect } from "@playwright/test";
 import { installTauriMock, getInvokeCalls } from "../fixtures/tauri-mock";
 
-const FAKE_PATH = "/tmp/capz-ocr-test.png";
-
-/** Fixed OcrResult returned by the mocked ocr_detect. */
-const MOCK_OCR_RESULT = {
-  width: 800,
-  height: 600,
-  lines: [
-    {
-      text: "Hello world",
-      bbox: { x: 10, y: 10, w: 200, h: 30 },
-      words: [
-        { text: "Hello", bbox: { x: 10, y: 10, w: 90, h: 30 } },
-        { text: "world", bbox: { x: 110, y: 10, w: 100, h: 30 } },
-      ],
-    },
-  ],
-  languagesUsed: ["en"],
-  thaiAvailable: false,
-};
-
 test.describe("OCR Text Reader", () => {
   test("Detect text button is disabled with no image", async ({ page }) => {
     await installTauriMock(page);

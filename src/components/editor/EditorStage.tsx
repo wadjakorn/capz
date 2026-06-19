@@ -31,6 +31,7 @@ import {
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
+import { useOcr } from "@/stores/ocr";
 import {
   setStage,
   getStage,
@@ -507,6 +508,9 @@ export function EditorStage({ src }: Props) {
   }
 
   function handleMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    // OCR read mode: suspend annotation drawing/selection on the stage; the
+    // text overlay handles interaction.
+    if (useOcr.getState().mode) return;
     if (e.evt.button !== 0) return;
     const p = getPointer();
     if (!p) return;

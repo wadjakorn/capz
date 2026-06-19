@@ -30,6 +30,7 @@ pub struct OcrResult {
     pub width: u32,
     pub height: u32,
     pub lines: Vec<OcrLine>,
+    /// The languages requested of the engine, not necessarily those present in the image.
     pub languages_used: Vec<String>,
     pub thai_available: bool,
 }
