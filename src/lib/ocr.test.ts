@@ -1,0 +1,25 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const invoke = vi.fn();
+vi.mock("@tauri-apps/api/core", () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+
+import { detectText, ocrBoxStyle } from "./ocr";
+
+beforeEach(() => invoke.mockReset());
+
+describe("ocrBoxStyle", () => {
+  it("scales an image-space box to screen pixels", () => {
+    const s = ocrBoxStyle({ x: 10, y: 20, w: 100, h: 30 }, 2);
+    expect(s).toEqual({ left: 20, top: 40, width: 200, height: 60, fontSize: 60 });
+  });
+});
+
+describe("detectText", () => {
+  it("invokes ocr_detect with the path", async () => {
+    const fake = { width: 1, height: 1, lines: [], languagesUsed: ["en-US"], thaiAvailable: true };
+    invoke.mockResolvedValue(fake);
+    const r = await detectText("/tmp/x.png");
+    expect(invoke).toHaveBeenCalledWith("ocr_detect", { path: "/tmp/x.png" });
+    expect(r).toBe(fake);
+  });
+});
