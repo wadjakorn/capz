@@ -1,5 +1,6 @@
 pub mod capture;
 pub mod editor;
+pub mod ocr;
 pub mod output;
 pub mod overlay;
 pub mod permissions;
