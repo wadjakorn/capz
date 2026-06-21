@@ -17,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
+import { statusMessage, type RegoResult, type HotkeyAction } from "@/lib/shortcuts";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
@@ -63,19 +64,20 @@ async function applyHotkey(
   }
 
   await update("hotkeys", patch);
+  let report: RegoResult[] = [];
   try {
-    await invoke("reregister_shortcuts");
+    report = await invoke<RegoResult[]>("reregister_shortcuts");
   } catch (e) {
     console.error("reregister_shortcuts failed", e);
+  }
+  const mine = report.find((r) => r.action === (changedKey as HotkeyAction));
+  if (mine && mine.status !== "ok") {
     await update("hotkeys", prev);
-    try {
-      await invoke("reregister_shortcuts");
-    } catch (e2) {
-      console.error("reregister_shortcuts (revert) failed", e2);
-    }
-    toast.error("Could not register shortcut", {
+    await invoke("reregister_shortcuts").catch((e) =>
+      console.error("reregister_shortcuts (revert) failed", e),
+    );
+    toast.error(statusMessage(mine.requested, mine.status) ?? "Could not register shortcut", {
       id: "hotkey-register-failed",
-      description: String(e).replace(/^"|"$/g, ""),
     });
   }
 }
