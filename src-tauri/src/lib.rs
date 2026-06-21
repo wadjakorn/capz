@@ -105,6 +105,19 @@ fn is_onboarding_completed<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // MUST be the first plugin registered (Tauri requirement) so it runs
+        // before any other plugin can interfere. Second launch while the
+        // tray-resident instance is alive surfaces the existing instance's
+        // editor window instead of spawning a new process. Windows-relevant;
+        // macOS LaunchServices already blocks double-launch of one bundle.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            use tauri::Manager;
+            if let Some(win) = app.get_webview_window("editor") {
+                let _ = win.show();
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
@@ -144,7 +157,6 @@ pub fn run() {
             commands::permissions::relaunch_app,
             commands::permissions::show_onboarding_window,
             windows::set_editor_always_on_top,
-            windows::set_overlay_cutout,
         ])
         .manage(state::AppState::default())
         .setup(|app| {
