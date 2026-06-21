@@ -98,10 +98,10 @@ impl OcrBackend for WindowsBackend {
             .iter()
             .find_map(|tag| {
                 let lang = Language::CreateLanguage(&HSTRING::from(tag.as_str())).ok()?;
-                OcrEngine::TryCreateFromLanguage(&lang).ok().flatten()
+                OcrEngine::TryCreateFromLanguage(&lang).ok()
             })
             .or_else(|| {
-                OcrEngine::TryCreateFromUserProfileLanguages().ok().flatten()
+                OcrEngine::TryCreateFromUserProfileLanguages().ok()
             })
             .ok_or_else(|| anyhow!("no usable OCR engine found for the requested languages"))?;
 
