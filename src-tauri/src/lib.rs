@@ -1,3 +1,4 @@
+mod accel;
 mod capture_dispatch;
 mod commands;
 mod notice;
