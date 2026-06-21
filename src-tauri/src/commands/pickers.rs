@@ -18,6 +18,27 @@ pub struct WindowOverlayInfo {
     pub height: u32,
 }
 
+/// Map each top-level window's HWND (as u32, matching xcap's `Window::id()`,
+/// which is `hwnd.0 as u32`) to its z-order index — 0 = topmost. Walks the
+/// desktop's child windows top-to-bottom via `GW_HWNDNEXT`. Windows-only.
+#[cfg(target_os = "windows")]
+fn window_zorder() -> std::collections::HashMap<u32, u32> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetDesktopWindow, GetTopWindow, GetWindow, GW_HWNDNEXT,
+    };
+    let mut map = std::collections::HashMap::new();
+    unsafe {
+        let mut hwnd = GetTopWindow(GetDesktopWindow());
+        let mut idx: u32 = 0;
+        while !hwnd.is_null() {
+            map.entry(hwnd as usize as u32).or_insert(idx);
+            idx = idx.saturating_add(1);
+            hwnd = GetWindow(hwnd, GW_HWNDNEXT);
+        }
+    }
+    map
+}
+
 /// Enumerate capturable windows on a given monitor in front-to-back order.
 /// Filters out own pid, minimized / zero-area windows, and windows whose
 /// `current_monitor()` is not `monitor_id`. Coordinates are converted to
@@ -83,13 +104,6 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
             }
             let title = w.title().unwrap_or_default();
             let app_name = w.app_name().unwrap_or_default();
-            // TEMP DIAGNOSTIC (warn-level so it appears in release builds) —
-            // dump every window that survives the basic pid/minimized/zero-area/
-            // overlap filters, with raw physical geometry. Used to confirm why a
-            // fullscreen app is/isn't capturable. Remove before merge.
-            log::warn!(
-                "DIAG win-enum: pid={pid} title={title:?} app={app_name:?} rect=({gx},{gy} {width}x{height}) mon=({mx},{my} {mon_w}x{mon_h}) scale_div={div}"
-            );
             if title.trim().is_empty() && app_name.trim().is_empty() {
                 continue;
             }
@@ -153,8 +167,17 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
                 height: (height as f32 / div).round().max(1.0) as u32,
             });
         }
-        // Smallest-area windows first so a small app window that overlaps a
-        // larger one (eg dialog over main window) wins the hit-test.
+        // Windows: order by real OS z-order (topmost first) so the foreground
+        // app under the cursor wins the hit-test; a window behind another is
+        // ignored unless the cursor is over a part only it covers. Other
+        // platforms: smallest-area first so a small dialog over a larger window
+        // wins (the z-order helper is Windows-only).
+        #[cfg(target_os = "windows")]
+        {
+            let z = window_zorder();
+            out.sort_by_key(|w| z.get(&w.id).copied().unwrap_or(u32::MAX));
+        }
+        #[cfg(not(target_os = "windows"))]
         out.sort_by_key(|w| (w.width as u64) * (w.height as u64));
         Ok(out)
     })
