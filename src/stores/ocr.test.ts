@@ -6,7 +6,13 @@ vi.mock("@/lib/ocr", async () => {
   return { ...actual, detectText: (...a: unknown[]) => detectText(...a) };
 });
 const toast = vi.fn();
-vi.mock("sonner", () => ({ toast: Object.assign((...a: unknown[]) => toast(...a), { message: (...a: unknown[]) => toast(...a) }) }));
+const toastSuccess = vi.fn();
+vi.mock("sonner", () => ({
+  toast: Object.assign((...a: unknown[]) => toast(...a), {
+    success: (...a: unknown[]) => toastSuccess(...a),
+    message: (...a: unknown[]) => toast(...a),
+  }),
+}));
 
 import { useOcr } from "./ocr";
 
@@ -18,6 +24,7 @@ const fake = (text: string, thai = true) => ({
 beforeEach(() => {
   detectText.mockReset();
   toast.mockReset();
+  toastSuccess.mockReset();
   useOcr.getState().reset();
   useOcr.setState({ thaiNoticeShown: false });
 });
@@ -69,6 +76,25 @@ describe("useOcr", () => {
     await useOcr.getState().detect();
     useOcr.getState().setKey("/img/b.png");
     await useOcr.getState().detect();
-    expect(toast).toHaveBeenCalledTimes(1);
+    const thaiCalls = toast.mock.calls.filter((c) =>
+      String(c[0]).includes("Thai"),
+    );
+    expect(thaiCalls).toHaveLength(1);
+  });
+
+  it("toasts the line count on a successful detection", async () => {
+    detectText.mockResolvedValue(fake("hello")); // fake() → 1 line
+    useOcr.getState().setKey("/img/a.png");
+    await useOcr.getState().detect();
+    expect(toastSuccess).toHaveBeenCalledWith("Detected 1 text line");
+  });
+
+  it("toasts 'No text found' when there are no lines", async () => {
+    detectText.mockResolvedValue({
+      width: 10, height: 10, lines: [], languagesUsed: ["en-US"], thaiAvailable: true,
+    });
+    useOcr.getState().setKey("/img/empty.png");
+    await useOcr.getState().detect();
+    expect(toast).toHaveBeenCalledWith("No text found");
   });
 });

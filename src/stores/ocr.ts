@@ -51,6 +51,12 @@ export const useOcr = create<State>((set, get) => ({
         status: "done",
         resultByKey: { ...s.resultByKey, [currentKey]: result },
       }));
+      const lineCount = result.lines.length;
+      if (lineCount > 0) {
+        toast.success(`Detected ${lineCount} text ${lineCount === 1 ? "line" : "lines"}`);
+      } else {
+        toast("No text found");
+      }
       if (!result.thaiAvailable && !get().thaiNoticeShown) {
         set({ thaiNoticeShown: true });
         toast(
