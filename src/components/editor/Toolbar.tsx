@@ -30,6 +30,7 @@ import {
   Settings as SettingsIcon,
   Ruler,
   ScanText,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
@@ -809,7 +810,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         <Divider />
         {/* OCR detect-text toggle */}
         <ToolButton
-          icon={ScanText}
+          icon={ocrStatus === "scanning" ? Loader2 : ScanText}
+          iconClassName={ocrStatus === "scanning" ? "animate-spin" : undefined}
           label={
             !hasImage
               ? "Detect text (load an image first)"
