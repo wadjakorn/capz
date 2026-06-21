@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useOcr, currentResult } from "@/stores/ocr";
 import { ocrBoxStyle, computeFitScaleX } from "@/lib/ocr";
 
 const FONT_STACK = '"Noto Sans Thai", system-ui, -apple-system, sans-serif';
-// Font size (image-pixel space) used for measurement & rendering, as a
-// fraction of box height so glyphs sit within the box before horizontal fit.
+// Font size (image-pixel space) for measurement & rendering, as a fraction of
+// line-box height so glyphs sit within the box before horizontal fit.
 const FONT_FACTOR = 0.8;
 
 // Shared offscreen text measurer. Returns 0 when canvas/text metrics are
@@ -22,52 +22,66 @@ function measureText(text: string, fontPx: number): number {
 }
 
 /**
- * Visible, box-fitted OCR text overlay aligned to the Konva image. Mounted as a
- * sibling of <Stage> in the same positioned wrapper, so an image-space box maps
- * to screen by `* scale` (displayScale). Each unit is a white-translucent chip
- * with the recognized text rendered near-black and horizontally scaled to fill
- * its box — so the native selection highlights exactly what the user sees.
- * Pure DOM — never appears in exported PNGs.
+ * Visible OCR text overlay — one solid-white chip PER LINE, aligned to the
+ * Konva image. Mounted as a sibling of <Stage> in the same positioned wrapper,
+ * so an image-space box maps to screen by `* scale` (displayScale). Each line's
+ * text is rendered near-black and horizontally scaled to fill its line box, so
+ * native selection highlights what the user sees. ⌘/Ctrl+A selects the whole
+ * overlay. Pure DOM — never appears in exported PNGs.
  */
 export function OcrLayer({ scale }: { scale: number }) {
   const mode = useOcr((s) => s.mode);
   const result = useOcr(currentResult);
+  const layerRef = useRef<HTMLDivElement>(null);
 
-  // Fit each unit once per result (image-space → zoom-invariant fitX).
-  const units = useMemo(() => {
+  // One unit per non-empty line (line box + full line text), fitted once per
+  // result (image-space → zoom-invariant fitX).
+  const lines = useMemo(() => {
     if (!result) return [];
-    const out: {
-      key: string;
-      text: string;
-      bbox: { x: number; y: number; w: number; h: number };
-      fitX: number;
-      fontPxImg: number;
-      lineEnd: boolean;
-    }[] = [];
-    result.lines.forEach((line, li) => {
-      const us =
-        line.words.length > 0
-          ? line.words
-          : [{ text: line.text, bbox: line.bbox }];
-      us.forEach((u, wi) => {
-        const fontPxImg = u.bbox.h * FONT_FACTOR;
-        out.push({
-          key: `${li}-${wi}`,
-          text: u.text,
-          bbox: u.bbox,
+    return result.lines
+      .map((line, li) => {
+        const fontPxImg = line.bbox.h * FONT_FACTOR;
+        return {
+          key: String(li),
+          text: line.text,
+          bbox: line.bbox,
           fontPxImg,
-          fitX: computeFitScaleX(u.text, fontPxImg, u.bbox.w, measureText),
-          lineEnd: wi === us.length - 1,
-        });
-      });
-    });
-    return out;
+          fitX: computeFitScaleX(line.text, fontPxImg, line.bbox.w, measureText),
+        };
+      })
+      .filter((l) => l.text.length > 0);
   }, [result]);
+
+  // ⌘/Ctrl+A selects the entire overlay, scoped to the OCR text. The selection,
+  // highlight, and ⌘C copy that follow are all native OS behavior. Capture phase
+  // so it pre-empts any other Cmd+A handling while OCR read mode is on.
+  useEffect(() => {
+    if (!mode) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "a" && e.key !== "A") return;
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+      const layer = layerRef.current;
+      const sel = window.getSelection();
+      if (!layer || !sel) return;
+      e.preventDefault();
+      const range = document.createRange();
+      range.selectNodeContents(layer);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [mode]);
 
   if (!mode || !result) return null;
 
   return (
     <div
+      ref={layerRef}
       data-ocr-layer
       className="absolute left-0 top-0 select-text"
       style={{
@@ -77,11 +91,11 @@ export function OcrLayer({ scale }: { scale: number }) {
         zIndex: 5,
       }}
     >
-      {units.map((u) => {
-        const s = ocrBoxStyle(u.bbox, scale);
+      {lines.map((l) => {
+        const s = ocrBoxStyle(l.bbox, scale);
         return (
           <span
-            key={u.key}
+            key={l.key}
             style={{
               position: "absolute",
               left: s.left,
@@ -91,7 +105,7 @@ export function OcrLayer({ scale }: { scale: number }) {
               display: "flex",
               alignItems: "center",
               overflow: "hidden",
-              background: "rgba(255,255,255,0.7)",
+              background: "#ffffff",
               borderRadius: 2,
               userSelect: "text",
             }}
@@ -101,15 +115,15 @@ export function OcrLayer({ scale }: { scale: number }) {
                 display: "inline-block",
                 color: "#0b0b0b",
                 fontFamily: FONT_STACK,
-                fontSize: u.fontPxImg * scale,
+                fontSize: l.fontPxImg * scale,
                 lineHeight: 1,
                 whiteSpace: "pre",
-                transform: `scaleX(${u.fitX})`,
+                transform: `scaleX(${l.fitX})`,
                 transformOrigin: "left center",
               }}
             >
-              {u.text}
-              {u.lineEnd ? "\n" : " "}
+              {l.text}
+              {"\n"}
             </span>
           </span>
         );
