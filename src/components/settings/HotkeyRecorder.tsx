@@ -3,7 +3,13 @@
 import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Input } from "@/components/ui/input";
-import { eventToAccelerator, formatShortcut, isReserved } from "@/lib/shortcuts";
+import {
+  eventToAccelerator,
+  formatShortcut,
+  validateAccelerator,
+  statusMessage,
+  type HotkeyProbe,
+} from "@/lib/shortcuts";
 
 type Props = {
   value: string;
@@ -36,16 +42,49 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     }
   }
 
-  function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
+  async function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!recording) return;
     e.preventDefault();
     e.stopPropagation();
-    const accel = eventToAccelerator(e.nativeEvent);
-    if (!accel) return;
-    if (isReserved(accel)) {
-      setError(`${accel} is reserved by the OS`);
+
+    const res = eventToAccelerator(e.nativeEvent);
+    if (!res) return; // modifier-only / no key yet — keep listening
+    if (!res.ok) {
+      setError(
+        res.reason === "win"
+          ? "Windows reserves the ⊞ key — use Ctrl, Alt or Shift"
+          : "Add a modifier (Ctrl, Alt or Shift)",
+      );
       return;
     }
+
+    const accel = res.accel;
+    const v = validateAccelerator(accel);
+    if (!v.ok) {
+      setError(
+        v.reason === "win"
+          ? "Windows reserves the ⊞ key — use Ctrl, Alt or Shift"
+          : v.reason === "reserved"
+            ? `${accel} is reserved by the OS`
+            : v.reason === "no-modifier"
+              ? "Add a modifier (Ctrl, Alt or Shift)"
+              : "Not a valid shortcut",
+      );
+      return;
+    }
+
+    let probe: HotkeyProbe = { status: "ok" };
+    try {
+      probe = await invoke<HotkeyProbe>("probe_hotkey", { accel });
+    } catch (err) {
+      // Probe failure shouldn't block the user; registration on save is the backstop.
+      console.warn("probe_hotkey failed", err);
+    }
+    if (probe.status !== "ok") {
+      setError(statusMessage(accel, probe.status) ?? "Can't use this shortcut");
+      return;
+    }
+
     setError(null);
     onChange(accel);
     setRecording(false);
@@ -69,7 +108,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
           setRecording(false);
           void resume();
         }}
-        onKeyDown={handleKey}
+        onKeyDown={(e) => void handleKey(e)}
         className="font-mono cursor-pointer"
       />
       {error && <span className="text-xs text-destructive">{error}</span>}
