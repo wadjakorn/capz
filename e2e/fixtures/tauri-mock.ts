@@ -40,8 +40,9 @@ export const defaultHandlers: InvokeHandlers = {
   relaunch_app: () => null,
 
   // shortcuts.rs
-  reregister_shortcuts: () => null,
+  reregister_shortcuts: () => [],
   suspend_shortcuts: () => null,
+  probe_hotkey: () => ({ status: "ok" }),
 
   // stickers.rs
   list_stickers: () => [],

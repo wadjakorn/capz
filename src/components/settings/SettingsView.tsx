@@ -66,7 +66,8 @@ async function applyHotkey(
   await update("hotkeys", patch);
   let report: RegoResult[] = [];
   try {
-    report = await invoke<RegoResult[]>("reregister_shortcuts");
+    const res = await invoke<RegoResult[]>("reregister_shortcuts");
+    if (Array.isArray(res)) report = res;
   } catch (e) {
     console.error("reregister_shortcuts failed", e);
   }

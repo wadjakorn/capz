@@ -73,15 +73,18 @@ export function HotkeyRecorder({ value, onChange }: Props) {
       return;
     }
 
-    let probe: HotkeyProbe = { status: "ok" };
+    // Probe is advisory: only block on an explicit non-ok status. A missing or
+    // malformed result (older backend, mocked IPC) must not prevent the rebind —
+    // registration on save is the authoritative check.
+    let status: HotkeyProbe["status"] = "ok";
     try {
-      probe = await invoke<HotkeyProbe>("probe_hotkey", { accel });
+      const probe = await invoke<HotkeyProbe>("probe_hotkey", { accel });
+      if (probe && typeof probe.status === "string") status = probe.status;
     } catch (err) {
-      // Probe failure shouldn't block the user; registration on save is the backstop.
       console.warn("probe_hotkey failed", err);
     }
-    if (probe.status !== "ok") {
-      setError(statusMessage(accel, probe.status) ?? "Can't use this shortcut");
+    if (status !== "ok") {
+      setError(statusMessage(accel, status) ?? "Can't use this shortcut");
       return;
     }
 
