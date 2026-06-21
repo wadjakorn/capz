@@ -38,6 +38,17 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
         let my = mon.y().map_err(|e| anyhow::anyhow!("mon.y: {e}"))?;
         let mon_w = mon.width().map_err(|e| anyhow::anyhow!("mon.width: {e}"))?;
         let mon_h = mon.height().map_err(|e| anyhow::anyhow!("mon.height: {e}"))?;
+        // xcap returns logical px on macOS but physical px on Windows/Linux,
+        // while the overlay webview hit-tests + renders in logical (CSS) px.
+        // Divide window rects by this so the highlight aligns with the real
+        // window. macOS coords are already logical → divisor 1.0.
+        #[cfg(not(target_os = "macos"))]
+        let div = mon
+            .scale_factor()
+            .map_err(|e| anyhow::anyhow!("mon.scale: {e}"))?
+            .max(1.0);
+        #[cfg(target_os = "macos")]
+        let div = 1.0_f32;
         let own_pid = std::process::id();
         let wins = XcapWindow::all().map_err(|e| anyhow::anyhow!("Window::all: {e}"))?;
         let mut out = Vec::new();
@@ -72,6 +83,13 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
             }
             let title = w.title().unwrap_or_default();
             let app_name = w.app_name().unwrap_or_default();
+            // TEMP DIAGNOSTIC (warn-level so it appears in release builds) —
+            // dump every window that survives the basic pid/minimized/zero-area/
+            // overlap filters, with raw physical geometry. Used to confirm why a
+            // fullscreen app is/isn't capturable. Remove before merge.
+            log::warn!(
+                "DIAG win-enum: pid={pid} title={title:?} app={app_name:?} rect=({gx},{gy} {width}x{height}) mon=({mx},{my} {mon_w}x{mon_h}) scale_div={div}"
+            );
             if title.trim().is_empty() && app_name.trim().is_empty() {
                 continue;
             }
@@ -113,21 +131,26 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
             let covers_w = width as f32 >= mon_w as f32 * 0.95;
             let covers_h = height as f32 >= mon_h as f32 * 0.95;
             let near_origin = lx.abs() <= 4 && ly.abs() <= 4;
-            if covers_w && covers_h && near_origin {
+            // Only drop anonymous backdrops (desktop / wallpaper pseudo-windows)
+            // — they carry no title. A real fullscreen / maximized app keeps a
+            // title and must stay capturable, even though it also covers ~100%.
+            if covers_w && covers_h && near_origin && title.trim().is_empty() {
                 continue;
             }
             let id = match w.id() {
                 Ok(id) => id,
                 Err(_) => continue,
             };
+            // Emit logical (CSS) px so the overlay frontend hit-test + highlight
+            // align with the real window (see `div` above).
             out.push(WindowOverlayInfo {
                 id,
                 title,
                 app_name,
-                x: lx,
-                y: ly,
-                width,
-                height,
+                x: (lx as f32 / div).round() as i32,
+                y: (ly as f32 / div).round() as i32,
+                width: (width as f32 / div).round().max(1.0) as u32,
+                height: (height as f32 / div).round().max(1.0) as u32,
             });
         }
         // Smallest-area windows first so a small app window that overlaps a
