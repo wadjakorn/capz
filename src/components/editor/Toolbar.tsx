@@ -29,6 +29,8 @@ import {
   Strikethrough,
   Settings as SettingsIcon,
   Ruler,
+  ScanText,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
@@ -41,6 +43,7 @@ import {
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
+import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
@@ -115,6 +118,9 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
   const past = useEditor((s) => s.past.length);
   const future = useEditor((s) => s.future.length);
   const hasImage = useEditor((s) => s.hasImage);
+  const ocrMode = useOcr((s) => s.mode);
+  const ocrStatus = useOcr((s) => s.status);
+  const toggleOcr = useOcr((s) => s.toggle);
   const displayScale = useEditor((s) => s.displayScale);
   const stickerSelection = useEditor((s) => s.stickerSelection);
   const setStickerSelection = useEditor((s) => s.setStickerSelection);
@@ -800,6 +806,24 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               showRulers: !fullConfig.general.showRulers,
             })
           }
+        />
+        <Divider />
+        {/* OCR detect-text toggle */}
+        <ToolButton
+          icon={ocrStatus === "scanning" ? Loader2 : ScanText}
+          iconClassName={ocrStatus === "scanning" ? "animate-spin" : undefined}
+          label={
+            !hasImage
+              ? "Detect text (load an image first)"
+              : ocrStatus === "scanning"
+                ? "Detecting text…"
+                : ocrMode
+                  ? "Hide detected text"
+                  : "Detect text"
+          }
+          pressed={ocrMode}
+          disabled={!hasImage || ocrStatus === "scanning"}
+          onClick={() => void toggleOcr()}
         />
         <Divider />
         {/* Tool palette with responsive overflow */}

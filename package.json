@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
+    "test:unit": "vitest run",
     "release": "node scripts/release.mjs",
     "ladle": "ladle serve",
     "ladle:build": "ladle build",
@@ -51,6 +52,7 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vite": "^8.0.14"
+    "vite": "^8.0.14",
+    "vitest": "^3.2.6"
   }
 }

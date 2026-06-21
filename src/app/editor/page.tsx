@@ -10,6 +10,7 @@ import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
+import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
 import {
   useNoticeListener,
@@ -54,6 +55,7 @@ export default function EditorPage() {
       setFile(null);
       setSrc("");
       resetEditor();
+      useOcr.getState().reset();
       setHasImage(false);
       return;
     }
@@ -61,6 +63,8 @@ export default function EditorPage() {
     setFile(path);
     setSrc(`${convertFileSrc(path)}?t=${Date.now()}`);
     resetEditor();
+    useOcr.getState().reset();
+    useOcr.getState().setKey(path);
     setHasImage(true);
     await useSettings.getState().init();
     const pins = useSettings.getState().config.pins;

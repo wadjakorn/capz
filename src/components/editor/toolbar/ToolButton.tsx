@@ -10,6 +10,7 @@ export type ToolButtonProps = {
   disabled?: boolean;
   pressed?: boolean;
   onClick: () => void;
+  iconClassName?: string;
 };
 
 export function ToolButton({
@@ -20,6 +21,7 @@ export function ToolButton({
   disabled,
   pressed,
   onClick,
+  iconClassName,
 }: ToolButtonProps) {
   return (
     <button
@@ -38,7 +40,7 @@ export function ToolButton({
             : "border-transparent text-foreground/80 hover:border-white/10 hover:bg-white/[0.08] hover:text-foreground",
       ].join(" ")}
     >
-      <Icon className="h-4 w-4" aria-hidden />
+      <Icon className={["h-4 w-4", iconClassName ?? ""].join(" ").trim()} aria-hidden />
     </button>
   );
 }
