@@ -3,6 +3,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 
+use crate::accel::{classify, AccelClass};
 use crate::services::config_store::{config_store_path, CONFIG_STORE_KEY};
 use crate::windows;
 
@@ -22,6 +23,53 @@ pub enum CaptureKind {
 #[derive(Clone, Serialize)]
 struct ShortcutPayload {
     kind: CaptureKind,
+}
+
+#[derive(Clone, Copy, Serialize, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum RegoStatus {
+    Ok,
+    Invalid,
+    Taken,
+    Reserved,
+}
+
+#[derive(Clone, Copy, Serialize, PartialEq, Eq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum HotkeyAction {
+    CaptureFull,
+    CaptureArea,
+    CaptureWindow,
+    ShowEditor,
+}
+
+#[derive(Clone, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RegoResult {
+    pub action: HotkeyAction,
+    pub requested: String,
+    pub effective: String,
+    pub status: RegoStatus,
+}
+
+fn default_accel(action: HotkeyAction) -> &'static str {
+    match action {
+        HotkeyAction::CaptureFull => DEFAULT_FULL,
+        HotkeyAction::CaptureArea => DEFAULT_AREA,
+        HotkeyAction::CaptureWindow => DEFAULT_WINDOW,
+        HotkeyAction::ShowEditor => DEFAULT_SHOW_EDITOR,
+    }
+}
+
+/// Decide what to attempt registering for one action before any live call.
+/// Invalid/Reserved requests fall back to the action's default so the app
+/// stays usable; the returned status describes the REQUESTED value.
+pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (String, RegoStatus) {
+    match classify(requested, is_windows) {
+        AccelClass::Valid => (requested.to_string(), RegoStatus::Ok),
+        AccelClass::Invalid => (default_accel(action).to_string(), RegoStatus::Invalid),
+        AccelClass::Reserved => (default_accel(action).to_string(), RegoStatus::Reserved),
+    }
 }
 
 fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, String) {
@@ -64,70 +112,110 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, Stri
     (full, area, window, show_editor)
 }
 
-pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let (full, area, window, show_editor) = read_hotkeys(app);
-    let gs = app.global_shortcut();
-
-    gs.unregister_all().map_err(|e| e.to_string())?;
-
-    let full_shortcut: Shortcut = full.parse().map_err(|e| format!("{e:?}"))?;
-    let area_shortcut: Shortcut = area.parse().map_err(|e| format!("{e:?}"))?;
-    let window_shortcut: Shortcut = window.parse().map_err(|e| format!("{e:?}"))?;
-    let show_editor_shortcut: Shortcut = show_editor.parse().map_err(|e| format!("{e:?}"))?;
-
-    let app_for_full = app.clone();
-    gs.on_shortcut(full_shortcut, move |_app, _sc, event| {
-        if event.state == ShortcutState::Pressed {
-            emit_trigger(&app_for_full, CaptureKind::Full);
-        }
-    })
-    .map_err(|e| {
-        log::error!("failed to register full-screen shortcut '{full}': {e}");
-        e.to_string()
-    })?;
-
-    let app_for_area = app.clone();
-    gs.on_shortcut(area_shortcut, move |_app, _sc, event| {
-        if event.state == ShortcutState::Pressed {
-            emit_trigger(&app_for_area, CaptureKind::Area);
-        }
-    })
-    .map_err(|e| {
-        log::error!("failed to register area shortcut '{area}': {e}");
-        e.to_string()
-    })?;
-
-    let app_for_window = app.clone();
-    gs.on_shortcut(window_shortcut, move |_app, _sc, event| {
-        if event.state == ShortcutState::Pressed {
-            emit_trigger(&app_for_window, CaptureKind::Window);
-        }
-    })
-    .map_err(|e| {
-        log::error!("failed to register window shortcut '{window}': {e}");
-        e.to_string()
-    })?;
-
-    let app_for_show = app.clone();
-    gs.on_shortcut(show_editor_shortcut, move |_app, _sc, event| {
-        if event.state == ShortcutState::Pressed {
+fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
+    match action {
+        HotkeyAction::CaptureFull => emit_trigger(app, CaptureKind::Full),
+        HotkeyAction::CaptureArea => emit_trigger(app, CaptureKind::Area),
+        HotkeyAction::CaptureWindow => emit_trigger(app, CaptureKind::Window),
+        HotkeyAction::ShowEditor => {
             log::info!("shortcut triggered: show_editor");
-            if let Err(e) = windows::show_editor(&app_for_show) {
+            if let Err(e) = windows::show_editor(app) {
                 log::error!("show_editor failed: {e}");
             }
         }
-    })
-    .map_err(|e| {
-        log::error!("failed to register show_editor shortcut '{show_editor}': {e}");
-        e.to_string()
-    })?;
+    }
+}
 
-    Ok(())
+fn register_one<R: Runtime>(
+    app: &AppHandle<R>,
+    action: HotkeyAction,
+    accel: &str,
+) -> Result<(), String> {
+    let sc: Shortcut = accel.parse().map_err(|e| format!("{e:?}"))?;
+    let app2 = app.clone();
+    app.global_shortcut()
+        .on_shortcut(sc, move |_app, _sc, event| {
+            if event.state == ShortcutState::Pressed {
+                dispatch_action(&app2, action);
+            }
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Register all four hotkeys independently. One failure never aborts the rest.
+/// Returns a per-action report; each status describes the requested value.
+pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
+    let (full, area, window, show_editor) = read_hotkeys(app);
+    let _ = app.global_shortcut().unregister_all();
+    let win = cfg!(target_os = "windows");
+
+    let items = [
+        (HotkeyAction::CaptureFull, full),
+        (HotkeyAction::CaptureArea, area),
+        (HotkeyAction::CaptureWindow, window),
+        (HotkeyAction::ShowEditor, show_editor),
+    ];
+
+    let mut report = Vec::with_capacity(items.len());
+    for (action, requested) in items {
+        let (effective, pre) = plan_one(action, &requested, win);
+        let status = match register_one(app, action, &effective) {
+            Ok(()) => pre,
+            Err(e) => {
+                log::error!("register {action:?} '{effective}' failed: {e}");
+                // A live failure on a Valid request means the OS rejected it.
+                if pre == RegoStatus::Ok {
+                    RegoStatus::Taken
+                } else {
+                    pre
+                }
+            }
+        };
+        report.push(RegoResult {
+            action,
+            requested,
+            effective,
+            status,
+        });
+    }
+    report
 }
 
 #[tauri::command]
-pub fn reregister_shortcuts<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+pub fn reregister_shortcuts<R: Runtime>(app: AppHandle<R>) -> Vec<RegoResult> {
     register_shortcuts(&app)
+}
+
+#[derive(Clone, Copy, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeyProbe {
+    pub status: RegoStatus,
+}
+
+/// Record-time probe: classify, then (if valid) attempt a throwaway register to
+/// detect a live conflict. Must be called while shortcuts are suspended (the
+/// recorder suspends on focus) so our own bindings don't read as taken.
+#[tauri::command]
+pub fn probe_hotkey<R: Runtime>(app: AppHandle<R>, accel: String) -> HotkeyProbe {
+    let win = cfg!(target_os = "windows");
+    let status = match classify(&accel, win) {
+        AccelClass::Invalid => RegoStatus::Invalid,
+        AccelClass::Reserved => RegoStatus::Reserved,
+        AccelClass::Valid => match accel.parse::<Shortcut>() {
+            Ok(sc) => {
+                let gs = app.global_shortcut();
+                match gs.register(sc) {
+                    Ok(()) => {
+                        let _ = gs.unregister(sc);
+                        RegoStatus::Ok
+                    }
+                    Err(_) => RegoStatus::Taken,
+                }
+            }
+            Err(_) => RegoStatus::Invalid,
+        },
+    };
+    HotkeyProbe { status }
 }
 
 /// Temporarily release all global shortcuts (e.g. while user is recording a new
@@ -163,4 +251,30 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
             log::error!("trigger_capture failed: {e}");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_request_keeps_itself_and_ok() {
+        let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Alt+Shift+A", true);
+        assert_eq!(eff, "CmdOrCtrl+Alt+Shift+A");
+        assert_eq!(st, RegoStatus::Ok);
+    }
+
+    #[test]
+    fn invalid_request_falls_back_to_default() {
+        let (eff, st) = plan_one(HotkeyAction::CaptureArea, "3", true); // no modifier
+        assert_eq!(eff, DEFAULT_AREA);
+        assert_eq!(st, RegoStatus::Invalid);
+    }
+
+    #[test]
+    fn reserved_request_falls_back_to_default() {
+        let (eff, st) = plan_one(HotkeyAction::CaptureWindow, "Alt+Tab", true);
+        assert_eq!(eff, DEFAULT_WINDOW);
+        assert_eq!(st, RegoStatus::Reserved);
+    }
 }
