@@ -1,4 +1,5 @@
 import type { PinShapeKind, PinTailDir } from "@/stores/editor";
+import { validateAccelerator } from "@/lib/shortcuts";
 
 export type Tool =
   | "select"
@@ -211,6 +212,8 @@ const isStr: Validator = (v) => typeof v === "string";
 const isBool: Validator = (v) => typeof v === "boolean";
 const isNum: Validator = (v) => typeof v === "number" && Number.isFinite(v);
 const isStrOrNull: Validator = (v) => v === null || typeof v === "string";
+const isValidAccelerator: Validator = (v) =>
+  typeof v === "string" && validateAccelerator(v).ok;
 const isNumOrNull: Validator = (v) =>
   v === null || (typeof v === "number" && Number.isFinite(v));
 const inSet =
@@ -409,10 +412,10 @@ export function validateConfig(raw: unknown): ValidatedConfig {
   const config: AppConfig = {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     hotkeys: vsec("hotkeys", r.hotkeys, d.hotkeys, {
-      captureFull: isStr,
-      captureArea: isStr,
-      captureWindow: isStr,
-      showEditor: isStr,
+      captureFull: isValidAccelerator,
+      captureArea: isValidAccelerator,
+      captureWindow: isValidAccelerator,
+      showEditor: isValidAccelerator,
     }, issues),
     output: vsec("output", r.output, d.output, {
       defaultMode: inSet("file", "clipboard", "both"),
