@@ -48,6 +48,10 @@ pub trait OcrBackend {
 
 /// Vision returns normalized boxes ([0,1]) with a bottom-left origin.
 /// Convert to top-left pixel coordinates in image space.
+///
+/// Only the macOS Vision backend calls this; on other targets it is dead
+/// (the unit test still exercises it on every platform).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn normalize_vision_box(min_x: f64, min_y: f64, w: f64, h: f64, img_w: u32, img_h: u32) -> OcrBox {
     let iw = img_w as f64;
     let ih = img_h as f64;

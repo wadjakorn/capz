@@ -66,35 +66,6 @@ function OverlayInner() {
   const [windows, setWindows] = useState<WindowOverlayInfo[]>([]);
   const [hovered, setHovered] = useState<WindowOverlayInfo | null>(null);
   const fetchedRef = useRef(false);
-  const cutoutRafRef = useRef<number | null>(null);
-  const lastCutoutRef = useRef<Rect | null>(null);
-
-  // Rust-side HWND region cutout (Windows-only no-op elsewhere). Coalesced to
-  // one call per animation frame so high-frequency mousemove doesn't thrash
-  // SetWindowRgn.
-  const requestCutout = (rect: Rect | null) => {
-    const next = rect && rect.w > 0 && rect.h > 0
-      ? { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.w), h: Math.round(rect.h) }
-      : { x: 0, y: 0, w: 0, h: 0 };
-    const prev = lastCutoutRef.current;
-    if (prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h) {
-      return;
-    }
-    lastCutoutRef.current = next;
-    if (cutoutRafRef.current != null) return;
-    cutoutRafRef.current = requestAnimationFrame(() => {
-      cutoutRafRef.current = null;
-      const r = lastCutoutRef.current;
-      if (!r) return;
-      invoke("set_overlay_cutout", {
-        monitorId,
-        x: r.x,
-        y: r.y,
-        w: r.w,
-        h: r.h,
-      }).catch((e) => console.warn("set_overlay_cutout failed", e));
-    });
-  };
 
   useEffect(() => {
     void initSettings();
@@ -112,7 +83,6 @@ function OverlayInner() {
     setEnd(b);
     setPrefilled(true);
     setActive(true);
-    requestCutout({ x: a.x, y: a.y, w: lastRegion.w, h: lastRegion.h });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsReady, rememberLastRegion, lastRegion, mode, monitorId]);
 
@@ -132,10 +102,6 @@ function OverlayInner() {
       window.removeEventListener("keydown", onKey);
       document.body.style.background = prevBody;
       document.documentElement.style.background = prevHtml;
-      if (cutoutRafRef.current != null) {
-        cancelAnimationFrame(cutoutRafRef.current);
-        cutoutRafRef.current = null;
-      }
     };
   }, []);
 
@@ -173,7 +139,6 @@ function OverlayInner() {
     if (!start) setActive(false);
     if (mode === "window") {
       setHovered(null);
-      requestCutout(null);
     }
   };
 
@@ -183,12 +148,10 @@ function OverlayInner() {
       if (!start || busy || prefilled) return;
       const next = { x: e.clientX, y: e.clientY };
       setEnd(next);
-      requestCutout(normalize(start, next));
     } else if (mode === "window") {
       if (busy) return;
       const hit = hitTest(windows, { x: e.clientX, y: e.clientY });
       setHovered(hit);
-      requestCutout(hit ? { x: hit.x, y: hit.y, w: hit.width, h: hit.height } : null);
     }
   };
 
@@ -198,7 +161,6 @@ function OverlayInner() {
     setPrefilled(false);
     setStart({ x: e.clientX, y: e.clientY });
     setEnd({ x: e.clientX, y: e.clientY });
-    requestCutout(null);
   };
 
   const onClick = async () => {
@@ -269,12 +231,11 @@ function OverlayInner() {
     if (rect.w < 4 || rect.h < 4) {
       setStart(null);
       setEnd(null);
-      requestCutout(null);
       closeOverlay();
       return;
     }
-    // Keep dragRect rendered (cutout + 4-div dim) until Rust hides the
-    // overlay inside capture_region_command. Clearing start/end here would
+    // Keep dragRect rendered (transparent center + 4-div dim) until Rust hides
+    // the overlay inside capture_region_command. Clearing start/end here would
     // briefly revert to full-screen dim that BitBlt could bake into the
     // capture.
     await confirmRegion(rect);
