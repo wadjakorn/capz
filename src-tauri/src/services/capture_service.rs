@@ -38,22 +38,11 @@ pub fn capture_region(monitor_id: u32, x: i32, y: i32, w: u32, h: u32) -> Result
     let ph = (h as f32 * scale).round().max(1.0) as u32;
 
     let (fw, fh) = full.dimensions();
-    let native_w = m.width().unwrap_or(0);
-    let native_h = m.height().unwrap_or(0);
     if px >= fw || py >= fh {
         return Err(anyhow!("region origin outside monitor"));
     }
     let cw = pw.min(fw - px);
     let ch = ph.min(fh - py);
-
-    // TEMP DIAGNOSTIC (warn so it shows in release) — area-capture geometry.
-    // Compares xcap scale, native monitor size, the actual captured buffer
-    // size, the selection (logical px), and the computed/clamped crop. Reveals
-    // whether the buffer is non-native or the crop is being clamped (the
-    // right/bottom "backward-L" cut). Remove before merge.
-    log::warn!(
-        "DIAG area-capture: mon={monitor_id} xcap_scale={scale} native=({native_w}x{native_h}) buffer=({fw}x{fh}) sel_logical=({x},{y} {w}x{h}) crop=({px},{py} {pw}x{ph}) clamped=({cw}x{ch})"
-    );
 
     let sub = SubImage::new(&full, px, py, cw, ch).to_image();
     Ok(sub)
