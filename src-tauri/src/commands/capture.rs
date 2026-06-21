@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
 use crate::commands::permissions::has_screen_recording;
@@ -176,6 +176,16 @@ pub async fn capture_region_command<R: Runtime>(
     h: u32,
 ) -> Result<String, String> {
     tray::set_busy(&app, "Capturing…");
+    // TEMP DIAGNOSTIC — overlay window's Tauri scale_factor (== webview DPR the
+    // frontend used to produce the selection). Compare against xcap_scale logged
+    // in capture_region. Remove before merge.
+    if let Some(w) = app.get_webview_window(&format!("overlay-{monitor_id}")) {
+        log::warn!(
+            "DIAG area-capture: overlay-{monitor_id} tauri_scale={:?} inner_size={:?}",
+            w.scale_factor(),
+            w.inner_size()
+        );
+    }
     hide_overlays_and_wait(&app).await?;
     let res = capture_to_editor(
         app.clone(),
