@@ -1,18 +1,68 @@
 "use client";
 
+import { useMemo } from "react";
 import { useOcr, currentResult } from "@/stores/ocr";
-import { ocrBoxStyle } from "@/lib/ocr";
+import { ocrBoxStyle, computeFitScaleX } from "@/lib/ocr";
+
+const FONT_STACK = '"Noto Sans Thai", system-ui, -apple-system, sans-serif';
+// Font size (image-pixel space) used for measurement & rendering, as a
+// fraction of box height so glyphs sit within the box before horizontal fit.
+const FONT_FACTOR = 0.8;
+
+// Shared offscreen text measurer. Returns 0 when canvas/text metrics are
+// unavailable (SSR / jsdom) so computeFitScaleX falls back to no-stretch.
+let measureCanvas: HTMLCanvasElement | null = null;
+function measureText(text: string, fontPx: number): number {
+  if (typeof document === "undefined") return 0;
+  if (!measureCanvas) measureCanvas = document.createElement("canvas");
+  const ctx = measureCanvas.getContext("2d");
+  if (!ctx) return 0;
+  ctx.font = `${fontPx}px ${FONT_STACK}`;
+  return ctx.measureText(text).width;
+}
 
 /**
- * Transparent, natively-selectable text overlay aligned to the Konva image.
- * Mounted as a sibling of <Stage> inside the same positioned wrapper, so an
- * image-space box maps to screen by a single `* scale` (displayScale) multiply.
- * Pure DOM — never appears in exported PNGs. Native selection + copy work
- * because the spans contain the real text (rendered transparent).
+ * Visible, box-fitted OCR text overlay aligned to the Konva image. Mounted as a
+ * sibling of <Stage> in the same positioned wrapper, so an image-space box maps
+ * to screen by `* scale` (displayScale). Each unit is a white-translucent chip
+ * with the recognized text rendered near-black and horizontally scaled to fill
+ * its box — so the native selection highlights exactly what the user sees.
+ * Pure DOM — never appears in exported PNGs.
  */
 export function OcrLayer({ scale }: { scale: number }) {
   const mode = useOcr((s) => s.mode);
   const result = useOcr(currentResult);
+
+  // Fit each unit once per result (image-space → zoom-invariant fitX).
+  const units = useMemo(() => {
+    if (!result) return [];
+    const out: {
+      key: string;
+      text: string;
+      bbox: { x: number; y: number; w: number; h: number };
+      fitX: number;
+      fontPxImg: number;
+      lineEnd: boolean;
+    }[] = [];
+    result.lines.forEach((line, li) => {
+      const us =
+        line.words.length > 0
+          ? line.words
+          : [{ text: line.text, bbox: line.bbox }];
+      us.forEach((u, wi) => {
+        const fontPxImg = u.bbox.h * FONT_FACTOR;
+        out.push({
+          key: `${li}-${wi}`,
+          text: u.text,
+          bbox: u.bbox,
+          fontPxImg,
+          fitX: computeFitScaleX(u.text, fontPxImg, u.bbox.w, measureText),
+          lineEnd: wi === us.length - 1,
+        });
+      });
+    });
+    return out;
+  }, [result]);
 
   if (!mode || !result) return null;
 
@@ -24,41 +74,45 @@ export function OcrLayer({ scale }: { scale: number }) {
         width: result.width * scale,
         height: result.height * scale,
         cursor: "text",
-        // Above the Konva canvas; below toolbar/menus.
         zIndex: 5,
       }}
     >
-      {result.lines.map((line, li) => {
-        // When word boxes exist, place each word; otherwise place the whole
-        // line as one selectable block (line-level fallback).
-        const units =
-          line.words.length > 0
-            ? line.words
-            : [{ text: line.text, bbox: line.bbox }];
-        return units.map((u, wi) => {
-          const s = ocrBoxStyle(u.bbox, scale);
-          return (
+      {units.map((u) => {
+        const s = ocrBoxStyle(u.bbox, scale);
+        return (
+          <span
+            key={u.key}
+            style={{
+              position: "absolute",
+              left: s.left,
+              top: s.top,
+              width: s.width,
+              height: s.height,
+              display: "flex",
+              alignItems: "center",
+              overflow: "hidden",
+              background: "rgba(255,255,255,0.7)",
+              borderRadius: 2,
+              userSelect: "text",
+            }}
+          >
             <span
-              key={`${li}-${wi}`}
               style={{
-                position: "absolute",
-                left: s.left,
-                top: s.top,
-                height: s.height,
-                fontSize: s.fontSize,
-                lineHeight: `${s.height}px`,
-                color: "transparent",
+                display: "inline-block",
+                color: "#0b0b0b",
+                fontFamily: FONT_STACK,
+                fontSize: u.fontPxImg * scale,
+                lineHeight: 1,
                 whiteSpace: "pre",
-                userSelect: "text",
-                // Trailing space so word-to-word copy is space-separated;
-                // block-per-line below preserves newlines.
+                transform: `scaleX(${u.fitX})`,
+                transformOrigin: "left center",
               }}
             >
               {u.text}
-              {wi < units.length - 1 ? " " : "\n"}
+              {u.lineEnd ? "\n" : " "}
             </span>
-          );
-        });
+          </span>
+        );
       })}
     </div>
   );
