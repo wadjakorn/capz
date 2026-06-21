@@ -99,6 +99,18 @@ test.describe("OCR Text Reader", () => {
     await expect(layer).toBeVisible();
     await expect(layer).toContainText("Hello");
 
+    // --- 2a. Line-level chip count: mock returns exactly one line → one <span> ---
+    await expect(page.locator("[data-ocr-layer] > span")).toHaveCount(1);
+
+    // --- 2b. Select-all: ⌘/Ctrl+A on the overlay selects all OCR text ---
+    // Click the overlay to ensure the page has focus before firing the shortcut.
+    await page.locator("[data-ocr-layer]").click();
+    await page.keyboard.press("ControlOrMeta+a");
+    const selected = await page.evaluate(
+      () => window.getSelection()?.toString() ?? "",
+    );
+    expect(selected).toContain("Hello");
+
     // Exactly one ocr_detect call at this point.
     const callsAfterFirst = await getInvokeCalls(page);
     const detectCount1 = callsAfterFirst.filter(
