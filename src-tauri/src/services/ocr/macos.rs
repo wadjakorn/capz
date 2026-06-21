@@ -66,7 +66,17 @@ impl OcrBackend for VisionBackend {
             request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
             request.setUsesLanguageCorrection(true);
 
-            // Build NSArray<NSString> for the requested languages.
+            // Auto-detect the script per text region. Without this, an explicit
+            // `recognitionLanguages` list is treated as a strict priority order:
+            // with English first, Vision drops or garbles any line containing a
+            // non-primary script (e.g. Thai). With auto-detection on, the
+            // languages below act as hints while Vision still recognizes each
+            // line in its actual script — so mixed Latin+Thai images work.
+            // (Verified empirically on macOS 26.5: en-first w/o this flag = Thai
+            // lines vanish; with it = all lines recognized.)
+            request.setAutomaticallyDetectsLanguage(true);
+
+            // Build NSArray<NSString> for the requested languages (hints).
             let lang_ns: Vec<objc2::rc::Retained<NSString>> =
                 languages.iter().map(|l| NSString::from_str(l)).collect();
             let lang_refs: Vec<&NSString> = lang_ns.iter().map(|s| s.as_ref()).collect();
@@ -196,4 +206,33 @@ unsafe fn word_boxes(
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn has_thai(s: &str) -> bool {
+        s.chars().any(|c| ('\u{0E00}'..='\u{0E7F}').contains(&c))
+    }
+
+    /// Regression guard for the en-first language-priority bug: without
+    /// `automaticallyDetectsLanguage`, Vision dropped every Thai-containing
+    /// line from a mixed Latin+Thai image. Runs the real Vision backend on a
+    /// committed fixture and asserts Thai survives. macOS-only (whole module
+    /// is `#[cfg(target_os = "macos")]`).
+    #[test]
+    fn recognizes_thai_in_mixed_image() {
+        let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/thai_latin.png");
+        let (_, _, lines) = VisionBackend::new()
+            .recognize(fixture, &["en-US".to_string(), "th-TH".to_string()])
+            .expect("Vision recognize should succeed");
+        let thai_lines = lines.iter().filter(|l| has_thai(&l.text)).count();
+        assert!(
+            thai_lines >= 2,
+            "expected >=2 Thai lines, got {thai_lines} of {} total: {:?}",
+            lines.len(),
+            lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>()
+        );
+    }
 }

@@ -140,6 +140,25 @@ installed; Vision Thai requires a recent enough macOS.
   (Windows: install the Thai language pack; macOS: requires a newer version).
 - No tesseract fallback in v1 (native-only was chosen).
 
+### 4.1 Mixed-script recognition (macOS) — post-smoke fix (2026-06-21)
+
+First smoke test recognized Latin but **dropped every Thai-containing line**.
+Root cause was *not* availability (macOS 26.5 lists `th-TH` in Vision's Accurate
+recognizer): supplying `recognitionLanguages = ["en-US", "th-TH"]` makes Vision
+treat the list as a **strict priority order**, and with English primary it
+discards or garbles any line in a non-primary script. Verified empirically — five
+Vision config variants on a mixed image: English-first (correction on *or* off)
+yields 3/5 lines, Thai dropped; enabling `automaticallyDetectsLanguage` yields
+5/5 with the same language list as hints.
+
+**Fix:** set `VNRecognizeTextRequest.automaticallyDetectsLanguage = true` (keep
+`usesLanguageCorrection = true` and the en/th hint list). Vision then detects the
+script per text region while the hints still bias correction. Guarded by a
+macOS-only integration test that runs the real Vision backend on a committed
+mixed Latin+Thai fixture (`src-tauri/tests/fixtures/thai_latin.png`) and asserts
+Thai lines survive — the original gap was that all prior Thai coverage used the
+fake backend and never exercised real Vision.
+
 ## 5. State, idempotency, lifecycle
 
 New `useOcr` Zustand store, separate from `useEditor`:
