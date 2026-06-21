@@ -120,6 +120,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             shortcuts::reregister_shortcuts,
             shortcuts::suspend_shortcuts,
+            shortcuts::probe_hotkey,
             commands::capture::list_monitors_command,
             commands::capture::capture_full_command,
             commands::capture::capture_monitor_command,
@@ -171,12 +172,25 @@ pub fn run() {
             log_store_path_diagnostics(app.handle());
             services::image_service::sweep_stale_temp();
             tray::create_tray(app.handle())?;
-            if let Err(e) = shortcuts::register_shortcuts(app.handle()) {
-                log::error!("global shortcut registration failed: {e}");
-                notice::error(
-                    app.handle(),
-                    format!("Global shortcut registration failed: {e}"),
-                );
+            {
+                use tauri::Emitter;
+                let report = shortcuts::register_shortcuts(app.handle());
+                let inactive: Vec<String> = report
+                    .iter()
+                    .filter(|r| r.status != shortcuts::RegoStatus::Ok)
+                    .map(|r| r.requested.clone())
+                    .collect();
+                if !inactive.is_empty() {
+                    log::error!("hotkeys inactive at launch: {inactive:?}");
+                    notice::error(
+                        app.handle(),
+                        format!(
+                            "Some shortcuts are inactive ({}). Open Settings to fix them.",
+                            inactive.join(", ")
+                        ),
+                    );
+                }
+                let _ = app.handle().emit("shortcuts://registration-report", &report);
             }
             if !is_onboarding_completed(app.handle()) {
                 if let Err(e) = windows::show_onboarding(app.handle()) {
