@@ -195,7 +195,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               <TabsPrimitive.Tab
                 key={t.value}
                 value={t.value}
-                className="rail-button"
+                className="btn-icon"
                 title={t.label}
                 aria-label={t.label}
               >
