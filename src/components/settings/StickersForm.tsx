@@ -67,7 +67,7 @@ export function StickersForm() {
           <button
             type="button"
             onClick={onChoose}
-            className="glass-button"
+            className="btn btn--secondary"
           >
             Choose…
           </button>
@@ -75,7 +75,7 @@ export function StickersForm() {
             type="button"
             onClick={() => openFolder(directory)}
             disabled={!directory}
-            className="glass-button"
+            className="btn btn--secondary"
           >
             Open folder
           </button>
@@ -83,7 +83,7 @@ export function StickersForm() {
             type="button"
             onClick={onClear}
             disabled={!directory}
-            className="glass-button"
+            className="btn btn--secondary"
           >
             Clear
           </button>
@@ -99,7 +99,7 @@ export function StickersForm() {
           type="button"
           onClick={onSync}
           disabled={!directory || loading}
-          className="glass-button"
+          className="btn btn--secondary"
         >
           {loading ? "Syncing…" : "Sync now"}
         </button>

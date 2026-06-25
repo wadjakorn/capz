@@ -157,7 +157,7 @@ export function OutputPrefsForm() {
           <button
             type="button"
             onClick={onChoose}
-            className="glass-button"
+            className="btn btn--secondary"
           >
             Choose…
           </button>
@@ -165,7 +165,7 @@ export function OutputPrefsForm() {
             type="button"
             onClick={() => openFolder(config.defaultSavePath)}
             disabled={!config.defaultSavePath}
-            className="glass-button"
+            className="btn btn--secondary"
           >
             Open folder
           </button>
