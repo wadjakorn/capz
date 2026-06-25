@@ -28,7 +28,7 @@ export function ZoomMenuButton({
         disabled={disabled}
         title="Zoom to 100% (⌘1)"
         aria-label="Zoom to 100%"
-        className="min-w-[44px] px-2 py-1 text-xs tabular-nums text-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+        className="min-w-[44px] px-2 py-1 text-xs tabular-nums text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
       >
         {pct !== null ? `${pct}%` : "—"}
       </button>
@@ -40,7 +40,7 @@ export function ZoomMenuButton({
               disabled={disabled}
               title="Zoom options"
               aria-label="Zoom options"
-              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronDown className="h-3 w-3" aria-hidden />
             </button>
@@ -91,7 +91,7 @@ export function ZoomMenuButton({
                   setZoom(v / 100);
                 }
               }}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-foreground outline-none focus:border-violet-400"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-foreground outline-none focus:border-[var(--accent)]"
             />
           </div>
         </DropdownMenuContent>

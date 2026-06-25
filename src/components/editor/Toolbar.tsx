@@ -848,7 +848,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         />
       </div>
       {hasContext && portalTarget && createPortal((
-      <div className="glass-pill-soft pointer-events-auto absolute left-1/2 -translate-x-1/2 top-7 z-40 flex flex-wrap items-center justify-center gap-1 px-3 py-1.5">
+      <div className="toolbar pointer-events-auto absolute left-1/2 -translate-x-1/2 top-7 z-40 flex flex-wrap items-center justify-center gap-1 px-3 py-1.5">
       {colorCtx && (
         <>
           <label
@@ -909,7 +909,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             onChange={(e) =>
               pinBorderWidthCtx!.onChange(parseInt(e.target.value, 10))
             }
-            className="h-1 w-20 cursor-pointer accent-violet-400"
+            className="h-1 w-20 cursor-pointer accent-[var(--accent)]"
           />
           <span className="w-5 text-right tabular-nums">
             {Math.round(pinBorderWidthCtx.value)}
@@ -931,8 +931,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             className={[
               "flex h-7 w-7 items-center justify-center rounded transition-colors",
               psc.value === v
-                ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
-                : "text-foreground/80 hover:bg-white/[0.08]",
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
             ].join(" ")}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -964,8 +964,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             className={[
               "flex h-7 w-7 items-center justify-center rounded transition-colors",
               ptc.value === v
-                ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
-                : "text-foreground/80 hover:bg-white/[0.08]",
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
             ].join(" ")}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -994,7 +994,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               step={widthCtx.step}
               value={Math.round(widthCtx.value)}
               onChange={(e) => widthCtx!.onChange(parseInt(e.target.value, 10))}
-              className="h-1 w-24 cursor-pointer accent-violet-400"
+              className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
             />
             <span className="w-6 text-right tabular-nums">{Math.round(widthCtx.value)}</span>
           </label>
@@ -1014,7 +1014,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               step={sizeCtx.step}
               value={Math.round(sizeCtx.value)}
               onChange={(e) => sizeCtx!.onChange(parseInt(e.target.value, 10))}
-              className="h-1 w-24 cursor-pointer accent-violet-400"
+              className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
             />
             <span className="w-8 text-right tabular-nums">{Math.round(sizeCtx.value)}</span>
           </label>
@@ -1040,8 +1040,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             className={[
               "flex h-7 w-7 items-center justify-center rounded transition-colors",
               active
-                ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
-                : "text-foreground/80 hover:bg-white/[0.08]",
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
             ].join(" ")}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -1060,7 +1060,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               <select
                 value={tsc.fontFamily}
                 onChange={(e) => tsc.setFontFamily(e.target.value)}
-                className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-violet-400"
+                className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-[var(--accent)]"
               >
                 {FONT_FAMILIES.map((f) => (
                   <option key={f.value} value={f.value}>
@@ -1085,8 +1085,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                 className={[
                   "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
                   tsc.backgroundColor === null
-                    ? "bg-white/[0.08] text-foreground/80 hover:bg-white/[0.12]"
-                    : "bg-gradient-to-b from-violet-400 to-violet-600 text-white hover:brightness-110",
+                    ? "bg-[var(--surface-raised)] text-[var(--fg-2)] hover:bg-[var(--surface-raised)]"
+                    : "bg-[var(--accent)] text-[var(--accent-fg)]",
                 ].join(" ")}
               >
                 {tsc.backgroundColor === null ? "None" : "On"}
@@ -1108,14 +1108,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                   const v = parseInt(e.target.value, 10);
                   if (!Number.isNaN(v) && v >= 0) onChangeNext(v);
                 }}
-                className="w-14 rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-violet-400"
+                className="w-14 rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-[var(--accent)]"
               />
             </label>
             <button
               type="button"
               onClick={savePersisted}
               title="Persist current as latest used number"
-              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-white/10 hover:text-foreground"
+              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
             >
               Save
             </button>
@@ -1123,7 +1123,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               type="button"
               onClick={clearPersisted}
               title={`Clear persisted (reset to ${pinsCfg.defaultStartNumber - 1})`}
-              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-white/10 hover:text-foreground"
+              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
             >
               Clear
             </button>
@@ -1134,8 +1134,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
               className={[
                 "rounded-md px-2 py-1 transition-colors",
                 pinsCfg.continuityMode === "continue"
-                  ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_4px_10px_rgba(124,58,237,0.4)]"
-                  : "text-foreground/85 hover:bg-white/10",
+                  ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                  : "text-foreground/85 hover:bg-[var(--surface-raised)]",
               ].join(" ")}
             >
               Continue
@@ -1166,8 +1166,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                       className={[
                         "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
                         active
-                          ? "bg-gradient-to-b from-violet-400 to-violet-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
-                          : "hover:bg-white/[0.08]",
+                          ? "bg-[var(--accent)]"
+                          : "hover:bg-[var(--surface-raised)]",
                       ].join(" ")}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1194,8 +1194,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                       className={[
                         "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
                         active
-                          ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(124,58,237,0.4)]"
-                          : "hover:bg-white/[0.08]",
+                          ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                          : "hover:bg-[var(--surface-raised)]",
                       ].join(" ")}
                     >
                       {c}
