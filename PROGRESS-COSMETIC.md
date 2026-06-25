@@ -13,4 +13,6 @@ Open items first (actionable for agents). Landed history archived — see below.
 
 ## Landed
 
+- **Graphite design-system v2 revamp** (2026-06-26) — Full migration from liquid-glass aesthetics to the flat Graphite token system across all app surfaces (home, editor, overlay, settings, onboarding) and Ladle storybook. Old `glass-*`/`glow-tile*`/`rail-button*`/`headline-xl` class definitions deleted from `@layer components`; old `--lg-*/--depth-*/--blur-*` CSS variables removed; new Graphite component classes (`.btn`, `.btn-icon`, `.surface`, `.toolbar`, `.field`, `.switch`, `.segmented`, `.tile`, `.menu`, `.badge`, `.headline`) remain. Spec: [docs/superpowers/specs/2026-06-25-design-system-v2-design.md](docs/superpowers/specs/2026-06-25-design-system-v2-design.md). Plan: [docs/superpowers/plans/2026-06-25-design-system-v2-graphite.md](docs/superpowers/plans/2026-06-25-design-system-v2-graphite.md).
+
 Archived: [docs/archive/PROGRESS-COSMETIC-LANDED.md](docs/archive/PROGRESS-COSMETIC-LANDED.md).
