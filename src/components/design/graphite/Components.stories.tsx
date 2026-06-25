@@ -208,7 +208,7 @@ export const Badges: Story = () => (
         <X size={11} />
         Danger
       </span>
-      <span className="badge badge--info">
+      <span className="badge">
         <Info size={11} />
         Info
       </span>

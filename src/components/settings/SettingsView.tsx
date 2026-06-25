@@ -207,7 +207,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
 
         <main className="surface min-w-0 flex-1 p-8">
           <header className="mb-6 flex items-center gap-4">
-            <div className="tile h-14 w-14">
+            <div className="tile-icon h-14 w-14">
               <activeTab.icon className="h-6 w-6" aria-hidden />
             </div>
             <h1 className="headline">{activeTab.label}</h1>

@@ -189,7 +189,7 @@ function Stepper({ step, showMac }: { step: Step; showMac: boolean }) {
             <span
               className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
                 active
-                  ? "bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[0_0_0_3px_rgba(167,139,250,0.25)]"
+                  ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                   : passed
                     ? "bg-emerald-500/25 text-emerald-200 ring-1 ring-emerald-400/50"
                     : "bg-white/5 text-muted-foreground ring-1 ring-white/10"

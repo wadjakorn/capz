@@ -251,9 +251,7 @@ export default function EditorPage() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
-  // Tag the document with the OS so glass surfaces can fall back to a more
-  // opaque fill on Windows, where WebView2 doesn't render backdrop-filter blur
-  // over the editor canvas (macOS WKWebView does).
+  // Tag the document with the OS for OS-specific behaviour.
   useEffect(() => {
     const p = typeof navigator !== "undefined" ? navigator.platform : "";
     document.documentElement.dataset.os = /Win/i.test(p)
@@ -316,7 +314,7 @@ export default function EditorPage() {
 
 function SubViewHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-3 py-2 backdrop-blur">
+    <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-3 py-2">
       <button
         type="button"
         onClick={onBack}

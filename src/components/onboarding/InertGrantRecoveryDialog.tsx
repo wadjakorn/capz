@@ -113,7 +113,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
       onClick={onClose}
     >
       <div
@@ -263,7 +263,7 @@ function Step({
   const badgeCls = done
     ? "bg-emerald-500/25 text-emerald-100 ring-emerald-400/40"
     : active
-      ? "bg-violet-500/30 text-violet-100 ring-violet-400/40"
+      ? "bg-[var(--accent-soft)] text-[var(--accent)] ring-1 ring-[var(--accent)]/40"
       : "bg-white/5 text-muted-foreground ring-white/10";
   const titleCls = done
     ? "text-foreground/60 line-through decoration-foreground/30"
