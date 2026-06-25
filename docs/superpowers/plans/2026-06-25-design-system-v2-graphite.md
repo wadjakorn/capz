@@ -688,7 +688,8 @@ git commit -m "feat(design): re-skin selection overlay to Graphite"
 **Files:**
 - Create: `src/components/design/graphite/` stories mirroring components (`Button`, `Surface`, `Toolbar`, `Field`, `Switch`, `Segmented`, `Tile`, `Menu`, `Badge`).
 - Modify: token stories `src/components/design/tokens/{Colors,Typography,Radii,Shadows}.stories.tsx` to read Graphite vars.
-- Delete: `src/components/design/glass/*`, `src/components/design/glass3d/*` (and `GlassDock.tsx`), `src/components/design/tiles/GlowTile*`, `src/components/design/tokens/Gradients.stories.tsx`, the `_backdrops/GlassStage.tsx` if only used by deleted stories.
+- Delete: `src/components/design/glass/*`, `src/components/design/glass3d/*` (and `GlassDock.tsx`), `src/components/design/tokens/Gradients.stories.tsx`, the `_backdrops/GlassStage.tsx` if only used by deleted stories.
+- KEEP `src/components/design/tiles/GlowTile.tsx` — it was converted to a Graphite icon-chip (`.tile-icon`) in Task 5 and is imported by `OnboardingView`. Do NOT delete it. Rewrite/replace its `GlowTile.stories.tsx` to show the Graphite chip (and optionally rename the symbol `GlowTile`→`TileIcon` here, updating the one import in `OnboardingView.tsx`; if renaming is skipped, leave the name as-is — it is functionally correct).
 
 **Interfaces:**
 - Consumes: Task 2 classes.
