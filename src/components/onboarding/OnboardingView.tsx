@@ -120,10 +120,10 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
 
   const tile =
     step === "permission"
-      ? { cls: "tile", icon: ShieldCheck }
+      ? { cls: "tile-icon", icon: ShieldCheck }
       : step === "done"
-        ? { cls: "tile", icon: Sparkles }
-        : { cls: "tile", icon: Camera };
+        ? { cls: "tile-icon", icon: Sparkles }
+        : { cls: "tile-icon", icon: Camera };
 
   return (
     <main className="flex min-h-full items-center justify-center p-8 text-foreground">
