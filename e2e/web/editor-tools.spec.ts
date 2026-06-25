@@ -32,17 +32,17 @@ test("clicking a tool toggles the active visual class", async ({ page }) => {
   await page.goto("/editor");
   await page.waitForLoadState("networkidle");
 
-  // ToolButton uses a violet gradient (`from-violet-400`) when active.
+  // ToolButton uses a flat accent fill (`bg-[var(--accent)]`) when active.
   const rect = page.getByRole("button", { name: "Rect", exact: true });
   const arrow = page.getByRole("button", { name: "Arrow", exact: true });
 
   await rect.click();
-  await expect(rect).toHaveClass(/from-violet-400/);
-  await expect(arrow).not.toHaveClass(/from-violet-400/);
+  await expect(rect).toHaveClass(/bg-\[var\(--accent\)\]/);
+  await expect(arrow).not.toHaveClass(/bg-\[var\(--accent\)\]/);
 
   await arrow.click();
-  await expect(arrow).toHaveClass(/from-violet-400/);
-  await expect(rect).not.toHaveClass(/from-violet-400/);
+  await expect(arrow).toHaveClass(/bg-\[var\(--accent\)\]/);
+  await expect(rect).not.toHaveClass(/bg-\[var\(--accent\)\]/);
 });
 
 test("undo/redo are disabled in empty editor", async ({ page }) => {

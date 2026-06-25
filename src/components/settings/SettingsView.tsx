@@ -195,7 +195,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               <TabsPrimitive.Tab
                 key={t.value}
                 value={t.value}
-                className="rail-button"
+                className="btn-icon"
                 title={t.label}
                 aria-label={t.label}
               >
@@ -205,12 +205,12 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
           })}
         </TabsPrimitive.List>
 
-        <main className="glass-card min-w-0 flex-1 p-8">
+        <main className="surface min-w-0 flex-1 p-8">
           <header className="mb-6 flex items-center gap-4">
-            <div className={`glow-tile glow-tile-${activeTab.tone} h-14 w-14`}>
+            <div className="tile-icon h-14 w-14">
               <activeTab.icon className="h-6 w-6" aria-hidden />
             </div>
-            <h1 className="headline-xl">{activeTab.label}</h1>
+            <h1 className="headline">{activeTab.label}</h1>
           </header>
 
           <TabsContent value="shortcuts" className="grid gap-4">
@@ -311,7 +311,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                 hint="Run an export action when the editor window is closed or Esc-hidden."
               >
                 <select
-                  className="glass-select"
+                  className="field"
                   value={config.general.closeAction}
                   onChange={(e) =>
                     update("general", {
@@ -353,7 +353,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                         editorWindow: { width: w, height: config.general.editorWindow.height },
                       });
                     }}
-                    className="glass-input w-20 text-center"
+                    className="field w-20 text-center"
                   />
                   <span className="text-xs text-muted-foreground">×</span>
                   <input
@@ -367,7 +367,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                         editorWindow: { width: config.general.editorWindow.width, height: h },
                       });
                     }}
-                    className="glass-input w-20 text-center"
+                    className="field w-20 text-center"
                   />
                 </div>
               </FieldRow>
@@ -385,7 +385,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                       console.error("show_onboarding_window failed", e);
                     }
                   }}
-                  className="glass-button"
+                  className="btn btn--secondary"
                 >
                   Re-run
                 </button>
@@ -398,7 +398,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   <button
                     type="button"
                     onClick={onOpenInertRecovery}
-                    className="glass-button"
+                    className="btn btn--secondary"
                   >
                     Fix…
                   </button>
@@ -415,7 +415,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                     await reset();
                     toast.success("Settings reset", { duration: 1600 });
                   }}
-                  className="glass-button text-rose-300 hover:text-rose-200"
+                  className="btn btn--secondary text-rose-300 hover:text-rose-200"
                 >
                   Reset…
                 </button>
@@ -488,21 +488,21 @@ function CaptureDebug() {
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-2">
         <button
-          className="glass-button"
+          className="btn btn--secondary"
           disabled={busy}
           onClick={() => run("list_monitors", () => invoke<MonitorInfo[]>("list_monitors_command"))}
         >
           list_monitors
         </button>
         <button
-          className="glass-button"
+          className="btn btn--secondary"
           disabled={busy}
           onClick={() => run("capture_full", () => invoke<string>("capture_full_command"))}
         >
           capture_full
         </button>
         <button
-          className="glass-button"
+          className="btn btn--secondary"
           disabled={busy}
           onClick={async () => {
             const mons = await invoke<MonitorInfo[]>("list_monitors_command");
@@ -560,7 +560,7 @@ function UpdatesTab() {
       />
       <FieldRow label="Check interval">
         <select
-          className="glass-select"
+          className="field"
           value={u.checkIntervalHours}
           onChange={(e) =>
             update("updates", { checkIntervalHours: Number(e.target.value) })
@@ -576,7 +576,7 @@ function UpdatesTab() {
           type="button"
           onClick={onCheckNow}
           disabled={checking}
-          className="glass-button"
+          className="btn btn--secondary"
         >
           {checking ? "Checking…" : "Check now"}
         </button>

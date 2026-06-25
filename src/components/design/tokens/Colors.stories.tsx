@@ -1,33 +1,33 @@
 import type { Story } from "@ladle/react";
 import { GlassStage } from "../_backdrops/GlassStage";
 
-const surfaces: Array<[string, string]> = [
-  ["--background", "#1a0533"],
-  ["--popover", "#2a0a52"],
-  ["--card", "rgba(255,255,255,0.06)"],
-  ["--foreground", "#f5f3ff"],
-  ["--muted-foreground", "rgba(245,243,255,0.62)"],
-  ["--primary", "#a78bfa"],
-];
-
-const charts: Array<[string, string]> = [
-  ["chart-1 violet", "#a78bfa"],
-  ["chart-2 emerald", "#34d399"],
-  ["chart-3 amber", "#fbbf24"],
-  ["chart-4 rose", "#f472b6"],
-  ["chart-5 sky", "#38bdf8"],
+const palette: Array<[string, string]> = [
+  ["--bg", "#0f0f12"],
+  ["--bg-canvas", "#0d0d10"],
+  ["--surface", "#161619"],
+  ["--surface-raised", "#1f1f24"],
+  ["--surface-overlay", "#1c1c21"],
+  ["--border", "rgba(255,255,255,0.08)"],
+  ["--fg", "#ecedf0"],
+  ["--fg-2", "#c9cad1"],
+  ["--fg-3", "#9a9aa3"],
+  ["--accent", "#6d7cff"],
+  ["--accent-soft", "rgba(109,124,255,0.16)"],
+  ["--success", "#34d399"],
+  ["--warning", "#fbbf24"],
+  ["--danger", "#f76b6b"],
 ];
 
 function Swatch({ name, value }: { name: string; value: string }) {
   return (
-    <div className="glass-card flex items-center gap-3 p-3">
+    <div className="surface flex items-center gap-3 p-3">
       <div
-        className="h-10 w-10 rounded-md border border-white/10"
-        style={{ background: value }}
+        className="h-10 w-10 flex-shrink-0 rounded-md"
+        style={{ background: value, border: "1px solid var(--border)" }}
       />
-      <div className="grid">
-        <span className="text-sm font-medium text-white">{name}</span>
-        <span className="font-mono text-xs text-white/60">{value}</span>
+      <div className="grid min-w-0">
+        <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>{name}</span>
+        <span className="font-mono text-xs" style={{ color: "var(--fg-3)" }}>{value}</span>
       </div>
     </div>
   );
@@ -35,23 +35,15 @@ function Swatch({ name, value }: { name: string; value: string }) {
 
 export const Default: Story = () => (
   <GlassStage>
-  <div className="grid gap-8">
-    <section>
-      <h2 className="headline-xl mb-4">Surfaces & text</h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        {surfaces.map(([n, v]) => (
-          <Swatch key={n} name={n} value={v} />
-        ))}
-      </div>
-    </section>
-    <section>
-      <h2 className="headline-xl mb-4">Chart palette</h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {charts.map(([n, v]) => (
-          <Swatch key={n} name={n} value={v} />
-        ))}
-      </div>
-    </section>
-  </div>
+    <div className="grid gap-8 w-full">
+      <section>
+        <h2 className="headline mb-4" style={{ color: "var(--fg)" }}>Graphite palette</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {palette.map(([n, v]) => (
+            <Swatch key={n} name={n} value={v} />
+          ))}
+        </div>
+      </section>
+    </div>
   </GlassStage>
 );

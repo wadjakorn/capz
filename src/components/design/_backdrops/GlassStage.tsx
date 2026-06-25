@@ -1,27 +1,10 @@
 import type { ReactNode } from "react";
 
-const BACKDROPS = {
-  abstract: "/design-backdrops/abstract_gradient_wallpaper.png",
-  nature: "/design-backdrops/nature_wallpaper.png",
-} as const;
-
-export type GlassBackdrop = keyof typeof BACKDROPS;
-
-export function GlassStage({
-  children,
-  variant = "abstract",
-}: {
-  children: ReactNode;
-  variant?: GlassBackdrop;
-}) {
+export function GlassStage({ children }: { children: ReactNode }) {
   return (
     <div
-      className="relative -m-10 min-h-screen overflow-hidden rounded-none p-10"
-      style={{
-        backgroundImage: `url('${BACKDROPS[variant]}')`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
+      className="flex min-h-[320px] flex-wrap items-center justify-center gap-6 rounded-2xl p-10"
+      style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
     >
       {children}
     </div>

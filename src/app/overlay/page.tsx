@@ -281,7 +281,7 @@ function OverlayInner() {
       {active && !cutoutRect && (
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ boxShadow: "inset 0 0 0 3px rgba(167, 139, 250, 0.6)" }}
+          style={{ boxShadow: "inset 0 0 0 3px rgba(109, 124, 255, 0.6)" }}
         />
       )}
 
@@ -299,16 +299,16 @@ function OverlayInner() {
             height: dragRect.h,
             border: prefilled
               ? "2px dashed #34d399"
-              : "2px solid #a78bfa",
+              : "2px solid var(--accent)",
             boxShadow: prefilled
               ? "0 0 0 1px rgba(52, 211, 153, 0.25), 0 8px 24px -8px rgba(52, 211, 153, 0.45)"
-              : "0 0 0 1px rgba(167, 139, 250, 0.25), 0 8px 24px -8px rgba(124, 58, 237, 0.45)",
+              : "0 0 0 1px rgba(109, 124, 255, 0.25), 0 8px 24px -8px rgba(109, 124, 255, 0.45)",
           }}
         >
           <div
             className="absolute -top-7 left-0 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/90"
             style={{
-              background: "rgba(22, 6, 47, 0.88)",
+              background: "var(--surface-overlay)",
               boxShadow:
                 "inset 0 1px 0 rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px -10px rgba(0,0,0,0.55)",
               border: "1px solid rgba(255,255,255,0.10)",
@@ -327,15 +327,15 @@ function OverlayInner() {
             top: hovered.y,
             width: hovered.width,
             height: hovered.height,
-            border: "2px solid #a78bfa",
+            border: "2px solid var(--accent)",
             boxShadow:
-              "0 0 0 1px rgba(167, 139, 250, 0.25), 0 8px 24px -8px rgba(124, 58, 237, 0.45)",
+              "0 0 0 1px rgba(109, 124, 255, 0.25), 0 8px 24px -8px rgba(109, 124, 255, 0.45)",
           }}
         >
           <div
             className="absolute -top-7 left-0 max-w-[80vw] truncate rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/90"
             style={{
-              background: "rgba(22, 6, 47, 0.88)",
+              background: "var(--surface-overlay)",
               boxShadow:
                 "inset 0 1px 0 rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px -10px rgba(0,0,0,0.55)",
               border: "1px solid rgba(255,255,255,0.10)",
@@ -350,7 +350,7 @@ function OverlayInner() {
       <div
         className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-white/85"
         style={{
-          background: "rgba(22, 6, 47, 0.88)",
+          background: "var(--surface-overlay)",
           border: "1px solid rgba(255,255,255,0.10)",
           boxShadow:
             "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",

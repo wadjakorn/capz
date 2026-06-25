@@ -10,17 +10,9 @@ function Toggle({ initial = false }: { initial?: boolean }) {
       role="switch"
       aria-checked={on}
       onClick={() => setOn((v) => !v)}
-      className="relative h-6 w-11 rounded-full border border-white/10 transition"
-      style={{
-        background: on ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-      }}
+      className="switch"
     >
-      <span
-        className="absolute top-[2px] h-5 w-5 rounded-full bg-white transition-all"
-        style={{ left: on ? 22 : 2, boxShadow: "0 1px 3px rgba(0,0,0,0.35)" }}
-      />
+      <span className="switch-thumb" />
     </button>
   );
 }
@@ -34,16 +26,16 @@ const rows = [
 
 export const Default: Story = () => (
   <GlassStage>
-    <div className="glass-card max-w-xl overflow-hidden">
+    <div className="surface max-w-xl overflow-hidden">
       {rows.map(([title, sub, init], i) => (
         <div
           key={String(title)}
           className="flex items-center justify-between gap-4 p-4"
-          style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}
+          style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}
         >
           <div className="grid">
-            <span className="text-sm font-medium text-white">{title}</span>
-            <span className="text-xs text-white/60">{sub}</span>
+            <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>{title}</span>
+            <span className="text-xs" style={{ color: "var(--fg-3)" }}>{sub}</span>
           </div>
           <Toggle initial={init as boolean} />
         </div>

@@ -36,13 +36,14 @@ const allIcons: Item[] = [
 export const SettingsMenu: Story = () => (
   <GlassStage>
     <div className="grid gap-6">
-      <span className="eyebrow">Settings rail — new gradient icons</span>
-      <div className="glass-card max-w-xs p-2">
+      <span className="eyebrow">Settings rail — icons</span>
+      <div className="surface max-w-xs p-2">
         <ul className="grid gap-1">
           {settingsMenu.map((item) => (
             <li
               key={item.label}
-              className="flex items-center gap-3 rounded-2xl px-3 py-2 text-sm text-white hover:bg-white/10"
+              className="flex items-center gap-3 rounded-2xl px-3 py-2 text-sm hover:bg-white/10"
+              style={{ color: "var(--fg)" }}
             >
               {item.icon}
               <span className="font-medium">{item.label}</span>
@@ -62,10 +63,10 @@ export const Gallery: Story = () => (
         {allIcons.map((item) => (
           <div
             key={item.label}
-            className="glass-card flex flex-col items-center gap-3 p-5"
+            className="surface flex flex-col items-center gap-3 p-5"
           >
             {item.icon}
-            <span className="text-sm text-white/80">{item.label}</span>
+            <span className="text-sm" style={{ color: "var(--fg-2)" }}>{item.label}</span>
           </div>
         ))}
       </div>
@@ -81,7 +82,7 @@ export const Sizes: Story = () => (
         {[20, 28, 40, 56, 80].map((s) => (
           <div key={s} className="flex flex-col items-center gap-2">
             <KeyboardIcon size={s} />
-            <span className="text-xs text-white/60">{s}px</span>
+            <span className="text-xs" style={{ color: "var(--fg-3)" }}>{s}px</span>
           </div>
         ))}
       </div>

@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 const RULER_SIZE = 20;
-const BG = "#150330";
+const BG = "#161619";
 const TICK_MINOR = "rgba(255,255,255,0.10)";
 const TICK_MAJOR = "rgba(245,243,255,0.45)";
 const TEXT = "rgba(245,243,255,0.55)";
-const CROSS = "#a78bfa";
+const CROSS = "#6d7cff";
 
 type Props = {
   containerEl: HTMLDivElement | null;

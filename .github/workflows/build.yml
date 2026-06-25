@@ -97,6 +97,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS free self-signed code signing (NO Apple Developer Program, NO notarization).
+          # Gives every release a STABLE code identity so the Screen Recording (TCC)
+          # grant survives auto-updates instead of dying on every cdhash change.
+          # Windows runner ignores these (macOS-only bundler code path).
+          # Notarization is auto-skipped because APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
+          # are intentionally absent (see tauri-bundler macos/app.rs notarize_auth gate).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseId: ${{ needs.create-release.outputs.release_id }}

@@ -251,9 +251,7 @@ export default function EditorPage() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
-  // Tag the document with the OS so glass surfaces can fall back to a more
-  // opaque fill on Windows, where WebView2 doesn't render backdrop-filter blur
-  // over the editor canvas (macOS WKWebView does).
+  // Tag the document with the OS for OS-specific behaviour.
   useEffect(() => {
     const p = typeof navigator !== "undefined" ? navigator.platform : "";
     document.documentElement.dataset.os = /Win/i.test(p)
@@ -274,7 +272,7 @@ export default function EditorPage() {
       )}
       <main
         className="relative min-h-0 flex-1 overflow-hidden"
-        style={view === "editor" ? { backgroundColor: "#0d021f" } : undefined}
+        style={view === "editor" ? { backgroundColor: "var(--bg-canvas)" } : undefined}
       >
         <div
           id="tool-options-slot"
@@ -316,11 +314,11 @@ export default function EditorPage() {
 
 function SubViewHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-3 py-2 backdrop-blur">
+    <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-3 py-2">
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm text-foreground/85 transition-colors hover:bg-white/10 hover:text-foreground"
+        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
         title="Back to editor"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -336,8 +334,8 @@ function EmptyState() {
   const paste = isMac ? "⌘V" : "Ctrl+V";
   return (
     <div className="flex h-full w-full items-center justify-center">
-      <div className="glass-card flex flex-col items-center gap-4 px-10 py-8 text-center">
-        <div className="glow-tile glow-tile-violet h-16 w-16">
+      <div className="surface flex flex-col items-center gap-4 px-10 py-8 text-center">
+        <div className="tile-icon h-16 w-16">
           <span className="text-2xl">⌘</span>
         </div>
         <div className="text-sm text-foreground/80">

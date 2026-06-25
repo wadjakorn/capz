@@ -805,7 +805,7 @@ export function EditorStage({ src }: Props) {
     <div className="relative h-full w-full" onContextMenu={handleContextMenu}>
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-auto bg-[#0d021f] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      className="relative h-full w-full overflow-auto bg-[var(--bg-canvas)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
     >
       {status === "failed" && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
@@ -914,7 +914,7 @@ export function EditorStage({ src }: Props) {
               ref={hoverTrRef}
               resizeEnabled={false}
               rotateEnabled={false}
-              borderStroke="#a78bfa"
+              borderStroke="#6d7cff"
               borderStrokeWidth={1.5}
               listening={false}
             />
@@ -1033,7 +1033,7 @@ export function EditorStage({ src }: Props) {
           }}
         />
         <div
-          className="glass-card fixed z-50 min-w-36 overflow-hidden rounded-xl p-1 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]"
+          className="surface fixed z-50 min-w-36 overflow-hidden rounded-xl p-1 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]"
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -1041,14 +1041,14 @@ export function EditorStage({ src }: Props) {
             type="button"
             disabled={!image}
             onClick={() => void ctxCopy()}
-            className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent"
+            className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-[var(--surface-raised)] disabled:opacity-40 disabled:hover:bg-transparent"
           >
             Copy
           </button>
           <button
             type="button"
             onClick={() => void ctxPaste()}
-            className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-white/10"
+            className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-[var(--surface-raised)]"
           >
             Paste
           </button>
