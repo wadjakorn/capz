@@ -24,7 +24,7 @@ export function GlowTile({
 }: GlowTileProps) {
   return (
     <span
-      className={cn("glow-tile", className)}
+      className={cn("tile-icon relative shrink-0", className)}
       style={{ width: size, height: size, fontSize: ICON_SIZE[size] }}
     >
       <span className="relative z-10 inline-flex items-center justify-center">
@@ -32,11 +32,8 @@ export function GlowTile({
       </span>
       {checkmark && (
         <span
-          className="absolute -right-1 -top-1 z-20 h-4 w-4 rounded-full border-2 border-[#1a0533]"
-          style={{
-            background: "linear-gradient(180deg, #34d399, #10b981)",
-            boxShadow: "0 2px 6px rgba(16,185,129,0.5)",
-          }}
+          className="absolute -right-1 -top-1 z-20 h-4 w-4 rounded-full border-2"
+          style={{ background: "var(--success)", borderColor: "var(--bg)" }}
         />
       )}
     </span>

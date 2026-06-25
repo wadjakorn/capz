@@ -418,7 +418,6 @@ function StatusCard({
     <div className="surface flex items-center gap-3 p-3">
       <GlowTile
         size={40}
-        className={s.tile}
         icon={<Icon className="h-4 w-4" aria-hidden />}
       />
       <div className="flex flex-col">
