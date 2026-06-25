@@ -120,16 +120,16 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
 
   const tile =
     step === "permission"
-      ? { cls: "glow-tile-amber", icon: ShieldCheck }
+      ? { cls: "tile", icon: ShieldCheck }
       : step === "done"
-        ? { cls: "glow-tile-emerald", icon: Sparkles }
-        : { cls: "glow-tile-violet", icon: Camera };
+        ? { cls: "tile", icon: Sparkles }
+        : { cls: "tile", icon: Camera };
 
   return (
     <main className="flex min-h-full items-center justify-center p-8 text-foreground">
-      <div className="glass-card w-full max-w-xl p-8">
+      <div className="surface w-full max-w-xl p-8">
         <div className="mb-6 flex items-center gap-4">
-          <div className={`glow-tile ${tile.cls} h-16 w-16`}>
+          <div className={`${tile.cls} h-16 w-16`}>
             <tile.icon className="h-7 w-7" aria-hidden />
           </div>
           <div className="flex-1">
@@ -214,7 +214,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
   const mod = IS_MAC ? "⌘⌥⇧" : "Ctrl+Alt+Shift+";
   return (
     <div className="grid gap-4">
-      <h1 className="headline-xl">Welcome to capz</h1>
+      <h1 className="headline">Welcome to capz</h1>
       <p className="text-sm text-muted-foreground">
         Fast screenshots with annotation. Default hotkeys:
       </p>
@@ -242,7 +242,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
         Change these any time from Settings.
       </p>
       <div className="mt-4 flex justify-end">
-        <button onClick={onNext} className="glass-button-primary">
+        <button onClick={onNext} className="btn btn--primary">
           Next
         </button>
       </div>
@@ -290,7 +290,7 @@ function Permission({
 
   return (
     <div className="grid gap-4">
-      <h2 className="headline-xl">Screen Recording permission</h2>
+      <h2 className="headline">Screen Recording permission</h2>
       <p className="text-sm text-muted-foreground">
         macOS asks every app for explicit permission to read your screen
         contents. Without it capz can&apos;t capture anything.
@@ -340,7 +340,7 @@ function Permission({
           <button
             onClick={onOpenSettings}
             disabled={busy !== ""}
-            className="glass-button"
+            className="btn btn--secondary"
           >
             Open System Settings
           </button>
@@ -370,42 +370,42 @@ function StatusCard({
     { tile: string; tone: string; icon: typeof Check; label: string; eyebrow: string }
   > = {
     unknown: {
-      tile: "glow-tile-violet",
+      tile: "tile",
       tone: "text-[var(--color-fg-2)]",
       icon: Clock,
       eyebrow: "Checking",
       label: "Polling system permission…",
     },
     ready: {
-      tile: "glow-tile-emerald",
+      tile: "tile",
       tone: "text-emerald-200",
       icon: Check,
       eyebrow: "Granted",
       label: "Ready to capture",
     },
     "needs-relaunch": {
-      tile: "glow-tile-amber",
+      tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
       eyebrow: "Relaunch",
       label: "Granted — relaunch required",
     },
     ask: {
-      tile: "glow-tile-amber",
+      tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
       eyebrow: "Pending",
       label: "Not granted yet",
     },
     "open-settings": {
-      tile: "glow-tile-amber",
+      tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
       eyebrow: "Pending",
       label: "Awaiting toggle in System Settings",
     },
     inert: {
-      tile: "glow-tile-amber",
+      tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
       eyebrow: "Stale grant",
@@ -415,7 +415,7 @@ function StatusCard({
   const s = map[state];
   const Icon = s.icon;
   return (
-    <div className="glass-card flex items-center gap-3 p-3">
+    <div className="surface flex items-center gap-3 p-3">
       <GlowTile
         size={40}
         className={s.tile}
@@ -462,28 +462,28 @@ function PrimaryButton({
 }) {
   if (state === "ready") {
     return (
-      <button onClick={onNext} disabled={busy !== ""} className="glass-button-primary">
+      <button onClick={onNext} disabled={busy !== ""} className="btn btn--primary">
         Continue
       </button>
     );
   }
   if (state === "needs-relaunch") {
     return (
-      <button onClick={onRelaunch} disabled={busy !== ""} className="glass-button-primary">
+      <button onClick={onRelaunch} disabled={busy !== ""} className="btn btn--primary">
         {busy === "relaunch" ? "Relaunching…" : "Relaunch capz"}
       </button>
     );
   }
   if (state === "ask") {
     return (
-      <button onClick={onRequest} disabled={busy !== ""} className="glass-button-primary">
+      <button onClick={onRequest} disabled={busy !== ""} className="btn btn--primary">
         {busy === "request" ? "Requesting…" : "Request permission"}
       </button>
     );
   }
   if (state === "open-settings") {
     return (
-      <button onClick={onOpenSettings} disabled={busy !== ""} className="glass-button-primary">
+      <button onClick={onOpenSettings} disabled={busy !== ""} className="btn btn--primary">
         {busy === "open" ? "Opening…" : "Open System Settings"}
       </button>
     );
@@ -493,14 +493,14 @@ function PrimaryButton({
       <button
         onClick={onOpenInertRecovery}
         disabled={busy !== "" || !onOpenInertRecovery}
-        className="glass-button-primary disabled:opacity-50"
+        className="btn btn--primary disabled:opacity-50"
       >
         Fix permission…
       </button>
     );
   }
   return (
-    <button disabled className="glass-button-primary">
+    <button disabled className="btn btn--primary">
       Checking…
     </button>
   );
@@ -509,7 +509,7 @@ function PrimaryButton({
 function Done({ onFinish }: { onFinish: () => void }) {
   return (
     <div className="grid gap-4">
-      <h2 className="headline-xl">You&apos;re all set</h2>
+      <h2 className="headline">You&apos;re all set</h2>
       <p className="text-sm text-muted-foreground">
         capz lives in your menu bar / system tray. Use the hotkeys, or click
         the tray icon for capture options.
@@ -518,7 +518,7 @@ function Done({ onFinish }: { onFinish: () => void }) {
         Tweak everything later from the Settings view.
       </p>
       <div className="mt-4 flex justify-end">
-        <button onClick={onFinish} className="glass-button-primary">
+        <button onClick={onFinish} className="btn btn--primary">
           Finish
         </button>
       </div>

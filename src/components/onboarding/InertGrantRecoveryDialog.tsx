@@ -117,7 +117,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="glass-card relative flex w-full max-w-lg max-h-full flex-col overflow-hidden text-foreground"
+        className="surface relative flex w-full max-w-lg max-h-full flex-col overflow-hidden text-foreground"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -160,7 +160,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
               type="button"
               onClick={() => void openSettings("open1")}
               disabled={busy !== ""}
-              className="glass-button mt-1 self-start"
+              className="btn btn--secondary mt-1 self-start"
             >
               {busy === "open1" ? "Opening…" : "Open Privacy Settings"}
             </button>
@@ -182,7 +182,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
                 type="button"
                 onClick={() => void requestPermission()}
                 disabled={busy !== "" || step < 2}
-                className="glass-button-primary mt-1 self-start disabled:opacity-50"
+                className="btn btn--primary mt-1 self-start disabled:opacity-50"
               >
                 {busy === "request" ? "Requesting…" : "Request permission"}
               </button>
@@ -216,7 +216,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
               type="button"
               onClick={() => void openSettings("open3")}
               disabled={busy !== "" || step < 3}
-              className="glass-button mt-1 self-start disabled:opacity-50"
+              className="btn btn--secondary mt-1 self-start disabled:opacity-50"
             >
               {busy === "open3" ? "Opening…" : "Open Privacy Settings"}
             </button>
@@ -231,7 +231,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
               type="button"
               onClick={() => void relaunch()}
               disabled={busy !== ""}
-              className="glass-button-primary mt-1 self-start disabled:opacity-50"
+              className="btn btn--primary mt-1 self-start disabled:opacity-50"
             >
               {busy === "relaunch" ? "Relaunching…" : "Relaunch capz"}
             </button>
