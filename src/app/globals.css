@@ -21,149 +21,139 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
+
+  --color-card: var(--surface);
+  --color-card-foreground: var(--fg);
+  --color-popover: var(--surface-overlay);
+  --color-popover-foreground: var(--fg);
+
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-fg);
+  --color-secondary: var(--surface-raised);
+  --color-secondary-foreground: var(--fg);
+  --color-muted: var(--surface);
+  --color-muted-foreground: var(--fg-3);
+
+  --color-accent: var(--surface-raised);
+  --color-accent-foreground: var(--fg);
+
+  --color-destructive: var(--danger);
   --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-input: var(--border-strong);
+  --color-ring: var(--accent);
+
+  --color-chart-1: var(--accent);
+  --color-chart-2: var(--success);
+  --color-chart-3: var(--warning);
+  --color-chart-4: #f472b6;
+  --color-chart-5: #38bdf8;
+
+  --color-sidebar: var(--surface);
+  --color-sidebar-foreground: var(--fg);
+  --color-sidebar-primary: var(--accent);
+  --color-sidebar-primary-foreground: var(--accent-fg);
+  --color-sidebar-accent: var(--surface-raised);
+  --color-sidebar-accent-foreground: var(--fg);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--accent);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
   --radius-pill: var(--radius-pill);
-  --shadow-xs: var(--shadow-xs);
-  --shadow-sm: var(--shadow-sm);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
+  --shadow-xs: var(--elev-1);
+  --shadow-sm: var(--elev-1);
+  --shadow-md: var(--elev-2);
+  --shadow-lg: var(--elev-3);
 }
 
-/* Single dark-purple palette — light theme dropped. */
+/* Graphite — flat dark, single palette. No light theme. */
 :root,
 .dark {
-  --background: #1a0533;
-  --foreground: #f5f3ff;
+  /* Surfaces */
+  --bg: #0f0f12;
+  --bg-canvas: #0d0d10;
+  --surface: #161619;
+  --surface-raised: #1f1f24;
+  --surface-overlay: #1c1c21;
 
-  --card: rgba(255, 255, 255, 0.06);
-  --card-foreground: #f5f3ff;
-  --card-border: rgba(255, 255, 255, 0.10);
+  /* Hairlines */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.06);
 
-  --popover: #2a0a52;
-  --popover-foreground: #f5f3ff;
+  /* Text */
+  --fg: #ecedf0;
+  --fg-2: #c9cad1;
+  --fg-3: #9a9aa3;
+  --fg-4: #71717a;
 
-  --primary: #a78bfa;
-  --primary-foreground: #1a0533;
-  --secondary: rgba(255, 255, 255, 0.06);
-  --secondary-foreground: #f5f3ff;
-  --muted: rgba(255, 255, 255, 0.04);
-  --muted-foreground: rgba(245, 243, 255, 0.62);
-  --accent: rgba(167, 139, 250, 0.16);
-  --accent-foreground: #f5f3ff;
-  --destructive: #ff6b8b;
-  --border: rgba(255, 255, 255, 0.10);
-  --input: rgba(255, 255, 255, 0.14);
-  --ring: #a78bfa;
+  /* Accent (brand indigo) */
+  --accent: #6d7cff;
+  --accent-hover: #5b6bff;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(109, 124, 255, 0.16);
+  --accent-ring: rgba(109, 124, 255, 0.45);
 
-  --chart-1: #a78bfa;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #f472b6;
-  --chart-5: #38bdf8;
+  /* Semantic */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f76b6b;
 
-  --radius: 0.75rem;
-  --radius-pill: 980px;
+  /* Radius */
+  --radius: 0.5rem;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
 
-  --color-fg-2: rgba(245, 243, 255, 0.82);
-  --color-fg-3: rgba(245, 243, 255, 0.55);
-  --color-line-soft: rgba(255, 255, 255, 0.08);
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.20);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
-  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.55);
-  --shadow-focus: 0 0 0 4px rgba(167, 139, 250, 0.35);
+  /* Elevation (no blur, no inset sheen) */
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --elev-2: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --elev-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-ring);
+
+  /* Type scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
   --ls-tight: -0.022em;
   --ls-snug: -0.015em;
   --ls-eyebrow: 0.06em;
 
-  /* Blur scale */
-  --blur-sm: 8px;
-  --blur-md: 14px;
-  --blur-lg: 20px;
-  --blur-xl: 28px;
+  /* Motion */
+  --t-fast: 100ms;
+  --t: 140ms;
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
 
-  /* Liquid glass — iOS 26 inspired */
-  --lg-fill: rgba(255, 255, 255, 0.06);
-  --lg-fill-soft: rgba(255, 255, 255, 0.03);
-  --lg-fill-strong: rgba(255, 255, 255, 0.10);
-  --lg-blur: 30px;
-  --lg-saturate: 180%;
-  --lg-rim: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(255, 255, 255, 0.12) 22%,
-    rgba(255, 255, 255, 0.04) 60%,
-    rgba(255, 255, 255, 0.18) 100%
-  );
-  --lg-sheen: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0) 38%
-  );
-  --lg-halo: 0 24px 60px -20px rgba(0, 0, 0, 0.55),
-    0 2px 0 rgba(255, 255, 255, 0.04);
-
-  /* iOS-glass elevation */
-  --depth-1: 0 1px 2px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --depth-2: 0 6px 20px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  --depth-3: 0 18px 40px -10px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  --depth-4: 0 30px 60px -20px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
-
-  /* Type scale */
-  --text-eyebrow: 12px;
-  --text-body: 14px;
-  --text-title: 18px;
-  --text-headline: 28px;
-  --text-display: 44px;
-
-  --sidebar: rgba(255, 255, 255, 0.04);
-  --sidebar-foreground: #f5f3ff;
-  --sidebar-primary: #a78bfa;
-  --sidebar-primary-foreground: #1a0533;
-  --sidebar-accent: rgba(167, 139, 250, 0.20);
-  --sidebar-accent-foreground: #f5f3ff;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #a78bfa;
+  /* shadcn semantic vars (consumed by ui/*) */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--surface);
+  --card-foreground: var(--fg);
+  --popover: var(--surface-overlay);
+  --popover-foreground: var(--fg);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-fg);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--fg);
+  --muted: var(--surface);
+  --muted-foreground: var(--fg-3);
+  --accent-foreground: var(--fg);
+  --destructive: var(--danger);
+  --input: var(--border-strong);
+  --ring: var(--accent);
 }
 
 @layer base {
@@ -172,22 +162,17 @@
   }
   html,
   body {
-    background-color: #1a0533;
+    background-color: var(--bg);
   }
   body {
-    color: var(--foreground);
+    color: var(--fg);
     font-family: var(--font-sans), -apple-system, BlinkMacSystemFont,
       "Segoe UI", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background-image:
-      radial-gradient(circle at 15% 10%, rgba(168, 85, 247, 0.55) 0%, transparent 45%),
-      radial-gradient(circle at 85% 25%, rgba(124, 58, 237, 0.45) 0%, transparent 50%),
-      radial-gradient(circle at 50% 100%, rgba(76, 29, 149, 0.55) 0%, transparent 55%),
-      linear-gradient(160deg, #3a0d6e 0%, #1a0533 60%, #0d021f 100%);
-    background-attachment: fixed;
+    background: var(--bg);
     min-height: 100vh;
   }
   html {
@@ -230,11 +215,11 @@
 }
 
 .eyebrow {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: var(--ls-eyebrow);
   text-transform: uppercase;
-  color: var(--primary);
+  color: var(--accent);
 }
 
 /* ---------------- Playful utilities ---------------- */
@@ -551,23 +536,4 @@
     background: linear-gradient(180deg, rgba(232, 121, 249, 0.55), rgba(162, 28, 175, 0.65)),
       var(--lg-fill);
   }
-}
-
-/* Windows hybrid glass fallback. WebView2 doesn't render backdrop-filter blur
-   over the editor canvas, so the translucent white fills read as near-invisible.
-   Keep backdrop-filter (harmless if it ever paints) but swap the fill vars to an
-   opaque violet-dark tint matching the app background so floating bars look
-   intentional. The main toolbar and glow-tile consume var(--lg-fill);
-   glass-pill-soft uses var(--lg-fill-strong).
-   Kept UNLAYERED (and scoped to html[...]) so it wins over the unlayered :root
-   var defaults — a copy inside @layer components would lose to them. */
-html[data-os="windows"] {
-  --lg-fill: rgba(30, 12, 56, 0.86);
-  --lg-fill-soft: rgba(30, 12, 56, 0.78);
-  --lg-fill-strong: rgba(30, 12, 56, 0.92);
-}
-html[data-os="windows"] .glass-button {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 100%),
-    rgba(30, 12, 56, 0.82);
 }
