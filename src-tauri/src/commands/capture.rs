@@ -166,14 +166,26 @@ pub async fn trigger_capture_command<R: Runtime>(
     crate::capture_dispatch::trigger_capture(app, parsed).await
 }
 
+/// Capture an area selection and open it in the editor.
+///
+/// **Coordinate contract:** `x`/`y`/`w`/`h` are **physical device pixels**,
+/// relative to the target monitor's top-left — NOT logical/CSS pixels. The sole
+/// caller (the overlay `confirmRegion`) multiplies its logical selection by the
+/// webview `devicePixelRatio` before invoking, so passing logical px here would
+/// crop the wrong region (the original Windows bug, ticket L9mejWlFPDcZ).
+///
+/// Degenerate input is handled downstream in [`capture_service::capture_region`],
+/// not by panics: zero `w`/`h` returns an error, negative `x`/`y` clamp to the
+/// buffer origin, an origin outside the monitor returns an error, and `w`/`h`
+/// are clamped to the remaining buffer extent.
 #[tauri::command]
 pub async fn capture_region_command<R: Runtime>(
     app: AppHandle<R>,
     monitor_id: u32,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: i32, // left edge, physical px
+    y: i32, // top edge, physical px
+    w: u32, // width, physical px
+    h: u32, // height, physical px
 ) -> Result<String, String> {
     tray::set_busy(&app, "Capturing…");
     hide_overlays_and_wait(&app).await?;
