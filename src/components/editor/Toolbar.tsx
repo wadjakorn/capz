@@ -737,12 +737,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
     tool === "sticker"
   );
 
-  const exportMode = fullConfig.output.defaultMode;
-  const primaryAction: ExportAction =
-    exportMode === "clipboard" ? "copy" : exportMode === "file" ? "file" : "both";
-
   const renderExportButton = (action: ExportAction, label: string, hint: string) => {
-    const isPrimary = action === primaryAction;
     const Icon = EXPORT_ICONS[action];
     return (
       <button
@@ -752,22 +747,17 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
         disabled={exporting}
         title={hint}
         aria-label={label}
-        className={[
-          "flex h-8 w-8 items-center justify-center rounded-lg transition-all disabled:opacity-50",
-          isPrimary
-            ? "bg-[var(--accent)] text-[var(--accent-fg)] hover:bg-[var(--accent-hover)]"
-            : "bg-white/[0.06] text-foreground/85 hover:bg-white/[0.12] hover:text-foreground",
-        ].join(" ")}
+        className="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-[var(--fg-2)] transition-all hover:bg-[var(--surface-raised)] hover:text-[var(--fg)] disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <Icon className="h-4 w-4" aria-hidden />
       </button>
     );
   };
 
-  const Divider = () => <div className="mx-1 h-5 w-px bg-white/10" />;
+  const Divider = () => <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />;
 
   return (
-    <div className="relative z-20 flex flex-col border-b border-white/10 bg-[var(--surface-overlay)] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+    <div className="relative z-20 flex flex-col border-b border-[var(--border)] bg-[var(--surface-overlay)] px-2 py-1.5">
       <div className="flex items-center gap-1">
         {/* Output group */}
         <div className="flex items-center gap-1">

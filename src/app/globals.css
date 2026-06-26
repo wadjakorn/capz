@@ -81,6 +81,7 @@
   --bg-canvas: #0d0d10;
   --surface: #161619;
   --surface-raised: #1f1f24;
+  --surface-raised-hover: #26262c;
   --surface-overlay: #1c1c21;
 
   /* Hairlines */
@@ -154,6 +155,47 @@
   --destructive: var(--danger);
   --input: var(--border-strong);
   --ring: var(--accent);
+}
+
+/* Graphite — light palette. Overrides only the primitives that differ; the
+   derived tokens (--background, --color-*, shadcn vars) re-resolve from these
+   since they're declared on :root. .light is set on <html> by ThemeManager. */
+.light {
+  /* Surfaces */
+  --bg: #f6f6f8;
+  --bg-canvas: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #f0f0f3;
+  --surface-raised-hover: #e6e6ea;
+  --surface-overlay: #ffffff;
+
+  /* Hairlines */
+  --border: rgba(15, 15, 18, 0.10);
+  --border-strong: rgba(15, 15, 18, 0.16);
+  --border-subtle: rgba(15, 15, 18, 0.06);
+
+  /* Text */
+  --fg: #18181b;
+  --fg-2: #3f3f46;
+  --fg-3: #6b6b74;
+  --fg-4: #9a9aa3;
+
+  /* Accent (brand indigo, deepened for contrast on light) */
+  --accent: #5b6bff;
+  --accent-hover: #4a5aff;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(109, 124, 255, 0.12);
+  --accent-ring: rgba(109, 124, 255, 0.40);
+
+  /* Semantic (deepened for AA on light) */
+  --success: #059669;
+  --warning: #b45309;
+  --danger: #dc2626;
+
+  /* Elevation (softer, neutral) */
+  --elev-1: 0 1px 2px rgba(15, 15, 18, 0.08);
+  --elev-2: 0 4px 12px rgba(15, 15, 18, 0.10);
+  --elev-3: 0 12px 32px rgba(15, 15, 18, 0.16);
 }
 
 @layer base {
@@ -252,7 +294,7 @@
     color: var(--fg);
     border-color: var(--border);
   }
-  .btn--secondary:hover:not(:disabled) { background: #26262c; }
+  .btn--secondary:hover:not(:disabled) { background: var(--surface-raised-hover); }
 
   .btn--ghost { background: transparent; color: var(--fg-2); }
   .btn--ghost:hover:not(:disabled) { background: var(--surface-raised); color: var(--fg); }

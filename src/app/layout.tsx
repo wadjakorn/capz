@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+import { ThemeManager } from "@/components/ThemeManager";
 
 const notoSansThai = localFont({
   src: "./fonts/NotoSansThai.ttf",
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body
         className={`${notoSansThai.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
+        <ThemeManager />
         {children}
       </body>
     </html>

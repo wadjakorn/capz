@@ -276,6 +276,24 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
 
           <TabsContent value="general" className="grid gap-4">
             <SectionCard>
+              <FieldRow
+                label="Appearance"
+                hint="Color theme for all capz windows. System follows your OS setting."
+              >
+                <select
+                  className="field"
+                  value={config.general.theme}
+                  onChange={(e) =>
+                    update("general", {
+                      theme: e.target.value as "light" | "dark" | "system",
+                    })
+                  }
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="system">System</option>
+                </select>
+              </FieldRow>
               <ToggleRow
                 label="Launch at login"
                 checked={config.general.autostart}
@@ -431,7 +449,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+    <div className="grid gap-4 rounded-2xl border border-border bg-foreground/[0.03] p-5">
       {children}
     </div>
   );
@@ -613,7 +631,7 @@ function AboutRow() {
   }, []);
 
   return (
-    <div className="flex items-center justify-between border-t border-white/[0.06] pt-4">
+    <div className="flex items-center justify-between border-t border-border pt-4">
       <div className="grid gap-0.5">
         <Label>About capz</Label>
         <span className="text-xs text-muted-foreground">
