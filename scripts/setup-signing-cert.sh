@@ -19,7 +19,13 @@
 #   scripts/setup-signing-cert.sh --print-only    # generate + print base64, DON'T touch GitHub
 set -euo pipefail
 
-CN="capz Self-Signed"                 # cert Common Name == APPLE_SIGNING_IDENTITY
+# The CN MUST start with an Apple identity prefix and the subject MUST carry an
+# Organizational Unit — tauri-macos-sign's identity parser only resolves certs
+# shaped like real Apple certs (see crates/tauri-macos-sign/src/keychain/identity.rs).
+# It is still a self-signed, untrusted cert; the Apple-looking name is cosmetic
+# and (CAPZ000000) is a placeholder, NOT a real Apple Team ID.
+TEAM="CAPZ000000"
+CN="Developer ID Application: capz (${TEAM})"   # == APPLE_SIGNING_IDENTITY
 DAYS=3650                             # 10y; binaries keep working past expiry, just can't sign new ones
 PRINT_ONLY=0
 [ "${1:-}" = "--print-only" ] && PRINT_ONLY=1
@@ -37,17 +43,20 @@ P12_PASS="$(openssl rand -base64 24)"
 # Self-signed cert with the codeSigning EKU — the minimum macOS codesign accepts.
 openssl req -x509 -newkey rsa:2048 -nodes -days "$DAYS" \
   -keyout "$WORK/key.pem" -out "$WORK/cert.pem" \
-  -subj "/CN=${CN}" \
+  -subj "/CN=${CN}/OU=${TEAM}/O=capz" \
   -addext "keyUsage=critical,digitalSignature" \
   -addext "extendedKeyUsage=critical,codeSigning" \
   -addext "basicConstraints=critical,CA:false" 2>/dev/null
 
-openssl pkcs12 -export \
+# -legacy + SHA-1 MAC: macOS `security import` (used by tauri-action) only
+# verifies the legacy PKCS#12 MAC. OpenSSL 3's default SHA-256 MAC makes the
+# import fail with "MAC verification failed during PKCS12 import".
+openssl pkcs12 -export -legacy -macalg sha1 \
   -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
   -name "$CN" -out "$WORK/capz-signing.p12" \
   -passout "pass:${P12_PASS}"
 
-CERT_B64="$(base64 < "$WORK/capz-signing.p12")"
+CERT_B64="$(base64 < "$WORK/capz-signing.p12" | tr -d '\n')"
 
 if [ "$PRINT_ONLY" -eq 1 ]; then
   echo "Identity (APPLE_SIGNING_IDENTITY): $CN"

@@ -38,6 +38,7 @@ export type AppConfig = {
     defaultBubbleTail: PinTailDir;
   };
   general: {
+    theme: "light" | "dark" | "system";
     autostart: boolean;
     playSoundOnCapture: boolean;
     rememberLastTool: boolean;
@@ -137,6 +138,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     defaultBubbleTail: "down",
   },
   general: {
+    theme: "dark",
     autostart: false,
     playSoundOnCapture: false,
     rememberLastTool: true,
@@ -281,6 +283,7 @@ function vGeneral(
     raw,
     def,
     {
+      theme: inSet("light", "dark", "system"),
       autostart: isBool,
       playSoundOnCapture: isBool,
       rememberLastTool: isBool,

@@ -24,21 +24,39 @@ quarantine, so the recommended install path is unaffected.
 
 ## One-time transition cost
 
-The first signed release flips identity from "none" (ad-hoc) to "capz Self-Signed".
+The first signed release flips identity from "none" (ad-hoc) to the stable
+self-signed `Developer ID Application: capz (CAPZ000000)`.
 Existing installs lose the Screen Recording grant **once** on that update, then
 never again. Mention it in that release's notes.
 
 ## How it works
 
-[scripts/setup-signing-cert.sh](../scripts/setup-signing-cert.sh) generated a
-self-signed code-signing cert (`CN=capz Self-Signed`, codeSigning EKU) and set
-three GitHub Actions secrets:
+[scripts/setup-signing-cert.sh](../scripts/setup-signing-cert.sh) generates a
+self-signed code-signing cert and sets three GitHub Actions secrets:
 
 | Secret | Value |
 |---|---|
 | `APPLE_CERTIFICATE` | base64 of the self-signed `.p12` |
 | `APPLE_CERTIFICATE_PASSWORD` | random p12 export password |
-| `APPLE_SIGNING_IDENTITY` | `capz Self-Signed` |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: capz (CAPZ000000)` |
+
+### Two non-obvious cert requirements (both caused the first CI failure)
+
+1. **PKCS#12 must use the legacy SHA-1 MAC.** OpenSSL 3 defaults to a SHA-256
+   MAC; Apple's `security import` only verifies SHA-1 and fails with
+   `MAC verification failed during PKCS12 import (wrong password?)`. The script
+   exports with `openssl pkcs12 -export -legacy -macalg sha1`.
+2. **CN must start with an Apple identity prefix and the subject must carry an
+   Organizational Unit.** `tauri-macos-sign`'s identity parser
+   ([keychain/identity.rs](https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-macos-sign/src/keychain/identity.rs))
+   only looks for certs named `Developer ID Application:` / `Apple Development:`
+   / etc. **and** reads the OU as the team id. A plain `CN=capz Self-Signed`
+   (no prefix, no OU) imports but resolves to **no signing identity**. So the
+   cert is named `Developer ID Application: capz (CAPZ000000)` with `OU=CAPZ000000`.
+   It is still self-signed and untrusted — the Apple-looking name is cosmetic and
+   `CAPZ000000` is a placeholder, **not** a real Apple Team ID. `codesign` signs
+   fine with an untrusted self-signed identity (verified locally); trust only
+   matters for Gatekeeper *verification*, which we don't get either way.
 
 [.github/workflows/build.yml](../.github/workflows/build.yml) passes them to
 `tauri-action`. Verified against Tauri source (`dev`):
@@ -60,19 +78,20 @@ three GitHub Actions secrets:
 ```bash
 # In the built app (or after downloading the .app from the release):
 codesign -dv --verbose=4 capz.app
-#   Authority=capz Self-Signed     ← stable identity, not "adhoc"
+#   Authority=Developer ID Application: capz (CAPZ000000)     ← stable identity, not "adhoc"
 codesign --verify --deep --strict capz.app && echo OK
 ```
 
 CI log of the `Build + release via tauri-action` step should show
-`Signing with identity "capz Self-Signed"` and `skipping app notarization`.
+`Signing with identity "Developer ID Application: capz (CAPZ000000)"` and
+`skipping app notarization`.
 
 ## Rotating / regenerating
 
 Self-signed certs are zero-cost. Re-run `scripts/setup-signing-cert.sh` to mint a
 new one and overwrite the secrets. Note: changing the identity string resets the
 TCC grant once for existing users (same as the first transition). Keep
-`CN=capz Self-Signed` stable to avoid that.
+the CN (incl. team-id placeholder) stable to avoid that.
 
 ## Upgrading to the paid path later
 

@@ -3,11 +3,56 @@
 import { useEffect, useRef, useState } from "react";
 
 const RULER_SIZE = 20;
-const BG = "#161619";
-const TICK_MINOR = "rgba(255,255,255,0.10)";
-const TICK_MAJOR = "rgba(245,243,255,0.45)";
-const TEXT = "rgba(245,243,255,0.55)";
-const CROSS = "#6d7cff";
+
+type RulerColors = {
+  bg: string;
+  tickMinor: string;
+  tickMajor: string;
+  text: string;
+  cross: string;
+  corner: string;
+};
+
+const FALLBACK_COLORS: RulerColors = {
+  bg: "#161619",
+  tickMinor: "rgba(255,255,255,0.10)",
+  tickMajor: "rgba(245,243,255,0.45)",
+  text: "rgba(245,243,255,0.55)",
+  cross: "#6d7cff",
+  corner: "rgba(255,255,255,0.08)",
+};
+
+/** Canvas can't consume CSS variables, so resolve the themed values off
+ *  <html> at draw time and re-read whenever ThemeManager flips the class. */
+function readRulerColors(): RulerColors {
+  if (typeof window === "undefined") return FALLBACK_COLORS;
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) =>
+    cs.getPropertyValue(name).trim() || fallback;
+  return {
+    bg: v("--surface", FALLBACK_COLORS.bg),
+    tickMinor: v("--border-strong", FALLBACK_COLORS.tickMinor),
+    tickMajor: v("--fg-3", FALLBACK_COLORS.tickMajor),
+    text: v("--fg-3", FALLBACK_COLORS.text),
+    cross: v("--accent", FALLBACK_COLORS.cross),
+    corner: v("--border", FALLBACK_COLORS.corner),
+  };
+}
+
+function useRulerColors(): RulerColors {
+  const [colors, setColors] = useState<RulerColors>(FALLBACK_COLORS);
+  useEffect(() => {
+    const read = () => setColors(readRulerColors());
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => obs.disconnect();
+  }, []);
+  return colors;
+}
 
 type Props = {
   containerEl: HTMLDivElement | null;
@@ -41,6 +86,7 @@ export function Rulers({
   const leftRef = useRef<HTMLCanvasElement>(null);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const colors = useRulerColors();
 
   useEffect(() => {
     if (!containerEl) return;
@@ -80,7 +126,7 @@ export function Rulers({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = BG;
+    ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, w, h);
     ctx.font = "9px ui-sans-serif, system-ui, -apple-system";
     ctx.textBaseline = "top";
@@ -90,7 +136,7 @@ export function Rulers({
     const imgAtLeft = (scroll.left - padX) / scale;
     const imgAtRight = imgAtLeft + w / scale;
 
-    ctx.strokeStyle = TICK_MINOR;
+    ctx.strokeStyle = colors.tickMinor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     const firstMinor = Math.ceil(imgAtLeft / minor) * minor;
@@ -101,8 +147,8 @@ export function Rulers({
     }
     ctx.stroke();
 
-    ctx.strokeStyle = TICK_MAJOR;
-    ctx.fillStyle = TEXT;
+    ctx.strokeStyle = colors.tickMajor;
+    ctx.fillStyle = colors.text;
     ctx.beginPath();
     const firstMajor = Math.ceil(imgAtLeft / step) * step;
     for (let v = firstMajor; v <= imgAtRight; v += step) {
@@ -114,14 +160,14 @@ export function Rulers({
     ctx.stroke();
 
     if (cursor && cursor.x >= RULER_SIZE && cursor.y >= 0) {
-      ctx.strokeStyle = CROSS;
+      ctx.strokeStyle = colors.cross;
       ctx.beginPath();
       const cx = Math.round(cursor.x) + 0.5;
       ctx.moveTo(cx, 0);
       ctx.lineTo(cx, h);
       ctx.stroke();
     }
-  }, [containerW, padX, scale, scroll.left, cursor]);
+  }, [containerW, padX, scale, scroll.left, cursor, colors]);
 
   useEffect(() => {
     const canvas = leftRef.current;
@@ -136,7 +182,7 @@ export function Rulers({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = BG;
+    ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, w, h);
     ctx.font = "9px ui-sans-serif, system-ui, -apple-system";
     ctx.textBaseline = "top";
@@ -146,7 +192,7 @@ export function Rulers({
     const imgAtTop = (scroll.top - padY) / scale;
     const imgAtBottom = imgAtTop + h / scale;
 
-    ctx.strokeStyle = TICK_MINOR;
+    ctx.strokeStyle = colors.tickMinor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     const firstMinor = Math.ceil(imgAtTop / minor) * minor;
@@ -157,8 +203,8 @@ export function Rulers({
     }
     ctx.stroke();
 
-    ctx.strokeStyle = TICK_MAJOR;
-    ctx.fillStyle = TEXT;
+    ctx.strokeStyle = colors.tickMajor;
+    ctx.fillStyle = colors.text;
     ctx.beginPath();
     const firstMajor = Math.ceil(imgAtTop / step) * step;
     for (let v = firstMajor; v <= imgAtBottom; v += step) {
@@ -174,14 +220,14 @@ export function Rulers({
     ctx.stroke();
 
     if (cursor && cursor.y >= RULER_SIZE && cursor.x >= 0) {
-      ctx.strokeStyle = CROSS;
+      ctx.strokeStyle = colors.cross;
       ctx.beginPath();
       const cy = Math.round(cursor.y) + 0.5;
       ctx.moveTo(0, cy);
       ctx.lineTo(w, cy);
       ctx.stroke();
     }
-  }, [containerH, padY, scale, scroll.top, cursor]);
+  }, [containerH, padY, scale, scroll.top, cursor, colors]);
 
   if (scale <= 0) return null;
 
@@ -214,9 +260,9 @@ export function Rulers({
           top: 0,
           width: RULER_SIZE,
           height: RULER_SIZE,
-          background: BG,
-          borderRight: "1px solid rgba(255,255,255,0.08)",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          background: colors.bg,
+          borderRight: `1px solid ${colors.corner}`,
+          borderBottom: `1px solid ${colors.corner}`,
           pointerEvents: "none",
           zIndex: 6,
         }}
