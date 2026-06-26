@@ -36,10 +36,12 @@ pub fn capture_region(monitor_id: u32, x: i32, y: i32, w: u32, h: u32) -> Result
         .capture_image()
         .map_err(|e| anyhow!("capture failed: {e}"))?;
 
+    // x/y may be negative after rounding; clamp to the buffer origin. w/h are
+    // u32 and already guaranteed >= 1 by the zero-area early return above.
     let px = x.max(0) as u32;
     let py = y.max(0) as u32;
-    let pw = w.max(1);
-    let ph = h.max(1);
+    let pw = w;
+    let ph = h;
 
     let (fw, fh) = full.dimensions();
     if px >= fw || py >= fh {

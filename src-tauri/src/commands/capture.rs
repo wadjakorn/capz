@@ -170,12 +170,13 @@ pub async fn trigger_capture_command<R: Runtime>(
 pub async fn capture_region_command<R: Runtime>(
     app: AppHandle<R>,
     monitor_id: u32,
-    // Physical device px (monitor-local). The overlay already multiplied its
-    // logical selection by the webview devicePixelRatio, so Rust crops directly.
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    // Selection region in physical device px, relative to the monitor's
+    // top-left. The overlay already multiplied its logical (CSS px) selection by
+    // the webview devicePixelRatio, so Rust crops the xcap buffer directly.
+    x: i32, // left edge
+    y: i32, // top edge
+    w: u32, // width
+    h: u32, // height
 ) -> Result<String, String> {
     tray::set_busy(&app, "Capturing…");
     hide_overlays_and_wait(&app).await?;
