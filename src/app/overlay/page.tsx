@@ -209,6 +209,22 @@ function OverlayInner() {
         console.warn("persist lastUsed.region failed", e);
       }
     }
+    // [area-diag] Webview devicePixelRatio is the authoritative ratio the
+    // overlay actually rendered + hit-tested at. Pass it so Rust can compare
+    // against xcap's scale_factor and reveal a logical→physical mismatch (the
+    // suspected cause of the Windows "captured area shifted left" bug).
+    const dpr = window.devicePixelRatio || 1;
+    console.info("[area-diag] confirmRegion", {
+      monitorId,
+      logical: rounded,
+      devicePixelRatio: dpr,
+      physicalIfDpr: {
+        x: Math.round(rounded.x * dpr),
+        y: Math.round(rounded.y * dpr),
+        w: Math.round(rounded.w * dpr),
+        h: Math.round(rounded.h * dpr),
+      },
+    });
     getCurrentWindow()
       .hide()
       .catch((e) => console.warn("hide overlay failed", e));
@@ -216,6 +232,7 @@ function OverlayInner() {
       const path = await invoke<string>("capture_region_command", {
         monitorId,
         ...rounded,
+        dpr,
       });
       console.info("capture_region_command → editor", path);
     } catch (e) {

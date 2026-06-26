@@ -174,13 +174,18 @@ pub async fn capture_region_command<R: Runtime>(
     y: i32,
     w: u32,
     h: u32,
+    // [area-diag] Webview devicePixelRatio reported by the overlay. Logged
+    // against xcap's scale_factor to diagnose the Windows shift bug. Optional so
+    // older callers / tests still compile (defaults to 0 = "not provided").
+    #[allow(unused_variables)] dpr: Option<f64>,
 ) -> Result<String, String> {
     tray::set_busy(&app, "Capturing…");
     hide_overlays_and_wait(&app).await?;
+    let dpr = dpr.unwrap_or(0.0);
     let res = capture_to_editor(
         app.clone(),
-        format!("capture_region(mon={monitor_id}, {x},{y} {w}x{h})"),
-        move || capture_service::capture_region(monitor_id, x, y, w, h),
+        format!("capture_region(mon={monitor_id}, {x},{y} {w}x{h} dpr={dpr})"),
+        move || capture_service::capture_region(monitor_id, x, y, w, h, dpr),
     )
     .await;
     close_overlays(&app);
