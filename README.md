@@ -43,6 +43,8 @@ Builds are **unsigned** (no EV code-signing certificate). First run triggers Sma
 
 Click **"More info" → "Run anyway"**. One-time per version. The app itself is fine; the warning reflects the absence of a paid Authenticode cert, not any actual issue with the binary.
 
+🇹🇭 **ภาษาไทย — คู่มือติดตั้งสำหรับผู้ใช้ทั่วไป:** [docs/INSTALL-WINDOWS.th.md](docs/INSTALL-WINDOWS.th.md) (step-by-step Thai guide for non-technical Windows users).
+
 ## Develop
 
 ```bash
