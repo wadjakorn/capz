@@ -79,3 +79,4 @@ Homebrew-installed users get auto-updates seamlessly. Manual-install macOS users
 
 - [PLAN.md](PLAN.md) — phased build spec (source of truth)
 - [CLAUDE.md](CLAUDE.md) — guidance for Claude Code
+- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 enabling Windows Thai OCR language pack (plain-Thai, for non-tech users)

@@ -82,6 +82,21 @@ describe("useOcr", () => {
     expect(thaiCalls).toHaveLength(1);
   });
 
+  it("points Windows users to the Thai OCR language-pack guide", async () => {
+    const orig = navigator.platform;
+    Object.defineProperty(navigator, "platform", { value: "Win32", configurable: true });
+    try {
+      detectText.mockResolvedValue(fake("x", false));
+      useOcr.getState().setKey("/img/a.png");
+      await useOcr.getState().detect();
+      const call = toast.mock.calls.find((c) => String(c[0]).includes("Thai"));
+      expect(call?.[1]?.description).toContain("OCR-THAI-WINDOWS.th.md");
+      expect(call?.[1]?.description).toContain("Language & region");
+    } finally {
+      Object.defineProperty(navigator, "platform", { value: orig, configurable: true });
+    }
+  });
+
   it("toasts the line count on a successful detection", async () => {
     detectText.mockResolvedValue(fake("hello")); // fake() → 1 line
     useOcr.getState().setKey("/img/a.png");
