@@ -19,8 +19,11 @@ type State = {
   reset: () => void;
 };
 
-const isWindows =
+const isWindows = () =>
   typeof navigator !== "undefined" && /Win/i.test(navigator.platform);
+
+const THAI_OCR_GUIDE_URL =
+  "https://github.com/wadjakorn/capz/blob/main/docs/OCR-THAI-WINDOWS.th.md";
 
 export const useOcr = create<State>((set, get) => ({
   mode: false,
@@ -59,12 +62,15 @@ export const useOcr = create<State>((set, get) => ({
       }
       if (!result.thaiAvailable && !get().thaiNoticeShown) {
         set({ thaiNoticeShown: true });
-        toast(
-          "Thai text recognition isn't available on this system" +
-            (isWindows
-              ? " — install the Thai language pack in Windows Settings."
-              : " — it requires a newer macOS version."),
-        );
+        toast("Thai text recognition isn't available on this system", {
+          description: isWindows()
+            ? "ติดตั้งชุดภาษาไทยของ Windows เพื่ออ่านภาษาไทยได้: Settings → Time & language → " +
+              "Language & region → Add a language → เลือก “ไทย / Thai” → ติ๊ก " +
+              "“Optical character recognition” → Install แล้วเปิด capz ใหม่ · " +
+              `คู่มือฉบับเต็ม: ${THAI_OCR_GUIDE_URL}`
+            : "It requires a newer macOS version.",
+          duration: isWindows() ? 15_000 : 8_000,
+        });
       }
     } catch (e) {
       console.error("ocr_detect failed", e);
