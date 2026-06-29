@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Stage,
   Layer,
@@ -10,10 +10,8 @@ import {
   Text,
   Circle,
   Group,
-  Label,
   Line,
   Shape,
-  Tag,
   Transformer,
 } from "react-konva";
 import useImage from "use-image";
@@ -1208,7 +1206,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
 }
 
 function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
-  const ref = useRef<Konva.Label>(null);
+  const ref = useRef<Konva.Group>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
@@ -1216,8 +1214,29 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   const bg = a.backgroundColor ?? null;
   const padding = bg ? 8 : 0;
   const cornerRadius = bg ? 6 : 0;
+  const fontStyle = a.fontStyle ?? "normal";
+  const textDecoration = a.textDecoration ?? "";
+  const fontFamily = a.fontFamily ?? "system-ui, sans-serif";
+
+  // Measure the text (incl. padding) so the background Rect wraps it exactly —
+  // Konva's Label/Tag auto-sizing lagged the Text and let it overflow the bg.
+  const size = useMemo(() => {
+    const probe = new Konva.Text({
+      text: a.text,
+      fontSize: a.fontSize,
+      fontStyle,
+      textDecoration,
+      fontFamily,
+      padding,
+    });
+    const w = probe.width();
+    const h = probe.height();
+    probe.destroy();
+    return { w, h };
+  }, [a.text, a.fontSize, fontStyle, textDecoration, fontFamily, padding]);
+
   return (
-    <Label
+    <Group
       ref={ref}
       x={a.x}
       y={a.y}
@@ -1258,17 +1277,24 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         });
       }}
     >
-      <Tag fill={bg ?? "rgba(0,0,0,0)"} cornerRadius={cornerRadius} />
+      {bg && (
+        <Rect
+          width={size.w}
+          height={size.h}
+          fill={bg}
+          cornerRadius={cornerRadius}
+        />
+      )}
       <Text
         text={a.text}
         fontSize={a.fontSize}
         fill={a.fill}
-        fontStyle={a.fontStyle ?? "normal"}
-        textDecoration={a.textDecoration ?? ""}
-        fontFamily={a.fontFamily ?? "system-ui, sans-serif"}
+        fontStyle={fontStyle}
+        textDecoration={textDecoration}
+        fontFamily={fontFamily}
         padding={padding}
       />
-    </Label>
+    </Group>
   );
 }
 
