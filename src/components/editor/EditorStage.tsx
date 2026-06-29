@@ -999,8 +999,8 @@ export function EditorStage({ src }: Props) {
             background: teBg ?? "rgba(20,20,20,0.92)",
             border: `2px dashed ${toolsCfg.text.color}`,
             outline: "none",
-            padding: teBg ? 8 : 4,
-            borderRadius: teBg ? 6 : 0,
+            padding: teBg ? "8px 12px" : 4,
+            borderRadius: teBg ? 10 : 0,
             minWidth: 140,
             minHeight: Math.max(28, toolsCfg.text.fontSize * scale + 12),
             resize: "none",
@@ -1205,6 +1205,59 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
   );
 }
 
+// Shared offscreen canvas for measuring real glyph ink bounds. Konva sizes
+// text by font em-box (≈ fontSize per line), which clips scripts whose marks
+// stack outside the em box — e.g. Thai upper vowels + tone marks. measureText's
+// actualBoundingBox ascent/descent report the true ink extent.
+const _inkCanvas: HTMLCanvasElement | null =
+  typeof document !== "undefined" ? document.createElement("canvas") : null;
+
+function measureTextInk(
+  text: string,
+  fontSize: number,
+  fontStyle: string,
+  fontFamily: string,
+): {
+  ascent: number;
+  descent: number;
+  width: number;
+  fontAscent: number;
+  fontDescent: number;
+} {
+  const ctx = _inkCanvas?.getContext("2d");
+  const lines = (text || " ").split("\n");
+  if (!ctx) {
+    // SSR / no canvas: fall back to em-box estimate.
+    return {
+      ascent: fontSize * 0.8,
+      descent: fontSize * 0.2,
+      width: 0,
+      fontAscent: fontSize * 0.8,
+      fontDescent: fontSize * 0.2,
+    };
+  }
+  const cssStyle = fontStyle && fontStyle !== "normal" ? `${fontStyle} ` : "";
+  ctx.font = `${cssStyle}${fontSize}px ${fontFamily}`;
+  let ascent = 0;
+  let descent = 0;
+  let width = 0;
+  let fontAscent = 0;
+  let fontDescent = 0;
+  for (const ln of lines) {
+    const m = ctx.measureText(ln || " ");
+    ascent = Math.max(ascent, m.actualBoundingBoxAscent || fontSize * 0.8);
+    descent = Math.max(descent, m.actualBoundingBoxDescent || fontSize * 0.2);
+    width = Math.max(width, m.width);
+    // Font-global metrics — Konva positions its alphabetic baseline from these.
+    fontAscent = Math.max(fontAscent, m.fontBoundingBoxAscent || fontSize * 0.8);
+    fontDescent = Math.max(
+      fontDescent,
+      m.fontBoundingBoxDescent || fontSize * 0.2,
+    );
+  }
+  return { ascent, descent, width, fontAscent, fontDescent };
+}
+
 function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   const ref = useRef<Konva.Group>(null);
   useEffect(() => {
@@ -1212,28 +1265,33 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   const bg = a.backgroundColor ?? null;
-  const padding = bg ? 8 : 0;
-  const cornerRadius = bg ? 6 : 0;
+  const padX = bg ? 12 : 0;
+  const padY = bg ? 8 : 0;
   const fontStyle = a.fontStyle ?? "normal";
   const textDecoration = a.textDecoration ?? "";
   const fontFamily = a.fontFamily ?? "system-ui, sans-serif";
 
-  // Measure the text (incl. padding) so the background Rect wraps it exactly —
-  // Konva's Label/Tag auto-sizing lagged the Text and let it overflow the bg.
-  const size = useMemo(() => {
-    const probe = new Konva.Text({
-      text: a.text,
-      fontSize: a.fontSize,
-      fontStyle,
-      textDecoration,
-      fontFamily,
-      padding,
-    });
-    const w = probe.width();
-    const h = probe.height();
-    probe.destroy();
-    return { w, h };
-  }, [a.text, a.fontSize, fontStyle, textDecoration, fontFamily, padding]);
+  // Size the background Rect from real glyph ink (handles tall/stacked scripts
+  // like Thai) plus padding, and offset the Text by its baseline so the ink
+  // sits exactly inside the Rect with even padding — Konva's em-box metrics
+  // would otherwise let stacked marks overflow.
+  const box = useMemo(() => {
+    const ink = measureTextInk(a.text, a.fontSize, fontStyle, fontFamily);
+    const lines = (a.text || " ").split("\n").length;
+    const lineGap = a.fontSize; // Konva default line height (1.0 × fontSize)
+    const innerH = ink.ascent + ink.descent + (lines - 1) * lineGap;
+    const w = ink.width + padX * 2;
+    const h = innerH + padY * 2;
+    // Konva (non-legacy) draws line 0's alphabetic baseline at this offset from
+    // the Text node's top; shift the node so that baseline puts the ink top at padY.
+    const konvaBaseline = (ink.fontAscent - ink.fontDescent) / 2 + a.fontSize / 2;
+    const textY = padY + ink.ascent - konvaBaseline;
+    return { w, h, textY };
+  }, [a.text, a.fontSize, fontStyle, fontFamily, padX, padY]);
+
+  const cornerRadius = bg
+    ? Math.min(22, Math.max(6, Math.round(Math.min(box.w, box.h) * 0.18)))
+    : 0;
 
   return (
     <Group
@@ -1279,20 +1337,21 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
     >
       {bg && (
         <Rect
-          width={size.w}
-          height={size.h}
+          width={box.w}
+          height={box.h}
           fill={bg}
           cornerRadius={cornerRadius}
         />
       )}
       <Text
+        x={padX}
+        y={box.textY}
         text={a.text}
         fontSize={a.fontSize}
         fill={a.fill}
         fontStyle={fontStyle}
         textDecoration={textDecoration}
         fontFamily={fontFamily}
-        padding={padding}
       />
     </Group>
   );
