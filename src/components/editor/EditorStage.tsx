@@ -1001,7 +1001,8 @@ export function EditorStage({ src }: Props) {
             background: teBg ?? "rgba(20,20,20,0.92)",
             border: `2px dashed ${toolsCfg.text.color}`,
             outline: "none",
-            padding: 4,
+            padding: teBg ? 8 : 4,
+            borderRadius: teBg ? 6 : 0,
             minWidth: 140,
             minHeight: Math.max(28, toolsCfg.text.fontSize * scale + 12),
             resize: "none",
@@ -1213,7 +1214,8 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   const bg = a.backgroundColor ?? null;
-  const padding = bg ? 4 : 0;
+  const padding = bg ? 8 : 0;
+  const cornerRadius = bg ? 6 : 0;
   return (
     <Label
       ref={ref}
@@ -1256,7 +1258,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         });
       }}
     >
-      <Tag fill={bg ?? "rgba(0,0,0,0)"} />
+      <Tag fill={bg ?? "rgba(0,0,0,0)"} cornerRadius={cornerRadius} />
       <Text
         text={a.text}
         fontSize={a.fontSize}
