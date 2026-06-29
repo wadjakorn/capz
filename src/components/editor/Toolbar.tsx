@@ -1059,28 +1059,31 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-foreground/80" title="Background / highlight">
+            <label
+              className="flex items-center gap-1.5 text-xs text-foreground/80"
+              title="Background / highlight — pick a color to turn it on"
+            >
               Bg
               <input
                 type="color"
                 value={tsc.backgroundColor ?? "#ffff00"}
                 onChange={(e) => tsc.setBackgroundColor(e.target.value)}
                 className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-                disabled={tsc.backgroundColor === null}
               />
-              <button
-                type="button"
-                onClick={() => tsc.setBackgroundColor(tsc.backgroundColor === null ? "#ffff00" : null)}
-                title={tsc.backgroundColor === null ? "Enable background" : "Disable background"}
-                className={[
-                  "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition-colors",
-                  tsc.backgroundColor === null
-                    ? "bg-[var(--surface-raised)] text-[var(--fg-2)] hover:bg-[var(--surface-raised)]"
-                    : "bg-[var(--accent)] text-[var(--accent-fg)]",
-                ].join(" ")}
-              >
-                {tsc.backgroundColor === null ? "None" : "On"}
-              </button>
+              {tsc.backgroundColor === null ? (
+                <span className="text-[10px] uppercase tracking-wide text-[var(--fg-2)]">
+                  Off
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => tsc.setBackgroundColor(null)}
+                  title="Remove background"
+                  className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--fg-2)] transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
             </label>
           </>
         );
