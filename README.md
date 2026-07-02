@@ -37,11 +37,13 @@ The Homebrew cask path avoids this — prefer it unless you need a specific buil
 
 ### Windows (`.msi` / `.exe`)
 
-Builds are **unsigned** (no EV code-signing certificate). First run triggers SmartScreen:
+Builds are currently **unsigned** (Authenticode signing via [SignPath Foundation](https://signpath.org) is in progress — see [Code signing policy](#code-signing-policy)). Until signed builds ship, first run triggers SmartScreen:
 
 > Windows protected your PC
 
-Click **"More info" → "Run anyway"**. One-time per version. The app itself is fine; the warning reflects the absence of a paid Authenticode cert, not any actual issue with the binary.
+Click **"More info" → "Run anyway"**. One-time per version. The app itself is fine; the warning reflects the absence of an Authenticode signature, not any actual issue with the binary.
+
+**Smart App Control (Windows 11):** if SAC is in enforcement mode, unsigned builds are blocked with no override. Signed builds (once available) will run normally under SAC. Until then, affected users can install from the Microsoft-signed alternative when available, or wait for a signed release.
 
 ## Develop
 
@@ -74,6 +76,23 @@ pnpm tauri build      # .app (macOS) / .msi (Windows)
 Background updater polls `https://wadjakorn.github.io/capz/latest.json` (signed via Ed25519 minisign — independent of OS code-signing). Manual: Settings → Updates → Check now.
 
 Homebrew-installed users get auto-updates seamlessly. Manual-install macOS users may need to re-run the `xattr` command above after an update if Gatekeeper re-quarantines the replaced bundle.
+
+## Code signing policy
+
+This program uses free code signing provided by [SignPath.io](https://signpath.io), and a free code signing certificate by the [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers:** [wadjakorn](https://github.com/wadjakorn)
+- **Approver:** [wadjakorn](https://github.com/wadjakorn)
+
+Signed binaries are built from this repository's source by the GitHub Actions [release workflow](.github/workflows/build.yml) and published on [GitHub Releases](https://github.com/wadjakorn/capz/releases). Only tagged releases are submitted for signing, and every signing request is manually approved.
+
+### Privacy policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The only automatic network access is the update check against `https://wadjakorn.github.io/capz/latest.json` (static file on GitHub Pages; no telemetry, no personal data sent). See [Auto-update](#auto-update).
+
+## License
+
+[MIT](LICENSE) © Wadjakorn Tonsri
 
 ## Docs
 

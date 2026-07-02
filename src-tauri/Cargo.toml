@@ -1,10 +1,10 @@
 [package]
 name = "app"
 version = "0.7.1"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "Screenshot capture & annotation desktop app"
+authors = ["Wadjakorn Tonsri"]
+license = "MIT"
+repository = "https://github.com/wadjakorn/capz"
 edition = "2021"
 rust-version = "1.77.2"
 
