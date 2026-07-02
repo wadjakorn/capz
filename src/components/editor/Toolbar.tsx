@@ -53,6 +53,7 @@ import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
+import { isTauriRuntime } from "@/lib/platform";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
@@ -111,6 +112,11 @@ function withDeco(
 }
 
 export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}) {
+  // Desktop-only chrome (capture, OCR, clear-workspace, settings) hides on
+  // the web build. Defaults true so the prerendered HTML matches the desktop
+  // webview; the web build flips it after hydration.
+  const [tauriUi, setTauriUi] = useState(true);
+  useEffect(() => setTauriUi(isTauriRuntime()), []);
   const tool = useEditor((s) => s.tool);
   const setTool = useEditor((s) => s.setTool);
   const undo = useEditor((s) => s.undo);
@@ -766,22 +772,28 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           {renderExportButton("both", "Save & Copy", "Save to file and copy to clipboard")}
         </div>
         <Divider />
-        {/* Capture split */}
-        <CaptureSplitButton
-          lastKind={lastCaptureKind}
-          onCapture={triggerCapture}
-          accelerators={captureAccelerators}
-        />
-        <Divider />
+        {/* Capture split (desktop only — browsers cannot trigger captures) */}
+        {tauriUi && (
+          <>
+            <CaptureSplitButton
+              lastKind={lastCaptureKind}
+              onCapture={triggerCapture}
+              accelerators={captureAccelerators}
+            />
+            <Divider />
+          </>
+        )}
         {/* History group */}
         <ToolButton icon={Undo2} label="Undo" hint="⌘Z" disabled={!past} onClick={undo} />
         <ToolButton icon={Redo2} label="Redo" hint="⇧⌘Z" disabled={!future} onClick={redo} />
-        <ToolButton
-          icon={Trash2}
-          label={hasImage ? "Clear workspace" : "Workspace already empty"}
-          disabled={!hasImage}
-          onClick={onClearWorkspace}
-        />
+        {tauriUi && (
+          <ToolButton
+            icon={Trash2}
+            label={hasImage ? "Clear workspace" : "Workspace already empty"}
+            disabled={!hasImage}
+            onClick={onClearWorkspace}
+          />
+        )}
         <Divider />
         {/* View group */}
         <ZoomMenuButton displayScale={displayScale} disabled={!hasImage} />
@@ -798,24 +810,28 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           }
         />
         <Divider />
-        {/* OCR detect-text toggle */}
-        <ToolButton
-          icon={ocrStatus === "scanning" ? Loader2 : ScanText}
-          iconClassName={ocrStatus === "scanning" ? "animate-spin" : undefined}
-          label={
-            !hasImage
-              ? "Detect text (load an image first)"
-              : ocrStatus === "scanning"
-                ? "Detecting text…"
-                : ocrMode
-                  ? "Hide detected text"
-                  : "Detect text"
-          }
-          pressed={ocrMode}
-          disabled={!hasImage || ocrStatus === "scanning"}
-          onClick={() => void toggleOcr()}
-        />
-        <Divider />
+        {/* OCR detect-text toggle (desktop only — OCR runs in the Rust core) */}
+        {tauriUi && (
+          <>
+            <ToolButton
+              icon={ocrStatus === "scanning" ? Loader2 : ScanText}
+              iconClassName={ocrStatus === "scanning" ? "animate-spin" : undefined}
+              label={
+                !hasImage
+                  ? "Detect text (load an image first)"
+                  : ocrStatus === "scanning"
+                    ? "Detecting text…"
+                    : ocrMode
+                      ? "Hide detected text"
+                      : "Detect text"
+              }
+              pressed={ocrMode}
+              disabled={!hasImage || ocrStatus === "scanning"}
+              onClick={() => void toggleOcr()}
+            />
+            <Divider />
+          </>
+        )}
         {/* Tool palette with responsive overflow */}
         <div ref={paletteRef} className="flex min-w-0 flex-1 items-center gap-1">
           {visibleTools.map((t) => (
@@ -830,12 +846,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
           ))}
           <OverflowMenu items={overflowItems} />
         </div>
-        {/* Settings — far right */}
-        <ToolButton
-          icon={SettingsIcon}
-          label="Settings"
-          onClick={() => onOpenSettings?.()}
-        />
+        {/* Settings — far right (desktop only) */}
+        {tauriUi && (
+          <ToolButton
+            icon={SettingsIcon}
+            label="Settings"
+            onClick={() => onOpenSettings?.()}
+          />
+        )}
       </div>
       {hasContext && portalTarget && createPortal((
       <div className="toolbar pointer-events-auto absolute left-1/2 -translate-x-1/2 top-7 z-40 flex flex-wrap items-center justify-center gap-1 px-3 py-1.5">

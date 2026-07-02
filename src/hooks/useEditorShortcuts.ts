@@ -8,6 +8,7 @@ import {
   zoomToFit,
   zoomTo100,
 } from "@/lib/zoom";
+import { isTauriRuntime } from "@/lib/platform";
 
 const ESC_HIDE_WINDOW_MS = 2000;
 const ESC_TOAST_ID = "editor-esc-hide-arm";
@@ -84,7 +85,9 @@ export function useEditorShortcuts() {
           if (tool !== "select" && tool !== "pin") setTool("select");
           return;
         }
-        // No selection → double-Esc hides window.
+        // No selection → double-Esc hides window (desktop only; a browser
+        // tab has no window to hide).
+        if (!isTauriRuntime()) return;
         const now = Date.now();
         if (escArmedAt.current && now - escArmedAt.current <= ESC_HIDE_WINDOW_MS) {
           escArmedAt.current = 0;

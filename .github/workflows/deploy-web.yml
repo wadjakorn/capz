@@ -1,0 +1,58 @@
+name: deploy-web
+
+# Ships the browser-only paste-to-edit editor (/paste) to Cloudflare Pages.
+# Fully separate from the desktop release pipeline (build.yml) — this never
+# touches Rust, signing, or the updater. Static export only; the image never
+# leaves the user's browser at runtime.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "next.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-web.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "public/**"
+      - "next.config.ts"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref (keeps preview URLs pointing at HEAD).
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: build + deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Unit tests
+        run: pnpm test:unit
+      - name: Static export
+        run: pnpm build
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # `main` → production; every other branch/PR → a preview URL.
+          command: pages deploy out --project-name=capz-web --branch=${{ github.head_ref || github.ref_name }}
