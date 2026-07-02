@@ -8,6 +8,8 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { extractImageBlob, readClipboardPng } from "@/lib/webExport";
+import { getStage } from "@/lib/stageBridge";
+import { copyOnly } from "@/lib/exportImage";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -26,6 +28,8 @@ export default function PastePage() {
   const setHasImage = useEditor((s) => s.setHasImage);
 
   useEditorShortcuts();
+
+  useEffect(() => () => { if (srcRef.current) URL.revokeObjectURL(srcRef.current); }, []);
 
   const applyBlob = useCallback(
     (blob: Blob) => {
@@ -106,8 +110,6 @@ export default function PastePage() {
       if (sel && sel.toString().length > 0) return;
       e.preventDefault();
       try {
-        const { getStage } = await import("@/lib/stageBridge");
-        const { copyOnly } = await import("@/lib/exportImage");
         const stage = getStage();
         if (!stage) return;
         await copyOnly(stage);
