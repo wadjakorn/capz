@@ -83,8 +83,7 @@ describe("useOcr", () => {
   });
 
   it("points Windows users to the Thai OCR language-pack guide", async () => {
-    const orig = navigator.platform;
-    Object.defineProperty(navigator, "platform", { value: "Win32", configurable: true });
+    vi.stubGlobal("navigator", { platform: "Win32" });
     try {
       detectText.mockResolvedValue(fake("x", false));
       useOcr.getState().setKey("/img/a.png");
@@ -93,7 +92,7 @@ describe("useOcr", () => {
       expect(call?.[1]?.description).toContain("OCR-THAI-WINDOWS.th.md");
       expect(call?.[1]?.description).toContain("Language & region");
     } finally {
-      Object.defineProperty(navigator, "platform", { value: orig, configurable: true });
+      vi.unstubAllGlobals();
     }
   });
 
