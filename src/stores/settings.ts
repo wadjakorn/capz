@@ -11,6 +11,7 @@ import {
   validateConfig,
   type AppConfig,
 } from "@/lib/config";
+import { isTauriRuntime } from "@/lib/platform";
 
 type State = {
   config: AppConfig;
@@ -52,6 +53,11 @@ export const useSettings = create<State>((set, get) => ({
   issues: [],
   init: async () => {
     if (get().ready) return;
+    // Web build: no Tauri store — run on in-memory defaults, no persistence.
+    if (!isTauriRuntime()) {
+      set({ config: DEFAULT_CONFIG, ready: true, issues: [] });
+      return;
+    }
     const store = await getStore();
     const raw = await store.get<unknown>(CONFIG_STORE_KEY);
     const migrated = migrateConfig(raw);
@@ -107,6 +113,7 @@ export const useSettings = create<State>((set, get) => ({
         : { ...cur[section], ...patch };
     const next = { ...cur, [section]: nextSection };
     set({ config: next });
+    if (!isTauriRuntime()) return;
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, next);
     await store.save();
@@ -114,6 +121,7 @@ export const useSettings = create<State>((set, get) => ({
   setLastUsed: async (v) => {
     const next = { ...get().config, lastUsed: v };
     set({ config: next });
+    if (!isTauriRuntime()) return;
     const store = await getStore();
     await store.set(CONFIG_STORE_KEY, next);
     await store.save();
@@ -123,6 +131,7 @@ export const useSettings = create<State>((set, get) => ({
     // clean default, and clear the surfaced issues. Throws on failure so the
     // caller's toast can reflect it instead of silently leaving a dirty file.
     set({ config: DEFAULT_CONFIG, issues: [] });
+    if (!isTauriRuntime()) return;
     const store = await getStore();
     try {
       await store.clear();

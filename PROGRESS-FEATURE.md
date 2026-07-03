@@ -13,4 +13,6 @@ Open items first (actionable for agents). Landed history archived — see below.
 
 ## Landed
 
+- **Browser paste editor (`/paste`)** (landed 2026-07-03) — browser-only companion: paste OS screenshot (Win+Shift+S / ⌘⌃⇧4), drag-drop, or file-pick; annotate with existing editor tools; Ctrl/Cmd+C copies result to clipboard; download button saves file. Deployed to Cloudflare Pages via [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) (`main` → production, branches/PRs → preview URLs). Platform split via `isTauriRuntime()` ([src/lib/platform.ts](src/lib/platform.ts)); desktop-only toolbar items (capture split, OCR toggle, clear workspace, settings) hidden on web. Settings store runs in-memory `DEFAULT_CONFIG` on web. Safari clipboard path constructs `ClipboardItem` synchronously around the pending blob promise to preserve user activation. Web export primitives in [src/lib/webExport.ts](src/lib/webExport.ts). Verified: unit tests (`pnpm test:unit`), Playwright e2e ([e2e/web/paste.spec.ts](e2e/web/paste.spec.ts)).
+
 Archived: [docs/archive/PROGRESS-FEATURE-LANDED.md](docs/archive/PROGRESS-FEATURE-LANDED.md).

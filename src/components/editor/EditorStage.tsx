@@ -45,6 +45,7 @@ import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
 import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
+import { isTauriRuntime } from "@/lib/platform";
 
 const SNAP_SCREEN_PX = 6;
 
@@ -780,6 +781,11 @@ export function EditorStage({ src }: Props) {
 
   async function ctxPaste() {
     setCtxMenu(null);
+    if (!isTauriRuntime()) {
+      // Web build: the /paste page owns image loading — hand off to it.
+      window.dispatchEvent(new CustomEvent("capz:web-paste"));
+      return;
+    }
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke<string>("paste_into_editor");

@@ -49,14 +49,23 @@ Click **"More info" → "Run anyway"**. One-time per version. The app itself is 
 
 ```bash
 pnpm install
-pnpm tauri dev
+pnpm tauri dev        # desktop (Tauri + Rust hot-reload)
+pnpm dev              # web only (Next.js, no Tauri)
 ```
 
 ## Build
 
 ```bash
 pnpm tauri build      # .app (macOS) / .msi (Windows)
+pnpm build            # web static export → out/ (Cloudflare Pages)
+pnpm test:unit        # Vitest unit tests
 ```
+
+## Web paste editor
+
+Browser-only companion at `/paste` (deployed to Cloudflare Pages). Paste an OS screenshot (Win+Shift+S / ⌘⌃⇧4), drag-drop, or pick a file; annotate with the same editor tools; copy back to clipboard (Ctrl/Cmd+C) or download. No browser screen capture, no backend — the image never leaves the browser.
+
+CI workflow: [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) — `main` → production, every branch/PR → preview URL.
 
 ## Requirements
 

@@ -2,6 +2,8 @@ import type Konva from "konva";
 import type { AppConfig } from "@/lib/config";
 import { applyFilenameTemplate, extensionFor } from "@/lib/filename";
 import { getStageImageSize } from "@/lib/stageBridge";
+import { isTauriRuntime } from "@/lib/platform";
+import { copyPngToClipboard, downloadPng } from "@/lib/webExport";
 
 type ExportResult = {
   saved?: string;
@@ -57,6 +59,13 @@ function stageBytes(stage: Konva.Stage, output: AppConfig["output"]): Uint8Array
 async function copyToClipboard(stage: Konva.Stage): Promise<void> {
   const dataUrl = exportRegion(stage, { mimeType: "image/png" });
   const bytes = dataUrlToBytes(dataUrl);
+  if (!isTauriRuntime()) {
+    // Keep everything up to clipboard.write() synchronous — Safari drops the
+    // user activation across awaits (see webExport.copyPngToClipboard).
+    const blob = new Blob([bytes as BlobPart], { type: "image/png" });
+    await copyPngToClipboard(Promise.resolve(blob));
+    return;
+  }
   const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
   await writeImage(bytes);
 }
@@ -98,6 +107,20 @@ async function saveToFile(
   const bytes = stageBytes(stage, output);
   const ext = extensionFor(output.fileFormat);
   const baseName = applyFilenameTemplate(output.filenameTemplate);
+
+  if (!isTauriRuntime()) {
+    // Web build: "save" is a browser download; there is no writable
+    // filesystem path, so report the filename as the saved location.
+    const mime =
+      output.fileFormat === "jpeg"
+        ? "image/jpeg"
+        : output.fileFormat === "webp"
+          ? "image/webp"
+          : "image/png";
+    const filename = `${baseName}.${ext}`;
+    downloadPng(new Blob([bytes as BlobPart], { type: mime }), filename);
+    return filename;
+  }
 
   const dir = await resolveSaveDir(output);
   const { join } = await import("@tauri-apps/api/path");
