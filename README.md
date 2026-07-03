@@ -65,7 +65,7 @@ pnpm test:unit        # Vitest unit tests
 
 Browser-only companion at `/paste` (deployed to Cloudflare Pages). Paste an OS screenshot (Win+Shift+S / ⌘⌃⇧4), drag-drop, or pick a file; annotate with the same editor tools; copy back to clipboard (Ctrl/Cmd+C) or download. No browser screen capture, no backend — the image never leaves the browser.
 
-CI workflow: [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) — `main` → production, every branch/PR → preview URL.
+Deploy: Cloudflare Pages Git integration builds `pnpm build` → `out/` on every push — `main` → production, other branches/PRs → preview URLs.
 
 ## Requirements
 

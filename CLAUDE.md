@@ -22,7 +22,7 @@ pnpm tauri dev                              # desktop dev loop (Tauri + Rust hot
 pnpm dev                                    # web-only dev server (Next.js, no Tauri)
 pnpm tauri build                            # produces .app (macOS) / .msi (Windows)
 pnpm build                                  # web static export → out/ (Cloudflare Pages)
-pnpm test:unit                              # Vitest unit tests (runs in deploy-web CI)
+pnpm test:unit                              # Vitest unit tests
 pnpm tauri add <plugin>                     # add Tauri plugin (auto-wires Rust + JS)
 cargo add <crate>                           # add Rust deps (never edit Cargo.toml by hand except target cfg)
 cargo clippy --all-targets -- -D warnings   # must be clean
