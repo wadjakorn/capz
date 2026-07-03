@@ -1,0 +1,7 @@
+# Cloudflare Pages redirects (capz-web deployment only).
+# capz-web is the browser editor; the root path has no landing here
+# (marketing lives in the separate capz-site Worker), so send visitors
+# straight into the paste-to-edit tool.
+# Ignored by the Tauri desktop build — it serves its own bundle and never
+# routes through Cloudflare, so the desktop main window is unaffected.
+/  /paste/  302
