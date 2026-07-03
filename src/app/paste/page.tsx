@@ -87,7 +87,8 @@ export default function PastePage() {
     const onDrop = (e: DragEvent) => {
       e.preventDefault();
       const blob = extractImageBlob(e.dataTransfer?.items);
-      if (blob) applyBlob(blob);
+      if (!blob) { toast.error("Not an image"); return; }
+      applyBlob(blob);
     };
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("drop", onDrop);

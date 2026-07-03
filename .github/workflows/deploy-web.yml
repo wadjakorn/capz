@@ -20,6 +20,8 @@ on:
       - "src/**"
       - "public/**"
       - "next.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/deploy-web.yml"
   workflow_dispatch:
 
