@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository State
 
-Pre-implementation. Only [PLAN.md](PLAN.md) exists — a 1563-line phased build spec for **Shotr**, a Tauri v2 + Next.js cross-platform (macOS/Windows) screenshot capture & annotation desktop app. No source code, `package.json`, or `src-tauri/` yet. Bootstrap via Phase 0 (see PLAN.md §4) before anything else.
-
-Always re-read the relevant section of PLAN.md before starting a phase — it is the source of truth for architecture, deps, and acceptance criteria.
+Shipped. Desktop app (**capz**, macOS + Windows) built and released. Also ships a browser-only paste editor at `/paste` (Cloudflare Pages). PLAN.md is the original phased build spec; PROGRESS-NEXT.md + sub-trackers ([PROGRESS-BUG.md](PROGRESS-BUG.md), [PROGRESS-FEATURE.md](PROGRESS-FEATURE.md), [PROGRESS-COSMETIC.md](PROGRESS-COSMETIC.md)) are the live work log.
 
 ## Stack (locked, do not substitute)
 
@@ -20,12 +18,15 @@ Always re-read the relevant section of PLAN.md before starting a phase — it is
 ## Commands
 
 ```bash
-pnpm tauri dev                              # dev loop (run after every phase, verify acceptance)
+pnpm tauri dev                              # desktop dev loop (Tauri + Rust hot-reload)
+pnpm dev                                    # web-only dev server (Next.js, no Tauri)
 pnpm tauri build                            # produces .app (macOS) / .msi (Windows)
+pnpm build                                  # web static export → out/ (Cloudflare Pages)
+pnpm test:unit                              # Vitest unit tests (runs in deploy-web CI)
 pnpm tauri add <plugin>                     # add Tauri plugin (auto-wires Rust + JS)
 cargo add <crate>                           # add Rust deps (never edit Cargo.toml by hand except target cfg)
 cargo clippy --all-targets -- -D warnings   # must be clean
-pnpm tauri signer generate -w ~/.tauri/shotr-updater.key   # one-time updater keypair
+pnpm tauri signer generate -w ~/.tauri/capz-updater.key    # one-time updater keypair
 ```
 
 ## Architecture Big Picture
@@ -46,7 +47,8 @@ Output is either file (via `tauri-plugin-fs` + `tauri-plugin-dialog`) or clipboa
 
 - **High-DPI:** `xcap` returns **physical pixels**. Overlay coords are **logical (CSS) pixels** — multiply by `devicePixelRatio` (frontend) or `monitor.scale_factor()` (Rust) before passing to xcap. Konva export uses `pixelRatio: 2` on Retina.
 - **Multi-monitor:** overlay must cover union of all monitor rects (negative coords are normal). v1 restricts area selection to a single monitor — no cross-monitor stitching.
-- **Storage:** **No `localStorage`/`sessionStorage`.** Use `tauri-plugin-store` exclusively.
+- **Storage:** **No `localStorage`/`sessionStorage`.** Use `tauri-plugin-store` exclusively on desktop. The web build cannot use the store — `src/stores/settings.ts` falls back to in-memory `DEFAULT_CONFIG` when `!isTauriRuntime()`; do not add localStorage as a web fallback.
+- **Platform split:** use `isTauriRuntime()` (`src/lib/platform.ts`) to branch between desktop and web at runtime. Gate all Tauri IPC and plugins behind this check and use `next/dynamic` to code-split Tauri imports out of the web bundle. Do not gate on build-time env vars or eslint rules.
 - **Window labels** must be unique: `settings`, `overlay`, `editor-<timestamp>`, `onboarding`. Don't reuse `main`.
 - **Capabilities:** per-window JSON files in `src-tauri/capabilities/` (`default.json`, `overlay.json`, `editor.json`) — give each window the **minimum** scope.
 - **Filesystem writes** go through `tauri-plugin-fs` with explicit scope in capabilities, never raw Rust `std::fs` for user-facing output.
@@ -58,7 +60,7 @@ Ed25519 update-signing keypair is a **single point of failure for the entire use
 
 - Store in encrypted secrets manager (1Password/Bitwarden/Vault) with ≥2 team members access + offline encrypted backup
 - CI uses GitHub Actions encrypted secrets only — never written to workflow logs or repo
-- Local key path: `~/.tauri/shotr-updater.key` — never inside the repo
+- Local key path: `~/.tauri/capz-updater.key` — never inside the repo
 - Distinct from Apple Developer ID, Windows code signing cert, and GitHub tokens — do not conflate
 
 ## Phase Execution Protocol (PLAN.md §4, Phases 0–12)
