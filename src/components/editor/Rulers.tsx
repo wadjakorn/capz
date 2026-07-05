@@ -61,6 +61,10 @@ type Props = {
   padX: number;
   padY: number;
   scale: number;
+  // Image coord that sits at the stage's top-left. Non-zero (negative) when an
+  // element overflows the image's top/left edge and the canvas expands.
+  originX?: number;
+  originY?: number;
 };
 
 function niceStep(approx: number): number {
@@ -81,6 +85,8 @@ export function Rulers({
   padX,
   padY,
   scale,
+  originX = 0,
+  originY = 0,
 }: Props) {
   const topRef = useRef<HTMLCanvasElement>(null);
   const leftRef = useRef<HTMLCanvasElement>(null);
@@ -133,7 +139,7 @@ export function Rulers({
 
     const step = niceStep(50 / scale);
     const minor = Math.max(1, step / 5);
-    const imgAtLeft = (scroll.left - padX) / scale;
+    const imgAtLeft = originX + (scroll.left - padX) / scale;
     const imgAtRight = imgAtLeft + w / scale;
 
     ctx.strokeStyle = colors.tickMinor;
@@ -141,7 +147,7 @@ export function Rulers({
     ctx.beginPath();
     const firstMinor = Math.ceil(imgAtLeft / minor) * minor;
     for (let v = firstMinor; v <= imgAtRight; v += minor) {
-      const sx = Math.round(padX + v * scale - scroll.left) + 0.5;
+      const sx = Math.round(padX + (v - originX) * scale - scroll.left) + 0.5;
       ctx.moveTo(sx, h - 3);
       ctx.lineTo(sx, h);
     }
@@ -152,7 +158,7 @@ export function Rulers({
     ctx.beginPath();
     const firstMajor = Math.ceil(imgAtLeft / step) * step;
     for (let v = firstMajor; v <= imgAtRight; v += step) {
-      const sx = Math.round(padX + v * scale - scroll.left) + 0.5;
+      const sx = Math.round(padX + (v - originX) * scale - scroll.left) + 0.5;
       ctx.moveTo(sx, h - 7);
       ctx.lineTo(sx, h);
       ctx.fillText(String(Math.round(v)), sx + 2, 1);
@@ -167,7 +173,7 @@ export function Rulers({
       ctx.lineTo(cx, h);
       ctx.stroke();
     }
-  }, [containerW, padX, scale, scroll.left, cursor, colors]);
+  }, [containerW, padX, scale, scroll.left, cursor, colors, originX]);
 
   useEffect(() => {
     const canvas = leftRef.current;
@@ -189,7 +195,7 @@ export function Rulers({
 
     const step = niceStep(50 / scale);
     const minor = Math.max(1, step / 5);
-    const imgAtTop = (scroll.top - padY) / scale;
+    const imgAtTop = originY + (scroll.top - padY) / scale;
     const imgAtBottom = imgAtTop + h / scale;
 
     ctx.strokeStyle = colors.tickMinor;
@@ -197,7 +203,7 @@ export function Rulers({
     ctx.beginPath();
     const firstMinor = Math.ceil(imgAtTop / minor) * minor;
     for (let v = firstMinor; v <= imgAtBottom; v += minor) {
-      const sy = Math.round(padY + v * scale - scroll.top) + 0.5;
+      const sy = Math.round(padY + (v - originY) * scale - scroll.top) + 0.5;
       ctx.moveTo(w - 3, sy);
       ctx.lineTo(w, sy);
     }
@@ -208,7 +214,7 @@ export function Rulers({
     ctx.beginPath();
     const firstMajor = Math.ceil(imgAtTop / step) * step;
     for (let v = firstMajor; v <= imgAtBottom; v += step) {
-      const sy = Math.round(padY + v * scale - scroll.top) + 0.5;
+      const sy = Math.round(padY + (v - originY) * scale - scroll.top) + 0.5;
       ctx.moveTo(w - 7, sy);
       ctx.lineTo(w, sy);
       ctx.save();
@@ -227,7 +233,7 @@ export function Rulers({
       ctx.lineTo(w, cy);
       ctx.stroke();
     }
-  }, [containerH, padY, scale, scroll.top, cursor, colors]);
+  }, [containerH, padY, scale, scroll.top, cursor, colors, originY]);
 
   if (scale <= 0) return null;
 

@@ -317,6 +317,31 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                 onChange={(v) => update("general", { snapEnabled: v })}
               />
               <FieldRow
+                label="Canvas background"
+                hint="Fills the area around the image when elements overflow its edges. Applies on-screen and in exports."
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    aria-label="Canvas background color"
+                    value={config.general.canvasBackground}
+                    onChange={(e) =>
+                      update("general", { canvasBackground: e.target.value })
+                    }
+                    className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      update("general", { canvasBackground: "#ffffff" })
+                    }
+                  >
+                    Reset
+                  </button>
+                </div>
+              </FieldRow>
+              <FieldRow
                 label="On editor close/hide"
                 hint="Run an export action when the editor window is closed or Esc-hidden."
               >

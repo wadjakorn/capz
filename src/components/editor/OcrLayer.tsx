@@ -29,7 +29,17 @@ function measureText(text: string, fontPx: number): number {
  * native selection highlights what the user sees. ⌘/Ctrl+A selects the whole
  * overlay. Pure DOM — never appears in exported PNGs.
  */
-export function OcrLayer({ scale }: { scale: number }) {
+export function OcrLayer({
+  scale,
+  originPxX = 0,
+  originPxY = 0,
+}: {
+  scale: number;
+  // Screen-px offset of image coord (0,0) from the wrapper's top-left. Non-zero
+  // when the canvas expands past the image's top/left edge (element overflow).
+  originPxX?: number;
+  originPxY?: number;
+}) {
   const mode = useOcr((s) => s.mode);
   const result = useOcr(currentResult);
   const layerRef = useRef<HTMLDivElement>(null);
@@ -83,8 +93,10 @@ export function OcrLayer({ scale }: { scale: number }) {
     <div
       ref={layerRef}
       data-ocr-layer
-      className="absolute left-0 top-0 select-text"
+      className="absolute select-text"
       style={{
+        left: originPxX,
+        top: originPxY,
         width: result.width * scale,
         height: result.height * scale,
         cursor: "text",

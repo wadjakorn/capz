@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Stage,
   Layer,
@@ -38,13 +38,20 @@ import {
   setPrepareExport,
   setStageImageSize,
   clearStageImageSize,
+  setStageExportBox,
   setScrollContainer,
 } from "@/lib/stageBridge";
 import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
-import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
+import {
+  annotationAABB,
+  aabbSnapLinesX,
+  aabbSnapLinesY,
+  contentBounds,
+  type AABB,
+} from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 
@@ -497,9 +504,71 @@ export function EditorStage({ src }: Props) {
     });
   }, [imgW, imgH, container.w, container.h, displayScale, zoomFit]);
 
+  // Canvas grows to the union of the image rect and any element that overflows
+  // its edges; the origin goes negative for top/left overflow. With no overflow
+  // this equals the image rect, so nothing about the default view changes.
+  // Bounds come from each element's real rendered rect (node.getClientRect) so
+  // the padding is pixel-accurate and identical on every side; a freshly-added
+  // element with no node yet falls back to its estimated AABB for one frame.
+  const canvasBg = config.general.canvasBackground;
+  const [contentBox, setContentBox] = useState<AABB>({ x: 0, y: 0, w: 0, h: 0 });
+  // Bumped when an element's rendered size changes without an `annotations`
+  // change — currently only an image sticker whose bitmap loads asynchronously.
+  // Stable identity so it can sit in child effect deps without re-firing.
+  const [boundsTick, setBoundsTick] = useState(0);
+  const bumpBounds = useCallback(() => setBoundsTick((t) => t + 1), []);
+  useEffect(() => {
+    if (!(imgW > 0 && imgH > 0)) {
+      setContentBox((prev) =>
+        prev.w === 0 && prev.h === 0 && prev.x === 0 && prev.y === 0
+          ? prev
+          : { x: 0, y: 0, w: 0, h: 0 },
+      );
+      return;
+    }
+    const boxes: AABB[] = [];
+    for (const a of annotations) {
+      // `nodeRefs` is a ref (its identity never changes), so it is intentionally
+      // NOT a dep — mutating it can't trigger this effect. Node-size changes
+      // that don't flow through `annotations` are signalled via `boundsTick`.
+      const node = nodeRefs.current.get(a.id);
+      if (node) {
+        const r = node.getClientRect({
+          relativeTo: node.getLayer() ?? undefined,
+          skipShadow: true,
+        });
+        boxes.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+      } else {
+        const est = annotationAABB(a);
+        if (est) boxes.push(est);
+      }
+    }
+    const next = contentBounds(imgW, imgH, boxes);
+    setContentBox((prev) =>
+      prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h
+        ? prev
+        : next,
+    );
+  }, [imgW, imgH, annotations, boundsTick]);
+
+  // Publish the export region so Save/Copy snapshots the full expanded canvas.
+  // `contentBox` is state with a guarded identity (only replaced on real change),
+  // so depending on the whole object is correct and covers every field.
+  useEffect(() => {
+    if (contentBox.w > 0 && contentBox.h > 0) {
+      setStageExportBox({
+        x: contentBox.x,
+        y: contentBox.y,
+        w: contentBox.w,
+        h: contentBox.h,
+      });
+    }
+    return () => setStageExportBox(null);
+  }, [contentBox]);
+
   const scale = displayScale > 0 ? displayScale : 1;
-  const stageW = imgW * scale;
-  const stageH = imgH * scale;
+  const stageW = contentBox.w * scale;
+  const stageH = contentBox.h * scale;
 
   const padX = Math.max(MIN_PADDING, container.w);
   const padY = Math.max(MIN_PADDING, container.h);
@@ -908,12 +977,25 @@ export function EditorStage({ src }: Props) {
           height={stageH}
           scaleX={scale}
           scaleY={scale}
-          className={`bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
+          offsetX={contentBox.x}
+          offsetY={contentBox.y}
+          className={`shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
         >
           <Layer>
+            {/* Canvas background — fills the whole (possibly expanded) box,
+                including overflow regions outside the image. listening=false so
+                clicks on the bare background still start a draw on the Stage. */}
+            <Rect
+              x={contentBox.x}
+              y={contentBox.y}
+              width={contentBox.w}
+              height={contentBox.h}
+              fill={canvasBg}
+              listening={false}
+            />
             <KonvaImage
               image={image}
               width={imgW}
@@ -946,6 +1028,7 @@ export function EditorStage({ src }: Props) {
                   }),
                 snapDrag,
                 endSnap,
+                onBoundsChange: bumpBounds,
               }),
             )}
             {draft?.kind === "rect" && (
@@ -1095,7 +1178,11 @@ export function EditorStage({ src }: Props) {
             ))}
           </Layer>
         </Stage>
-        <OcrLayer scale={scale} />
+        <OcrLayer
+          scale={scale}
+          originPxX={-contentBox.x * scale}
+          originPxY={-contentBox.y * scale}
+        />
           </div>
         </div>
       )}
@@ -1166,6 +1253,8 @@ export function EditorStage({ src }: Props) {
         padX={padX}
         padY={padY}
         scale={scale}
+        originX={contentBox.x}
+        originY={contentBox.y}
       />
     )}
     {ctxMenu && (
@@ -1240,6 +1329,10 @@ type ShapeCtx = {
   onEditText?: (a: TextAnnotation, screenX: number, screenY: number) => void;
   snapDrag: (id: string, b: AABB, altKey: boolean) => { dx: number; dy: number };
   endSnap: () => void;
+  /** Signal that this element's rendered size changed outside the annotation
+   *  store (e.g. an image sticker's bitmap finished loading), so the canvas
+   *  overflow box is recomputed. */
+  onBoundsChange: () => void;
 };
 
 function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
@@ -1761,6 +1854,12 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
     ctx.setRef(isImage ? imgRef.current : textRef.current);
     return () => ctx.setRef(null);
   });
+  // An image sticker's real size only exists once its bitmap loads; recompute
+  // the overflow box then (positions/size are otherwise driven by annotations).
+  const onBoundsChange = ctx.onBoundsChange;
+  useEffect(() => {
+    if (isImage && img) onBoundsChange();
+  }, [isImage, img, onBoundsChange]);
   if (isImage) {
     const naturalW = img?.naturalWidth ?? 0;
     const naturalH = img?.naturalHeight ?? 0;

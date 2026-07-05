@@ -49,6 +49,7 @@ export type AppConfig = {
     editorWindow: { width: number; height: number };
     showRulers: boolean;
     snapEnabled: boolean;
+    canvasBackground: string;
   };
   lastUsed?: {
     tool?: Tool;
@@ -149,6 +150,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     editorWindow: { width: 1024, height: 680 },
     showRulers: false,
     snapEnabled: true,
+    canvasBackground: "#ffffff",
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },
@@ -293,6 +295,7 @@ function vGeneral(
       closeAction: inSet("none", "copy", "file", "both"),
       showRulers: isBool,
       snapEnabled: isBool,
+      canvasBackground: isStr,
     },
     issues,
   );
