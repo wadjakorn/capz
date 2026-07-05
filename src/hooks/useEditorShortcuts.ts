@@ -21,6 +21,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   b: "blur",
   s: "sticker",
   p: "pin",
+  c: "crop",
 };
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -76,6 +77,11 @@ export function useEditorShortcuts() {
 
       if (key === "escape") {
         e.preventDefault();
+        // Crop mode: Esc cancels the crop and returns to Select.
+        if (useEditor.getState().tool === "crop") {
+          useEditor.getState().setTool("select");
+          return;
+        }
         const { selectedId } = useEditor.getState();
         if (selectedId) {
           escArmedAt.current = 0;

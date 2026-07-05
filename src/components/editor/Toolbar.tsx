@@ -11,6 +11,7 @@ import {
   Droplet,
   Smile,
   MapPin,
+  Crop,
   Circle as CircleIcon,
   MessageCircle,
   ArrowUp,
@@ -66,6 +67,7 @@ const TOOLS: ToolDef[] = [
   { id: "blur", label: "Blur", hint: "B", icon: Droplet },
   { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
   { id: "pin", label: "Pin", hint: "P", icon: MapPin },
+  { id: "crop", label: "Crop", hint: "C", icon: Crop },
 ];
 
 const EXPORT_ICONS: Record<"copy" | "file" | "both", LucideIcon> = {
