@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type Konva from "konva";
 import { copyOnly, saveOnly } from "./exportImage";
 import { DEFAULT_CONFIG } from "./config";
+import { setStageImageSize, clearStageImageSize } from "./stageBridge";
 
 // 1x1 transparent PNG
 const PNG_DATA_URL =
@@ -66,6 +67,34 @@ describe("exportImage on the web runtime (no Tauri)", () => {
     // default template capz-{yyyy}{MM}{dd}-{HHmmss} + default format (jpeg → .jpg)
     expect(anchor.download).toMatch(/^capz-\d{8}-\d{6}\.jpg$/);
     expect(r.saved).toBe(anchor.download);
+  });
+
+  it("exports the published (cropped) image region at native resolution", async () => {
+    // Simulate a crop: the editor publishes the cropped size, not the source.
+    setStageImageSize(120, 90);
+    const calls: Array<Record<string, unknown>> = [];
+    const stage = {
+      scaleX: () => 0.5, // zoomed out to 50%
+      width: () => 60,
+      height: () => 45,
+      toDataURL: (opts: Record<string, unknown>) => {
+        calls.push(opts);
+        return PNG_DATA_URL;
+      },
+    } as unknown as Konva.Stage;
+    try {
+      await copyOnly(stage);
+      expect(calls).toHaveLength(1);
+      const opts = calls[0];
+      // region = croppedSize * scale, pixelRatio = 1/scale → native crop pixels
+      expect(opts.x).toBe(0);
+      expect(opts.y).toBe(0);
+      expect(opts.width).toBe(60); // 120 * 0.5
+      expect(opts.height).toBe(45); // 90 * 0.5
+      expect(opts.pixelRatio).toBe(2); // 1 / 0.5
+    } finally {
+      clearStageImageSize();
+    }
   });
 
   it("saveOnly downloads .png when the configured format is png", async () => {

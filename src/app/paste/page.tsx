@@ -36,6 +36,21 @@ export default function PastePage() {
 
   useEditorShortcuts();
 
+  // Guard against losing unsaved work: once an image is loaded (nothing on
+  // /paste is persisted), a tab close / reload / back-navigation triggers the
+  // browser's native "leave site?" confirmation. No prompt when the canvas is
+  // empty, so a clean tab still closes without friction.
+  useEffect(() => {
+    if (!src) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Legacy browsers require returnValue to be set to show the dialog.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [src]);
+
   // Only offer in-browser capture where the Screen Capture API exists.
   useEffect(() => setCanCapture(isWebCaptureSupported()), []);
 
