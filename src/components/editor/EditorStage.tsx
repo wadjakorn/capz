@@ -37,13 +37,20 @@ import {
   setPrepareExport,
   setStageImageSize,
   clearStageImageSize,
+  setStageExportBox,
   setScrollContainer,
 } from "@/lib/stageBridge";
 import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
-import { annotationAABB, aabbSnapLinesX, aabbSnapLinesY, type AABB } from "@/lib/annotationBounds";
+import {
+  annotationAABB,
+  aabbSnapLinesX,
+  aabbSnapLinesY,
+  contentBounds,
+  type AABB,
+} from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 
@@ -433,9 +440,52 @@ export function EditorStage({ src }: Props) {
     });
   }, [imgW, imgH, container.w, container.h, displayScale, zoomFit]);
 
+  // Canvas grows to the union of the image rect and any element that overflows
+  // its edges; the origin goes negative for top/left overflow. With no overflow
+  // this equals the image rect, so nothing about the default view changes.
+  // Bounds come from each element's real rendered rect (node.getClientRect) so
+  // the padding is pixel-accurate and identical on every side; a freshly-added
+  // element with no node yet falls back to its estimated AABB for one frame.
+  const canvasBg = config.general.canvasBackground;
+  const [contentBox, setContentBox] = useState<AABB>({ x: 0, y: 0, w: 0, h: 0 });
+  useEffect(() => {
+    if (!(imgW > 0 && imgH > 0)) {
+      setContentBox({ x: 0, y: 0, w: 0, h: 0 });
+      return;
+    }
+    const boxes: AABB[] = [];
+    for (const a of annotations) {
+      const node = nodeRefs.current.get(a.id);
+      if (node) {
+        const r = node.getClientRect({
+          relativeTo: node.getLayer() ?? undefined,
+          skipShadow: true,
+        });
+        boxes.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+      } else {
+        const est = annotationAABB(a);
+        if (est) boxes.push(est);
+      }
+    }
+    setContentBox(contentBounds(imgW, imgH, boxes));
+  }, [imgW, imgH, annotations]);
+
+  // Publish the export region so Save/Copy snapshots the full expanded canvas.
+  useEffect(() => {
+    if (contentBox.w > 0 && contentBox.h > 0) {
+      setStageExportBox({
+        x: contentBox.x,
+        y: contentBox.y,
+        w: contentBox.w,
+        h: contentBox.h,
+      });
+    }
+    return () => setStageExportBox(null);
+  }, [contentBox.x, contentBox.y, contentBox.w, contentBox.h]);
+
   const scale = displayScale > 0 ? displayScale : 1;
-  const stageW = imgW * scale;
-  const stageH = imgH * scale;
+  const stageW = contentBox.w * scale;
+  const stageH = contentBox.h * scale;
 
   const padX = Math.max(MIN_PADDING, container.w);
   const padY = Math.max(MIN_PADDING, container.h);
@@ -842,12 +892,25 @@ export function EditorStage({ src }: Props) {
           height={stageH}
           scaleX={scale}
           scaleY={scale}
-          className={`bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
+          offsetX={contentBox.x}
+          offsetY={contentBox.y}
+          className={`shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
         >
           <Layer>
+            {/* Canvas background — fills the whole (possibly expanded) box,
+                including overflow regions outside the image. listening=false so
+                clicks on the bare background still start a draw on the Stage. */}
+            <Rect
+              x={contentBox.x}
+              y={contentBox.y}
+              width={contentBox.w}
+              height={contentBox.h}
+              fill={canvasBg}
+              listening={false}
+            />
             <KonvaImage
               image={image}
               width={imgW}
@@ -954,7 +1017,11 @@ export function EditorStage({ src }: Props) {
             ))}
           </Layer>
         </Stage>
-        <OcrLayer scale={scale} />
+        <OcrLayer
+          scale={scale}
+          originPxX={-contentBox.x * scale}
+          originPxY={-contentBox.y * scale}
+        />
           </div>
         </div>
       )}
@@ -1025,6 +1092,8 @@ export function EditorStage({ src }: Props) {
         padX={padX}
         padY={padY}
         scale={scale}
+        originX={contentBox.x}
+        originY={contentBox.y}
       />
     )}
     {ctxMenu && (

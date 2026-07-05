@@ -40,6 +40,48 @@ export function annotationAABB(a: Annotation): AABB | null {
   }
 }
 
+/** Breathing room (image px) added beyond an overflowing element on the side it
+ *  crosses, so the element never touches the expanded boundary. */
+export const OVERFLOW_GAP = 32;
+
+/**
+ * Canvas box for the image plus any elements that overflow its edges, in
+ * image-pixel coords.
+ *
+ * `boxes` are the elements' real rendered bounds (from `node.getClientRect`),
+ * so the padding is pixel-accurate for every element type — no per-type
+ * estimate to bias one side. Each side is handled INDEPENDENTLY and
+ * identically: a side an element crosses grows to the element's edge plus
+ * OVERFLOW_GAP; a side nothing crosses stays flush with the image. So the same
+ * element crossing by the same amount yields the same padding on any edge
+ * (top/left behave exactly like bottom/right), and a non-overflowing image is
+ * returned byte-for-byte unchanged. Bounds round outward to whole pixels so no
+ * fractional edge clips.
+ */
+export function contentBounds(
+  imgW: number,
+  imgH: number,
+  boxes: AABB[],
+): AABB {
+  let minX = 0;
+  let minY = 0;
+  let maxX = imgW;
+  let maxY = imgH;
+  for (const b of boxes) {
+    if (b.x < minX) minX = b.x;
+    if (b.y < minY) minY = b.y;
+    if (b.x + b.w > maxX) maxX = b.x + b.w;
+    if (b.y + b.h > maxY) maxY = b.y + b.h;
+  }
+  const left = minX < 0 ? minX - OVERFLOW_GAP : 0;
+  const top = minY < 0 ? minY - OVERFLOW_GAP : 0;
+  const right = maxX > imgW ? maxX + OVERFLOW_GAP : imgW;
+  const bottom = maxY > imgH ? maxY + OVERFLOW_GAP : imgH;
+  const x = Math.floor(left);
+  const y = Math.floor(top);
+  return { x, y, w: Math.ceil(right) - x, h: Math.ceil(bottom) - y };
+}
+
 /** Edge/center snap targets along one axis from an AABB. */
 export function aabbSnapLinesX(b: AABB): number[] {
   return [b.x, b.x + b.w / 2, b.x + b.w];

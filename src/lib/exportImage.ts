@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import type { AppConfig } from "@/lib/config";
 import { applyFilenameTemplate, extensionFor } from "@/lib/filename";
-import { getStageImageSize } from "@/lib/stageBridge";
+import { getStageExportBox, getStageImageSize } from "@/lib/stageBridge";
 import { isTauriRuntime } from "@/lib/platform";
 import { copyPngToClipboard, downloadPng } from "@/lib/webExport";
 
@@ -19,25 +19,30 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 /**
- * Region-explicit export. Image always renders at (0, 0) in stage-local coords
- * regardless of the Stage's DOM position or the scroll-container's scroll
- * offset, so the (x: 0, y: 0, width: iw*scale, height: ih*scale) rect with
- * `pixelRatio = 1/scale` yields a native-resolution snapshot of the image
- * region — independent of viewport zoom and pan.
+ * Region-explicit export. The Stage's `offsetX/Y` pins the content box's
+ * top-left to stage-local (0, 0) regardless of DOM position or scroll offset,
+ * so the (x: 0, y: 0, width: w*scale, height: h*scale) rect with
+ * `pixelRatio = 1/scale` yields a native-resolution snapshot of the whole
+ * canvas — independent of viewport zoom and pan. The export box (published by
+ * EditorStage) is the union of the image rect and any elements that overflow
+ * its edges; with no overflow it equals the image rect, so output is unchanged.
+ * The white/configured background is painted as a Rect inside the Stage, so it
+ * is captured here without extra compositing.
  */
 function exportRegion(
   stage: Konva.Stage,
   opts: { mimeType: string; quality?: number },
 ): string {
   const scale = stage.scaleX() || 1;
+  const box = getStageExportBox();
   const size = getStageImageSize();
-  const iw = size?.w ?? stage.width() / scale;
-  const ih = size?.h ?? stage.height() / scale;
+  const w = box?.w ?? size?.w ?? stage.width() / scale;
+  const h = box?.h ?? size?.h ?? stage.height() / scale;
   return stage.toDataURL({
     x: 0,
     y: 0,
-    width: iw * scale,
-    height: ih * scale,
+    width: w * scale,
+    height: h * scale,
     pixelRatio: 1 / scale,
     mimeType: opts.mimeType,
     quality: opts.quality,
