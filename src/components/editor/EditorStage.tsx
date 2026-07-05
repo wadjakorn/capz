@@ -20,6 +20,7 @@ import {
   useEditor,
   clampZoom,
   type Annotation,
+  type ImageCrop,
   type RectAnnotation,
   type ArrowAnnotation,
   type TextAnnotation,
@@ -116,9 +117,13 @@ export function EditorStage({ src }: Props) {
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const hoverTrRef = useRef<Konva.Transformer>(null);
+  const cropTrRef = useRef<Konva.Transformer>(null);
+  const cropRectRef = useRef<Konva.Rect>(null);
   const nodeRefs = useRef(new Map<string, Konva.Node>());
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Live crop selection (in displayed-image coords) while the crop tool is active.
+  const [cropSel, setCropSel] = useState<ImageCrop | null>(null);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -138,6 +143,8 @@ export function EditorStage({ src }: Props) {
   const add = useEditor((s) => s.add);
   const update = useEditor((s) => s.update);
   const select = useEditor((s) => s.select);
+  const imageCrop = useEditor((s) => s.imageCrop);
+  const applyCrop = useEditor((s) => s.applyCrop);
 
   const settingsReady = useSettings((s) => s.ready);
   const initSettings = useSettings((s) => s.init);
@@ -170,7 +177,11 @@ export function EditorStage({ src }: Props) {
       const merged: NonNullable<AppConfig["lastUsed"]> = {
         ...cur,
         ...pendingLastUsed.current,
-        tool: useEditor.getState().tool,
+        // "crop" is a transient mode, not a persistable last-used tool.
+        tool: (() => {
+          const t = useEditor.getState().tool;
+          return t === "crop" ? cur.tool : t;
+        })(),
         stickerEmoji: (() => {
           const sel = useEditor.getState().stickerSelection;
           return (
@@ -398,8 +409,61 @@ export function EditorStage({ src }: Props) {
     tr.getLayer()?.batchDraw();
   }, [hoveredId, selectedId, annotations]);
 
-  const imgW = image?.naturalWidth ?? 0;
-  const imgH = image?.naturalHeight ?? 0;
+  const srcW = image?.naturalWidth ?? 0;
+  const srcH = image?.naturalHeight ?? 0;
+  // Active crop into the source image (defaults to the whole image). All
+  // annotation/pointer coordinates and the export region are expressed in this
+  // cropped space, so `imgW`/`imgH` are the *displayed* image dimensions.
+  const cropBase = imageCrop ?? { x: 0, y: 0, w: srcW, h: srcH };
+  const imgW = cropBase.w;
+  const imgH = cropBase.h;
+
+  // Seed the crop selection to the full image when entering crop mode; drop it
+  // on exit (Cancel/Esc/tool switch). Re-clamp if the image dimensions change.
+  useEffect(() => {
+    if (tool !== "crop") {
+      setCropSel(null);
+      return;
+    }
+    if (imgW <= 0 || imgH <= 0) return;
+    setCropSel((cur) => (cur ? cur : { x: 0, y: 0, w: imgW, h: imgH }));
+  }, [tool, imgW, imgH]);
+
+  // Attach the dedicated crop Transformer to the crop box.
+  useEffect(() => {
+    const tr = cropTrRef.current;
+    if (!tr) return;
+    const node = tool === "crop" && cropSel ? cropRectRef.current : null;
+    tr.nodes(node ? [node] : []);
+    tr.getLayer()?.batchDraw();
+  }, [tool, cropSel]);
+
+  const applyCropNow = () => {
+    if (!cropSel || cropSel.w < 8 || cropSel.h < 8) {
+      setTool("select");
+      return;
+    }
+    applyCrop(cropSel, { w: srcW, h: srcH });
+  };
+
+  // Enter confirms the crop. (Esc cancels via the global editor shortcuts.)
+  useEffect(() => {
+    if (tool !== "crop") return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyCropNow();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // applyCropNow closes over cropSel/srcW/srcH; re-bind when they change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, cropSel, srcW, srcH]);
 
   // When useImage swaps to a new HTMLImageElement (next capture, paste, etc.),
   // reset displayScale to the 0 sentinel so the fit effect re-runs with the
@@ -510,6 +574,8 @@ export function EditorStage({ src }: Props) {
     // OCR read mode: suspend annotation drawing/selection on the stage; the
     // text overlay handles interaction.
     if (useOcr.getState().mode) return;
+    // Crop mode: the crop box handles its own drag/resize; ignore stage clicks.
+    if (tool === "crop") return;
     if (e.evt.button !== 0) return;
     const p = getPointer();
     if (!p) return;
@@ -852,12 +918,15 @@ export function EditorStage({ src }: Props) {
               image={image}
               width={imgW}
               height={imgH}
+              crop={{ x: cropBase.x, y: cropBase.y, width: cropBase.w, height: cropBase.h }}
               name="bg-image"
               listening
             />
             {annotations.map((a) =>
               renderAnnotation(a, {
                 bgImage: image,
+                cropOffX: cropBase.x,
+                cropOffY: cropBase.y,
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
@@ -913,6 +982,78 @@ export function EditorStage({ src }: Props) {
                 pointerWidth={toolsCfg.arrow.strokeWidth * 4}
                 listening={false}
               />
+            )}
+            {tool === "crop" && cropSel && (
+              <>
+                {/* Dim the area outside the crop selection (4 rects). */}
+                <Rect x={0} y={0} width={imgW} height={cropSel.y} fill="rgba(0,0,0,0.5)" />
+                <Rect
+                  x={0}
+                  y={cropSel.y + cropSel.h}
+                  width={imgW}
+                  height={Math.max(0, imgH - cropSel.y - cropSel.h)}
+                  fill="rgba(0,0,0,0.5)"
+                />
+                <Rect x={0} y={cropSel.y} width={cropSel.x} height={cropSel.h} fill="rgba(0,0,0,0.5)" />
+                <Rect
+                  x={cropSel.x + cropSel.w}
+                  y={cropSel.y}
+                  width={Math.max(0, imgW - cropSel.x - cropSel.w)}
+                  height={cropSel.h}
+                  fill="rgba(0,0,0,0.5)"
+                />
+                <Rect
+                  ref={cropRectRef}
+                  x={cropSel.x}
+                  y={cropSel.y}
+                  width={cropSel.w}
+                  height={cropSel.h}
+                  stroke="#6d7cff"
+                  strokeWidth={1.5 / scale}
+                  dash={[6 / scale, 4 / scale]}
+                  draggable
+                  onDragMove={(e) => {
+                    const n = e.target;
+                    const nx = Math.max(0, Math.min(n.x(), imgW - cropSel.w));
+                    const ny = Math.max(0, Math.min(n.y(), imgH - cropSel.h));
+                    n.position({ x: nx, y: ny });
+                    setCropSel({ ...cropSel, x: nx, y: ny });
+                  }}
+                  onTransformEnd={() => {
+                    const n = cropRectRef.current;
+                    if (!n) return;
+                    const sx = n.scaleX();
+                    const sy = n.scaleY();
+                    n.scaleX(1);
+                    n.scaleY(1);
+                    let x = Math.max(0, Math.min(n.x(), imgW - 8));
+                    let y = Math.max(0, Math.min(n.y(), imgH - 8));
+                    let w = Math.max(8, Math.min(n.width() * sx, imgW - x));
+                    let h = Math.max(8, Math.min(n.height() * sy, imgH - y));
+                    x = Math.round(x);
+                    y = Math.round(y);
+                    w = Math.round(w);
+                    h = Math.round(h);
+                    n.position({ x, y });
+                    setCropSel({ x, y, w, h });
+                  }}
+                />
+                <Transformer
+                  ref={cropTrRef}
+                  rotateEnabled={false}
+                  flipEnabled={false}
+                  keepRatio={false}
+                  ignoreStroke
+                  borderStroke="#6d7cff"
+                  anchorStroke="#6d7cff"
+                  anchorFill="#ffffff"
+                  boundBoxFunc={(oldBox, newBox) =>
+                    Math.abs(newBox.width) < 8 || Math.abs(newBox.height) < 8
+                      ? oldBox
+                      : newBox
+                  }
+                />
+              </>
             )}
             <Transformer
               ref={hoverTrRef}
@@ -1060,12 +1201,38 @@ export function EditorStage({ src }: Props) {
         </div>
       </>
     )}
+    {tool === "crop" && image && (
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-50 flex justify-center">
+        <div className="surface pointer-events-auto flex items-center gap-2 rounded-xl p-1.5 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]">
+          <span className="px-2 text-foreground/60">
+            {cropSel ? `${Math.round(cropSel.w)}×${Math.round(cropSel.h)}` : "Crop"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setTool("select")}
+            className="rounded-lg px-3 py-1.5 text-foreground/90 transition-colors hover:bg-[var(--surface-raised)]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyCropNow}
+            className="rounded-lg bg-[var(--accent,#6d7cff)] px-3 py-1.5 font-medium text-white transition-opacity hover:opacity-90"
+          >
+            Apply crop
+          </button>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
 
 type ShapeCtx = {
   bgImage: HTMLImageElement | undefined;
+  /** Offset from cropped-image space to source-image pixels (for blur sampling). */
+  cropOffX: number;
+  cropOffY: number;
   onSelect: () => void;
   onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
@@ -1374,7 +1541,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
     if (!node || !ctx.bgImage) return;
     node.cache();
     node.getLayer()?.batchDraw();
-  }, [ctx.bgImage, a.x, a.y, a.w, a.h, a.blurRadius]);
+  }, [ctx.bgImage, a.x, a.y, a.w, a.h, a.blurRadius, ctx.cropOffX, ctx.cropOffY]);
   if (!ctx.bgImage) return null;
   return (
     <KonvaImage
@@ -1385,7 +1552,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
       rotation={a.rotation ?? 0}
       width={a.w}
       height={a.h}
-      crop={{ x: a.x, y: a.y, width: a.w, height: a.h }}
+      crop={{ x: a.x + ctx.cropOffX, y: a.y + ctx.cropOffY, width: a.w, height: a.h }}
       filters={[Konva.Filters.Blur]}
       blurRadius={a.blurRadius}
       draggable
