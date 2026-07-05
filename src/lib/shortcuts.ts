@@ -1,6 +1,6 @@
 export type Platform = "mac" | "win";
 
-function currentPlatform(): Platform {
+export function currentPlatform(): Platform {
   return typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
     ? "mac"
     : "win";
