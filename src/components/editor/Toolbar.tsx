@@ -31,6 +31,7 @@ import {
   Ruler,
   ScanText,
   Loader2,
+  Monitor,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
@@ -111,7 +112,17 @@ function withDeco(
   return "";
 }
 
-export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}) {
+export function Toolbar({
+  onOpenSettings,
+  onWebCapture,
+  onWebClear,
+}: {
+  onOpenSettings?: () => void;
+  /** Web build: capture the screen in-browser (getDisplayMedia). */
+  onWebCapture?: () => void;
+  /** Web build: drop the current image and annotations, back to empty state. */
+  onWebClear?: () => void;
+} = {}) {
   // Desktop-only chrome (capture, OCR, clear-workspace, settings) hides on
   // the web build. Defaults true so the prerendered HTML matches the desktop
   // webview; the web build flips it after hydration.
@@ -783,6 +794,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             <Divider />
           </>
         )}
+        {/* Web build: in-browser capture (getDisplayMedia) — capture again
+            without leaving the editor. */}
+        {!tauriUi && onWebCapture && (
+          <>
+            <ToolButton icon={Monitor} label="Capture screen" onClick={onWebCapture} />
+            <Divider />
+          </>
+        )}
         {/* History group */}
         <ToolButton icon={Undo2} label="Undo" hint="⌘Z" disabled={!past} onClick={undo} />
         <ToolButton icon={Redo2} label="Redo" hint="⇧⌘Z" disabled={!future} onClick={redo} />
@@ -792,6 +811,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings?: () => void } = {}
             label={hasImage ? "Clear workspace" : "Workspace already empty"}
             disabled={!hasImage}
             onClick={onClearWorkspace}
+          />
+        )}
+        {!tauriUi && onWebClear && (
+          <ToolButton
+            icon={Trash2}
+            label={hasImage ? "Delete image" : "No image loaded"}
+            disabled={!hasImage}
+            onClick={onWebClear}
           />
         )}
         <Divider />

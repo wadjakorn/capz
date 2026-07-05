@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Monitor,
   Crop,
@@ -7,7 +8,7 @@ import {
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
-import { formatShortcut } from "@/lib/shortcuts";
+import { currentPlatform, formatShortcut, type Platform } from "@/lib/shortcuts";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,12 +37,18 @@ export function CaptureSplitButton({
   const primary = KINDS.find((k) => k.kind === lastKind) ?? KINDS[0];
   const PrimaryIcon = primary.icon;
 
+  // Shortcut glyphs are platform-specific (⌘ vs Ctrl). navigator is absent
+  // during prerender, so pin to the prerender value ("win") until mounted to
+  // avoid a hydration mismatch, then switch to the real platform.
+  const [platform, setPlatform] = useState<Platform>("win");
+  useEffect(() => setPlatform(currentPlatform()), []);
+
   return (
     <div className="inline-flex items-stretch overflow-hidden rounded-lg">
       <button
         type="button"
         onClick={() => onCapture(primary.kind)}
-        title={`${primary.label} (${formatShortcut(accelerators[primary.kind])})`}
+        title={`${primary.label} (${formatShortcut(accelerators[primary.kind], platform)})`}
         aria-label={primary.label}
         className="flex h-8 w-8 items-center justify-center text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
       >
@@ -71,7 +78,7 @@ export function CaptureSplitButton({
                 <Icon aria-hidden />
                 <span>{k.label}</span>
                 <DropdownMenuShortcut>
-                  {formatShortcut(accelerators[k.kind])}
+                  {formatShortcut(accelerators[k.kind], platform)}
                 </DropdownMenuShortcut>
               </DropdownMenuItem>
             );

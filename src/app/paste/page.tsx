@@ -3,13 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
-import { ImageUp } from "lucide-react";
+import { ImageUp, Monitor } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
 import { extractImageBlob, readClipboardPng } from "@/lib/webExport";
 import { getStage } from "@/lib/stageBridge";
 import { copyOnly } from "@/lib/exportImage";
+import {
+  captureScreen,
+  isWebCaptureSupported,
+  WebCaptureError,
+} from "@/lib/webCapture";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -17,17 +22,22 @@ const EditorStage = dynamic(
 );
 
 /**
- * Web-only paste-to-edit route. The user captures with the OS tool
- * (Win+Shift+S / ⌘⌃⇧4), pastes here, annotates, and copies/downloads the
- * result. No capture, no backend — the image never leaves the browser.
+ * Web-only capture / paste-to-edit route. The user grabs a screenshot with the
+ * in-browser Screen Capture API (or the OS tool + paste), annotates, and
+ * copies/downloads the result. No backend — the image never leaves the browser.
  */
 export default function PastePage() {
   const [src, setSrc] = useState("");
+  const [capturing, setCapturing] = useState(false);
+  const [canCapture, setCanCapture] = useState(false);
   const srcRef = useRef("");
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
 
   useEditorShortcuts();
+
+  // Only offer in-browser capture where the Screen Capture API exists.
+  useEffect(() => setCanCapture(isWebCaptureSupported()), []);
 
   useEffect(() => () => { if (srcRef.current) URL.revokeObjectURL(srcRef.current); }, []);
 
@@ -42,6 +52,15 @@ export default function PastePage() {
     },
     [resetEditor, setHasImage],
   );
+
+  // Drop the current image and annotations, back to the empty state.
+  const clearImage = useCallback(() => {
+    if (srcRef.current) URL.revokeObjectURL(srcRef.current);
+    srcRef.current = "";
+    setSrc("");
+    resetEditor();
+    setHasImage(false);
+  }, [resetEditor, setHasImage]);
 
   // Ctrl+V / Cmd+V anywhere on the page.
   useEffect(() => {
@@ -145,9 +164,34 @@ export default function PastePage() {
     [applyBlob],
   );
 
+  // Capture the screen in-browser (Screen Capture API) and load it into the
+  // editor — no OS tool round-trip. A permission picker appears every time.
+  const onCapture = useCallback(async () => {
+    setCapturing(true);
+    try {
+      const { blob } = await captureScreen();
+      applyBlob(blob);
+    } catch (err) {
+      if (err instanceof WebCaptureError && err.kind === "cancelled") {
+        // User dismissed the picker — silent.
+      } else if (err instanceof WebCaptureError && err.kind === "unsupported") {
+        toast.error("Screen capture unavailable", {
+          description: "This browser or context can't capture the screen — paste a screenshot instead.",
+        });
+      } else {
+        toast.error("Capture failed", { description: String(err) });
+      }
+    } finally {
+      setCapturing(false);
+    }
+  }, [applyBlob]);
+
   return (
     <div className="flex h-screen flex-col text-foreground">
-      <Toolbar />
+      <Toolbar
+        onWebCapture={canCapture ? onCapture : undefined}
+        onWebClear={clearImage}
+      />
       <main
         className="relative min-h-0 flex-1 overflow-hidden"
         style={{ backgroundColor: "var(--bg-canvas)" }}
@@ -158,7 +202,16 @@ export default function PastePage() {
           aria-hidden
         />
         <div className="absolute inset-0">
-          {src ? <EditorStage src={src} /> : <WebEmptyState onPickFile={onPickFile} />}
+          {src ? (
+            <EditorStage src={src} />
+          ) : (
+            <WebEmptyState
+              onPickFile={onPickFile}
+              onCapture={onCapture}
+              capturing={capturing}
+              canCapture={canCapture}
+            />
+          )}
         </div>
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
@@ -168,15 +221,22 @@ export default function PastePage() {
 
 function WebEmptyState({
   onPickFile,
+  onCapture,
+  capturing,
+  canCapture,
 }: {
   onPickFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onCapture: () => void;
+  capturing: boolean;
+  canCapture: boolean;
 }) {
+  // navigator is absent during prerender: default to the non-mac hint so the
+  // server HTML and first client render match, then correct after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const isMac =
-    typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+    mounted && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
   const paste = isMac ? "⌘V" : "Ctrl+V";
-  const captureHint = isMac
-    ? "⌘⌃⇧4 copies a screenshot to the clipboard"
-    : "Win+Shift+S copies a screenshot to the clipboard";
   return (
     <div className="flex h-full w-full items-center justify-center">
       <div className="surface flex flex-col items-center gap-4 px-10 py-8 text-center">
@@ -185,21 +245,36 @@ function WebEmptyState({
         </div>
         <div className="flex flex-col gap-1 text-sm text-foreground/80">
           <div>
-            Paste a screenshot (
-            <span className="font-mono text-foreground">{paste}</span>) or drop
+            Capture your screen, paste a screenshot (
+            <span className="font-mono text-foreground">{paste}</span>), or drop
             an image here.
           </div>
-          <div className="text-xs text-foreground/60">{captureHint}</div>
+          <div className="text-xs text-foreground/60">
+            Capture prompts you to pick a screen or window each time.
+          </div>
         </div>
-        <label className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm text-foreground/85 transition-colors hover:bg-[var(--surface-raised)]">
-          Choose an image…
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={onPickFile}
-          />
-        </label>
+        <div className="flex items-center gap-2">
+          {canCapture && (
+            <button
+              type="button"
+              onClick={onCapture}
+              disabled={capturing}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-[var(--accent-fg)] transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              <Monitor className="h-4 w-4" aria-hidden />
+              {capturing ? "Capturing…" : "Capture screen"}
+            </button>
+          )}
+          <label className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm text-foreground/85 transition-colors hover:bg-[var(--surface-raised)]">
+            Choose an image…
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onPickFile}
+            />
+          </label>
+        </div>
       </div>
     </div>
   );

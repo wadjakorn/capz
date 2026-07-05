@@ -28,8 +28,11 @@ test("paste page shows the web empty state without desktop-only chrome", async (
   await expect(page.getByText(/Paste a screenshot/i)).toBeVisible();
   await expect(page.getByText(/Choose an image/i)).toBeVisible();
 
-  // Desktop-only toolbar chrome must be hidden on the web build.
-  await expect(page.getByRole("button", { name: /capture/i })).toHaveCount(0);
+  // Desktop-only toolbar chrome must be hidden on the web build. The web
+  // build's own "Capture screen" button (empty state) is intentionally allowed.
+  await expect(
+    page.getByRole("button", { name: /^Capture (full screen|area|window|options)$/i }),
+  ).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^settings$/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /detect text/i })).toHaveCount(0);
 
