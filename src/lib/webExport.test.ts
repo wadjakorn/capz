@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   copyPngToClipboard,
+  copyPngWithFallback,
   downloadPng,
   extractImageBlob,
 } from "./webExport";
@@ -62,6 +63,75 @@ describe("copyPngToClipboard", () => {
         ClipboardItemCtor: undefined,
       }),
     ).rejects.toThrow(/clipboard/i);
+  });
+});
+
+describe("copyPngWithFallback", () => {
+  function makeDownloadDeps() {
+    const clicked: { href: string; download: string }[] = [];
+    const anchor = {
+      href: "",
+      download: "",
+      click: vi.fn(function (this: { href: string; download: string }) {
+        clicked.push({ href: this.href, download: this.download });
+      }),
+    };
+    const doc = {
+      createElement: vi.fn(() => anchor),
+    } as unknown as NonNullable<Parameters<typeof downloadPng>[2]>["doc"];
+    const url = {
+      createObjectURL: vi.fn(() => "blob:fake-url"),
+      revokeObjectURL: vi.fn(),
+    };
+    return { download: { doc, url }, clicked };
+  }
+
+  it("reports via:clipboard and does not download when the write succeeds", async () => {
+    const copy = makeDeps();
+    const dl = makeDownloadDeps();
+    const res = await copyPngWithFallback(
+      Promise.resolve(new Blob(["x"], { type: "image/png" })),
+      { blob: new Blob(["x"]), filename: "shot.png" },
+      { copy, download: dl.download },
+    );
+    expect(res).toEqual({ via: "clipboard" });
+    expect(dl.clicked).toEqual([]);
+  });
+
+  it("downloads the fallback PNG and reports via:download when the clipboard is unavailable (Linux/Firefox)", async () => {
+    const dl = makeDownloadDeps();
+    const res = await copyPngWithFallback(
+      Promise.resolve(new Blob(["x"], { type: "image/png" })),
+      { blob: new Blob(["x"], { type: "image/png" }), filename: "shot.png" },
+      // No clipboard API at all — the Linux Firefox shape.
+      { copy: { clipboard: undefined, ClipboardItemCtor: undefined }, download: dl.download },
+    );
+    expect(res).toEqual({ via: "download", filename: "shot.png" });
+    expect(dl.clicked).toEqual([{ href: "blob:fake-url", download: "shot.png" }]);
+  });
+
+  it("downloads the fallback when the write rejects at runtime (NotAllowedError)", async () => {
+    const copy = makeDeps();
+    copy.clipboard.write.mockRejectedValueOnce(new Error("NotAllowedError"));
+    const dl = makeDownloadDeps();
+    const res = await copyPngWithFallback(
+      Promise.resolve(new Blob(["x"], { type: "image/png" })),
+      { blob: new Blob(["x"]), filename: "shot.png" },
+      { copy, download: dl.download },
+    );
+    expect(res).toEqual({ via: "download", filename: "shot.png" });
+    expect(dl.clicked).toHaveLength(1);
+  });
+
+  it("reports via:none without downloading when fallback is null (caller already saved a file)", async () => {
+    const dl = makeDownloadDeps();
+    const res = await copyPngWithFallback(
+      Promise.resolve(new Blob(["x"], { type: "image/png" })),
+      null,
+      { copy: { clipboard: undefined, ClipboardItemCtor: undefined }, download: dl.download },
+    );
+    expect(res).toEqual({ via: "none" });
+    expect(dl.clicked).toEqual([]);
   });
 });
 

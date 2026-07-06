@@ -64,6 +64,18 @@ describe("exportImage on the web runtime (no Tauri)", () => {
     expect(item.types["image/png"]).toBeDefined();
   });
 
+  it("copyOnly falls back to a PNG download when the browser clipboard is unavailable (Linux/Firefox)", async () => {
+    // No async clipboard image write available — the Linux Firefox shape.
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("ClipboardItem", undefined);
+    const r = await copyOnly(fakeStage());
+    expect(r.copied).toBe(false);
+    expect(r.downloaded).toMatch(/^capz-\d{8}-\d{6}\.png$/);
+    expect(anchor.click).toHaveBeenCalledTimes(1);
+    expect(anchor.download).toBe(r.downloaded);
+    expect(written).toHaveLength(0);
+  });
+
   it("saveOnly triggers a browser download named from the filename template and configured format", async () => {
     const r = await saveOnly(fakeStage(), DEFAULT_CONFIG);
     expect(r.copied).toBe(false);

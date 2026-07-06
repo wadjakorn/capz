@@ -72,6 +72,44 @@ export function downloadPng(
   }
 }
 
+export type CopyResult =
+  | { via: "clipboard" }
+  | { via: "download"; filename: string }
+  | { via: "none" };
+
+type FallbackDeps = {
+  copy?: CopyDeps;
+  download?: DownloadDeps;
+};
+
+/**
+ * Copy a PNG to the clipboard, falling back to a browser download when the
+ * clipboard image write is unavailable. This is the Linux path: Firefox (and
+ * some Wayland/X11 setups) either don't expose `ClipboardItem` image write or
+ * reject it at runtime with NotAllowedError, so `via: "clipboard"` is not
+ * guaranteed. Pass `fallback` to download the same PNG instead; pass `null`
+ * to skip the fallback and report `via: "none"` (the caller already produced a
+ * file, e.g. save-and-copy).
+ *
+ * The clipboard write is kicked off synchronously (see `copyPngToClipboard`) so
+ * the Safari user-activation is preserved; the fallback only runs from the
+ * rejection handler, after the activation window has already been used.
+ */
+export function copyPngWithFallback(
+  blob: Promise<Blob>,
+  fallback: { blob: Blob; filename: string } | null,
+  deps: FallbackDeps = {},
+): Promise<CopyResult> {
+  return copyPngToClipboard(blob, deps.copy ?? defaultCopyDeps()).then(
+    (): CopyResult => ({ via: "clipboard" }),
+    (): CopyResult => {
+      if (!fallback) return { via: "none" };
+      downloadPng(fallback.blob, fallback.filename, deps.download);
+      return { via: "download", filename: fallback.filename };
+    },
+  );
+}
+
 type ClipboardItemLike = {
   types: readonly string[];
   getType: (type: string) => Promise<Blob>;
