@@ -3,12 +3,21 @@ import type { AppConfig } from "@/lib/config";
 import { applyFilenameTemplate, extensionFor } from "@/lib/filename";
 import { getStageExportBox, getStageImageSize } from "@/lib/stageBridge";
 import { isTauriRuntime } from "@/lib/platform";
-import { copyPngToClipboard, downloadPng } from "@/lib/webExport";
+import { copyPngWithFallback, downloadPng } from "@/lib/webExport";
 
 type ExportResult = {
   saved?: string;
   copied: boolean;
+  /**
+   * Set on the web build when the clipboard image write was unavailable (Linux
+   * Firefox et al.) and the PNG was downloaded instead. Holds the filename.
+   */
+  downloaded?: string;
 };
+
+// Fallback download name when copy-to-clipboard degrades and there's no
+// user-configured template in scope (matches the config default).
+const FALLBACK_FILENAME_TEMPLATE = "capz-{yyyy}{MM}{dd}-{HHmmss}";
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const base64 = dataUrl.split(",", 2)[1] ?? "";
@@ -61,23 +70,37 @@ function stageBytes(stage: Konva.Stage, output: AppConfig["output"]): Uint8Array
   return dataUrlToBytes(dataUrl);
 }
 
-async function copyToClipboard(stage: Konva.Stage): Promise<void> {
+type CopyOutcome = { copied: boolean; downloaded?: string };
+
+async function copyToClipboard(
+  stage: Konva.Stage,
+  allowDownloadFallback = true,
+): Promise<CopyOutcome> {
   const dataUrl = exportRegion(stage, { mimeType: "image/png" });
   const bytes = dataUrlToBytes(dataUrl);
   if (!isTauriRuntime()) {
     // Keep everything up to clipboard.write() synchronous — Safari drops the
     // user activation across awaits (see webExport.copyPngToClipboard).
     const blob = new Blob([bytes as BlobPart], { type: "image/png" });
-    await copyPngToClipboard(Promise.resolve(blob));
-    return;
+    const filename = `${applyFilenameTemplate(FALLBACK_FILENAME_TEMPLATE)}.png`;
+    const res = await copyPngWithFallback(
+      Promise.resolve(blob),
+      // Only download-fallback when the caller hasn't already produced a file;
+      // save-and-copy passes false so a clipboard miss doesn't double-download.
+      allowDownloadFallback ? { blob, filename } : null,
+    );
+    if (res.via === "clipboard") return { copied: true };
+    if (res.via === "download") return { copied: false, downloaded: res.filename };
+    return { copied: false };
   }
   const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
   await writeImage(bytes);
+  return { copied: true };
 }
 
 export async function copyOnly(stage: Konva.Stage): Promise<ExportResult> {
-  await copyToClipboard(stage);
-  return { copied: true };
+  const { copied, downloaded } = await copyToClipboard(stage);
+  return { copied, downloaded };
 }
 
 export async function saveOnly(
@@ -95,8 +118,10 @@ export async function saveAndCopy(
 ): Promise<ExportResult> {
   const { output } = config;
   const saved = await saveToFile(stage, output);
-  await copyToClipboard(stage);
-  return { saved, copied: true };
+  // The file is already on disk / downloaded, so don't add a second download
+  // when the clipboard is unavailable — just report copied:false.
+  const { copied } = await copyToClipboard(stage, false);
+  return { saved, copied };
 }
 
 async function resolveSaveDir(output: AppConfig["output"]): Promise<string> {

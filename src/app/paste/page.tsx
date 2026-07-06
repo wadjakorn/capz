@@ -147,8 +147,17 @@ export default function PastePage() {
       try {
         const stage = getStage();
         if (!stage) return;
-        await copyOnly(stage);
-        toast.success("Copied");
+        const r = await copyOnly(stage);
+        if (r.copied) toast.success("Copied");
+        else if (r.downloaded)
+          toast("Downloaded instead", {
+            description:
+              "This browser can't copy images to the clipboard — saved the PNG to your downloads.",
+          });
+        else
+          toast.error("Copy failed", {
+            description: "Your browser blocked the clipboard — use Save to download instead.",
+          });
       } catch (err) {
         console.error("copy shortcut failed", err);
         toast.error("Copy failed", {

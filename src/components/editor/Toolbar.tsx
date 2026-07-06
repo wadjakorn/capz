@@ -655,6 +655,11 @@ export function Toolbar({
       if (r.saved && r.copied) notify("Saved & Copied");
       else if (r.saved) notify("Saved");
       else if (r.copied) notify("Copied");
+      else if (r.downloaded)
+        toast("Downloaded instead", {
+          description:
+            "This browser can't copy images to the clipboard — saved the PNG to your downloads.",
+        });
     } catch (e) {
       console.error("export failed", e);
       const { title, detail } = describeExportError(e);
