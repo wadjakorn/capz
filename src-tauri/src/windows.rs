@@ -51,7 +51,25 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         return Err(tauri::Error::Anyhow(anyhow::anyhow!("no monitors")));
     }
 
-    for m in &mons {
+    // Area mode shows a SINGLE overlay on one display (no picker): the last-used
+    // region's display if it still exists, otherwise the primary (or first).
+    // Full/window modes keep one overlay per monitor.
+    let targets: Vec<monitor_service::MonitorInfo> = if mode == "area" {
+        let last = read_last_region_monitor_id(app);
+        last.and_then(|id| mons.iter().find(|m| m.id == id))
+            .or_else(|| mons.iter().find(|m| m.is_primary))
+            .or_else(|| mons.first())
+            .cloned()
+            .into_iter()
+            .collect()
+    } else {
+        mons.clone()
+    };
+    if targets.is_empty() {
+        return Err(tauri::Error::Anyhow(anyhow::anyhow!("no target monitor")));
+    }
+
+    for m in &targets {
         let label = format!("overlay-{}", m.id);
         log::info!(
             "overlay {label}: pos=({}, {}) size=({}x{}) scale={}",
@@ -61,14 +79,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
             m.height,
             m.scale_factor
         );
-        // `count` lets the overlay skip the display-picker step when there is
-        // only a single monitor (area mode goes straight to the template rect).
-        let url = format!(
-            "overlay/?monitor={}&mode={}&count={}",
-            m.id,
-            mode,
-            mons.len()
-        );
+        let url = format!("overlay/?monitor={}&mode={}", m.id, mode);
         let win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
             .title("capz — Select area")
             .transparent(true)
@@ -114,10 +125,12 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         }
     }
 
-    // Focus the primary monitor's overlay so keyboard (Esc) works without click.
-    let primary_label = mons
+    // Focus an overlay so keyboard (Esc) works without click — the primary if it
+    // is among the targets, otherwise the first (area mode has a single target).
+    let primary_label = targets
         .iter()
         .find(|m| m.is_primary)
+        .or_else(|| targets.first())
         .map(|m| format!("overlay-{}", m.id));
     if let Some(label) = primary_label {
         if let Some(w) = app.get_webview_window(&label) {
@@ -130,7 +143,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     // doesn't need to click each new monitor to activate it.
     #[cfg(target_os = "macos")]
     {
-        let labels: Vec<(String, i32, i32, i32, i32)> = mons
+        let labels: Vec<(String, i32, i32, i32, i32)> = targets
             .iter()
             .map(|m| {
                 (
@@ -257,6 +270,20 @@ fn read_editor_window_size<R: Runtime>(app: &AppHandle<R>) -> (f64, f64) {
         .unwrap_or(default.1)
         .max(680.0);
     (w, h)
+}
+
+/// The display id of the last confirmed area-capture region, if any. Drives
+/// where the (single) area overlay opens so it lands on the display you last
+/// captured on.
+fn read_last_region_monitor_id<R: Runtime>(app: &AppHandle<R>) -> Option<u32> {
+    let path = config_store_path(app).ok()?;
+    let store = app.store(path).ok()?;
+    let v = store.get(CONFIG_STORE_KEY)?;
+    v.get("lastUsed")
+        .and_then(|lu| lu.get("region"))
+        .and_then(|r| r.get("monitorId"))
+        .and_then(|n| n.as_u64())
+        .map(|n| n as u32)
 }
 
 fn read_always_on_top_editor<R: Runtime>(app: &AppHandle<R>) -> bool {

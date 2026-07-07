@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { invoke } from "@tauri-apps/api/core";
-import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "@/stores/settings";
 import {
@@ -30,21 +29,6 @@ type WindowOverlayInfo = {
   width: number;
   height: number;
 };
-
-type MonitorInfo = {
-  id: number;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  scale_factor: number;
-  is_primary: boolean;
-};
-
-/** Cross-window events coordinating the multi-monitor display picker. */
-const EVT_HIGHLIGHT = "overlay:highlight";
-const EVT_PICK = "overlay:pick";
 
 /** Minimum template size (CSS px) enforced while resizing. */
 const MIN_RECT = 24;
@@ -92,20 +76,18 @@ function useViewport() {
 }
 
 // ---------------------------------------------------------------------------
-// Area mode: template rectangle + transform handles + multi-monitor picker.
+// Area mode: a single template rectangle with transform handles. Rust opens the
+// overlay on just one display (the last-used region's display, else primary), so
+// there is no picker step here.
 // ---------------------------------------------------------------------------
 
-function AreaMode({ monitorId, count }: { monitorId: number; count: number }) {
+function AreaMode({ monitorId }: { monitorId: number }) {
   const { w: dispW, h: dispH } = useViewport();
 
   const initSettings = useSettings((s) => s.init);
   const settingsReady = useSettings((s) => s.ready);
   const lastRegion = useSettings((s) => s.config.lastUsed?.region);
 
-  // count>1 → choose a display first; single monitor jumps straight to transform.
-  const [phase, setPhase] = useState<"picker" | "transform">(
-    count > 1 ? "picker" : "transform",
-  );
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -159,22 +141,6 @@ function AreaMode({ monitorId, count }: { monitorId: number; count: number }) {
     [monitorId],
   );
 
-  if (phase === "picker") {
-    return (
-      <PickerPhase
-        monitorId={monitorId}
-        onPick={(id) => {
-          if (id === monitorId) setPhase("transform");
-          else {
-            getCurrentWindow()
-              .hide()
-              .catch((e) => console.warn("hide overlay failed", e));
-          }
-        }}
-      />
-    );
-  }
-
   return (
     <TransformPhase
       dispW={dispW}
@@ -185,168 +151,6 @@ function AreaMode({ monitorId, count }: { monitorId: number; count: number }) {
       busy={busy}
       onConfirm={confirmRegion}
     />
-  );
-}
-
-// ---------------------------------------------------------------------------
-
-function PickerPhase({
-  monitorId,
-  onPick,
-}: {
-  monitorId: number;
-  onPick: (id: number) => void;
-}) {
-  const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
-  const [highlightId, setHighlightId] = useState<number | null>(null);
-  const [selected, setSelected] = useState(0);
-  const selectedRef = useRef(0);
-  selectedRef.current = selected;
-  const monitorsRef = useRef<MonitorInfo[]>([]);
-  monitorsRef.current = monitors;
-
-  // Fetch the display list once; default-select the remembered display (or the
-  // primary) so Enter picks a sensible target immediately.
-  useEffect(() => {
-    let alive = true;
-    invoke<MonitorInfo[]>("list_monitors_command")
-      .then((mons) => {
-        if (!alive) return;
-        setMonitors(mons);
-        const remembered = useSettings.getState().config.lastUsed?.region?.monitorId;
-        let idx = mons.findIndex((m) => m.id === remembered);
-        if (idx < 0) idx = mons.findIndex((m) => m.is_primary);
-        if (idx < 0) idx = 0;
-        setSelected(idx);
-        const id = mons[idx]?.id ?? null;
-        setHighlightId(id);
-        if (id != null) void emit(EVT_HIGHLIGHT, { monitorId: id });
-      })
-      .catch((e) => console.error("list_monitors_command failed", e));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // Receive highlight/pick broadcasts from any overlay's chooser.
-  useEffect(() => {
-    const uns: Array<() => void> = [];
-    listen<{ monitorId: number | null }>(EVT_HIGHLIGHT, (e) =>
-      setHighlightId(e.payload.monitorId),
-    ).then((u) => uns.push(u));
-    listen<{ monitorId: number }>(EVT_PICK, (e) => onPick(e.payload.monitorId)).then((u) =>
-      uns.push(u),
-    );
-    return () => uns.forEach((u) => u());
-  }, [onPick]);
-
-  const highlight = useCallback((idx: number) => {
-    setSelected(idx);
-    const id = monitorsRef.current[idx]?.id ?? null;
-    setHighlightId(id);
-    if (id != null) void emit(EVT_HIGHLIGHT, { monitorId: id });
-  }, []);
-
-  const pick = useCallback((id: number) => void emit(EVT_PICK, { monitorId: id }), []);
-
-  // Keyboard navigation of the chooser.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const mons = monitorsRef.current;
-      if (!mons.length) return;
-      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-        e.preventDefault();
-        highlight((selectedRef.current + 1) % mons.length);
-      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-        e.preventDefault();
-        highlight((selectedRef.current - 1 + mons.length) % mons.length);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        const id = mons[selectedRef.current]?.id;
-        if (id != null) pick(id);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [highlight, pick]);
-
-  const isHighlighted = highlightId === monitorId;
-  const myIndex = monitors.findIndex((m) => m.id === monitorId);
-
-  return (
-    <div
-      className="fixed inset-0 select-none cursor-default"
-      style={{
-        background: isHighlighted ? "rgba(109, 124, 255, 0.14)" : "rgba(0, 0, 0, 0.35)",
-        transition: "background 90ms ease-out",
-        boxShadow: isHighlighted ? "inset 0 0 0 4px rgba(109, 124, 255, 0.85)" : "none",
-      }}
-      onMouseEnter={() => getCurrentWindow().setFocus().catch(() => {})}
-    >
-      {/* Big "Display N" badge on the physical screen being previewed. */}
-      {isHighlighted && myIndex >= 0 && (
-        <div
-          className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-xl px-5 py-2 text-2xl font-semibold tracking-wide text-white"
-          style={{
-            background: "var(--surface-overlay)",
-            border: "1px solid rgba(255,255,255,0.14)",
-            boxShadow: "0 12px 40px -14px rgba(0,0,0,0.7)",
-          }}
-        >
-          Display {myIndex + 1}
-        </div>
-      )}
-
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div
-          className="min-w-[300px] rounded-2xl p-4 text-white/90"
-          style={{
-            background: "var(--surface-overlay)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 60px -20px rgba(0,0,0,0.7)",
-          }}
-        >
-          <div className="mb-3 px-1 text-[13px] font-medium tracking-wide text-white/70">
-            Choose a display to capture
-          </div>
-          <div className="flex flex-col gap-1">
-            {monitors.map((m, i) => (
-              <button
-                key={m.id}
-                type="button"
-                onMouseEnter={() => highlight(i)}
-                onClick={() => pick(m.id)}
-                className="flex items-center justify-between gap-6 rounded-lg px-3 py-2 text-left transition-colors"
-                style={{
-                  background:
-                    i === selected ? "rgba(109, 124, 255, 0.22)" : "transparent",
-                  border:
-                    i === selected
-                      ? "1px solid rgba(109, 124, 255, 0.55)"
-                      : "1px solid transparent",
-                }}
-              >
-                <span className="text-sm font-medium">
-                  Display {i + 1}
-                  {m.is_primary && (
-                    <span className="ml-2 text-[11px] font-normal text-white/50">
-                      primary
-                    </span>
-                  )}
-                </span>
-                <span className="text-[12px] tabular-nums text-white/55">
-                  {m.width} × {m.height}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 px-1 text-[11px] text-white/45">
-            Hover to preview · Click or Enter to select · Esc to cancel
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -730,7 +534,6 @@ function OverlayInner() {
   const params = useSearchParams();
   const monitorId = Number(params.get("monitor") ?? "0");
   const mode = (params.get("mode") ?? "area") as Mode;
-  const count = Number(params.get("count") ?? "1");
 
   // Escape always cancels; keep the overlay background transparent.
   useEffect(() => {
@@ -752,7 +555,7 @@ function OverlayInner() {
     };
   }, []);
 
-  if (mode === "area") return <AreaMode monitorId={monitorId} count={count} />;
+  if (mode === "area") return <AreaMode monitorId={monitorId} />;
   return <PickMode mode={mode} monitorId={monitorId} />;
 }
 
