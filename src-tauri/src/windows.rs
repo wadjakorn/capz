@@ -61,7 +61,14 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
             m.height,
             m.scale_factor
         );
-        let url = format!("overlay/?monitor={}&mode={}", m.id, mode);
+        // `count` lets the overlay skip the display-picker step when there is
+        // only a single monitor (area mode goes straight to the template rect).
+        let url = format!(
+            "overlay/?monitor={}&mode={}&count={}",
+            m.id,
+            mode,
+            mons.len()
+        );
         let win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
             .title("capz — Select area")
             .transparent(true)
