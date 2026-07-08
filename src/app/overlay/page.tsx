@@ -322,25 +322,43 @@ function AreaMode({
       onMouseUp={onMouseUp}
       onDoubleClick={onDoubleClick}
     >
-      {rect && <TemplateRect rect={rect} />}
-
-      <div
-        className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-white/85"
-        style={{
-          background: "var(--surface-overlay)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
-        }}
-      >
-        {owner
-          ? "Drag body to move · Handles to resize · Enter to capture · Esc to cancel"
-          : "Drag to select on this screen · Esc to cancel"}
-      </div>
+      {rect ? (
+        // Instructions ride along with the rect (see TemplateRect's action pill).
+        <TemplateRect rect={rect} dispH={dispH} />
+      ) : (
+        // No selection on this display yet → a single centered prompt to draw.
+        <div
+          className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-white/85"
+          style={{
+            background: "var(--surface-overlay)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
+          }}
+        >
+          Drag to select on this screen · Esc to cancel
+        </div>
+      )}
     </div>
   );
 }
 
-function TemplateRect({ rect }: { rect: Rect }) {
+/** Small key-cap chip used inside the action pill. */
+const KEYCAP: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 16,
+  height: 16,
+  padding: "0 4px",
+  borderRadius: 4,
+  background: "rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.20)",
+  fontSize: 10,
+  lineHeight: 1,
+  fontWeight: 600,
+};
+
+function TemplateRect({ rect, dispH }: { rect: Rect; dispH: number }) {
   // Eight resize handles: corners + edge midpoints.
   const handles: Array<{ t: DragTarget; left: number; top: number }> = [
     { t: "nw", left: rect.x, top: rect.y },
@@ -353,6 +371,9 @@ function TemplateRect({ rect }: { rect: Rect }) {
     { t: "w", left: rect.x, top: rect.y + rect.h / 2 },
   ];
   const HANDLE = 10;
+  // Action pill sits just below the rect; if the rect hugs the screen bottom,
+  // tuck it inside the bottom edge instead so it never clips off-screen.
+  const actionsBelow = rect.y + rect.h + 34 <= dispH;
   return (
     <>
       <div
@@ -376,6 +397,25 @@ function TemplateRect({ rect }: { rect: Rect }) {
           }}
         >
           {Math.round(rect.w)} × {Math.round(rect.h)}
+        </div>
+        <div
+          className="absolute left-0 flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium text-white/85"
+          style={{
+            ...(actionsBelow ? { top: "calc(100% + 6px)" } : { bottom: 6, left: 6 }),
+            background: "var(--surface-overlay)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
+          }}
+        >
+          <span className="flex items-center gap-1">
+            <span style={KEYCAP}>↵</span>
+            Capture
+          </span>
+          <span className="opacity-40">·</span>
+          <span className="flex items-center gap-1">
+            <span style={KEYCAP}>esc</span>
+            Cancel
+          </span>
         </div>
       </div>
       {handles.map((h) => (
