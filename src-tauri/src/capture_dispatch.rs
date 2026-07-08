@@ -15,6 +15,12 @@ pub fn dispatch_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+pub fn dispatch_scroll<R: Runtime>(app: &AppHandle<R>) {
+    if let Err(e) = windows::show_overlay_mode(app, "scroll") {
+        log::error!("show_overlay_mode(scroll) failed: {e}");
+    }
+}
+
 /// Hide the editor (if visible) then dispatch the overlay for the requested
 /// capture mode. Used by both the global hotkey path and the in-editor toolbar
 /// so a capture launched from the editor never bakes the editor into the shot.
@@ -36,6 +42,7 @@ pub async fn trigger_capture<R: Runtime>(
             }
         }
         CaptureKind::Window => dispatch_window(&app_dispatch),
+        CaptureKind::Scroll => dispatch_scroll(&app_dispatch),
     });
     if let Err(e) = res {
         windows::show_editor_if_hidden(&app);

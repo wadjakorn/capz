@@ -58,7 +58,10 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     // region if it still exists, else the primary. The frontend enforces a
     // single live rect — pressing on another display claims ownership and clears
     // the previous one (see `overlay/page.tsx`).
-    let owner_id: Option<u32> = if mode == "area" {
+    // Both area and scroll modes use the drag-to-select template UI, so both
+    // designate a single owner display for the initial template rect.
+    let selects_region = mode == "area" || mode == "scroll";
+    let owner_id: Option<u32> = if selects_region {
         read_last_region_monitor_id(app)
             .filter(|id| mons.iter().any(|m| m.id == *id))
             .or_else(|| mons.iter().find(|m| m.is_primary).map(|m| m.id))
@@ -78,9 +81,9 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     let specs: Vec<OverlaySpec> = mons
         .iter()
         .map(|m| {
-            let url = if mode == "area" {
+            let url = if selects_region {
                 let owner = u8::from(Some(m.id) == owner_id);
-                format!("overlay/?monitor={}&mode=area&owner={owner}", m.id)
+                format!("overlay/?monitor={}&mode={}&owner={owner}", m.id, mode)
             } else {
                 format!("overlay/?monitor={}&mode={}", m.id, mode)
             };
@@ -539,6 +542,103 @@ pub fn close_overlays<R: Runtime>(app: &AppHandle<R>) {
                 if let Err(e) = win.close() {
                     log::warn!("close {label} failed: {e}");
                 }
+            }
+        }
+    });
+}
+
+/// Label of the compact scrolling-capture HUD (Capture/Cancel + live progress).
+/// Deliberately not `overlay-*` so overlay hide/close helpers leave it alone.
+pub const SCROLL_HUD_LABEL: &str = "scroll-hud";
+
+/// Logical size of the HUD pill.
+const HUD_W: f64 = 380.0;
+const HUD_H: f64 = 76.0;
+/// Gap between the HUD and the bottom edge of the owner display (logical px).
+const HUD_BOTTOM_MARGIN: f64 = 48.0;
+
+/// Show the compact scrolling-capture HUD, centered near the bottom of the
+/// display that owns the capture. Transparent, always-on-top, non-resizable.
+/// Monitor geometry is logical points on macOS but physical pixels on
+/// Windows/Linux (xcap convention), so we place it per-platform exactly like
+/// the overlays.
+pub fn show_scroll_hud<R: Runtime>(app: &AppHandle<R>, monitor_id: u32) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window(SCROLL_HUD_LABEL) {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    let mons = monitor_service::list_monitors()
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("list monitors: {e}")))?;
+    let m = mons
+        .iter()
+        .find(|m| m.id == monitor_id)
+        .or_else(|| mons.iter().find(|m| m.is_primary))
+        .or_else(|| mons.first())
+        .ok_or_else(|| tauri::Error::Anyhow(anyhow::anyhow!("no monitor for scroll HUD")))?;
+
+    let win = WebviewWindowBuilder::new(
+        app,
+        SCROLL_HUD_LABEL,
+        WebviewUrl::App("scroll-hud/".into()),
+    )
+    .title("capz — Scrolling capture")
+    .transparent(true)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .shadow(false)
+    .inner_size(HUD_W, HUD_H)
+    .visible(false)
+    .build()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let cx = m.x as f64 + (m.width as f64 - HUD_W) / 2.0;
+        let cy = m.y as f64 + m.height as f64 - HUD_H - HUD_BOTTOM_MARGIN;
+        win.set_size(LogicalSize::new(HUD_W, HUD_H))?;
+        win.set_position(LogicalPosition::new(cx.max(m.x as f64), cy.max(m.y as f64)))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
+        let pw = (HUD_W * scale).round() as u32;
+        let ph = (HUD_H * scale).round() as u32;
+        let cx = m.x + ((m.width as i32 - pw as i32) / 2).max(0);
+        let cy = m.y + (m.height as i32 - ph as i32 - (HUD_BOTTOM_MARGIN * scale).round() as i32).max(0);
+        win.set_size(PhysicalSize::new(pw, ph))?;
+        win.set_position(PhysicalPosition::new(cx, cy))?;
+        #[cfg(target_os = "windows")]
+        disable_dwm_transitions(&win);
+    }
+
+    win.show()?;
+    let _ = win.set_focus();
+
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::{msg_send, runtime::AnyObject};
+        let ns_window = win.ns_window()? as *mut AnyObject;
+        unsafe {
+            // Above the screen-saver level so it floats over full-screen apps.
+            let _: () = msg_send![ns_window, setLevel: 1001_i64];
+            let behavior: u64 = (1u64 << 0) | (1u64 << 8); // CanJoinAllSpaces | FullScreenAuxiliary
+            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+        }
+    }
+
+    Ok(())
+}
+
+/// Close the scrolling-capture HUD if present.
+pub fn close_scroll_hud<R: Runtime>(app: &AppHandle<R>) {
+    let app_close = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(win) = app_close.get_webview_window(SCROLL_HUD_LABEL) {
+            if let Err(e) = win.close() {
+                log::warn!("close scroll HUD failed: {e}");
             }
         }
     });

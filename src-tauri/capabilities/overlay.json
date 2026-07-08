@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "overlay-capability",
   "description": "permissions for the area-selection overlay window",
-  "windows": ["overlay-*"],
+  "windows": ["overlay-*", "scroll-hud"],
   "permissions": [
     "core:default",
     "core:event:default",
