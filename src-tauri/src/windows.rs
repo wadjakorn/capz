@@ -51,11 +51,22 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         return Err(tauri::Error::Anyhow(anyhow::anyhow!("no monitors")));
     }
 
-    // One overlay window spec (label + URL + OS-unit rect). Area mode uses a
-    // single overlay spanning the union of all displays so the selection rect
-    // can be dragged freely across screens; the frontend maps the final
-    // selection back to a monitor + physical px via `capture_area_virtual`.
-    // Full/window modes keep one overlay per monitor.
+    // One transparent overlay window per monitor for every mode. Area selection
+    // stays per-display (macOS "Displays have separate Spaces" blocks a single
+    // window spanning screens). For area mode exactly one display starts as the
+    // "owner" that shows the template rect: the display holding the remembered
+    // region if it still exists, else the primary. The frontend enforces a
+    // single live rect — pressing on another display claims ownership and clears
+    // the previous one (see `overlay/page.tsx`).
+    let owner_id: Option<u32> = if mode == "area" {
+        read_last_region_monitor_id(app)
+            .filter(|id| mons.iter().any(|m| m.id == *id))
+            .or_else(|| mons.iter().find(|m| m.is_primary).map(|m| m.id))
+            .or_else(|| mons.first().map(|m| m.id))
+    } else {
+        None
+    };
+
     struct OverlaySpec {
         label: String,
         url: String,
@@ -64,32 +75,25 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         w: u32,
         h: u32,
     }
-    let specs: Vec<OverlaySpec> = if mode == "area" {
-        let b = monitor_service::virtual_desktop_bounds()
-            .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("virtual bounds: {e}")))?;
-        vec![OverlaySpec {
-            label: "overlay-area".to_string(),
-            url: format!(
-                "overlay/?mode=area&union={},{},{},{}",
-                b.x, b.y, b.width, b.height
-            ),
-            x: b.x,
-            y: b.y,
-            w: b.width,
-            h: b.height,
-        }]
-    } else {
-        mons.iter()
-            .map(|m| OverlaySpec {
+    let specs: Vec<OverlaySpec> = mons
+        .iter()
+        .map(|m| {
+            let url = if mode == "area" {
+                let owner = u8::from(Some(m.id) == owner_id);
+                format!("overlay/?monitor={}&mode=area&owner={owner}", m.id)
+            } else {
+                format!("overlay/?monitor={}&mode={}", m.id, mode)
+            };
+            OverlaySpec {
                 label: format!("overlay-{}", m.id),
-                url: format!("overlay/?monitor={}&mode={}", m.id, mode),
+                url,
                 x: m.x,
                 y: m.y,
                 w: m.width,
                 h: m.height,
-            })
-            .collect()
-    };
+            }
+        })
+        .collect();
     if specs.is_empty() {
         return Err(tauri::Error::Anyhow(anyhow::anyhow!("no overlay target")));
     }
@@ -149,8 +153,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     }
 
     // Focus an overlay so keyboard (Esc) works without a click. Prefer the
-    // primary monitor's overlay when present (per-monitor modes); otherwise the
-    // first spec (area mode's single union overlay).
+    // primary monitor's overlay when present; otherwise the first spec.
     let focus_label = mons
         .iter()
         .find(|m| m.is_primary)
@@ -295,6 +298,19 @@ fn read_editor_window_size<R: Runtime>(app: &AppHandle<R>) -> (f64, f64) {
         .unwrap_or(default.1)
         .max(680.0);
     (w, h)
+}
+
+/// Read `lastUsed.region.monitorId` from the persisted config, if present.
+/// Used to pick which display shows the area-capture template rect first.
+fn read_last_region_monitor_id<R: Runtime>(app: &AppHandle<R>) -> Option<u32> {
+    let path = config_store_path(app).ok()?;
+    let store = app.store(path).ok()?;
+    let v = store.get(CONFIG_STORE_KEY)?;
+    v.get("lastUsed")
+        .and_then(|l| l.get("region"))
+        .and_then(|r| r.get("monitorId"))
+        .and_then(|n| n.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
 }
 
 fn read_always_on_top_editor<R: Runtime>(app: &AppHandle<R>) -> bool {

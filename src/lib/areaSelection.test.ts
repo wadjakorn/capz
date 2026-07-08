@@ -7,8 +7,6 @@ import {
   resizeBy,
   hitTestHandle,
   cursorForTarget,
-  cssToOs,
-  osToCss,
 } from "./areaSelection";
 
 const DW = 1000;
@@ -134,34 +132,6 @@ describe("hitTestHandle", () => {
   });
   it("returns null well outside the rect", () => {
     expect(hitTestHandle(r, 50, 50, HS)).toBeNull();
-  });
-});
-
-describe("cssToOs / osToCss", () => {
-  // Union spans two 1000-wide displays; overlay window is half-res CSS (dpr 2).
-  const union = { x: -1000, y: 0, w: 2000, h: 1000 };
-  const vpW = 1000;
-  const vpH = 500;
-
-  it("maps CSS px to OS virtual coordinates with the union offset + scale", () => {
-    expect(cssToOs({ x: 100, y: 50, w: 200, h: 100 }, union, vpW, vpH)).toEqual({
-      x: -800, // -1000 + 100*2
-      y: 100,
-      w: 400,
-      h: 200,
-    });
-  });
-
-  it("round-trips through osToCss", () => {
-    const rect = { x: 123, y: 77, w: 210, h: 90 };
-    const os = cssToOs(rect, union, vpW, vpH);
-    expect(osToCss(os, union, vpW, vpH)).toEqual(rect);
-  });
-
-  it("is a no-op scale when union matches the viewport", () => {
-    const u = { x: 0, y: 0, w: 1000, h: 500 };
-    const rect = { x: 10, y: 20, w: 30, h: 40 };
-    expect(cssToOs(rect, u, 1000, 500)).toEqual({ x: 10, y: 20, w: 30, h: 40 });
   });
 });
 

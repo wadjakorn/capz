@@ -167,38 +167,6 @@ export function hitTestHandle(
   return null;
 }
 
-/** A rectangle in OS virtual-desktop coordinates (same units as MonitorInfo). */
-export type Box = { x: number; y: number; w: number; h: number };
-
-/**
- * Map a rect from the union overlay's CSS pixels to OS virtual-desktop
- * coordinates. `union` is the overlay's OS-unit bounds; `vpW`/`vpH` are the
- * overlay window's CSS size (window.innerWidth/Height). The scale is uniform
- * across the single overlay surface, so this holds across displays.
- */
-export function cssToOs(rect: Rect, union: Box, vpW: number, vpH: number): Box {
-  const kx = vpW > 0 ? union.w / vpW : 1;
-  const ky = vpH > 0 ? union.h / vpH : 1;
-  return {
-    x: union.x + rect.x * kx,
-    y: union.y + rect.y * ky,
-    w: rect.w * kx,
-    h: rect.h * ky,
-  };
-}
-
-/** Inverse of {@link cssToOs}: OS virtual coordinates → union overlay CSS px. */
-export function osToCss(box: Box, union: Box, vpW: number, vpH: number): Rect {
-  const kx = vpW > 0 ? union.w / vpW : 1;
-  const ky = vpH > 0 ? union.h / vpH : 1;
-  return {
-    x: (box.x - union.x) / kx,
-    y: (box.y - union.y) / ky,
-    w: box.w / kx,
-    h: box.h / ky,
-  };
-}
-
 /** CSS cursor name for a given drag target. */
 export function cursorForTarget(t: DragTarget | null): string {
   switch (t) {

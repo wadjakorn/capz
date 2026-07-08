@@ -1,21 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { invoke } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "@/stores/settings";
 import {
   centeredDefaultRect,
   clampRect,
-  cssToOs,
   cursorForTarget,
   hitTestHandle,
   moveRect,
-  osToCss,
   resizeBy,
   resizeFromHandle,
-  type Box,
   type DragTarget,
   type Rect,
 } from "@/lib/areaSelection";
@@ -31,17 +29,6 @@ type WindowOverlayInfo = {
   y: number;
   width: number;
   height: number;
-};
-
-type MonitorInfo = {
-  id: number;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  scale_factor: number;
-  is_primary: boolean;
 };
 
 /** Minimum template size (CSS px) enforced while resizing. */
@@ -90,127 +77,12 @@ function useViewport() {
 }
 
 // ---------------------------------------------------------------------------
-// Area mode: one overlay spanning the union of all displays, with a template
-// rectangle you can transform and drag freely across screens. On confirm the
-// CSS selection is mapped back to OS virtual coordinates and Rust
-// (capture_area_virtual) resolves the target monitor + physical crop.
-// ---------------------------------------------------------------------------
-
-function AreaMode({ union }: { union: Box }) {
-  const { w: dispW, h: dispH } = useViewport();
-
-  const initSettings = useSettings((s) => s.init);
-  const settingsReady = useSettings((s) => s.ready);
-  const lastRegion = useSettings((s) => s.config.lastUsed?.region);
-
-  const [busy, setBusy] = useState(false);
-  const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
-
-  useEffect(() => {
-    void initSettings();
-  }, [initSettings]);
-
-  useEffect(() => {
-    invoke<MonitorInfo[]>("list_monitors_command")
-      .then(setMonitors)
-      .catch((e) => console.error("list_monitors_command failed", e));
-  }, []);
-
-  // Display outlines, so the user can see screen boundaries on the union surface.
-  const monitorRectsCss = useMemo(
-    () =>
-      monitors.map((m) =>
-        osToCss({ x: m.x, y: m.y, w: m.width, h: m.height }, union, dispW, dispH),
-      ),
-    [monitors, union, dispW, dispH],
-  );
-
-  // Seed: the remembered region (stored in OS coords), else a centered default
-  // on the primary display.
-  const initialRect = useMemo<Rect | null>(() => {
-    if (dispW === 0 || dispH === 0) return null;
-    if (lastRegion) {
-      return clampRect(
-        osToCss(
-          { x: lastRegion.x, y: lastRegion.y, w: lastRegion.w, h: lastRegion.h },
-          union,
-          dispW,
-          dispH,
-        ),
-        dispW,
-        dispH,
-      );
-    }
-    if (monitors.length === 0) return null;
-    const primary = monitors.find((m) => m.is_primary) ?? monitors[0];
-    const mcss = osToCss(
-      { x: primary.x, y: primary.y, w: primary.width, h: primary.height },
-      union,
-      dispW,
-      dispH,
-    );
-    const def = centeredDefaultRect(mcss.w, mcss.h);
-    return { x: mcss.x + def.x, y: mcss.y + def.y, w: def.w, h: def.h };
-  }, [lastRegion, monitors, union, dispW, dispH]);
-
-  const ready = settingsReady && initialRect != null;
-
-  const confirmRegion = useCallback(
-    async (rect: Rect) => {
-      setBusy(true);
-      // Map the CSS selection back to OS virtual coordinates for Rust.
-      const os = cssToOs(rect, union, dispW, dispH);
-      const rounded = {
-        x: Math.round(os.x),
-        y: Math.round(os.y),
-        w: Math.round(os.w),
-        h: Math.round(os.h),
-      };
-      // Remember the selection (OS coords) + the display holding its center, so
-      // next capture restores it. Persistence is unconditional.
-      const cx = os.x + os.w / 2;
-      const cy = os.y + os.h / 2;
-      const target =
-        monitors.find(
-          (m) => cx >= m.x && cx < m.x + m.width && cy >= m.y && cy < m.y + m.height,
-        ) ??
-        monitors.find((m) => m.is_primary) ??
-        monitors[0];
-      try {
-        await useSettings.getState().setLastUsed({
-          ...(useSettings.getState().config.lastUsed ?? {}),
-          region: { monitorId: target?.id ?? 0, ...rounded },
-        });
-      } catch (e) {
-        console.warn("persist lastUsed.region failed", e);
-      }
-      getCurrentWindow()
-        .hide()
-        .catch((e) => console.warn("hide overlay failed", e));
-      try {
-        const path = await invoke<string>("capture_area_virtual", rounded);
-        console.info("capture_area_virtual → editor", path);
-      } catch (e) {
-        console.error("capture_area_virtual failed", e);
-        closeOverlay();
-      }
-    },
-    [union, dispW, dispH, monitors],
-  );
-
-  return (
-    <TransformPhase
-      dispW={dispW}
-      dispH={dispH}
-      initialRect={initialRect}
-      ready={ready}
-      monitorRectsCss={monitorRectsCss}
-      busy={busy}
-      onConfirm={confirmRegion}
-    />
-  );
-}
-
+// Area mode: one transparent overlay per display (no dim — just the rectangle
+// outline + handles). Exactly one selection rect is live at a time. The display
+// Rust marked as owner shows a template rect first (the remembered region, else
+// a centered default); pressing on any other display "claims" it — clearing the
+// rect everywhere else via the `area:claim` event — and starts a fresh
+// selection there. Capture resolves to that single owning display.
 // ---------------------------------------------------------------------------
 
 type Interaction =
@@ -218,37 +90,113 @@ type Interaction =
   | { kind: "move"; start: Point; orig: Rect }
   | { kind: "draw"; start: Point; prev: Rect };
 
-function TransformPhase({
-  dispW,
-  dispH,
-  initialRect,
-  ready,
-  monitorRectsCss,
-  busy,
-  onConfirm,
+function AreaMode({
+  monitorId,
+  initialOwner,
 }: {
-  dispW: number;
-  dispH: number;
-  initialRect: Rect | null;
-  ready: boolean;
-  monitorRectsCss: Rect[];
-  busy: boolean;
-  onConfirm: (rect: Rect) => void;
+  monitorId: number;
+  initialOwner: boolean;
 }) {
+  const { w: dispW, h: dispH } = useViewport();
+
+  const initSettings = useSettings((s) => s.init);
+  const settingsReady = useSettings((s) => s.ready);
+  const lastRegion = useSettings((s) => s.config.lastUsed?.region);
+
+  const [busy, setBusy] = useState(false);
+  const [owner, setOwner] = useState(initialOwner);
   const [rect, setRect] = useState<Rect | null>(null);
   const [hoverTarget, setHoverTarget] = useState<DragTarget | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
   const initRef = useRef(false);
 
-  // Seed the template once the initial rect (remembered or centered) is ready.
-  useEffect(() => {
-    if (initRef.current || !ready || !initialRect) return;
-    initRef.current = true;
-    setRect(initialRect);
-  }, [ready, initialRect]);
-
+  const ownerRef = useRef(owner);
+  ownerRef.current = owner;
   const rectRef = useRef<Rect | null>(null);
   rectRef.current = rect;
+
+  useEffect(() => {
+    void initSettings();
+  }, [initSettings]);
+
+  // Seed the template once — only on the display Rust designated as owner.
+  // Restores the remembered region if it belongs to this display, else a
+  // centered default. Claims on other displays never run this (guarded on the
+  // static `initialOwner` prop, not the live `owner` state).
+  useEffect(() => {
+    if (initRef.current || !settingsReady || !initialOwner) return;
+    if (dispW === 0 || dispH === 0) return;
+    initRef.current = true;
+    if (lastRegion && lastRegion.monitorId === monitorId) {
+      setRect(
+        clampRect(
+          { x: lastRegion.x, y: lastRegion.y, w: lastRegion.w, h: lastRegion.h },
+          dispW,
+          dispH,
+        ),
+      );
+    } else {
+      setRect(centeredDefaultRect(dispW, dispH));
+    }
+  }, [settingsReady, initialOwner, lastRegion, monitorId, dispW, dispH]);
+
+  // Another display claimed the selection → drop ours so only one is ever live.
+  useEffect(() => {
+    const un = listen<{ monitorId: number }>("area:claim", (e) => {
+      if (e.payload.monitorId !== monitorId) {
+        interactionRef.current = null;
+        setOwner(false);
+        setRect(null);
+        setHoverTarget(null);
+      }
+    });
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [monitorId]);
+
+  const confirmRegion = useCallback(
+    async (r: Rect) => {
+      setBusy(true);
+      // Persist as monitor-local CSS px so the next capture restores it here.
+      try {
+        await useSettings.getState().setLastUsed({
+          ...(useSettings.getState().config.lastUsed ?? {}),
+          region: {
+            monitorId,
+            x: Math.round(r.x),
+            y: Math.round(r.y),
+            w: Math.round(r.w),
+            h: Math.round(r.h),
+          },
+        });
+      } catch (e) {
+        console.warn("persist lastUsed.region failed", e);
+      }
+      // xcap wants physical px; the overlay's devicePixelRatio is this display's
+      // scale — reliable on Windows where xcap's scale_factor is not (ticket
+      // L9mejWlFPDcZ); on macOS Retina dpr == scale_factor.
+      const dpr = window.devicePixelRatio || 1;
+      const phys = {
+        monitorId,
+        x: Math.round(r.x * dpr),
+        y: Math.round(r.y * dpr),
+        w: Math.round(r.w * dpr),
+        h: Math.round(r.h * dpr),
+      };
+      getCurrentWindow()
+        .hide()
+        .catch((e) => console.warn("hide overlay failed", e));
+      try {
+        const path = await invoke<string>("capture_region_command", phys);
+        console.info("capture_region_command → editor", path);
+      } catch (e) {
+        console.error("capture_region_command failed", e);
+        closeOverlay();
+      }
+    },
+    [monitorId],
+  );
 
   // Enter confirms; arrows nudge/resize the template.
   useEffect(() => {
@@ -257,10 +205,9 @@ function TransformPhase({
       if (!r || busy) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        if (r.w >= 4 && r.h >= 4) onConfirm(r);
+        if (r.w >= 4 && r.h >= 4) void confirmRegion(r);
         return;
       }
-      const step = e.shiftKey ? undefined : 1;
       let handled = true;
       if (e.shiftKey) {
         switch (e.key) {
@@ -272,10 +219,10 @@ function TransformPhase({
         }
       } else {
         switch (e.key) {
-          case "ArrowRight": setRect(moveRect(r, step!, 0, dispW, dispH)); break;
-          case "ArrowLeft": setRect(moveRect(r, -step!, 0, dispW, dispH)); break;
-          case "ArrowDown": setRect(moveRect(r, 0, step!, dispW, dispH)); break;
-          case "ArrowUp": setRect(moveRect(r, 0, -step!, dispW, dispH)); break;
+          case "ArrowRight": setRect(moveRect(r, 1, 0, dispW, dispH)); break;
+          case "ArrowLeft": setRect(moveRect(r, -1, 0, dispW, dispH)); break;
+          case "ArrowDown": setRect(moveRect(r, 0, 1, dispW, dispH)); break;
+          case "ArrowUp": setRect(moveRect(r, 0, -1, dispW, dispH)); break;
           default: handled = false;
         }
       }
@@ -283,11 +230,25 @@ function TransformPhase({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, dispW, dispH, onConfirm]);
+  }, [busy, dispW, dispH, confirmRegion]);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (busy) return;
     const pt = { x: e.clientX, y: e.clientY };
+    if (!ownerRef.current) {
+      // Selecting on a non-owner display: claim it (which clears the rect
+      // elsewhere) and begin a fresh draw. A plain click (no drag) falls back to
+      // a centered template on this display via onMouseUp's DRAW_MIN check.
+      void emit("area:claim", { monitorId });
+      setOwner(true);
+      interactionRef.current = {
+        kind: "draw",
+        start: pt,
+        prev: centeredDefaultRect(dispW, dispH),
+      };
+      setRect({ x: pt.x, y: pt.y, w: 0, h: 0 });
+      return;
+    }
     const r = rectRef.current;
     const target = r ? hitTestHandle(r, pt.x, pt.y, HANDLE_HIT) : null;
     if (r && target === "move") {
@@ -295,8 +256,12 @@ function TransformPhase({
     } else if (r && target !== null && target !== "move") {
       interactionRef.current = { kind: "handle", target, start: pt, orig: r };
     } else {
-      // Empty area → draw a fresh rectangle from scratch (kept from old model).
-      interactionRef.current = { kind: "draw", start: pt, prev: r ?? centeredDefaultRect(dispW, dispH) };
+      // Empty area → draw a fresh rectangle from scratch.
+      interactionRef.current = {
+        kind: "draw",
+        start: pt,
+        prev: r ?? centeredDefaultRect(dispW, dispH),
+      };
       setRect({ x: pt.x, y: pt.y, w: 0, h: 0 });
     }
   };
@@ -305,7 +270,7 @@ function TransformPhase({
     const pt = { x: e.clientX, y: e.clientY };
     const it = interactionRef.current;
     if (!it) {
-      const r = rectRef.current;
+      const r = ownerRef.current ? rectRef.current : null;
       setHoverTarget(r ? hitTestHandle(r, pt.x, pt.y, HANDLE_HIT) : null);
       return;
     }
@@ -325,14 +290,16 @@ function TransformPhase({
     interactionRef.current = null;
     if (it?.kind === "draw") {
       const r = rectRef.current;
-      // A stray click (no real drag) discards the draw and keeps the template.
-      if (!r || r.w < DRAW_MIN || r.h < DRAW_MIN) setRect(it.prev);
+      // A stray click (no real drag) falls back to the template instead.
+      if (!r || r.w < DRAW_MIN || r.h < DRAW_MIN) {
+        setRect(clampRect(it.prev, dispW, dispH));
+      }
     }
   };
 
   const onDoubleClick = () => {
     const r = rectRef.current;
-    if (!busy && r && r.w >= 4 && r.h >= 4) onConfirm(r);
+    if (!busy && r && r.w >= 4 && r.h >= 4) void confirmRegion(r);
   };
 
   const cursor = interactionRef.current
@@ -355,21 +322,6 @@ function TransformPhase({
       onMouseUp={onMouseUp}
       onDoubleClick={onDoubleClick}
     >
-      {rect && <OuterDim rect={rect} />}
-      {/* Faint outlines of each display so screen boundaries are visible. */}
-      {monitorRectsCss.map((m, i) => (
-        <div
-          key={i}
-          className="pointer-events-none absolute"
-          style={{
-            left: m.x,
-            top: m.y,
-            width: m.w,
-            height: m.h,
-            border: "1px solid rgba(255,255,255,0.14)",
-          }}
-        />
-      ))}
       {rect && <TemplateRect rect={rect} />}
 
       <div
@@ -380,7 +332,9 @@ function TransformPhase({
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
         }}
       >
-        Drag body to move · Handles to resize · Enter to capture · Esc to cancel
+        {owner
+          ? "Drag body to move · Handles to resize · Enter to capture · Esc to cancel"
+          : "Drag to select on this screen · Esc to cancel"}
       </div>
     </div>
   );
@@ -601,13 +555,7 @@ function OverlayInner() {
   const params = useSearchParams();
   const monitorId = Number(params.get("monitor") ?? "0");
   const mode = (params.get("mode") ?? "area") as Mode;
-  const unionParam = params.get("union");
-  const union = useMemo<Box | null>(() => {
-    if (!unionParam) return null;
-    const [x, y, w, h] = unionParam.split(",").map(Number);
-    if ([x, y, w, h].some((n) => Number.isNaN(n)) || w <= 0 || h <= 0) return null;
-    return { x, y, w, h };
-  }, [unionParam]);
+  const initialOwner = params.get("owner") === "1";
 
   // Escape always cancels; keep the overlay background transparent.
   useEffect(() => {
@@ -629,7 +577,8 @@ function OverlayInner() {
     };
   }, []);
 
-  if (mode === "area") return union ? <AreaMode union={union} /> : null;
+  if (mode === "area")
+    return <AreaMode monitorId={monitorId} initialOwner={initialOwner} />;
   return <PickMode mode={mode} monitorId={monitorId} />;
 }
 
