@@ -83,11 +83,25 @@ pub async fn scroll_capture_start_command<R: Runtime>(
 
     // Destroy the full-screen selection overlays; show the compact HUD instead.
     windows::close_overlays(&app);
-    if let Err(e) = windows::show_scroll_hud(&app, monitor_id) {
+
+    // Window creation + AppKit (`NSWindow`) calls MUST run on the main thread on
+    // macOS — building the HUD off-thread aborts the process. Hop to the main
+    // thread and ferry the result back (mirrors how overlays are created).
+    let (tx, rx) = std::sync::mpsc::channel();
+    let app_main = app.clone();
+    app.run_on_main_thread(move || {
+        let res = windows::show_scroll_hud(&app_main, monitor_id).map_err(|e| e.to_string());
+        let _ = tx.send(res);
+    })
+    .map_err(|e| e.to_string())?;
+    let hud_res = rx.recv().map_err(|e| format!("hud channel: {e}"))?;
+    if let Err(e) = hud_res {
         // If the HUD can't open, abort cleanly rather than leaving a headless
         // session running with no way to finish it.
-        let st = app.state::<AppState>();
-        let _ = st.scroll.lock().expect("scroll mutex poisoned").take();
+        {
+            let st = app.state::<AppState>();
+            let _ = st.scroll.lock().expect("scroll mutex poisoned").take();
+        }
         windows::show_editor_if_hidden(&app);
         return Err(format!("show scroll HUD: {e}"));
     }
