@@ -42,7 +42,6 @@ export type AppConfig = {
     autostart: boolean;
     playSoundOnCapture: boolean;
     rememberLastTool: boolean;
-    rememberLastRegion: boolean;
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
@@ -143,7 +142,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     autostart: false,
     playSoundOnCapture: false,
     rememberLastTool: true,
-    rememberLastRegion: false,
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
     closeAction: "copy",
@@ -198,6 +196,12 @@ export function migrateConfig(raw: unknown): Partial<AppConfig> | undefined {
     console.warn(
       `config schemaVersion ${v} newer than supported ${CONFIG_SCHEMA_VERSION}; loading as-is`,
     );
+  }
+  // Retired in the area-capture revamp: region persistence is now unconditional,
+  // so `general.rememberLastRegion` no longer exists. Strip it here so upgraded
+  // stores validate cleanly instead of tripping the unknown-key warning.
+  if (obj.general && typeof obj.general === "object") {
+    delete (obj.general as Record<string, unknown>).rememberLastRegion;
   }
   return obj as Partial<AppConfig>;
 }
@@ -289,7 +293,6 @@ function vGeneral(
       autostart: isBool,
       playSoundOnCapture: isBool,
       rememberLastTool: isBool,
-      rememberLastRegion: isBool,
       onboardingCompleted: isBool,
       alwaysOnTopEditor: isBool,
       closeAction: inSet("none", "copy", "file", "both"),

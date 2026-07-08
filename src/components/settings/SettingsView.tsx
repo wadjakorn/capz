@@ -302,11 +302,6 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                 onChange={(v) => update("general", { rememberLastTool: v })}
               />
               <ToggleRow
-                label="Remember last area-capture region"
-                checked={config.general.rememberLastRegion}
-                onChange={(v) => update("general", { rememberLastRegion: v })}
-              />
-              <ToggleRow
                 label="Show rulers in editor"
                 checked={config.general.showRulers}
                 onChange={(v) => update("general", { showRulers: v })}

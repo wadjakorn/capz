@@ -198,3 +198,4 @@ pub async fn capture_region_command<R: Runtime>(
     close_overlays(&app);
     res
 }
+

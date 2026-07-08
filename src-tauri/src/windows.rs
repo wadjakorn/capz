@@ -51,18 +51,63 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         return Err(tauri::Error::Anyhow(anyhow::anyhow!("no monitors")));
     }
 
-    for m in &mons {
-        let label = format!("overlay-{}", m.id);
+    // One transparent overlay window per monitor for every mode. Area selection
+    // stays per-display (macOS "Displays have separate Spaces" blocks a single
+    // window spanning screens). For area mode exactly one display starts as the
+    // "owner" that shows the template rect: the display holding the remembered
+    // region if it still exists, else the primary. The frontend enforces a
+    // single live rect — pressing on another display claims ownership and clears
+    // the previous one (see `overlay/page.tsx`).
+    let owner_id: Option<u32> = if mode == "area" {
+        read_last_region_monitor_id(app)
+            .filter(|id| mons.iter().any(|m| m.id == *id))
+            .or_else(|| mons.iter().find(|m| m.is_primary).map(|m| m.id))
+            .or_else(|| mons.first().map(|m| m.id))
+    } else {
+        None
+    };
+
+    struct OverlaySpec {
+        label: String,
+        url: String,
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+    }
+    let specs: Vec<OverlaySpec> = mons
+        .iter()
+        .map(|m| {
+            let url = if mode == "area" {
+                let owner = u8::from(Some(m.id) == owner_id);
+                format!("overlay/?monitor={}&mode=area&owner={owner}", m.id)
+            } else {
+                format!("overlay/?monitor={}&mode={}", m.id, mode)
+            };
+            OverlaySpec {
+                label: format!("overlay-{}", m.id),
+                url,
+                x: m.x,
+                y: m.y,
+                w: m.width,
+                h: m.height,
+            }
+        })
+        .collect();
+    if specs.is_empty() {
+        return Err(tauri::Error::Anyhow(anyhow::anyhow!("no overlay target")));
+    }
+
+    for s in &specs {
         log::info!(
-            "overlay {label}: pos=({}, {}) size=({}x{}) scale={}",
-            m.x,
-            m.y,
-            m.width,
-            m.height,
-            m.scale_factor
+            "overlay {}: pos=({}, {}) size=({}x{})",
+            s.label,
+            s.x,
+            s.y,
+            s.w,
+            s.h
         );
-        let url = format!("overlay/?monitor={}&mode={}", m.id, mode);
-        let win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
+        let win = WebviewWindowBuilder::new(app, &s.label, WebviewUrl::App(s.url.clone().into()))
             .title("capz — Select area")
             .transparent(true)
             .decorations(false)
@@ -70,8 +115,8 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
             .skip_taskbar(true)
             .resizable(false)
             .shadow(false)
-            .inner_size(m.width as f64, m.height as f64)
-            .position(m.x as f64, m.y as f64)
+            .inner_size(s.w as f64, s.h as f64)
+            .position(s.x as f64, s.y as f64)
             .visible(false)
             .build()?;
 
@@ -79,13 +124,13 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         // Use the matching position/size type per platform.
         #[cfg(target_os = "macos")]
         {
-            win.set_position(LogicalPosition::new(m.x as f64, m.y as f64))?;
-            win.set_size(LogicalSize::new(m.width as f64, m.height as f64))?;
+            win.set_position(LogicalPosition::new(s.x as f64, s.y as f64))?;
+            win.set_size(LogicalSize::new(s.w as f64, s.h as f64))?;
         }
         #[cfg(not(target_os = "macos"))]
         {
-            win.set_position(PhysicalPosition::new(m.x, m.y))?;
-            win.set_size(PhysicalSize::new(m.width, m.height))?;
+            win.set_position(PhysicalPosition::new(s.x, s.y))?;
+            win.set_size(PhysicalSize::new(s.w, s.h))?;
         }
 
         #[cfg(target_os = "windows")]
@@ -107,12 +152,15 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         }
     }
 
-    // Focus the primary monitor's overlay so keyboard (Esc) works without click.
-    let primary_label = mons
+    // Focus an overlay so keyboard (Esc) works without a click. Prefer the
+    // primary monitor's overlay when present; otherwise the first spec.
+    let focus_label = mons
         .iter()
         .find(|m| m.is_primary)
-        .map(|m| format!("overlay-{}", m.id));
-    if let Some(label) = primary_label {
+        .map(|m| format!("overlay-{}", m.id))
+        .filter(|l| specs.iter().any(|s| s.label == *l))
+        .or_else(|| specs.first().map(|s| s.label.clone()));
+    if let Some(label) = focus_label {
         if let Some(w) = app.get_webview_window(&label) {
             let _ = w.set_focus();
         }
@@ -123,15 +171,15 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     // doesn't need to click each new monitor to activate it.
     #[cfg(target_os = "macos")]
     {
-        let labels: Vec<(String, i32, i32, i32, i32)> = mons
+        let labels: Vec<(String, i32, i32, i32, i32)> = specs
             .iter()
-            .map(|m| {
+            .map(|s| {
                 (
-                    format!("overlay-{}", m.id),
-                    m.x,
-                    m.y,
-                    m.x + m.width as i32,
-                    m.y + m.height as i32,
+                    s.label.clone(),
+                    s.x,
+                    s.y,
+                    s.x + s.w as i32,
+                    s.y + s.h as i32,
                 )
             })
             .collect();
@@ -250,6 +298,19 @@ fn read_editor_window_size<R: Runtime>(app: &AppHandle<R>) -> (f64, f64) {
         .unwrap_or(default.1)
         .max(680.0);
     (w, h)
+}
+
+/// Read `lastUsed.region.monitorId` from the persisted config, if present.
+/// Used to pick which display shows the area-capture template rect first.
+fn read_last_region_monitor_id<R: Runtime>(app: &AppHandle<R>) -> Option<u32> {
+    let path = config_store_path(app).ok()?;
+    let store = app.store(path).ok()?;
+    let v = store.get(CONFIG_STORE_KEY)?;
+    v.get("lastUsed")
+        .and_then(|l| l.get("region"))
+        .and_then(|r| r.get("monitorId"))
+        .and_then(|n| n.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
 }
 
 fn read_always_on_top_editor<R: Runtime>(app: &AppHandle<R>) -> bool {
