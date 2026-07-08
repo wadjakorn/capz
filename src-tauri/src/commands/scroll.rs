@@ -162,7 +162,8 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
 pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let session = {
         let st = app.state::<AppState>();
-        st.scroll.lock().expect("scroll mutex poisoned").take()
+        let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
+        guard.take()
     };
     windows::close_scroll_hud(&app);
     let Some(session) = session else {
