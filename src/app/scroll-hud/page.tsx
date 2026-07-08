@@ -81,7 +81,9 @@ export default function ScrollHudPage() {
             Scrolling capture
           </span>
           <span className="text-[11px] text-white/60">
-            Scroll the page · {progress.height}px · {progress.frames} frame{progress.frames === 1 ? "" : "s"}
+            {/* Down-only: the stitcher models downward scroll; scrolling back up
+                duplicates content (see services/stitch.rs). */}
+            Scroll down · {progress.height}px · {progress.frames} frame{progress.frames === 1 ? "" : "s"}
             {progress.warnings > 0 ? " · ⚠ seams" : ""}
           </span>
         </div>

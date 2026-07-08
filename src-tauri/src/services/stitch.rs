@@ -9,6 +9,15 @@
 //! share this code verbatim — the input is always an `RgbaImage` from
 //! `capture_service::capture_region`.
 //!
+//! **Direction — downward only.** [`best_offset`] searches positive offsets
+//! (`s >= 1`), i.e. new content revealed at the *bottom*. Scrolling back *up*
+//! reveals content at the top, which this stitcher does not model: such a frame
+//! finds no confident downward overlap and is butt-joined whole (duplicating
+//! the on-screen content). The manual-scroll UX therefore asks the user to
+//! scroll one direction (down); reverse scrolling mid-capture will produce
+//! duplicated seams rather than corruption. Bidirectional stitching is
+//! deliberately out of scope for v1.
+//!
 //! Robustness choices (see the ticket "Scrolling capture (long page)"):
 //! - **Top/bottom band exclusion**: a fixed toolbar/header pinned to the top (or
 //!   a footer at the bottom) does not move as the user scrolls, so it would bias
@@ -101,6 +110,10 @@ fn row_abs_diff(a: &[u8], b: &[u8]) -> u32 {
 /// for the best candidate, or `None` if no valid offset exists (frame too
 /// short). `mean_abs_diff` is per grayscale sample, so it is directly
 /// comparable to `CONFIDENT_MEAN_ABS_DIFF`.
+///
+/// Only positive offsets are considered — this models downward scrolling
+/// (content revealed at the bottom). An upward scroll has no `s >= 1` match and
+/// falls through to the butt-join path in [`append_frame`]. See the module doc.
 fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, f32)> {
     let h = prev.height.min(next.height);
     if h == 0 {
