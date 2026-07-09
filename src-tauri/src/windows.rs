@@ -605,7 +605,8 @@ pub fn show_scroll_hud<R: Runtime>(app: &AppHandle<R>, monitor_id: u32) -> tauri
         if let tauri::WindowEvent::CloseRequested { .. } = event {
             let orphaned = {
                 let st = app_ev.state::<crate::state::AppState>();
-                st.scroll.lock().expect("scroll mutex poisoned").take().is_some()
+                let taken = st.scroll.lock().expect("scroll mutex poisoned").take();
+                taken.is_some()
             };
             if orphaned {
                 show_editor_if_hidden(&app_ev);
