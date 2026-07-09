@@ -29,10 +29,20 @@
 //!   with no movement, so any positive offset that fails to beat the stationary
 //!   baseline (see [`MIN_SCROLL_IMPROVEMENT`]) is treated as a duplicate rather
 //!   than a bogus 1px scroll.
-//! - **Low-confidence fallback**: if no overlap scores below the confidence
-//!   threshold (e.g. the user flung past a full viewport, or lazy content
-//!   repainted), we butt-join the whole frame and flag a soft warning rather
-//!   than aborting the capture.
+//! - **Plausible-overlap tier**: the strict confidence gate
+//!   ([`CONFIDENT_MEAN_ABS_DIFF`]) is tuned for near-exact viewport slices. Real
+//!   captures of sharp text at fractional-DPI scroll positions align correctly
+//!   yet still score above it (a 1px subpixel edge flips black↔white). Such
+//!   frames used to fall straight into the whole-frame butt-join below, which
+//!   duplicates `height - s` rows of already-captured overlap at every seam (the
+//!   "not fine cut" bug). Instead, if the best offset clearly beats the
+//!   stationary baseline and stays under a looser [`PLAUSIBLE_MEAN_ABS_DIFF`]
+//!   bound, we trust it and append only its `s` newly-revealed rows (flagged
+//!   low-confidence so the HUD still surfaces a soft seam warning).
+//! - **Low-confidence fallback**: only when *no* offset is even plausible (e.g.
+//!   the user flung past a full viewport, or lazy content repainted) do we
+//!   butt-join the whole frame and flag a soft warning rather than aborting the
+//!   capture.
 
 use image::RgbaImage;
 
@@ -64,6 +74,18 @@ const CONFIDENT_MEAN_ABS_DIFF: f32 = 12.0;
 /// regions *any* offset aligns cheaply. Requiring a real improvement over the
 /// stationary baseline keeps paused frames from appending bogus rows every sample.
 const MIN_SCROLL_IMPROVEMENT: f32 = 2.0;
+
+/// Looser upper bound than [`CONFIDENT_MEAN_ABS_DIFF`] for accepting an overlap.
+/// Real captures of sharp text at fractional-DPI scroll positions align
+/// correctly yet score well above the strict confident threshold (subpixel/AA
+/// edges flip black↔white as the row grid shifts). As long as the best offset
+/// clearly beats the stationary baseline (by [`MIN_SCROLL_IMPROVEMENT`]) and its
+/// mean stays at or below this value, we trust it and append only the newly
+/// revealed rows — far better than butt-joining the whole frame, which
+/// duplicates a full viewport of overlap at the seam. Genuinely non-overlapping
+/// frames (a fling past a full viewport) score above this, so they still take
+/// the butt-join fallback.
+const PLAUSIBLE_MEAN_ABS_DIFF: f32 = 40.0;
 
 /// Outcome of appending one sampled frame onto the accumulator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -262,8 +284,26 @@ pub fn append_frame(
             duplicate: true,
             low_confidence: false,
         },
+        // Plausible scroll: the strict confidence gate failed (real capture noise
+        // — sharp text at a fractional-DPI scroll position pushes the aligned
+        // mean above CONFIDENT_MEAN_ABS_DIFF), but the best offset still clearly
+        // beats the stationary baseline and stays under the looser PLAUSIBLE
+        // bound. Append only its `s` newly-revealed rows rather than butt-joining
+        // the whole frame, which would duplicate `height - s` overlap rows at the
+        // seam (the "not fine cut" bug). Flag low-confidence so the HUD surfaces a
+        // soft seam warning.
+        Some((s, mean, zero_mean))
+            if mean <= PLAUSIBLE_MEAN_ABS_DIFF && zero_mean - mean >= MIN_SCROLL_IMPROVEMENT =>
+        {
+            append_bottom_rows(acc, next, s);
+            StitchOutcome {
+                appended: s,
+                duplicate: false,
+                low_confidence: true,
+            }
+        }
         _ => {
-            // No confident overlap and the frames don't align stationary either
+            // No plausible overlap and the frames don't align stationary either
             // (e.g. a fling past a full viewport) — butt-join the whole frame and
             // warn. May duplicate a little content at the seam, but never drops any.
             let h = next.height();
@@ -429,6 +469,50 @@ mod tests {
         assert!(out.duplicate, "paused near-static frame must be treated as duplicate");
         assert_eq!(out.appended, 0);
         assert_eq!(acc.height(), h, "must not grow while paused");
+    }
+
+    #[test]
+    fn noisy_overlap_appends_only_new_rows() {
+        // Regression for the "not fine cut" duplication. A correctly-aligned
+        // frame that carries realistic capture noise (subpixel/AA jitter at a
+        // fractional-DPI scroll position) scores *above* the strict
+        // CONFIDENT_MEAN_ABS_DIFF gate. The old code dropped every such frame
+        // into the whole-frame butt-join fallback, duplicating `vh - step` rows
+        // of overlap at each seam. The PLAUSIBLE tier must instead append only
+        // the `step` newly-revealed rows.
+        let w = 120;
+        let full_h = 900;
+        let vh = 300;
+        let step = 90;
+        let amp: i32 = 40;
+        let full = tall_image(w, full_h);
+
+        let prev = viewport(&full, 0, vh);
+        let mut next = viewport(&full, step, vh);
+        // Deterministic per-pixel jitter. Chosen so the aligned mean lands in the
+        // (CONFIDENT, PLAUSIBLE) gap (~19 grayscale levels) — a real scroll the
+        // strict gate rejects but the plausible tier accepts.
+        for y in 0..vh {
+            for x in 0..w {
+                let n = ((x as i32 * 31 + y as i32 * 17) % (2 * amp + 1)) - amp;
+                let p = next.get_pixel(x, y).0;
+                let c = |v: u8| (v as i32 + n).clamp(0, 255) as u8;
+                next.put_pixel(x, y, Rgba([c(p[0]), c(p[1]), c(p[2]), 255]));
+            }
+        }
+
+        let mut acc = prev.clone();
+        let out = append_frame(&mut acc, &prev, &next, 0);
+        assert!(!out.duplicate, "a real (noisy) scroll must not be deduped");
+        assert_eq!(
+            out.appended, step,
+            "must append only the newly-revealed rows, not butt-join the whole frame"
+        );
+        assert!(
+            out.low_confidence,
+            "a noisy accepted seam should still flag a soft warning"
+        );
+        assert_eq!(acc.height(), vh + step, "accumulator grows by exactly the scroll");
     }
 
     #[test]
