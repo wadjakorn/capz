@@ -48,7 +48,10 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     w: u32,
     h: u32,
 ) -> Result<(), String> {
-    // Reject a second concurrent session.
+    // Fast-fail if a session is already running, so we don't hide overlays and
+    // grab a throwaway frame for nothing. This is only a best-effort check — the
+    // lock is released here, so the authoritative guard is the atomic
+    // check-and-insert below.
     {
         let st = app.state::<AppState>();
         if st.scroll.lock().expect("scroll mutex poisoned").is_some() {
@@ -68,7 +71,16 @@ pub async fn scroll_capture_start_command<R: Runtime>(
 
     {
         let st = app.state::<AppState>();
-        *st.scroll.lock().expect("scroll mutex poisoned") = Some(ScrollSession {
+        let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
+        // Authoritative guard against a double-start race: the fast-path check
+        // above released the lock across the overlay-hide and first-frame
+        // capture, so re-check here while still holding the lock through the
+        // insert. A second concurrent start that slipped past the fast path
+        // loses here and bails — no clobbered session, no second sampler.
+        if guard.is_some() {
+            return Err("scroll capture already in progress".into());
+        }
+        *guard = Some(ScrollSession {
             monitor_id,
             x,
             y,
