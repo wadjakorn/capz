@@ -102,7 +102,8 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     let (tx, rx) = std::sync::mpsc::channel();
     let app_main = app.clone();
     app.run_on_main_thread(move || {
-        let res = windows::show_scroll_hud(&app_main, monitor_id).map_err(|e| e.to_string());
+        let res =
+            windows::show_scroll_hud(&app_main, monitor_id, x, y, w, h).map_err(|e| e.to_string());
         let _ = tx.send(res);
     })
     .map_err(|e| e.to_string())?;
