@@ -19,7 +19,7 @@ import {
 } from "@/lib/areaSelection";
 
 type Point = { x: number; y: number };
-type Mode = "area" | "full" | "window";
+type Mode = "area" | "full" | "window" | "scroll";
 
 type WindowOverlayInfo = {
   id: number;
@@ -93,9 +93,12 @@ type Interaction =
 function AreaMode({
   monitorId,
   initialOwner,
+  scroll = false,
 }: {
   monitorId: number;
   initialOwner: boolean;
+  /** When true, the selection starts a scrolling capture instead of a single shot. */
+  scroll?: boolean;
 }) {
   const { w: dispW, h: dispH } = useViewport();
 
@@ -188,14 +191,22 @@ function AreaMode({
         .hide()
         .catch((e) => console.warn("hide overlay failed", e));
       try {
-        const path = await invoke<string>("capture_region_command", phys);
-        console.info("capture_region_command → editor", path);
+        if (scroll) {
+          // Rust hides+closes the overlays, grabs the first frame, opens the
+          // HUD, and starts sampling. This window is torn down as part of that,
+          // so the invoke may resolve just as our JS context goes away.
+          await invoke("scroll_capture_start_command", phys);
+          console.info("scroll_capture_start_command started");
+        } else {
+          const path = await invoke<string>("capture_region_command", phys);
+          console.info("capture_region_command → editor", path);
+        }
       } catch (e) {
-        console.error("capture_region_command failed", e);
+        console.error(scroll ? "scroll_capture_start_command failed" : "capture_region_command failed", e);
         closeOverlay();
       }
     },
-    [monitorId],
+    [monitorId, scroll],
   );
 
   // Enter confirms; arrows nudge/resize the template.
@@ -324,7 +335,7 @@ function AreaMode({
     >
       {rect ? (
         // Instructions ride along with the rect (see TemplateRect's action pill).
-        <TemplateRect rect={rect} dispH={dispH} />
+        <TemplateRect rect={rect} dispH={dispH} confirmLabel={scroll ? "Start" : "Capture"} />
       ) : (
         // No selection on this display yet → a single centered prompt to draw.
         <div
@@ -358,7 +369,15 @@ const KEYCAP: React.CSSProperties = {
   fontWeight: 600,
 };
 
-function TemplateRect({ rect, dispH }: { rect: Rect; dispH: number }) {
+function TemplateRect({
+  rect,
+  dispH,
+  confirmLabel = "Capture",
+}: {
+  rect: Rect;
+  dispH: number;
+  confirmLabel?: string;
+}) {
   // Eight resize handles: corners + edge midpoints.
   const handles: Array<{ t: DragTarget; left: number; top: number }> = [
     { t: "nw", left: rect.x, top: rect.y },
@@ -409,7 +428,7 @@ function TemplateRect({ rect, dispH }: { rect: Rect; dispH: number }) {
         >
           <span className="flex items-center gap-1">
             <span style={KEYCAP}>↵</span>
-            Capture
+            {confirmLabel}
           </span>
           <span className="opacity-40">·</span>
           <span className="flex items-center gap-1">
@@ -617,8 +636,14 @@ function OverlayInner() {
     };
   }, []);
 
-  if (mode === "area")
-    return <AreaMode monitorId={monitorId} initialOwner={initialOwner} />;
+  if (mode === "area" || mode === "scroll")
+    return (
+      <AreaMode
+        monitorId={monitorId}
+        initialOwner={initialOwner}
+        scroll={mode === "scroll"}
+      />
+    );
   return <PickMode mode={mode} monitorId={monitorId} />;
 }
 

@@ -18,6 +18,7 @@ pub enum CaptureKind {
     Full,
     Area,
     Window,
+    Scroll,
 }
 
 #[derive(Clone, Serialize)]
@@ -240,6 +241,7 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
         CaptureKind::Full => "full",
         CaptureKind::Area => "area",
         CaptureKind::Window => "window",
+        CaptureKind::Scroll => "scroll",
     };
     log::info!("shortcut triggered: {kind_str}");
     if let Err(e) = app.emit("shortcut://triggered", ShortcutPayload { kind }) {

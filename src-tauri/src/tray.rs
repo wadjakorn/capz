@@ -34,6 +34,13 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, None::<&str>)?;
     let capture_window =
         MenuItem::with_id(app, "capture_window", "Capture Window…", true, None::<&str>)?;
+    let capture_scroll = MenuItem::with_id(
+        app,
+        "capture_scroll",
+        "Scrolling Capture…",
+        true,
+        None::<&str>,
+    )?;
     let sep = PredefinedMenuItem::separator(app)?;
     let open_app = MenuItem::with_id(app, "open_app", "Open App", true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
@@ -45,6 +52,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             &capture_full,
             &capture_area,
             &capture_window,
+            &capture_scroll,
             &sep,
             &open_app,
             &sep2,
@@ -87,6 +95,9 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             }
             "capture_window" => {
                 crate::capture_dispatch::dispatch_window(app);
+            }
+            "capture_scroll" => {
+                crate::capture_dispatch::dispatch_scroll(app);
             }
             "open_app" => {
                 if let Err(e) = windows::show_editor(app) {

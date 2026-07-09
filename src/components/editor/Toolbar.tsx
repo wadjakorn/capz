@@ -796,6 +796,17 @@ export function Toolbar({
             <CaptureSplitButton
               lastKind={lastCaptureKind}
               onCapture={triggerCapture}
+              onScrollCapture={() => {
+                void (async () => {
+                  try {
+                    const { invoke } = await import("@tauri-apps/api/core");
+                    await invoke("trigger_capture_command", { kind: "scroll" });
+                  } catch (err) {
+                    console.error("trigger_capture_command(scroll) failed", err);
+                    toast.error("Scrolling capture failed", { description: String(err) });
+                  }
+                })();
+              }}
               accelerators={captureAccelerators}
             />
             <Divider />

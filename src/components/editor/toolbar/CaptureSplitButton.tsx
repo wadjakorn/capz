@@ -6,6 +6,7 @@ import {
   Crop,
   AppWindow,
   ChevronDown,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { currentPlatform, formatShortcut, type Platform } from "@/lib/shortcuts";
@@ -13,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -28,10 +30,14 @@ const KINDS: { kind: CaptureKind; label: string; icon: LucideIcon }[] = [
 export function CaptureSplitButton({
   lastKind,
   onCapture,
+  onScrollCapture,
   accelerators,
 }: {
   lastKind: CaptureKind;
   onCapture: (kind: CaptureKind) => void;
+  /** Start a scrolling (long-page) capture. Kept out of `CaptureKind` so it
+   * never becomes the persisted primary/last kind. */
+  onScrollCapture?: () => void;
   accelerators: Record<CaptureKind, string>;
 }) {
   const primary = KINDS.find((k) => k.kind === lastKind) ?? KINDS[0];
@@ -83,6 +89,15 @@ export function CaptureSplitButton({
               </DropdownMenuItem>
             );
           })}
+          {onScrollCapture ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onScrollCapture()}>
+                <ScrollText aria-hidden />
+                <span>Scrolling capture</span>
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

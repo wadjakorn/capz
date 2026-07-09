@@ -1,6 +1,32 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use image::RgbaImage;
+
+/// In-flight scrolling capture. Created by `scroll_capture_start_command` and
+/// consumed on finish/cancel. The background sampler locks the containing
+/// mutex each tick to stitch the newest frame onto `acc`; taking the session
+/// out (setting the mutex to `None`) signals the sampler to stop.
+///
+/// `acc` is the growing stitched image; `prev` is the most recently appended
+/// frame, whose full content forms the tail of `acc` (the alignment invariant
+/// `services::stitch` relies on). Region coords are physical device pixels
+/// relative to `monitor_id`'s top-left — the same contract as
+/// `capture_region_command`.
+pub struct ScrollSession {
+    pub monitor_id: u32,
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
+    pub acc: RgbaImage,
+    pub prev: RgbaImage,
+    /// Distinct frames stitched so far (includes the initial frame).
+    pub frames: u32,
+    /// Count of low-confidence butt-joins (seams that may be imperfect).
+    pub warnings: u32,
+}
+
 /// App-wide runtime state.
 ///
 /// `active_temp_path` is the currently-loaded editor image. Set on every load
@@ -10,6 +36,8 @@ use std::sync::Mutex;
 #[derive(Default)]
 pub struct AppState {
     pub active_temp_path: Mutex<Option<PathBuf>>,
+    /// The single in-flight scrolling capture, if any. `None` when idle.
+    pub scroll: Mutex<Option<ScrollSession>>,
 }
 
 impl AppState {
