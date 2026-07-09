@@ -212,13 +212,25 @@ function AreaMode({
   // Enter confirms; arrows nudge/resize the template.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const r = rectRef.current;
-      if (!r || busy) return;
+      if (busy) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        if (r.w >= 4 && r.h >= 4) void confirmRegion(r);
+        const r = rectRef.current;
+        if (r) {
+          if (r.w >= 4 && r.h >= 4) void confirmRegion(r);
+        } else {
+          // No rect here → this overlay isn't the owner display. The owner may
+          // be on an inactive monitor that never took OS keyboard focus (a
+          // programmatic set_focus doesn't reliably cross monitors on Linux/
+          // Windows), so the keystroke lands on whichever overlay *is* focused.
+          // Broadcast a confirm request; the overlay that owns the live region
+          // picks it up (see the `area:confirm` listener below).
+          void emit("area:confirm");
+        }
         return;
       }
+      const r = rectRef.current;
+      if (!r) return;
       let handled = true;
       if (e.shiftKey) {
         switch (e.key) {
@@ -242,6 +254,22 @@ function AreaMode({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, dispW, dispH, confirmRegion]);
+
+  // Enter was pressed on another display's overlay that had no rect. If we own
+  // the single live region, confirm it — this makes Enter work even when OS
+  // keyboard focus is stuck on a monitor other than the one showing the
+  // template. Only the owning overlay has a rect, so exactly one responds; the
+  // requester (and every non-owner) sees `rectRef.current == null` and ignores.
+  useEffect(() => {
+    const un = listen("area:confirm", () => {
+      if (busy) return;
+      const r = rectRef.current;
+      if (r && r.w >= 4 && r.h >= 4) void confirmRegion(r);
+    });
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [busy, confirmRegion]);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (busy) return;
