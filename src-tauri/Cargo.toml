@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.7.1"
+version = "0.7.2"
 description = "Screenshot capture & annotation desktop app"
 authors = ["Wadjakorn Tonsri"]
 license = "MIT"
