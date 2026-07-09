@@ -23,8 +23,12 @@
 //!   a footer at the bottom) does not move as the user scrolls, so it would bias
 //!   the match toward `s = 0`. We ignore `exclude` rows at the top and bottom of
 //!   each frame during matching so the moving middle content drives alignment.
-//! - **De-dup**: an unchanged frame (user paused) is dropped — no scroll, no
-//!   append.
+//! - **De-dup**: a paused frame is dropped — no scroll, no append. This covers
+//!   both byte-identical frames and *near*-static ones, where only dynamic noise
+//!   (a blinking caret, an animated cursor) changed: such a frame aligns best
+//!   with no movement, so any positive offset that fails to beat the stationary
+//!   baseline (see [`MIN_SCROLL_IMPROVEMENT`]) is treated as a duplicate rather
+//!   than a bogus 1px scroll.
 //! - **Low-confidence fallback**: if no overlap scores below the confidence
 //!   threshold (e.g. the user flung past a full viewport, or lazy content
 //!   repainted), we butt-join the whole frame and flag a soft warning rather
@@ -50,6 +54,16 @@ const MIN_OVERLAP_DIV: u32 = 8;
 /// offset is accepted as a confident match. Exact viewport slices score 0; real
 /// captures carry a little anti-alias/compression noise, so this is generous.
 const CONFIDENT_MEAN_ABS_DIFF: f32 = 12.0;
+
+/// A candidate downward scroll is trusted only when its alignment beats the
+/// zero-offset (no-scroll) alignment by at least this many grayscale levels of
+/// mean absolute difference. Without this margin, a paused frame carrying tiny
+/// dynamic noise — a blinking caret, an animated cursor, a hover repaint — would
+/// masquerade as a confident ~1px scroll: [`best_offset`] only searches `s >= 1`,
+/// so it never scores the true "no movement" alignment, and over flat page
+/// regions *any* offset aligns cheaply. Requiring a real improvement over the
+/// stationary baseline keeps paused frames from appending bogus rows every sample.
+const MIN_SCROLL_IMPROVEMENT: f32 = 2.0;
 
 /// Outcome of appending one sampled frame onto the accumulator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,16 +119,47 @@ fn row_abs_diff(a: &[u8], b: &[u8]) -> u32 {
         .sum()
 }
 
+/// Mean per-sample absolute grayscale difference when `next` is shifted up by
+/// `s` rows against `prev` — `next[a]` vs `prev[a + s]` — over the stable band
+/// `[lo, hi)`. `None` if no overlapping rows fall inside the band (offset too
+/// large for the frame). Comparable to `CONFIDENT_MEAN_ABS_DIFF`; `s = 0` gives
+/// the stationary "no-scroll" baseline.
+fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: u32, lo: u32, hi: u32, h: u32) -> Option<f32> {
+    // Overlapping rows in `next` coords: a and a+s must both be in-frame, and a
+    // within the stable band.
+    let a_start = lo;
+    let a_end = hi.min(h - s);
+    if a_end <= a_start {
+        return None;
+    }
+    let mut total: u64 = 0;
+    let mut count: u32 = 0;
+    let mut a = a_start;
+    while a < a_end {
+        total += row_abs_diff(next.row(a), prev.row(a + s)) as u64;
+        count += 1;
+        a += ROW_STEP;
+    }
+    if count == 0 {
+        return None;
+    }
+    Some(total as f32 / (count as f32 * ROW_SAMPLES as f32))
+}
+
 /// Search for the vertical scroll offset `s` (in rows, >= 1) that best aligns
-/// `next` onto `prev`: `next[a]` ≈ `prev[a + s]`. Returns `(s, mean_abs_diff)`
-/// for the best candidate, or `None` if no valid offset exists (frame too
-/// short). `mean_abs_diff` is per grayscale sample, so it is directly
-/// comparable to `CONFIDENT_MEAN_ABS_DIFF`.
+/// `next` onto `prev`: `next[a]` ≈ `prev[a + s]`. Returns `(s, mean_abs_diff,
+/// zero_mean)` for the best positive candidate, where `zero_mean` is the
+/// stationary `s = 0` alignment score over the same band — the caller compares
+/// the two to tell a genuine scroll from a paused frame (see
+/// [`MIN_SCROLL_IMPROVEMENT`]). `None` if no valid offset exists (frame too
+/// short, or the exclusion band leaves nothing to compare). `mean_abs_diff` is
+/// per grayscale sample, so it is directly comparable to
+/// `CONFIDENT_MEAN_ABS_DIFF`.
 ///
 /// Only positive offsets are considered — this models downward scrolling
 /// (content revealed at the bottom). An upward scroll has no `s >= 1` match and
 /// falls through to the butt-join path in [`append_frame`]. See the module doc.
-fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, f32)> {
+fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, f32, f32)> {
     let h = prev.height.min(next.height);
     if h == 0 {
         return None;
@@ -129,32 +174,19 @@ fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(
     let lo = exclude.min(h);
     let hi = h.saturating_sub(exclude).max(lo);
 
+    // Stationary baseline: how well the frames align with no scroll at all.
+    let zero_mean = offset_mean(prev, next, 0, lo, hi, h)?;
+
     let mut best: Option<(u32, f32)> = None;
     for s in 1..=max_s {
-        // Overlapping rows in `next` coords: a and a+s must both be in-frame,
-        // and a within the stable band.
-        let a_start = lo;
-        let a_end = hi.min(h - s);
-        if a_end <= a_start {
+        let Some(mean) = offset_mean(prev, next, s, lo, hi, h) else {
             continue;
-        }
-        let mut total: u64 = 0;
-        let mut count: u32 = 0;
-        let mut a = a_start;
-        while a < a_end {
-            total += row_abs_diff(next.row(a), prev.row(a + s)) as u64;
-            count += 1;
-            a += ROW_STEP;
-        }
-        if count == 0 {
-            continue;
-        }
-        let mean = total as f32 / (count as f32 * ROW_SAMPLES as f32);
+        };
         if best.map(|(_, bm)| mean < bm).unwrap_or(true) {
             best = Some((s, mean));
         }
     }
-    best
+    best.map(|(s, mean)| (s, mean, zero_mean))
 }
 
 /// Append the bottom `rows` rows of `src` onto `acc` (which must share `src`'s
@@ -208,7 +240,13 @@ pub fn append_frame(
     let next_fp = Fingerprint::new(next);
 
     match best_offset(&prev_fp, &next_fp, exclude) {
-        Some((s, mean)) if mean <= CONFIDENT_MEAN_ABS_DIFF => {
+        // Genuine downward scroll: a confident overlap that also beats the
+        // stationary baseline by a real margin. The margin check is what stops a
+        // paused frame (whose best positive offset barely improves on — or is
+        // worse than — no movement) from being mistaken for a tiny scroll.
+        Some((s, mean, zero_mean))
+            if mean <= CONFIDENT_MEAN_ABS_DIFF && zero_mean - mean >= MIN_SCROLL_IMPROVEMENT =>
+        {
             append_bottom_rows(acc, next, s);
             StitchOutcome {
                 appended: s,
@@ -216,9 +254,18 @@ pub fn append_frame(
                 low_confidence: false,
             }
         }
+        // Not a confident scroll, but the frames align well *without* moving:
+        // the user paused and only dynamic noise (caret, cursor) changed. Treat
+        // it as a duplicate — append nothing.
+        Some((_, _, zero_mean)) if zero_mean <= CONFIDENT_MEAN_ABS_DIFF => StitchOutcome {
+            appended: 0,
+            duplicate: true,
+            low_confidence: false,
+        },
         _ => {
-            // No confident overlap — butt-join the whole frame and warn. May
-            // duplicate a little content at the seam, but never drops any.
+            // No confident overlap and the frames don't align stationary either
+            // (e.g. a fling past a full viewport) — butt-join the whole frame and
+            // warn. May duplicate a little content at the seam, but never drops any.
             let h = next.height();
             append_bottom_rows(acc, next, h);
             StitchOutcome {
@@ -354,6 +401,34 @@ mod tests {
         let out = append_frame(&mut acc, &prev, &next, hdr + 4);
         assert!(!out.low_confidence, "band exclusion should keep alignment confident");
         assert_eq!(out.appended, step, "expected body scroll offset, not header-pinned 0");
+    }
+
+    #[test]
+    fn paused_frame_with_minor_noise_is_not_appended() {
+        // The user is NOT scrolling. The region is a mostly-flat page area (lots
+        // of white) with a little static content and one tiny dynamic element —
+        // a blinking text caret — that flips a handful of pixels between frames.
+        // Byte-identical de-dup misses it, and because flat regions align at any
+        // offset, a naive positive-only search reads it as a confident ~1px
+        // scroll and grows the accumulator every sample. It must stay put.
+        let w = 100;
+        let h = 300;
+        let mut prev = RgbaImage::from_pixel(w, h, Rgba([255, 255, 255, 255]));
+        for y in 100..140 {
+            for x in 10..90 {
+                prev.put_pixel(x, y, Rgba([20, 20, 20, 255]));
+            }
+        }
+        let mut next = prev.clone();
+        // Blinking caret: a few dark pixels appear, no content moved.
+        for y in 150..160 {
+            next.put_pixel(50, y, Rgba([0, 0, 0, 255]));
+        }
+        let mut acc = prev.clone();
+        let out = append_frame(&mut acc, &prev, &next, 0);
+        assert!(out.duplicate, "paused near-static frame must be treated as duplicate");
+        assert_eq!(out.appended, 0);
+        assert_eq!(acc.height(), h, "must not grow while paused");
     }
 
     #[test]
