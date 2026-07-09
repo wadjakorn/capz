@@ -95,6 +95,16 @@ export function CaptureSplitButton({
               <DropdownMenuItem onClick={() => onScrollCapture()}>
                 <ScrollText aria-hidden />
                 <span>Scrolling capture</span>
+                <span
+                  className="ml-1.5 rounded-full px-1.5 py-px text-[10px] font-semibold uppercase leading-none tracking-wide"
+                  style={{
+                    color: "var(--accent)",
+                    background: "color-mix(in srgb, var(--accent) 18%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
+                  }}
+                >
+                  Beta
+                </span>
               </DropdownMenuItem>
             </>
           ) : null}
