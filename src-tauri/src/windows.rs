@@ -594,6 +594,25 @@ pub fn show_scroll_hud<R: Runtime>(app: &AppHandle<R>, monitor_id: u32) -> tauri
     .visible(false)
     .build()?;
 
+    // Safety net: the HUD is undecorated and non-closable, so in normal use it
+    // only goes away via finish/cancel — both of which consume the session
+    // *before* closing it. If it ever gets closed out-of-band (future decoration
+    // change, OS/window-manager action), stop the sampler and restore the editor
+    // so we don't keep capturing forever into an orphaned session. Guarding on
+    // `take().is_some()` makes our own finish/cancel teardown a no-op here.
+    let app_ev = app.clone();
+    win.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { .. } = event {
+            let orphaned = {
+                let st = app_ev.state::<crate::state::AppState>();
+                st.scroll.lock().expect("scroll mutex poisoned").take().is_some()
+            };
+            if orphaned {
+                show_editor_if_hidden(&app_ev);
+            }
+        }
+    });
+
     #[cfg(target_os = "macos")]
     {
         let cx = m.x as f64 + (m.width as f64 - HUD_W) / 2.0;
@@ -606,8 +625,14 @@ pub fn show_scroll_hud<R: Runtime>(app: &AppHandle<R>, monitor_id: u32) -> tauri
         let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
         let pw = (HUD_W * scale).round() as u32;
         let ph = (HUD_H * scale).round() as u32;
-        let cx = m.x + ((m.width as i32 - pw as i32) / 2).max(0);
-        let cy = m.y + (m.height as i32 - ph as i32 - (HUD_BOTTOM_MARGIN * scale).round() as i32).max(0);
+        let margin_px = (HUD_BOTTOM_MARGIN * scale).round() as i32;
+        // Center horizontally; sit `margin_px` above the bottom edge. The
+        // `.max(0)` clamps each offset on its own so the HUD stays on-screen even
+        // if it's somehow larger than the monitor.
+        let x_off = ((m.width as i32 - pw as i32) / 2).max(0);
+        let y_off = (m.height as i32 - ph as i32 - margin_px).max(0);
+        let cx = m.x + x_off;
+        let cy = m.y + y_off;
         win.set_size(PhysicalSize::new(pw, ph))?;
         win.set_position(PhysicalPosition::new(cx, cy))?;
         #[cfg(target_os = "windows")]
