@@ -19,8 +19,12 @@ use crate::services::{capture_service, stitch};
 use crate::state::{AppState, ScrollSession};
 use crate::windows;
 
-/// How often the sampler re-captures the region while the user scrolls.
-const SAMPLE_INTERVAL_MS: u64 = 250;
+/// How often the sampler re-captures the region while the user scrolls. Kept
+/// short so that even a brisk scroll advances well under one viewport between
+/// samples — this keeps the per-frame offset inside the stitcher's detectable
+/// overlap range and reduces the chance of sampling a frame mid scroll-animation
+/// (both of which otherwise force a low-confidence, duplicated seam).
+const SAMPLE_INTERVAL_MS: u64 = 120;
 
 /// Rows at the top and bottom of each frame ignored during seam matching so a
 /// fixed toolbar/header doesn't pin the alignment. Physical pixels.
