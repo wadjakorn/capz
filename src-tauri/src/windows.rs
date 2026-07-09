@@ -554,15 +554,91 @@ pub const SCROLL_HUD_LABEL: &str = "scroll-hud";
 /// Logical size of the HUD pill.
 const HUD_W: f64 = 380.0;
 const HUD_H: f64 = 76.0;
-/// Gap between the HUD and the bottom edge of the owner display (logical px).
+/// Gap between the HUD and the nearest edge of the capture region / display
+/// (logical px).
 const HUD_BOTTOM_MARGIN: f64 = 48.0;
 
-/// Show the compact scrolling-capture HUD, centered near the bottom of the
-/// display that owns the capture. Transparent, always-on-top, non-resizable.
-/// Monitor geometry is logical points on macOS but physical pixels on
-/// Windows/Linux (xcap convention), so we place it per-platform exactly like
-/// the overlays.
-pub fn show_scroll_hud<R: Runtime>(app: &AppHandle<R>, monitor_id: u32) -> tauri::Result<()> {
+/// Top-left position for the HUD so its `hud_w × hud_h` rect does **not** overlap
+/// the capture region, while staying fully inside the display. Every argument
+/// shares one unit and origin (logical points on macOS, physical pixels on
+/// Windows/Linux — the caller converts the region into whichever space the
+/// monitor geometry uses). The region origin is already expressed in the
+/// display's coordinate space (display origin + capture offset).
+///
+/// The sampler grabs the whole monitor and crops the region, so anything drawn
+/// over the region — including this HUD — is baked into every frame (ticket
+/// ixD-igh14WRG). We therefore park the HUD just outside the region: below it,
+/// then above, then right, then left, picking the first placement that fits
+/// on-screen. Because each candidate is disjoint from the region along one axis,
+/// a candidate that fits the display cannot overlap the region. Only when the
+/// region effectively fills the display (no placement fits) do we fall back to
+/// the legacy bottom-center spot, which may overlap — there is simply nowhere
+/// else to put it.
+fn hud_position(
+    disp_x: f64,
+    disp_y: f64,
+    disp_w: f64,
+    disp_h: f64,
+    reg_x: f64,
+    reg_y: f64,
+    reg_w: f64,
+    reg_h: f64,
+    hud_w: f64,
+    hud_h: f64,
+    margin: f64,
+) -> (f64, f64) {
+    let disp_right = disp_x + disp_w;
+    let disp_bottom = disp_y + disp_h;
+    let reg_right = reg_x + reg_w;
+    let reg_bottom = reg_y + reg_h;
+
+    // Clamp `v` into `[lo, hi]`; `hi` is floored at `lo` so a HUD wider/taller
+    // than the display still lands at the display origin rather than off-screen.
+    let clampf = |v: f64, lo: f64, hi: f64| v.clamp(lo, hi.max(lo));
+    // Center the HUD on the region along the free axis, then clamp on-screen.
+    let center_x = clampf(reg_x + (reg_w - hud_w) / 2.0, disp_x, disp_right - hud_w);
+    let center_y = clampf(reg_y + (reg_h - hud_h) / 2.0, disp_y, disp_bottom - hud_h);
+
+    // Below the region.
+    let below_y = reg_bottom + margin;
+    if below_y + hud_h <= disp_bottom {
+        return (center_x, below_y);
+    }
+    // Above the region.
+    let above_y = reg_y - margin - hud_h;
+    if above_y >= disp_y {
+        return (center_x, above_y);
+    }
+    // Right of the region.
+    let right_x = reg_right + margin;
+    if right_x + hud_w <= disp_right {
+        return (right_x, center_y);
+    }
+    // Left of the region.
+    let left_x = reg_x - margin - hud_w;
+    if left_x >= disp_x {
+        return (left_x, center_y);
+    }
+    // Fallback: legacy bottom-center of the display (region ~fills the display).
+    let fx = clampf(disp_x + (disp_w - hud_w) / 2.0, disp_x, disp_right - hud_w);
+    let fy = (disp_bottom - hud_h - margin).max(disp_y);
+    (fx, fy)
+}
+
+/// Show the compact scrolling-capture HUD near — but never over — the capture
+/// region on the display that owns it. Transparent, always-on-top, non-resizable.
+/// `(x, y, w, h)` is the capture region in physical pixels relative to the
+/// monitor's top-left (same contract as `capture_region`). Monitor geometry is
+/// logical points on macOS but physical pixels on Windows/Linux (xcap
+/// convention), so we place it per-platform exactly like the overlays.
+pub fn show_scroll_hud<R: Runtime>(
+    app: &AppHandle<R>,
+    monitor_id: u32,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window(SCROLL_HUD_LABEL) {
         let _ = win.show();
         let _ = win.set_focus();
@@ -616,26 +692,48 @@ pub fn show_scroll_hud<R: Runtime>(app: &AppHandle<R>, monitor_id: u32) -> tauri
 
     #[cfg(target_os = "macos")]
     {
-        let cx = m.x as f64 + (m.width as f64 - HUD_W) / 2.0;
-        let cy = m.y as f64 + m.height as f64 - HUD_H - HUD_BOTTOM_MARGIN;
+        // macOS monitor geometry is logical points; the region is physical px,
+        // so scale it down into the same space before comparing.
+        let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
+        let (px, py) = hud_position(
+            m.x as f64,
+            m.y as f64,
+            m.width as f64,
+            m.height as f64,
+            m.x as f64 + x as f64 / scale,
+            m.y as f64 + y as f64 / scale,
+            w as f64 / scale,
+            h as f64 / scale,
+            HUD_W,
+            HUD_H,
+            HUD_BOTTOM_MARGIN,
+        );
         win.set_size(LogicalSize::new(HUD_W, HUD_H))?;
-        win.set_position(LogicalPosition::new(cx.max(m.x as f64), cy.max(m.y as f64)))?;
+        win.set_position(LogicalPosition::new(px, py))?;
     }
     #[cfg(not(target_os = "macos"))]
     {
+        // Monitor geometry and the region are both physical px here; the region
+        // offset is relative to the monitor origin.
         let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
-        let pw = (HUD_W * scale).round() as u32;
-        let ph = (HUD_H * scale).round() as u32;
-        let margin_px = (HUD_BOTTOM_MARGIN * scale).round() as i32;
-        // Center horizontally; sit `margin_px` above the bottom edge. The
-        // `.max(0)` clamps each offset on its own so the HUD stays on-screen even
-        // if it's somehow larger than the monitor.
-        let x_off = ((m.width as i32 - pw as i32) / 2).max(0);
-        let y_off = (m.height as i32 - ph as i32 - margin_px).max(0);
-        let cx = m.x + x_off;
-        let cy = m.y + y_off;
-        win.set_size(PhysicalSize::new(pw, ph))?;
-        win.set_position(PhysicalPosition::new(cx, cy))?;
+        let hud_w = HUD_W * scale;
+        let hud_h = HUD_H * scale;
+        let margin = HUD_BOTTOM_MARGIN * scale;
+        let (px, py) = hud_position(
+            m.x as f64,
+            m.y as f64,
+            m.width as f64,
+            m.height as f64,
+            m.x as f64 + x as f64,
+            m.y as f64 + y as f64,
+            w as f64,
+            h as f64,
+            hud_w,
+            hud_h,
+            margin,
+        );
+        win.set_size(PhysicalSize::new(hud_w.round() as u32, hud_h.round() as u32))?;
+        win.set_position(PhysicalPosition::new(px.round() as i32, py.round() as i32))?;
         #[cfg(target_os = "windows")]
         disable_dwm_transitions(&win);
     }
@@ -668,4 +766,89 @@ pub fn close_scroll_hud<R: Runtime>(app: &AppHandle<R>) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hud_position;
+
+    /// Do two axis-aligned rects (x, y, w, h) overlap with positive area?
+    fn overlaps(
+        ax: f64,
+        ay: f64,
+        aw: f64,
+        ah: f64,
+        bx: f64,
+        by: f64,
+        bw: f64,
+        bh: f64,
+    ) -> bool {
+        ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah
+    }
+
+    /// Is rect `(x, y, w, h)` fully inside the display `(dx, dy, dw, dh)`?
+    fn within(x: f64, y: f64, w: f64, h: f64, dx: f64, dy: f64, dw: f64, dh: f64) -> bool {
+        x >= dx - 1e-6 && y >= dy - 1e-6 && x + w <= dx + dw + 1e-6 && y + h <= dy + dh + 1e-6
+    }
+
+    const HW: f64 = 380.0;
+    const HH: f64 = 76.0;
+    const MARGIN: f64 = 48.0;
+
+    #[test]
+    fn small_top_region_places_hud_below() {
+        // 1440x900 display, small region near the top-left.
+        let (px, py) = hud_position(
+            0.0, 0.0, 1440.0, 900.0, 100.0, 60.0, 400.0, 300.0, HW, HH, MARGIN,
+        );
+        assert!(!overlaps(
+            px, py, HW, HH, 100.0, 60.0, 400.0, 300.0
+        ));
+        assert!(within(px, py, HW, HH, 0.0, 0.0, 1440.0, 900.0));
+        // Region bottom is 360; HUD should sit just below it.
+        assert!(py >= 360.0);
+    }
+
+    #[test]
+    fn tall_bottom_left_column_places_hud_to_the_side() {
+        // The reported bug: a tall left column reaching the display bottom. The
+        // legacy bottom-center HUD overlapped it; the fix must move it clear.
+        let region = (0.0_f64, 0.0_f64, 580.0_f64, 900.0_f64);
+        let (px, py) = hud_position(
+            0.0, 0.0, 1440.0, 900.0, region.0, region.1, region.2, region.3, HW, HH, MARGIN,
+        );
+        assert!(
+            !overlaps(px, py, HW, HH, region.0, region.1, region.2, region.3),
+            "HUD at ({px},{py}) still overlaps the capture region"
+        );
+        assert!(within(px, py, HW, HH, 0.0, 0.0, 1440.0, 900.0));
+        // No vertical room above/below a full-height region, so it goes right.
+        assert!(px >= region.0 + region.2);
+    }
+
+    #[test]
+    fn region_filling_display_falls_back_to_bottom_center() {
+        // Region == whole display: nothing fits, so we keep the legacy spot.
+        let (px, py) = hud_position(
+            0.0, 0.0, 1440.0, 900.0, 0.0, 0.0, 1440.0, 900.0, HW, HH, MARGIN,
+        );
+        let expected_x = (1440.0 - HW) / 2.0;
+        let expected_y = 900.0 - HH - MARGIN;
+        assert!((px - expected_x).abs() < 1e-6);
+        assert!((py - expected_y).abs() < 1e-6);
+    }
+
+    #[test]
+    fn respects_non_zero_display_origin() {
+        // Secondary monitor whose origin is offset in the global space.
+        let (dx, dy, dw, dh) = (1440.0, 200.0, 1920.0, 1080.0);
+        let region = (dx + 50.0, dy + 40.0, 600.0, 500.0);
+        let (px, py) = hud_position(
+            dx, dy, dw, dh, region.0, region.1, region.2, region.3, HW, HH, MARGIN,
+        );
+        assert!(!overlaps(
+            px, py, HW, HH, region.0, region.1, region.2, region.3
+        ));
+        assert!(within(px, py, HW, HH, dx, dy, dw, dh));
+    }
 }
