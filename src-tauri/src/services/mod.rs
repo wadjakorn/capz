@@ -5,4 +5,5 @@ pub mod monitor_service;
 pub mod ocr;
 pub mod sound;
 pub mod stitch;
+pub mod synthetic_scroll;
 pub mod window_service;
