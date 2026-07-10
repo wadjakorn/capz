@@ -794,11 +794,6 @@ pub fn show_scroll_guide<R: Runtime>(
     w: u32,
     h: u32,
 ) -> tauri::Result<()> {
-    if let Some(win) = app.get_webview_window(SCROLL_GUIDE_LABEL) {
-        let _ = win.show();
-        return Ok(());
-    }
-
     let mons = monitor_service::list_monitors()
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("list monitors: {e}")))?;
     let m = mons
@@ -808,78 +803,102 @@ pub fn show_scroll_guide<R: Runtime>(
         .or_else(|| mons.first())
         .ok_or_else(|| tauri::Error::Anyhow(anyhow::anyhow!("no monitor for scroll guide")))?;
 
-    let win = WebviewWindowBuilder::new(
-        app,
-        SCROLL_GUIDE_LABEL,
-        WebviewUrl::App("scroll-guide/".into()),
-    )
-    .title("capz — Capture region")
-    .transparent(true)
-    .decorations(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .resizable(false)
-    .focused(false)
-    .shadow(false)
-    .visible(false)
-    .build()?;
+    // Reuse an existing guide window or build a fresh one, but **always** re-apply
+    // the size/position below — never early-return on a stale window. A guide can
+    // survive into a second capture if a prior close didn't complete (failed/
+    // cancelled/aborted path), and reusing it as-is would outline the previous
+    // region in the wrong place.
+    let win = match app.get_webview_window(SCROLL_GUIDE_LABEL) {
+        Some(win) => win,
+        None => {
+            let win = WebviewWindowBuilder::new(
+                app,
+                SCROLL_GUIDE_LABEL,
+                WebviewUrl::App("scroll-guide/".into()),
+            )
+            .title("capz — Capture region")
+            .transparent(true)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .focused(false)
+            .shadow(false)
+            .visible(false)
+            .build()?;
 
-    // Wheel/clicks must reach the page being scrolled underneath. The window is
-    // still hidden (`visible(false)`) at this point, so if click-through can't be
-    // enabled we close it and bail *before* showing anything — otherwise a
-    // transparent always-on-top window over the region would swallow input and
-    // block the user from scrolling. The caller treats this Err as non-fatal, so
-    // the capture continues without the outline.
-    if let Err(e) = win.set_ignore_cursor_events(true) {
-        let _ = win.close();
-        return Err(tauri::Error::Anyhow(anyhow::anyhow!(
-            "guide set_ignore_cursor_events: {e}"
-        )));
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // Monitor geometry is logical points; the region is physical px.
-        let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
-        let rx = m.x as f64 + x as f64 / scale;
-        let ry = m.y as f64 + y as f64 / scale;
-        let rw = w as f64 / scale;
-        let rh = h as f64 / scale;
-        win.set_size(LogicalSize::new(rw + 2.0 * GUIDE_BORDER, rh + 2.0 * GUIDE_BORDER))?;
-        win.set_position(LogicalPosition::new(rx - GUIDE_BORDER, ry - GUIDE_BORDER))?;
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        // Monitor geometry and the region are both physical px here.
-        let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
-        let border = GUIDE_BORDER * scale;
-        let rx = m.x as f64 + x as f64;
-        let ry = m.y as f64 + y as f64;
-        win.set_size(PhysicalSize::new(
-            (w as f64 + 2.0 * border).round() as u32,
-            (h as f64 + 2.0 * border).round() as u32,
-        ))?;
-        win.set_position(PhysicalPosition::new(
-            (rx - border).round() as i32,
-            (ry - border).round() as i32,
-        ))?;
-        #[cfg(target_os = "windows")]
-        disable_dwm_transitions(&win);
-    }
-
-    win.show()?;
-
-    #[cfg(target_os = "macos")]
-    {
-        use objc2::{msg_send, runtime::AnyObject};
-        let ns_window = win.ns_window()? as *mut AnyObject;
-        unsafe {
-            // Just below the HUD level (1001) so the pill stays on top, but still
-            // above the screen-saver level to float over full-screen apps.
-            let _: () = msg_send![ns_window, setLevel: 1000_i64];
-            let behavior: u64 = (1u64 << 0) | (1u64 << 8); // CanJoinAllSpaces | FullScreenAuxiliary
-            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+            // Wheel/clicks must reach the page being scrolled underneath. The
+            // window is still hidden (`visible(false)`) here, so if click-through
+            // can't be enabled we close it and bail *before* showing anything —
+            // otherwise a transparent always-on-top window over the region would
+            // swallow input and block the user from scrolling. The caller treats
+            // this Err as non-fatal, so the capture continues without the outline.
+            if let Err(e) = win.set_ignore_cursor_events(true) {
+                let _ = win.close();
+                return Err(tauri::Error::Anyhow(anyhow::anyhow!(
+                    "guide set_ignore_cursor_events: {e}"
+                )));
+            }
+            win
         }
+    };
+
+    // Position, show, and (macOS) set the window level. Any failure past the
+    // build leaves a window that may already be visible; a guide without correct
+    // geometry/level would linger over the page for the whole capture (the
+    // start-path caller only logs our Err and carries on), so tear it down
+    // before returning.
+    let configured = (|| -> tauri::Result<()> {
+        #[cfg(target_os = "macos")]
+        {
+            // Monitor geometry is logical points; the region is physical px.
+            let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
+            let rx = m.x as f64 + x as f64 / scale;
+            let ry = m.y as f64 + y as f64 / scale;
+            let rw = w as f64 / scale;
+            let rh = h as f64 / scale;
+            win.set_size(LogicalSize::new(rw + 2.0 * GUIDE_BORDER, rh + 2.0 * GUIDE_BORDER))?;
+            win.set_position(LogicalPosition::new(rx - GUIDE_BORDER, ry - GUIDE_BORDER))?;
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            // Monitor geometry and the region are both physical px here.
+            let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
+            let border = GUIDE_BORDER * scale;
+            let rx = m.x as f64 + x as f64;
+            let ry = m.y as f64 + y as f64;
+            win.set_size(PhysicalSize::new(
+                (w as f64 + 2.0 * border).round() as u32,
+                (h as f64 + 2.0 * border).round() as u32,
+            ))?;
+            win.set_position(PhysicalPosition::new(
+                (rx - border).round() as i32,
+                (ry - border).round() as i32,
+            ))?;
+            #[cfg(target_os = "windows")]
+            disable_dwm_transitions(&win);
+        }
+
+        win.show()?;
+
+        #[cfg(target_os = "macos")]
+        {
+            use objc2::{msg_send, runtime::AnyObject};
+            let ns_window = win.ns_window()? as *mut AnyObject;
+            unsafe {
+                // Just below the HUD level (1001) so the pill stays on top, but
+                // still above the screen-saver level to float over full-screen apps.
+                let _: () = msg_send![ns_window, setLevel: 1000_i64];
+                let behavior: u64 = (1u64 << 0) | (1u64 << 8); // CanJoinAllSpaces | FullScreenAuxiliary
+                let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+            }
+        }
+
+        Ok(())
+    })();
+    if let Err(e) = configured {
+        let _ = win.close();
+        return Err(e);
     }
 
     Ok(())

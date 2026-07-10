@@ -108,10 +108,20 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     app.run_on_main_thread(move || {
         let res =
             windows::show_scroll_hud(&app_main, monitor_id, x, y, w, h).map_err(|e| e.to_string());
-        // The region outline is a non-critical visual aid — if it fails to open
+        // The region outline is a non-critical visual aid; only bother once the
+        // HUD (the actual control) is up — otherwise an aborting capture would
+        // spawn and immediately tear down a full transparent window. If it fails
         // the HUD still drives the capture, so just log and carry on.
-        if let Err(e) = windows::show_scroll_guide(&app_main, monitor_id, x, y, w, h) {
-            log::warn!("show scroll guide: {e}");
+        if res.is_ok() {
+            if let Err(e) = windows::show_scroll_guide(&app_main, monitor_id, x, y, w, h) {
+                log::warn!("show scroll guide: {e}");
+            }
+            // Re-assert HUD focus: the guide is focused(false) + click-through,
+            // but showing an always-on-top window can still steal activation on
+            // Windows, and Enter/Esc (finish/cancel) must reach the HUD.
+            if let Some(hud) = app_main.get_webview_window(windows::SCROLL_HUD_LABEL) {
+                let _ = hud.set_focus();
+            }
         }
         let _ = tx.send(res);
     })
@@ -223,6 +233,13 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
     )
     .await;
     windows::close_scroll_hud(&app);
+    if res.is_err() {
+        // On success `capture_to_editor` shows the editor; on failure it does
+        // not, and the session is already taken (so the HUD's orphan guard
+        // won't restore it either). Surface a window so the user isn't left
+        // staring at nothing after a failed scroll finish.
+        windows::show_editor_if_hidden(&app);
+    }
     res
 }
 
