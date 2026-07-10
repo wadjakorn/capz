@@ -7,6 +7,18 @@ extern "C" {
     fn CGRequestScreenCaptureAccess() -> bool;
 }
 
+// Accessibility (AX) TCC grant — required to post synthetic wheel events for
+// auto-scroll capture (ticket EJckEbEdk0ct). Distinct from Screen Recording.
+#[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+    fn AXIsProcessTrustedWithOptions(
+        options: core_foundation_sys::dictionary::CFDictionaryRef,
+    ) -> bool;
+    static kAXTrustedCheckOptionPrompt: core_foundation_sys::string::CFStringRef;
+}
+
 pub fn has_screen_recording() -> bool {
     #[cfg(target_os = "macos")]
     unsafe {
@@ -44,6 +56,64 @@ pub fn open_system_settings_screen_recording() -> Result<(), String> {
     {
         std::process::Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("only macOS".into())
+    }
+}
+
+/// Whether the process holds the Accessibility (AX) grant needed to post
+/// synthetic input for auto-scroll. Always `true` off macOS (no such gate).
+pub fn has_accessibility() -> bool {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        AXIsProcessTrusted()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+#[tauri::command]
+pub fn has_accessibility_permission() -> bool {
+    has_accessibility()
+}
+
+/// Prompt for Accessibility. On macOS this shows the system dialog and adds capz
+/// to the Accessibility list (unchecked) so the user can toggle it; returns the
+/// current trust state. Like Screen Recording, a fresh grant only applies to
+/// processes started after it — pair with `open_system_settings_accessibility`
+/// and a relaunch.
+#[tauri::command]
+pub fn request_accessibility_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        use core_foundation::base::TCFType;
+        use core_foundation::boolean::CFBoolean;
+        use core_foundation::dictionary::CFDictionary;
+        use core_foundation::string::CFString;
+        let key = CFString::wrap_under_get_rule(kAXTrustedCheckOptionPrompt);
+        let value = CFBoolean::true_value();
+        let options = CFDictionary::from_CFType_pairs(&[(key.as_CFType(), value.as_CFType())]);
+        AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+#[tauri::command]
+pub fn open_system_settings_accessibility() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
             .spawn()
             .map_err(|e| e.to_string())?;
         Ok(())

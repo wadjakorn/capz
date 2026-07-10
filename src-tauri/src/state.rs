@@ -25,6 +25,15 @@ pub struct ScrollSession {
     pub frames: u32,
     /// Count of low-confidence butt-joins (seams that may be imperfect).
     pub warnings: u32,
+    /// Whether the sampler is currently driving the target itself (auto-scroll,
+    /// ticket EJckEbEdk0ct). `false` = the user scrolls by hand. Toggled by
+    /// `scroll_capture_auto_start_command` / `scroll_capture_auto_stop_command`;
+    /// the sampler also clears it when it falls back to manual.
+    pub auto: bool,
+    /// Consecutive auto-scroll steps that produced no new content. Reset on any
+    /// progress. Used to detect "bottom reached" (after progress) or "target
+    /// ignores synthetic scroll" (no progress at all).
+    pub dup_streak: u32,
 }
 
 /// App-wide runtime state.

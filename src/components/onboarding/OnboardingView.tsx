@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Camera, Check, Clock, ShieldCheck, Sparkles } from "lucide-react";
+import { Camera, Check, Clock, MousePointerClick, ShieldCheck, Sparkles } from "lucide-react";
 import { GlowTile } from "@/components/design/tiles/GlowTile";
 import { useSettings } from "@/stores/settings";
 
-type Step = "welcome" | "permission" | "done";
+type Step = "welcome" | "permission" | "accessibility" | "done";
 
 const IS_MAC =
   typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
@@ -24,6 +24,9 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
   const [needsRelaunch, setNeedsRelaunch] = useState(false);
   const [inert, setInert] = useState(false);
   const [busy, setBusy] = useState<"" | "request" | "open" | "relaunch">("");
+  // Accessibility grant (optional — only auto-scroll capture needs it).
+  const [axGranted, setAxGranted] = useState<boolean | null>(null);
+  const [axRequested, setAxRequested] = useState(false);
   const initialGrantedRef = useRef<boolean | null>(null);
   const probedRef = useRef(false);
 
@@ -71,6 +74,48 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
       window.clearInterval(id);
     };
   }, [step]);
+
+  useEffect(() => {
+    if (step !== "accessibility") return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const ok = await invoke<boolean>("has_accessibility_permission");
+        if (!cancelled) setAxGranted(ok);
+      } catch {
+        // ignore
+      }
+    };
+    void tick();
+    const id = window.setInterval(tick, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [step]);
+
+  async function requestAccessibility() {
+    setBusy("request");
+    setAxRequested(true);
+    try {
+      await invoke<boolean>("request_accessibility_permission");
+      const ok = await invoke<boolean>("has_accessibility_permission");
+      setAxGranted(ok);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function openAccessibilitySettings() {
+    setBusy("open");
+    try {
+      await invoke("open_system_settings_accessibility");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function requestPermission() {
     setBusy("request");
@@ -121,9 +166,11 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
   const tile =
     step === "permission"
       ? { cls: "tile-icon", icon: ShieldCheck }
-      : step === "done"
-        ? { cls: "tile-icon", icon: Sparkles }
-        : { cls: "tile-icon", icon: Camera };
+      : step === "accessibility"
+        ? { cls: "tile-icon", icon: MousePointerClick }
+        : step === "done"
+          ? { cls: "tile-icon", icon: Sparkles }
+          : { cls: "tile-icon", icon: Camera };
 
   return (
     <main className="flex min-h-full items-center justify-center p-8 text-foreground">
@@ -156,6 +203,16 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
               onOpenSettings={openSettings}
               onRelaunch={relaunch}
               onOpenInertRecovery={onOpenInertRecovery}
+              onNext={() => setStep("accessibility")}
+            />
+          )}
+          {step === "accessibility" && (
+            <Accessibility
+              granted={axGranted}
+              requested={axRequested}
+              busy={busy}
+              onRequest={requestAccessibility}
+              onOpenSettings={openAccessibilitySettings}
               onNext={() => setStep("done")}
             />
           )}
@@ -171,6 +228,7 @@ function Stepper({ step, showMac }: { step: Step; showMac: boolean }) {
     ? [
         { id: "welcome", label: "Welcome" },
         { id: "permission", label: "Permission" },
+        { id: "accessibility", label: "Auto-scroll" },
         { id: "done", label: "Done" },
       ]
     : [
@@ -502,6 +560,123 @@ function PrimaryButton({
     <button disabled className="btn btn--primary">
       Checking…
     </button>
+  );
+}
+
+function Accessibility({
+  granted,
+  requested,
+  busy,
+  onRequest,
+  onOpenSettings,
+  onNext,
+}: {
+  granted: boolean | null;
+  requested: boolean;
+  busy: Busy;
+  onRequest: () => void;
+  onOpenSettings: () => void;
+  onNext: () => void;
+}) {
+  const state: "unknown" | "ready" | "ask" | "open-settings" =
+    granted === null
+      ? "unknown"
+      : granted
+        ? "ready"
+        : requested
+          ? "open-settings"
+          : "ask";
+
+  return (
+    <div className="grid gap-4">
+      <h2 className="headline">Auto-scroll (optional)</h2>
+      <p className="text-sm text-muted-foreground">
+        Scrolling capture can drive long pages for you instead of scrolling by
+        hand. macOS requires <strong>Accessibility</strong> permission to move
+        the page. You can skip this and still capture manually — or grant it here
+        or later from Settings.
+      </p>
+
+      <div className="surface flex items-center gap-3 p-3">
+        <GlowTile
+          size={40}
+          icon={
+            state === "ready" ? (
+              <Check className="h-4 w-4" aria-hidden />
+            ) : state === "unknown" ? (
+              <Clock className="h-4 w-4" aria-hidden />
+            ) : (
+              <ShieldCheck className="h-4 w-4" aria-hidden />
+            )
+          }
+        />
+        <div className="flex flex-col">
+          <span className="eyebrow">
+            {state === "ready"
+              ? "Granted"
+              : state === "unknown"
+                ? "Checking"
+                : "Optional"}
+          </span>
+          <span
+            className={`text-sm ${
+              state === "ready" ? "text-emerald-200" : "text-[var(--color-fg-2)]"
+            }`}
+          >
+            {state === "ready"
+              ? "Auto-scroll is ready"
+              : state === "unknown"
+                ? "Polling system permission…"
+                : "Not granted — auto-scroll falls back to manual"}
+          </span>
+        </div>
+      </div>
+
+      {state === "ask" && (
+        <Guidance>
+          Click <strong>Open the prompt</strong>, then enable <strong>capz</strong>{" "}
+          under Privacy &amp; Security → Accessibility.
+        </Guidance>
+      )}
+      {state === "open-settings" && (
+        <Guidance>
+          Find <strong>capz</strong> under Privacy &amp; Security → Accessibility
+          and toggle it on. This view updates automatically once granted; you may
+          need to relaunch capz for it to take effect.
+        </Guidance>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {state === "ready" ? (
+          <button onClick={onNext} disabled={busy !== ""} className="btn btn--primary">
+            Continue
+          </button>
+        ) : (
+          <>
+            <button onClick={onRequest} disabled={busy !== ""} className="btn btn--primary">
+              {busy === "request" ? "Requesting…" : "Open the prompt"}
+            </button>
+            <button
+              onClick={onOpenSettings}
+              disabled={busy !== ""}
+              className="btn btn--secondary"
+            >
+              {busy === "open" ? "Opening…" : "Open System Settings"}
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="mt-4 flex justify-between">
+        <button
+          onClick={onNext}
+          disabled={busy !== ""}
+          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          Skip for now
+        </button>
+      </div>
+    </div>
   );
 }
 

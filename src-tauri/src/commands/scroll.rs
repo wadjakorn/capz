@@ -15,7 +15,7 @@
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::services::{capture_service, stitch};
+use crate::services::{capture_service, stitch, synthetic_scroll};
 use crate::state::{AppState, ScrollSession};
 use crate::windows;
 
@@ -30,6 +30,21 @@ const SAMPLE_INTERVAL_MS: u64 = 120;
 /// fixed toolbar/header doesn't pin the alignment. Physical pixels.
 const EXCLUDE_BAND: u32 = 48;
 
+/// Settle delay after posting an auto-scroll step, before grabbing the frame.
+/// Longer than [`SAMPLE_INTERVAL_MS`] to let lazy-loaded content paint and any
+/// scroll momentum settle so the captured frame is stable.
+const AUTO_SETTLE_MS: u64 = 350;
+
+/// New rows below this count as "no progress" for auto-scroll bottom detection.
+/// A real step advances hundreds of rows, so this comfortably ignores a blinking
+/// cursor / minor animation while still catching a page that has stopped moving.
+const AUTO_MIN_PROGRESS_ROWS: u32 = 8;
+
+/// Consecutive no-progress auto steps that mean the page won't move any further.
+/// Interpreted as **bottom reached** once at least one step made progress, or as
+/// **target ignores synthetic scroll** if nothing ever moved.
+const AUTO_NO_PROGRESS_STREAK: u32 = 3;
+
 /// Live progress pushed to the HUD after each sample.
 #[derive(Clone, serde::Serialize)]
 struct ScrollProgress {
@@ -39,6 +54,28 @@ struct ScrollProgress {
     height: u32,
     /// Number of low-confidence seams so far (0 = clean).
     warnings: u32,
+    /// Whether the backend is currently driving the scroll itself. The HUD
+    /// mirrors this to switch between manual and auto controls.
+    auto: bool,
+    /// Set on the final emit once the backend has begun auto-finishing (bottom
+    /// reached): the HUD shows its "Processing capture…" spinner.
+    finishing: bool,
+    /// Transient one-line status for the HUD (e.g. an auto-scroll fell back to
+    /// manual). `None` on ordinary ticks.
+    note: Option<String>,
+}
+
+impl ScrollProgress {
+    fn from_session(s: &ScrollSession) -> Self {
+        ScrollProgress {
+            frames: s.frames,
+            height: s.acc.height(),
+            warnings: s.warnings,
+            auto: s.auto,
+            finishing: false,
+            note: None,
+        }
+    }
 }
 
 /// Begin a scrolling capture over the given physical-pixel region of
@@ -94,6 +131,8 @@ pub async fn scroll_capture_start_command<R: Runtime>(
             prev: first,
             frames: 1,
             warnings: 0,
+            auto: false,
+            dup_streak: 0,
         });
     }
 
@@ -143,23 +182,59 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     Ok(())
 }
 
+/// Push a progress frame to the HUD.
+fn emit_progress<R: Runtime>(app: &AppHandle<R>, progress: ScrollProgress) {
+    if let Err(e) = app.emit_to("scroll-hud", "scroll://progress", progress) {
+        log::warn!("emit scroll://progress: {e}");
+    }
+}
+
 /// Background loop: re-capture the region, stitch, emit progress. Exits as soon
 /// as the session is taken out of state (finish/cancel).
+///
+/// When the session's `auto` flag is set the loop also *drives* the target: each
+/// tick posts a synthetic scroll step, waits [`AUTO_SETTLE_MS`] for the page to
+/// settle, then captures + stitches. It stops the moment the page stops growing:
+/// after progress, a run of no-progress steps means the bottom is reached, so it
+/// auto-finishes (encode + open editor) with zero further user effort. If the
+/// target ignores synthetic scroll (never moved) or events can't be posted, it
+/// clears `auto` and reverts to manual so the user can finish by hand.
 fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         loop {
-            tokio::time::sleep(std::time::Duration::from_millis(SAMPLE_INTERVAL_MS)).await;
-
-            // Snapshot the region; stop if the session ended.
-            let region = {
+            // Snapshot the region + whether we're auto-driving this tick.
+            let (region, auto) = {
                 let st = app.state::<AppState>();
                 let g = st.scroll.lock().expect("scroll mutex poisoned");
                 match g.as_ref() {
-                    Some(s) => (s.monitor_id, s.x, s.y, s.w, s.h),
+                    Some(s) => ((s.monitor_id, s.x, s.y, s.w, s.h), s.auto),
                     None => break,
                 }
             };
             let (mid, x, y, w, h) = region;
+
+            if auto {
+                // Drive one step, then let it settle before the grab. If events
+                // can't be posted (no Accessibility grant on macOS, unsupported
+                // platform, injection failure) fall back to manual: clear `auto`,
+                // tell the HUD, keep sampling so the user can finish by hand.
+                if let Err(e) = synthetic_scroll::scroll_step(mid, x, y, w, h) {
+                    log::warn!("auto-scroll step: {e}");
+                    let st = app.state::<AppState>();
+                    let mut g = st.scroll.lock().expect("scroll mutex poisoned");
+                    let Some(s) = g.as_mut() else { break };
+                    s.auto = false;
+                    s.dup_streak = 0;
+                    let mut progress = ScrollProgress::from_session(s);
+                    progress.note = Some("Auto-scroll unavailable — scroll manually".into());
+                    drop(g);
+                    emit_progress(&app, progress);
+                    continue;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(AUTO_SETTLE_MS)).await;
+            } else {
+                tokio::time::sleep(std::time::Duration::from_millis(SAMPLE_INTERVAL_MS)).await;
+            }
 
             // Capture outside the lock — this is the slow part (~tens of ms).
             let frame =
@@ -177,11 +252,17 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                     }
                 };
 
-            let progress = {
+            // Stitch + decide under the lock, then release it before any await.
+            // `bottomed` (auto only) means the page won't grow further: we take
+            // the session here so the loop stops and the encode owns a stable
+            // image. The lock (and the borrowed `State`) must not straddle the
+            // finish `.await`, so everything below runs inside this block.
+            let (progress, finish_acc) = {
                 let st = app.state::<AppState>();
-                let mut g = st.scroll.lock().expect("scroll mutex poisoned");
-                let Some(s) = g.as_mut() else { break };
+                let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
+                let Some(s) = guard.as_mut() else { break };
                 let out = stitch::append_frame(&mut s.acc, &s.prev, &frame, EXCLUDE_BAND);
+                let progressed = !out.duplicate && out.appended >= AUTO_MIN_PROGRESS_ROWS;
                 if !out.duplicate {
                     s.prev = frame;
                     s.frames += 1;
@@ -189,18 +270,103 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                         s.warnings += 1;
                     }
                 }
-                ScrollProgress {
-                    frames: s.frames,
-                    height: s.acc.height(),
-                    warnings: s.warnings,
+                let mut note: Option<String> = None;
+                let mut bottomed = false;
+                if s.auto {
+                    if progressed {
+                        s.dup_streak = 0;
+                    } else {
+                        s.dup_streak += 1;
+                    }
+                    if s.dup_streak >= AUTO_NO_PROGRESS_STREAK {
+                        if s.frames > 1 {
+                            // Advanced earlier, now stuck ⇒ bottom reached.
+                            bottomed = true;
+                        } else {
+                            // Never moved ⇒ target ignores synthetic scroll.
+                            s.auto = false;
+                            s.dup_streak = 0;
+                            note = Some("Target ignored auto-scroll — scroll manually".into());
+                        }
+                    }
                 }
+                let mut progress = ScrollProgress::from_session(s);
+                progress.note = note;
+                progress.finishing = bottomed;
+                let finish_acc = if bottomed { guard.take().map(|s| s.acc) } else { None };
+                (progress, finish_acc)
             };
 
-            if let Err(e) = app.emit_to("scroll-hud", "scroll://progress", progress) {
-                log::warn!("emit scroll://progress: {e}");
+            emit_progress(&app, progress);
+            if let Some(acc) = finish_acc {
+                // Spinner (emitted above with finishing=true) first, then the
+                // slow encode + open — the session is already out, so there's no
+                // double-finish race with the manual Capture button.
+                if let Err(e) = finish_open(&app, acc).await {
+                    log::warn!("auto-scroll finish: {e}");
+                }
+                break;
             }
         }
     });
+}
+
+/// Turn on auto-scroll for the in-flight capture. The running sampler picks this
+/// up on its next tick and starts driving the target. Returns an error (which
+/// the HUD surfaces) if no capture is in progress.
+#[tauri::command]
+pub fn scroll_capture_auto_start_command<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let st = app.state::<AppState>();
+    let mut g = st.scroll.lock().expect("scroll mutex poisoned");
+    let Some(s) = g.as_mut() else {
+        return Err("no scroll capture in progress".into());
+    };
+    s.auto = true;
+    s.dup_streak = 0;
+    Ok(())
+}
+
+/// Stop auto-scroll and return to manual (user pressed Stop). The session stays
+/// alive so the user can keep scrolling by hand and finish when ready.
+#[tauri::command]
+pub fn scroll_capture_auto_stop_command<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let st = app.state::<AppState>();
+    let mut g = st.scroll.lock().expect("scroll mutex poisoned");
+    if let Some(s) = g.as_mut() {
+        s.auto = false;
+        s.dup_streak = 0;
+    }
+    Ok(())
+}
+
+/// Shared finish tail: drop the region outline, encode the stitched image, open
+/// it in the editor (honoring intermediate format + max-edge downscale), then
+/// close the HUD. Used by both the manual Capture button and auto-scroll's
+/// bottom-reached auto-finish.
+async fn finish_open<R: Runtime>(
+    app: &AppHandle<R>,
+    acc: image::RgbaImage,
+) -> Result<String, String> {
+    // The region outline is only a live-capture aid — drop it as soon as we
+    // commit, before the (potentially slow) encode.
+    windows::close_scroll_guide(app);
+    // Keep the HUD up (spinner + input block) through the encode, then close it
+    // as the editor opens — closing it earlier tears the window down before the
+    // "Processing capture…" spinner can paint.
+    let res = crate::commands::capture::capture_to_editor(
+        app.clone(),
+        "scroll_finish".into(),
+        move || Ok(acc),
+    )
+    .await;
+    windows::close_scroll_hud(app);
+    if res.is_err() {
+        // On success `capture_to_editor` shows the editor; on failure it does
+        // not, and the session is already taken. Surface a window so the user
+        // isn't left staring at nothing after a failed finish.
+        windows::show_editor_if_hidden(app);
+    }
+    res
 }
 
 /// Finish the capture: stop sampling, encode the stitched image, open it in the
@@ -212,35 +378,13 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
         guard.take()
     };
-    // The region outline is only a live-capture aid — drop it as soon as the
-    // user commits, before the (potentially slow) encode.
-    windows::close_scroll_guide(&app);
     let Some(session) = session else {
+        // Nothing in flight — tear down whatever windows are up and report it.
+        windows::close_scroll_guide(&app);
         windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
     };
-    let acc = session.acc;
-    // Keep the HUD up (spinner + input block) through the encode, then close it
-    // as the editor opens. Closing it before this tail runs tears the window
-    // down before the "Processing capture…" spinner can paint, so the user
-    // sees no feedback during the slow encode.
-    // Reuse the standard encode + open-in-editor tail (honors intermediate
-    // format + max-edge downscale from settings).
-    let res = crate::commands::capture::capture_to_editor(
-        app.clone(),
-        "scroll_finish".into(),
-        move || Ok(acc),
-    )
-    .await;
-    windows::close_scroll_hud(&app);
-    if res.is_err() {
-        // On success `capture_to_editor` shows the editor; on failure it does
-        // not, and the session is already taken (so the HUD's orphan guard
-        // won't restore it either). Surface a window so the user isn't left
-        // staring at nothing after a failed scroll finish.
-        windows::show_editor_if_hidden(&app);
-    }
-    res
+    finish_open(&app, session.acc).await
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.

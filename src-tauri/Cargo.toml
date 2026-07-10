@@ -46,6 +46,9 @@ objc2 = "0.6.4"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 objc2-vision = "0.3"
+# Accessibility (AX) permission dictionary + CGEvent teardown for auto-scroll.
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61.3", features = ["Media_Ocr", "Graphics_Imaging", "Storage", "Storage_Streams", "Globalization", "Foundation", "Foundation_Collections"] }
@@ -54,4 +57,6 @@ windows-sys = { version = "0.59", features = [
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
+    # SendInput / MOUSEEVENTF_WHEEL for auto-scroll synthetic wheel events.
+    "Win32_UI_Input_KeyboardAndMouse",
 ] }
