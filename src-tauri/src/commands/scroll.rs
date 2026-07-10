@@ -196,14 +196,25 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
         guard.take()
     };
-    windows::close_scroll_hud(&app);
     let Some(session) = session else {
+        windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
     };
     let acc = session.acc;
+    // Keep the HUD up (spinner + input block) through the encode, then close it
+    // as the editor opens. Closing it before this tail runs tears the window
+    // down before the "Processing capture…" spinner can paint, so the user
+    // sees no feedback during the slow encode.
     // Reuse the standard encode + open-in-editor tail (honors intermediate
     // format + max-edge downscale from settings).
-    crate::commands::capture::capture_to_editor(app, "scroll_finish".into(), move || Ok(acc)).await
+    let res = crate::commands::capture::capture_to_editor(
+        app.clone(),
+        "scroll_finish".into(),
+        move || Ok(acc),
+    )
+    .await;
+    windows::close_scroll_hud(&app);
+    res
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.
