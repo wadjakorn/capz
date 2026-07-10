@@ -108,6 +108,21 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     app.run_on_main_thread(move || {
         let res =
             windows::show_scroll_hud(&app_main, monitor_id, x, y, w, h).map_err(|e| e.to_string());
+        // The region outline is a non-critical visual aid; only bother once the
+        // HUD (the actual control) is up — otherwise an aborting capture would
+        // spawn and immediately tear down a full transparent window. If it fails
+        // the HUD still drives the capture, so just log and carry on.
+        if res.is_ok() {
+            if let Err(e) = windows::show_scroll_guide(&app_main, monitor_id, x, y, w, h) {
+                log::warn!("show scroll guide: {e}");
+            }
+            // Re-assert HUD focus: the guide is focused(false) + click-through,
+            // but showing an always-on-top window can still steal activation on
+            // Windows, and Enter/Esc (finish/cancel) must reach the HUD.
+            if let Some(hud) = app_main.get_webview_window(windows::SCROLL_HUD_LABEL) {
+                let _ = hud.set_focus();
+            }
+        }
         let _ = tx.send(res);
     })
     .map_err(|e| e.to_string())?;
@@ -119,6 +134,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
             let st = app.state::<AppState>();
             let _ = st.scroll.lock().expect("scroll mutex poisoned").take();
         }
+        windows::close_scroll_guide(&app);
         windows::show_editor_if_hidden(&app);
         return Err(format!("show scroll HUD: {e}"));
     }
@@ -196,14 +212,35 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
         guard.take()
     };
-    windows::close_scroll_hud(&app);
+    // The region outline is only a live-capture aid — drop it as soon as the
+    // user commits, before the (potentially slow) encode.
+    windows::close_scroll_guide(&app);
     let Some(session) = session else {
+        windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
     };
     let acc = session.acc;
+    // Keep the HUD up (spinner + input block) through the encode, then close it
+    // as the editor opens. Closing it before this tail runs tears the window
+    // down before the "Processing capture…" spinner can paint, so the user
+    // sees no feedback during the slow encode.
     // Reuse the standard encode + open-in-editor tail (honors intermediate
     // format + max-edge downscale from settings).
-    crate::commands::capture::capture_to_editor(app, "scroll_finish".into(), move || Ok(acc)).await
+    let res = crate::commands::capture::capture_to_editor(
+        app.clone(),
+        "scroll_finish".into(),
+        move || Ok(acc),
+    )
+    .await;
+    windows::close_scroll_hud(&app);
+    if res.is_err() {
+        // On success `capture_to_editor` shows the editor; on failure it does
+        // not, and the session is already taken (so the HUD's orphan guard
+        // won't restore it either). Surface a window so the user isn't left
+        // staring at nothing after a failed scroll finish.
+        windows::show_editor_if_hidden(&app);
+    }
+    res
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.
@@ -213,6 +250,7 @@ pub fn scroll_capture_cancel_command<R: Runtime>(app: AppHandle<R>) -> Result<()
         let st = app.state::<AppState>();
         let _ = st.scroll.lock().expect("scroll mutex poisoned").take();
     }
+    windows::close_scroll_guide(&app);
     windows::close_scroll_hud(&app);
     windows::show_editor_if_hidden(&app);
     Ok(())
