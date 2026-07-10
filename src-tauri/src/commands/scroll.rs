@@ -41,9 +41,32 @@ const AUTO_SETTLE_MS: u64 = 350;
 const AUTO_MIN_PROGRESS_ROWS: u32 = 8;
 
 /// Consecutive no-progress auto steps that mean the page won't move any further.
-/// Interpreted as **bottom reached** once at least one step made progress, or as
-/// **target ignores synthetic scroll** if nothing ever moved.
+/// Interpreted as **bottom reached** once at least one *auto* step made progress,
+/// or as **target ignores synthetic scroll** if auto-scroll never moved it.
 const AUTO_NO_PROGRESS_STREAK: u32 = 3;
+
+/// What the sampler should do after an auto-scroll step, given the running
+/// no-progress `streak` and whether auto-scroll has advanced at all this session
+/// (`auto_progressed`). Pure so the decision is unit-tested (see tests below).
+#[derive(Debug, PartialEq, Eq)]
+enum AutoOutcome {
+    /// Keep auto-scrolling.
+    Continue,
+    /// The page has stopped growing after real auto progress ⇒ end + encode.
+    Bottomed,
+    /// Auto-scroll never moved the target ⇒ hand back to manual scrolling.
+    Fallback,
+}
+
+fn auto_outcome(streak: u32, auto_progressed: bool) -> AutoOutcome {
+    if streak < AUTO_NO_PROGRESS_STREAK {
+        AutoOutcome::Continue
+    } else if auto_progressed {
+        AutoOutcome::Bottomed
+    } else {
+        AutoOutcome::Fallback
+    }
+}
 
 /// Live progress pushed to the HUD after each sample.
 #[derive(Clone, serde::Serialize)]
@@ -133,6 +156,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
             warnings: 0,
             auto: false,
             dup_streak: 0,
+            auto_progressed: false,
         });
     }
 
@@ -275,17 +299,20 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 if s.auto {
                     if progressed {
                         s.dup_streak = 0;
+                        // Record that auto-scroll (not an earlier manual scroll)
+                        // actually advanced the page — this is what separates
+                        // "bottom reached" from "target ignored the wheel".
+                        s.auto_progressed = true;
                     } else {
                         s.dup_streak += 1;
                     }
-                    if s.dup_streak >= AUTO_NO_PROGRESS_STREAK {
-                        if s.frames > 1 {
-                            // Advanced earlier, now stuck ⇒ bottom reached.
-                            bottomed = true;
-                        } else {
-                            // Never moved ⇒ target ignores synthetic scroll.
+                    match auto_outcome(s.dup_streak, s.auto_progressed) {
+                        AutoOutcome::Continue => {}
+                        AutoOutcome::Bottomed => bottomed = true,
+                        AutoOutcome::Fallback => {
                             s.auto = false;
                             s.dup_streak = 0;
+                            s.auto_progressed = false;
                             note = Some("Target ignored auto-scroll — scroll manually".into());
                         }
                     }
@@ -323,6 +350,10 @@ pub fn scroll_capture_auto_start_command<R: Runtime>(app: AppHandle<R>) -> Resul
     };
     s.auto = true;
     s.dup_streak = 0;
+    // Fresh auto session: no auto progress yet. Prevents manual frames captured
+    // before this point from being counted as auto-scroll progress (which would
+    // let an ignored-scroll target be mistaken for "bottom reached").
+    s.auto_progressed = false;
     Ok(())
 }
 
@@ -398,4 +429,48 @@ pub fn scroll_capture_cancel_command<R: Runtime>(app: AppHandle<R>) -> Result<()
     windows::close_scroll_hud(&app);
     windows::show_editor_if_hidden(&app);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{auto_outcome, AutoOutcome, AUTO_NO_PROGRESS_STREAK};
+
+    #[test]
+    fn keeps_scrolling_below_the_streak_threshold() {
+        assert_eq!(auto_outcome(0, false), AutoOutcome::Continue);
+        assert_eq!(auto_outcome(0, true), AutoOutcome::Continue);
+        assert_eq!(
+            auto_outcome(AUTO_NO_PROGRESS_STREAK - 1, true),
+            AutoOutcome::Continue
+        );
+    }
+
+    #[test]
+    fn bottoms_out_only_after_auto_scroll_advanced() {
+        assert_eq!(
+            auto_outcome(AUTO_NO_PROGRESS_STREAK, true),
+            AutoOutcome::Bottomed
+        );
+        assert_eq!(
+            auto_outcome(AUTO_NO_PROGRESS_STREAK + 5, true),
+            AutoOutcome::Bottomed
+        );
+    }
+
+    #[test]
+    fn falls_back_when_auto_scroll_never_moved_even_after_manual_frames() {
+        // The regression this guards: the user scrolled manually first (so the
+        // session already has several frames), then enabled auto-scroll on a
+        // target that ignores synthetic wheel. `auto_progressed` is false, so a
+        // stalled streak must hand back to manual — NOT declare "bottom reached"
+        // and finish a truncated capture.
+        assert_eq!(
+            auto_outcome(AUTO_NO_PROGRESS_STREAK, false),
+            AutoOutcome::Fallback
+        );
+        assert_eq!(
+            auto_outcome(AUTO_NO_PROGRESS_STREAK + 2, false),
+            AutoOutcome::Fallback
+        );
+    }
 }

@@ -34,6 +34,12 @@ pub struct ScrollSession {
     /// progress. Used to detect "bottom reached" (after progress) or "target
     /// ignores synthetic scroll" (no progress at all).
     pub dup_streak: u32,
+    /// Whether **auto-scroll itself** has appended real content since it was
+    /// last enabled. Distinct from `frames`, which also counts frames the user
+    /// scrolled in manually before pressing Auto-scroll — using `frames` here
+    /// would misread those as auto progress and finish a truncated capture when
+    /// the target actually ignores synthetic scroll. Reset each time auto starts.
+    pub auto_progressed: bool,
 }
 
 /// App-wide runtime state.
