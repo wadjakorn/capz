@@ -824,8 +824,18 @@ pub fn show_scroll_guide<R: Runtime>(
     .visible(false)
     .build()?;
 
-    // Wheel/clicks must reach the page being scrolled underneath.
-    let _ = win.set_ignore_cursor_events(true);
+    // Wheel/clicks must reach the page being scrolled underneath. The window is
+    // still hidden (`visible(false)`) at this point, so if click-through can't be
+    // enabled we close it and bail *before* showing anything — otherwise a
+    // transparent always-on-top window over the region would swallow input and
+    // block the user from scrolling. The caller treats this Err as non-fatal, so
+    // the capture continues without the outline.
+    if let Err(e) = win.set_ignore_cursor_events(true) {
+        let _ = win.close();
+        return Err(tauri::Error::Anyhow(anyhow::anyhow!(
+            "guide set_ignore_cursor_events: {e}"
+        )));
+    }
 
     #[cfg(target_os = "macos")]
     {
