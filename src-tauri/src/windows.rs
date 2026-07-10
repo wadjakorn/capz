@@ -550,6 +550,13 @@ pub fn close_overlays<R: Runtime>(app: &AppHandle<R>) {
 /// Label of the compact scrolling-capture HUD (Capture/Cancel + live progress).
 /// Deliberately not `overlay-*` so overlay hide/close helpers leave it alone.
 pub const SCROLL_HUD_LABEL: &str = "scroll-hud";
+pub const SCROLL_GUIDE_LABEL: &str = "scroll-guide";
+
+/// Thickness (logical px) of the capture-region guide outline. The guide window
+/// is the region grown by this much on every side, so the border ring lands
+/// just *outside* the captured pixels (kept in sync with the `2px` border in
+/// `src/app/scroll-guide/page.tsx`).
+const GUIDE_BORDER: f64 = 2.0;
 
 /// Logical size of the HUD pill.
 const HUD_W: f64 = 380.0;
@@ -685,6 +692,7 @@ pub fn show_scroll_hud<R: Runtime>(
                 taken.is_some()
             };
             if orphaned {
+                close_scroll_guide(&app_ev);
                 show_editor_if_hidden(&app_ev);
             }
         }
@@ -763,6 +771,117 @@ pub fn close_scroll_hud<R: Runtime>(app: &AppHandle<R>) {
         if let Some(win) = app_close.get_webview_window(SCROLL_HUD_LABEL) {
             if let Err(e) = win.close() {
                 log::warn!("close scroll HUD failed: {e}");
+            }
+        }
+    });
+}
+
+/// Show a transparent, click-through outline around the capture region for the
+/// duration of a scrolling capture, so the user can see exactly what is being
+/// grabbed while they scroll. The window is the region grown by [`GUIDE_BORDER`]
+/// on every side and positioned so its border ring falls just *outside* the
+/// captured pixels (the sampler crops to the region, so anything over it is
+/// baked into every frame — ticket ixD-igh14WRG). It ignores cursor events, so
+/// wheel/clicks pass through to the page beneath.
+///
+/// Non-critical: callers treat a failure here as a warning, not an abort — the
+/// HUD remains the source of truth for finishing/cancelling the capture.
+pub fn show_scroll_guide<R: Runtime>(
+    app: &AppHandle<R>,
+    monitor_id: u32,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window(SCROLL_GUIDE_LABEL) {
+        let _ = win.show();
+        return Ok(());
+    }
+
+    let mons = monitor_service::list_monitors()
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("list monitors: {e}")))?;
+    let m = mons
+        .iter()
+        .find(|m| m.id == monitor_id)
+        .or_else(|| mons.iter().find(|m| m.is_primary))
+        .or_else(|| mons.first())
+        .ok_or_else(|| tauri::Error::Anyhow(anyhow::anyhow!("no monitor for scroll guide")))?;
+
+    let win = WebviewWindowBuilder::new(
+        app,
+        SCROLL_GUIDE_LABEL,
+        WebviewUrl::App("scroll-guide/".into()),
+    )
+    .title("capz — Capture region")
+    .transparent(true)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .focused(false)
+    .shadow(false)
+    .visible(false)
+    .build()?;
+
+    // Wheel/clicks must reach the page being scrolled underneath.
+    let _ = win.set_ignore_cursor_events(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        // Monitor geometry is logical points; the region is physical px.
+        let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
+        let rx = m.x as f64 + x as f64 / scale;
+        let ry = m.y as f64 + y as f64 / scale;
+        let rw = w as f64 / scale;
+        let rh = h as f64 / scale;
+        win.set_size(LogicalSize::new(rw + 2.0 * GUIDE_BORDER, rh + 2.0 * GUIDE_BORDER))?;
+        win.set_position(LogicalPosition::new(rx - GUIDE_BORDER, ry - GUIDE_BORDER))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Monitor geometry and the region are both physical px here.
+        let scale = if m.scale_factor > 0.0 { m.scale_factor as f64 } else { 1.0 };
+        let border = GUIDE_BORDER * scale;
+        let rx = m.x as f64 + x as f64;
+        let ry = m.y as f64 + y as f64;
+        win.set_size(PhysicalSize::new(
+            (w as f64 + 2.0 * border).round() as u32,
+            (h as f64 + 2.0 * border).round() as u32,
+        ))?;
+        win.set_position(PhysicalPosition::new(
+            (rx - border).round() as i32,
+            (ry - border).round() as i32,
+        ))?;
+        #[cfg(target_os = "windows")]
+        disable_dwm_transitions(&win);
+    }
+
+    win.show()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::{msg_send, runtime::AnyObject};
+        let ns_window = win.ns_window()? as *mut AnyObject;
+        unsafe {
+            // Just below the HUD level (1001) so the pill stays on top, but still
+            // above the screen-saver level to float over full-screen apps.
+            let _: () = msg_send![ns_window, setLevel: 1000_i64];
+            let behavior: u64 = (1u64 << 0) | (1u64 << 8); // CanJoinAllSpaces | FullScreenAuxiliary
+            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+        }
+    }
+
+    Ok(())
+}
+
+/// Close the capture-region guide outline if present.
+pub fn close_scroll_guide<R: Runtime>(app: &AppHandle<R>) {
+    let app_close = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(win) = app_close.get_webview_window(SCROLL_GUIDE_LABEL) {
+            if let Err(e) = win.close() {
+                log::warn!("close scroll guide failed: {e}");
             }
         }
     });

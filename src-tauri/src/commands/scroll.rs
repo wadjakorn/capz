@@ -108,6 +108,11 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     app.run_on_main_thread(move || {
         let res =
             windows::show_scroll_hud(&app_main, monitor_id, x, y, w, h).map_err(|e| e.to_string());
+        // The region outline is a non-critical visual aid — if it fails to open
+        // the HUD still drives the capture, so just log and carry on.
+        if let Err(e) = windows::show_scroll_guide(&app_main, monitor_id, x, y, w, h) {
+            log::warn!("show scroll guide: {e}");
+        }
         let _ = tx.send(res);
     })
     .map_err(|e| e.to_string())?;
@@ -119,6 +124,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
             let st = app.state::<AppState>();
             let _ = st.scroll.lock().expect("scroll mutex poisoned").take();
         }
+        windows::close_scroll_guide(&app);
         windows::show_editor_if_hidden(&app);
         return Err(format!("show scroll HUD: {e}"));
     }
@@ -196,6 +202,9 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
         guard.take()
     };
+    // The region outline is only a live-capture aid — drop it as soon as the
+    // user commits, before the (potentially slow) encode.
+    windows::close_scroll_guide(&app);
     let Some(session) = session else {
         windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
@@ -224,6 +233,7 @@ pub fn scroll_capture_cancel_command<R: Runtime>(app: AppHandle<R>) -> Result<()
         let st = app.state::<AppState>();
         let _ = st.scroll.lock().expect("scroll mutex poisoned").take();
     }
+    windows::close_scroll_guide(&app);
     windows::close_scroll_hud(&app);
     windows::show_editor_if_hidden(&app);
     Ok(())
