@@ -198,6 +198,7 @@ pub async fn capture_full_monitor<R: Runtime>(
     let res = crate::commands::capture::capture_to_editor(
         app.clone(),
         format!("capture_full_monitor({monitor_id})"),
+        crate::windows::CaptureSource::Full,
         move || crate::services::capture_service::capture_monitor(monitor_id),
     )
     .await;
@@ -217,6 +218,7 @@ pub async fn capture_window_command<R: Runtime>(
     let res = crate::commands::capture::capture_to_editor(
         app.clone(),
         format!("capture_window({window_id})"),
+        crate::windows::CaptureSource::Window,
         move || window_service::capture_window(window_id),
     )
     .await;

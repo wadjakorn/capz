@@ -20,6 +20,9 @@ export type Tool =
  */
 export type ImageCrop = { x: number; y: number; w: number; h: number };
 
+/** Which capture opened the current editor image (mirrors Rust CaptureSource). */
+export type CaptureSource = "full" | "area" | "window" | "scroll" | "other";
+
 type Base = { id: string; rotation?: number };
 
 export type RectAnnotation = Base & {
@@ -153,6 +156,10 @@ type State = {
   past: Snapshot[];
   future: Snapshot[];
   hasImage: boolean;
+  /** Which capture produced the current image (drives backdrop default). */
+  captureSource: CaptureSource;
+  /** Whether the padded backdrop is rendered behind the capture. */
+  backdropOn: boolean;
   /** Current crop into the source image, or null for the full image. */
   imageCrop: ImageCrop | null;
   /** 0 = uninitialised; EditorStage fits on first image load and on `reset`. */
@@ -164,6 +171,8 @@ type State = {
   setStickerSelection: (sel: StickerSelection) => void;
   setNextPinNumber: (n: number) => void;
   setHasImage: (v: boolean) => void;
+  setCaptureSource: (s: CaptureSource) => void;
+  setBackdropOn: (on: boolean) => void;
   select: (id: string | null) => void;
   add: (a: Annotation) => void;
   update: (id: string, patch: Partial<Annotation>) => void;
@@ -206,6 +215,8 @@ export const useEditor = create<State>((set, get) => ({
   past: [],
   future: [],
   hasImage: false,
+  captureSource: "other",
+  backdropOn: false,
   imageCrop: null,
   displayScale: 0,
   guides: { x: [], y: [] },
@@ -215,6 +226,8 @@ export const useEditor = create<State>((set, get) => ({
   setStickerSelection: (sel) => set({ stickerSelection: sel }),
   setNextPinNumber: (n) => set({ nextPinNumber: n }),
   setHasImage: (v) => set({ hasImage: v }),
+  setCaptureSource: (s) => set({ captureSource: s }),
+  setBackdropOn: (on) => set({ backdropOn: on }),
   select: (id) => set({ selectedId: id }),
 
   add: (a) => {

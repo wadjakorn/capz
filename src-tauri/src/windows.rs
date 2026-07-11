@@ -340,9 +340,46 @@ pub fn set_editor_always_on_top<R: Runtime>(app: AppHandle<R>, on: bool) -> Resu
     Ok(())
 }
 
+/// Which capture produced an image opened in the editor. Forwarded to the
+/// frontend with `editor:load-image` so it can, e.g., default the padded
+/// backdrop on for window captures. `Other` covers non-capture opens (paste,
+/// flatten-to-new).
+#[derive(Clone, Copy)]
+pub enum CaptureSource {
+    Full,
+    Area,
+    Window,
+    Scroll,
+    Other,
+}
+
+impl CaptureSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CaptureSource::Full => "full",
+            CaptureSource::Area => "area",
+            CaptureSource::Window => "window",
+            CaptureSource::Scroll => "scroll",
+            CaptureSource::Other => "other",
+        }
+    }
+}
+
+/// Payload for `editor:load-image`. Object form (was a bare path string) so the
+/// editor learns the capture source alongside the file.
+#[derive(Clone, serde::Serialize)]
+struct LoadImagePayload {
+    path: String,
+    source: String,
+}
+
 /// Set the active workspace image (replacing/removing any prior temp PNG),
 /// then ensure the editor window is visible and notify the frontend.
-pub fn load_editor_image<R: Runtime>(app: &AppHandle<R>, path: &str) -> tauri::Result<()> {
+pub fn load_editor_image<R: Runtime>(
+    app: &AppHandle<R>,
+    path: &str,
+    source: CaptureSource,
+) -> tauri::Result<()> {
     use tauri::Emitter;
 
     let state = app.state::<crate::state::AppState>();
@@ -356,7 +393,11 @@ pub fn load_editor_image<R: Runtime>(app: &AppHandle<R>, path: &str) -> tauri::R
     }
 
     show_editor(app)?;
-    if let Err(e) = app.emit_to("editor", "editor:load-image", path.to_string()) {
+    let payload = LoadImagePayload {
+        path: path.to_string(),
+        source: source.as_str().to_string(),
+    };
+    if let Err(e) = app.emit_to("editor", "editor:load-image", payload) {
         log::warn!("emit editor:load-image: {e}");
     }
     crate::services::sound::play_capture_sound(app);

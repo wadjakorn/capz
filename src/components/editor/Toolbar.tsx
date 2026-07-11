@@ -51,6 +51,7 @@ import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { ToolButton } from "./toolbar/ToolButton";
+import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
@@ -854,6 +855,9 @@ export function Toolbar({
             })
           }
         />
+        <Divider />
+        {/* Padded gradient/solid backdrop behind the capture */}
+        {hasImage && <BackdropControl />}
         <Divider />
         {/* OCR detect-text toggle (desktop only — OCR runs in the Rust core) */}
         {tauriUi && (

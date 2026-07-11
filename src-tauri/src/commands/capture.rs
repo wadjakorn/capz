@@ -93,6 +93,7 @@ pub async fn list_monitors_command() -> Result<Vec<monitor_service::MonitorInfo>
 pub async fn capture_to_editor<R, F>(
     app: AppHandle<R>,
     log_tag: String,
+    source: windows::CaptureSource,
     capture: F,
 ) -> Result<String, String>
 where
@@ -127,7 +128,7 @@ where
     let app_main = app.clone();
     let path_open = path_str.clone();
     let main_res = app.run_on_main_thread(move || {
-        if let Err(e) = windows::load_editor_image(&app_main, &path_open) {
+        if let Err(e) = windows::load_editor_image(&app_main, &path_open, source) {
             log::error!("load_editor_image: {e}");
         }
     });
@@ -138,7 +139,13 @@ where
 
 #[tauri::command]
 pub async fn capture_full_command<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
-    capture_to_editor(app, "capture_full".into(), capture_service::capture_primary).await
+    capture_to_editor(
+        app,
+        "capture_full".into(),
+        windows::CaptureSource::Full,
+        capture_service::capture_primary,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -146,9 +153,12 @@ pub async fn capture_monitor_command<R: Runtime>(
     app: AppHandle<R>,
     monitor_id: u32,
 ) -> Result<String, String> {
-    capture_to_editor(app, format!("capture_monitor({monitor_id})"), move || {
-        capture_service::capture_monitor(monitor_id)
-    })
+    capture_to_editor(
+        app,
+        format!("capture_monitor({monitor_id})"),
+        windows::CaptureSource::Full,
+        move || capture_service::capture_monitor(monitor_id),
+    )
     .await
 }
 
@@ -193,6 +203,7 @@ pub async fn capture_region_command<R: Runtime>(
     let res = capture_to_editor(
         app.clone(),
         format!("capture_region(mon={monitor_id}, {x},{y} {w}x{h})"),
+        windows::CaptureSource::Area,
         move || capture_service::capture_region(monitor_id, x, y, w, h),
     )
     .await;

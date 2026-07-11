@@ -387,6 +387,7 @@ async fn finish_open<R: Runtime>(
     let res = crate::commands::capture::capture_to_editor(
         app.clone(),
         "scroll_finish".into(),
+        windows::CaptureSource::Scroll,
         move || Ok(acc),
     )
     .await;
