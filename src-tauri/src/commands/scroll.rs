@@ -157,6 +157,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
             auto: false,
             dup_streak: 0,
             auto_progressed: false,
+            footer: None,
         });
     }
 
@@ -281,11 +282,36 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
             // the session here so the loop stops and the encode owns a stable
             // image. The lock (and the borrowed `State`) must not straddle the
             // finish `.await`, so everything below runs inside this block.
-            let (progress, finish_session) = {
+            let (progress, finish_acc) = {
                 let st = app.state::<AppState>();
                 let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
                 let Some(s) = guard.as_mut() else { break };
-                let out = stitch::append_frame(&mut s.acc, &s.prev, &frame, EXCLUDE_BAND);
+                // Measure the scroll first (no mutation). Exclude the known fixed
+                // footer (plus the default band) from matching so window chrome
+                // doesn't bias the offset.
+                let exclude = EXCLUDE_BAND.max(s.footer.unwrap_or(0));
+                let mut decision = stitch::measure_frame(&s.prev, &frame, exclude);
+                // Lock the fixed-footer height on the FIRST confident/plausible
+                // scroll (not a fling/butt-join, whose frames don't share a real
+                // static band). The footer is the bottom band identical between
+                // these two consecutive frames — the window chrome/scrollbar/border
+                // that never moves. Clamp it to a plausible fraction of the frame
+                // so a bad measurement can never eat real content.
+                if s.footer.is_none() && matches!(decision, stitch::StitchDecision::Scroll { .. }) {
+                    let frame_h = frame.height();
+                    let f = stitch::static_bottom_rows(&s.prev, &frame).min(frame_h / 4);
+                    // `acc` is still exactly the first frame here (earlier duplicate
+                    // frames appended nothing), so dropping its bottom `f` rows
+                    // removes the first frame's own footer band.
+                    stitch::trim_bottom_rows(&mut s.acc, f);
+                    s.footer = Some(f);
+                    // Re-measure with the now-known footer excluded for a clean
+                    // first offset (matters only when the footer exceeds the
+                    // default band).
+                    decision = stitch::measure_frame(&s.prev, &frame, EXCLUDE_BAND.max(f));
+                }
+                let footer = s.footer.unwrap_or(0);
+                let out = stitch::apply_frame(&mut s.acc, &frame, decision, footer);
                 let progressed = !out.duplicate && out.appended >= AUTO_MIN_PROGRESS_ROWS;
                 if !out.duplicate {
                     s.prev = frame;
@@ -320,17 +346,16 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 let mut progress = ScrollProgress::from_session(s);
                 progress.note = note;
                 progress.finishing = bottomed;
-                let finish_session = if bottomed { guard.take() } else { None };
-                (progress, finish_session)
+                let finish_acc = if bottomed { guard.take().map(|s| s.acc) } else { None };
+                (progress, finish_acc)
             };
 
             emit_progress(&app, progress);
-            if let Some(session) = finish_session {
+            if let Some(acc) = finish_acc {
                 // Spinner (emitted above with finishing=true) first, then the
                 // slow encode + open — the session is already out, so there's no
-                // double-finish race with the manual Capture button. `finish_open`
-                // trims the static footer + any duplicate band before encoding.
-                if let Err(e) = finish_open(&app, session).await {
+                // double-finish race with the manual Capture button.
+                if let Err(e) = finish_open(&app, acc).await {
                     log::warn!("auto-scroll finish: {e}");
                 }
                 break;
@@ -371,46 +396,18 @@ pub fn scroll_capture_auto_stop_command<R: Runtime>(app: AppHandle<R>) -> Result
     Ok(())
 }
 
-/// Height (physical px) of the fixed bottom band the user accidentally captured
-/// — window chrome / an app footer/toolbar / the window's bottom border that
-/// never scrolls. Found by comparing the **first** frame's bottom against the
-/// **last** frame's bottom: the fixed band is identical in both, while any
-/// whitespace revealed later by scrolling was *real content* in the first frame,
-/// so it does not match and is excluded. Returns 0 when nothing scrolled (single
-/// frame) so a static capture is never trimmed.
-fn detect_static_footer(session: &ScrollSession) -> u32 {
-    // All frames share the captured region's dimensions; use the real frame
-    // height (the requested region height may have been clamped at capture).
-    let frame_h = session.prev.height();
-    // Rows [0, frame_h) of the accumulator are the untouched first frame
-    // (appends only add rows below). `prev` is the last stitched frame.
-    if frame_h == 0 || session.acc.height() <= frame_h {
-        return 0; // never scrolled
-    }
-    let first = image::imageops::crop_imm(&session.acc, 0, 0, session.acc.width(), frame_h)
-        .to_image();
-    stitch::static_bottom_rows(&first, &session.prev)
-}
-
-/// Shared finish tail: trim unwanted bottom chrome, drop the region outline,
-/// encode the stitched image, open it in the editor (honoring intermediate
-/// format + max-edge downscale), then close the HUD. Used by both the manual
-/// Capture button and auto-scroll's bottom-reached auto-finish.
+/// Shared finish tail: drop the region outline, encode the stitched image, open
+/// it in the editor (honoring intermediate format + max-edge downscale), then
+/// close the HUD. Used by both the manual Capture button and auto-scroll's
+/// bottom-reached auto-finish.
 ///
-/// Trims the fixed bottom band (see [`detect_static_footer`]) then any residual
-/// duplicated trailing band. Both are conservative: no-ops when nothing was
-/// detected, and the footer is bounded to half the image so a bad measurement
-/// can never gut the capture.
+/// The fixed window footer is now excluded during stitching (see the sampler),
+/// so nothing to trim there. As a conservative safety net we still drop any
+/// residual duplicated trailing band; it is a no-op on a clean stitch.
 async fn finish_open<R: Runtime>(
     app: &AppHandle<R>,
-    session: ScrollSession,
+    mut acc: image::RgbaImage,
 ) -> Result<String, String> {
-    let footer = detect_static_footer(&session).min(session.acc.height() / 2);
-    let mut acc = session.acc;
-    if footer > 0 {
-        stitch::trim_bottom_rows(&mut acc, footer);
-        log::info!("scroll: trimmed {footer} static footer rows");
-    }
     let dup = stitch::trim_trailing_duplicate(&mut acc);
     if dup > 0 {
         log::info!("scroll: trimmed {dup} duplicated trailing rows");
@@ -452,7 +449,7 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
     };
-    finish_open(&app, session).await
+    finish_open(&app, session.acc).await
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.
