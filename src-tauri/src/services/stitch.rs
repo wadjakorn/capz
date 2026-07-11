@@ -211,6 +211,42 @@ fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(
     best.map(|(s, mean)| (s, mean, zero_mean))
 }
 
+/// Mean per-sample grayscale difference at or below which a bottom row is
+/// considered unchanged between two consecutive frames. The fixed footer /
+/// window border is captured from the same on-screen pixels each frame, so it is
+/// near-identical; a small tolerance absorbs any AA/animation noise.
+const STATIC_ROW_MAX_DIFF: f32 = 6.0;
+
+/// Count the contiguous run of bottom rows that stay (near-)identical between two
+/// same-size frames, scanning upward from the last row. For consecutive frames
+/// of a fixed scroll region this is the height of the **static bottom band** —
+/// window chrome, an app footer/toolbar, or the window's bottom border that
+/// never scrolls. Returns 0 if the frames differ in size or the very bottom row
+/// already changed.
+///
+/// The caller tracks the running minimum of this over genuinely-scrolled frame
+/// pairs; that minimum is the persistent footer height to trim off the finished
+/// capture (see `commands::scroll`).
+pub fn static_bottom_rows(a: &RgbaImage, b: &RgbaImage) -> u32 {
+    let (aw, ah) = a.dimensions();
+    if (aw, ah) != b.dimensions() || ah == 0 {
+        return 0;
+    }
+    let fa = Fingerprint::new(a);
+    let fb = Fingerprint::new(b);
+    let mut count = 0u32;
+    let mut y = ah;
+    while y > 0 {
+        y -= 1;
+        let mean = row_abs_diff(fa.row(y), fb.row(y)) as f32 / ROW_SAMPLES as f32;
+        if mean > STATIC_ROW_MAX_DIFF {
+            break;
+        }
+        count += 1;
+    }
+    count
+}
+
 /// Smallest trailing band (rows) considered for the duplicate-trim below.
 const MIN_DUP_BAND: u32 = 16;
 
@@ -273,7 +309,7 @@ fn trailing_band_diff(fp: &Fingerprint, h: u32, b: u32) -> f32 {
 
 /// Truncate `acc` by removing its bottom `rows` rows in place. No-op if `rows`
 /// is 0 or would empty the image. Reuses the backing buffer.
-fn trim_bottom_rows(acc: &mut RgbaImage, rows: u32) {
+pub fn trim_bottom_rows(acc: &mut RgbaImage, rows: u32) {
     let (w, h) = acc.dimensions();
     if rows == 0 || rows >= h {
         return;
@@ -768,5 +804,58 @@ mod tests {
         let trimmed = trim_trailing_duplicate(&mut acc);
         assert_eq!(trimmed, 0);
         assert_eq!(acc.height(), 20);
+    }
+
+    #[test]
+    fn static_bottom_rows_measures_fixed_footer() {
+        // Two consecutive frames: identical bottom `footer` rows (fixed window
+        // chrome), different content above (it scrolled).
+        let (w, h, footer) = (100u32, 300u32, 40u32);
+        let a = vnoise_image(w, h);
+        let mut b = a.clone();
+        for y in 0..(h - footer) {
+            for x in 0..w {
+                let p = a.get_pixel(x, y).0;
+                b.put_pixel(x, y, Rgba([p[0] ^ 0xff, p[1], p[2], 255]));
+            }
+        }
+        assert_eq!(static_bottom_rows(&a, &b), footer);
+    }
+
+    #[test]
+    fn static_bottom_rows_zero_when_bottom_changes() {
+        let a = vnoise_image(80, 120);
+        let mut b = a.clone();
+        for x in 0..80 {
+            let p = a.get_pixel(x, 119).0;
+            b.put_pixel(x, 119, Rgba([p[0] ^ 0xff, p[1], p[2], 255]));
+        }
+        assert_eq!(static_bottom_rows(&a, &b), 0);
+    }
+
+    #[test]
+    fn static_bottom_rows_full_height_when_identical() {
+        let a = vnoise_image(60, 100);
+        assert_eq!(static_bottom_rows(&a, &a), 100);
+    }
+
+    #[test]
+    fn static_bottom_rows_excludes_scrolled_whitespace() {
+        // The first-vs-last-frame comparison the finish path uses: `first` has
+        // real content above a fixed chrome band; `last` has whitespace above the
+        // same chrome (the page ended). Only the chrome band matches from the
+        // bottom, so scrolled-in whitespace is NOT counted as footer.
+        let (w, h, chrome) = (100u32, 300u32, 30u32);
+        let mut first = RgbaImage::from_pixel(w, h, Rgba([100, 100, 100, 255]));
+        let mut last = RgbaImage::from_pixel(w, h, Rgba([255, 255, 255, 255]));
+        let chrome_img = vnoise_image(w, chrome);
+        for y in 0..chrome {
+            for x in 0..w {
+                let p = *chrome_img.get_pixel(x, y);
+                first.put_pixel(x, h - chrome + y, p);
+                last.put_pixel(x, h - chrome + y, p);
+            }
+        }
+        assert_eq!(static_bottom_rows(&first, &last), chrome);
     }
 }

@@ -281,7 +281,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
             // the session here so the loop stops and the encode owns a stable
             // image. The lock (and the borrowed `State`) must not straddle the
             // finish `.await`, so everything below runs inside this block.
-            let (progress, finish_acc) = {
+            let (progress, finish_session) = {
                 let st = app.state::<AppState>();
                 let mut guard = st.scroll.lock().expect("scroll mutex poisoned");
                 let Some(s) = guard.as_mut() else { break };
@@ -320,25 +320,17 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 let mut progress = ScrollProgress::from_session(s);
                 progress.note = note;
                 progress.finishing = bottomed;
-                let finish_acc = if bottomed { guard.take().map(|s| s.acc) } else { None };
-                (progress, finish_acc)
+                let finish_session = if bottomed { guard.take() } else { None };
+                (progress, finish_session)
             };
 
             emit_progress(&app, progress);
-            if let Some(mut acc) = finish_acc {
-                // Auto-scroll bottomed out: the final frames often duplicate the
-                // fixed bottom window chrome / rounded edge at the very end. Trim
-                // that trailing duplicate band before encoding (no-op unless a
-                // clear duplicate is present). Auto-scroll only — the manual
-                // Capture path leaves the image untouched.
-                let trimmed = stitch::trim_trailing_duplicate(&mut acc);
-                if trimmed > 0 {
-                    log::info!("auto-scroll: trimmed {trimmed} duplicated trailing rows");
-                }
+            if let Some(session) = finish_session {
                 // Spinner (emitted above with finishing=true) first, then the
                 // slow encode + open — the session is already out, so there's no
-                // double-finish race with the manual Capture button.
-                if let Err(e) = finish_open(&app, acc).await {
+                // double-finish race with the manual Capture button. `finish_open`
+                // trims the static footer + any duplicate band before encoding.
+                if let Err(e) = finish_open(&app, session).await {
                     log::warn!("auto-scroll finish: {e}");
                 }
                 break;
@@ -379,14 +371,50 @@ pub fn scroll_capture_auto_stop_command<R: Runtime>(app: AppHandle<R>) -> Result
     Ok(())
 }
 
-/// Shared finish tail: drop the region outline, encode the stitched image, open
-/// it in the editor (honoring intermediate format + max-edge downscale), then
-/// close the HUD. Used by both the manual Capture button and auto-scroll's
-/// bottom-reached auto-finish.
+/// Height (physical px) of the fixed bottom band the user accidentally captured
+/// — window chrome / an app footer/toolbar / the window's bottom border that
+/// never scrolls. Found by comparing the **first** frame's bottom against the
+/// **last** frame's bottom: the fixed band is identical in both, while any
+/// whitespace revealed later by scrolling was *real content* in the first frame,
+/// so it does not match and is excluded. Returns 0 when nothing scrolled (single
+/// frame) so a static capture is never trimmed.
+fn detect_static_footer(session: &ScrollSession) -> u32 {
+    // All frames share the captured region's dimensions; use the real frame
+    // height (the requested region height may have been clamped at capture).
+    let frame_h = session.prev.height();
+    // Rows [0, frame_h) of the accumulator are the untouched first frame
+    // (appends only add rows below). `prev` is the last stitched frame.
+    if frame_h == 0 || session.acc.height() <= frame_h {
+        return 0; // never scrolled
+    }
+    let first = image::imageops::crop_imm(&session.acc, 0, 0, session.acc.width(), frame_h)
+        .to_image();
+    stitch::static_bottom_rows(&first, &session.prev)
+}
+
+/// Shared finish tail: trim unwanted bottom chrome, drop the region outline,
+/// encode the stitched image, open it in the editor (honoring intermediate
+/// format + max-edge downscale), then close the HUD. Used by both the manual
+/// Capture button and auto-scroll's bottom-reached auto-finish.
+///
+/// Trims the fixed bottom band (see [`detect_static_footer`]) then any residual
+/// duplicated trailing band. Both are conservative: no-ops when nothing was
+/// detected, and the footer is bounded to half the image so a bad measurement
+/// can never gut the capture.
 async fn finish_open<R: Runtime>(
     app: &AppHandle<R>,
-    acc: image::RgbaImage,
+    session: ScrollSession,
 ) -> Result<String, String> {
+    let footer = detect_static_footer(&session).min(session.acc.height() / 2);
+    let mut acc = session.acc;
+    if footer > 0 {
+        stitch::trim_bottom_rows(&mut acc, footer);
+        log::info!("scroll: trimmed {footer} static footer rows");
+    }
+    let dup = stitch::trim_trailing_duplicate(&mut acc);
+    if dup > 0 {
+        log::info!("scroll: trimmed {dup} duplicated trailing rows");
+    }
     // The region outline is only a live-capture aid — drop it as soon as we
     // commit, before the (potentially slow) encode.
     windows::close_scroll_guide(app);
@@ -424,7 +452,7 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
     };
-    finish_open(&app, session.acc).await
+    finish_open(&app, session).await
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.
