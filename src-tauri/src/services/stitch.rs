@@ -211,6 +211,134 @@ fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(
     best.map(|(s, mean)| (s, mean, zero_mean))
 }
 
+/// Smallest trailing band (rows) considered for the duplicate-trim below.
+const MIN_DUP_BAND: u32 = 16;
+
+/// Largest trailing band the duplicate-trim will remove. Window chrome / a
+/// rounded bottom edge is small; capping the search well under a full capture
+/// keeps a coincidental large-band match from ever eating real content. Also
+/// bounded by half the image height at the call site.
+const MAX_DUP_BAND: u32 = 600;
+
+/// Mean per-sample grayscale difference at or below which a trailing band is
+/// accepted as a duplicate of the band directly above it (same units as
+/// [`CONFIDENT_MEAN_ABS_DIFF`]). Tuned conservatively: a real doubled chrome
+/// band scores near-zero, while a genuine (non-repeating) tail scores well
+/// above this, so clean captures are never trimmed.
+const DUP_MEAN_ABS_DIFF: f32 = 10.0;
+
+/// Minimum vertical spread of row brightness (0–255) required in the trailing
+/// region before we trust a duplicate match. A near-uniform tail (flat
+/// whitespace, a solid footer color) "duplicates" trivially at every band
+/// height; trimming it would cut legitimate blank space, so we skip it.
+const MIN_STRUCTURE_SPREAD: f32 = 8.0;
+
+/// Mean per-sample grayscale value of a fingerprint row.
+fn row_mean(fp: &Fingerprint, y: u32) -> f32 {
+    fp.row(y).iter().map(|&v| v as u32).sum::<u32>() as f32 / ROW_SAMPLES as f32
+}
+
+/// True if rows in `[lo, hi)` carry real vertical variation (max − min row
+/// brightness ≥ [`MIN_STRUCTURE_SPREAD`]) rather than being a flat band.
+fn region_has_structure(fp: &Fingerprint, lo: u32, hi: u32) -> bool {
+    let mut min = f32::MAX;
+    let mut max = f32::MIN;
+    let mut y = lo;
+    while y < hi {
+        let m = row_mean(fp, y);
+        min = min.min(m);
+        max = max.max(m);
+        y += ROW_STEP;
+    }
+    max - min >= MIN_STRUCTURE_SPREAD
+}
+
+/// Mean per-sample grayscale difference between the trailing band `[h-b, h)` and
+/// the band directly above it `[h-2b, h)`, comparing row `h-2b+i` to `h-b+i`.
+/// Requires `2 * b <= h`.
+fn trailing_band_diff(fp: &Fingerprint, h: u32, b: u32) -> f32 {
+    let mut total: u64 = 0;
+    let mut count: u32 = 0;
+    let mut i = 0;
+    while i < b {
+        total += row_abs_diff(fp.row(h - 2 * b + i), fp.row(h - b + i)) as u64;
+        count += 1;
+        i += ROW_STEP;
+    }
+    if count == 0 {
+        return f32::MAX;
+    }
+    total as f32 / (count as f32 * ROW_SAMPLES as f32)
+}
+
+/// Truncate `acc` by removing its bottom `rows` rows in place. No-op if `rows`
+/// is 0 or would empty the image. Reuses the backing buffer.
+fn trim_bottom_rows(acc: &mut RgbaImage, rows: u32) {
+    let (w, h) = acc.dimensions();
+    if rows == 0 || rows >= h {
+        return;
+    }
+    let new_h = h - rows;
+    let keep = w as usize * new_h as usize * 4;
+    let old = std::mem::replace(acc, RgbaImage::new(0, 0));
+    let mut buf = old.into_raw();
+    buf.truncate(keep);
+    *acc = RgbaImage::from_raw(w, new_h, buf).expect("trim buffer size invariant");
+}
+
+/// Detect and trim a duplicated trailing band from a finished auto-scroll
+/// accumulator, returning the number of rows removed.
+///
+/// When a scrolling capture reaches the page bottom, the selected region's
+/// bottom edge often overlaps fixed window chrome (footer / toolbar) or the
+/// rounded window bottom edge. Because [`append_frame`] appends the *literal
+/// bottom rows* of the final frame(s), that static band ends up duplicated at
+/// the very bottom of the output (observed: the last ~96 rows a near-exact copy
+/// of the 96 above them). This finds the largest trailing band whose rows
+/// duplicate the band directly above it (mean diff ≤ [`DUP_MEAN_ABS_DIFF`]) and
+/// removes it.
+///
+/// Conservative by construction — it returns 0 (no trim) unless a clear
+/// duplicate is present, skips a near-uniform band (see [`region_has_structure`]
+/// so flat whitespace is never cut), and bounds the band to at most
+/// [`MAX_DUP_BAND`] / half the image, so it can never eat the whole capture.
+pub fn trim_trailing_duplicate(acc: &mut RgbaImage) -> u32 {
+    let (w, h) = acc.dimensions();
+    if w == 0 || h < 2 * MIN_DUP_BAND {
+        return 0;
+    }
+    let max_b = (h / 2).min(MAX_DUP_BAND);
+    if max_b < MIN_DUP_BAND {
+        return 0;
+    }
+
+    let fp = Fingerprint::new(acc);
+
+    // Choose the LARGEST band that both aligns with the band above it (mean diff
+    // within tolerance) and carries real vertical structure. Largest — not
+    // lowest-mean — so a noisy doubled chrome band is removed whole rather than
+    // leaving the part above a more-exactly-matching suffix. The per-band
+    // structure check (on `[h-b, h)`, the band actually being removed) is what
+    // stops a flat blank tail from being cut even when varied content sits
+    // above it.
+    let mut chosen: Option<u32> = None;
+    for b in MIN_DUP_BAND..=max_b {
+        if trailing_band_diff(&fp, h, b) <= DUP_MEAN_ABS_DIFF
+            && region_has_structure(&fp, h - b, h)
+        {
+            chosen = Some(b);
+        }
+    }
+
+    match chosen {
+        Some(b) => {
+            trim_bottom_rows(acc, b);
+            b
+        }
+        None => 0,
+    }
+}
+
 /// Append the bottom `rows` rows of `src` onto `acc` (which must share `src`'s
 /// width). Grows `acc` by `rows` rows. Reuses the accumulator's backing buffer
 /// (`into_raw` → `extend` → `from_raw`) so repeated appends amortize instead of
@@ -532,5 +660,113 @@ mod tests {
         assert!(out.low_confidence);
         assert_eq!(out.appended, 200);
         assert_eq!(acc.height(), 400);
+    }
+
+    /// Row-constant pseudo-random brightness: each row is one well-mixed gray, so
+    /// the image has strong vertical structure but no periodicity or gradient —
+    /// like real UI content, only an *exact* duplicate band aligns (a smooth
+    /// gradient would also loosely match nearby band heights).
+    fn vnoise_image(w: u32, h: u32) -> RgbaImage {
+        let mut img = RgbaImage::new(w, h);
+        for y in 0..h {
+            let mut v = (y as u32).wrapping_add(1).wrapping_mul(2_654_435_761);
+            v ^= v >> 15;
+            v = v.wrapping_mul(2_246_822_519);
+            v ^= v >> 13;
+            let g = (v & 0xff) as u8;
+            for x in 0..w {
+                img.put_pixel(x, y, Rgba([g, g, g, 255]));
+            }
+        }
+        img
+    }
+
+    /// Copy the bottom `band` rows of `src` and append them, simulating the
+    /// auto-scroll artifact where fixed bottom chrome gets duplicated at the end.
+    fn append_duplicate_tail(src: &RgbaImage, band: u32) -> RgbaImage {
+        let (w, h) = src.dimensions();
+        let mut out = RgbaImage::new(w, h + band);
+        for y in 0..h {
+            for x in 0..w {
+                out.put_pixel(x, y, *src.get_pixel(x, y));
+            }
+        }
+        for i in 0..band {
+            for x in 0..w {
+                out.put_pixel(x, h + i, *src.get_pixel(x, h - band + i));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn trims_duplicated_trailing_band() {
+        // 400 rows of high-entropy content with its own last 96 rows appended
+        // again (the doubled-chrome artifact). Only b=96 aligns; every other band
+        // scores far above threshold, so exactly 96 rows come off.
+        let base = vnoise_image(120, 400);
+        let mut acc = append_duplicate_tail(&base, 96);
+        assert_eq!(acc.height(), 496);
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 96, "should trim exactly the duplicated band");
+        assert_eq!(acc.height(), 400);
+        // The remaining image is pixel-identical to the original content.
+        for y in 0..400 {
+            for x in 0..120 {
+                assert_eq!(acc.get_pixel(x, y), base.get_pixel(x, y), "content altered at ({x},{y})");
+            }
+        }
+    }
+
+    #[test]
+    fn clean_capture_is_not_trimmed() {
+        // Aperiodic content: each row is a distinct, monotonically brightening
+        // gray (luma ≈ y, no wrap over height 200), so no two bands align —
+        // nothing to trim.
+        let (w, h) = (120u32, 200u32);
+        let mut acc = RgbaImage::new(w, h);
+        for y in 0..h {
+            let g = y as u8;
+            for x in 0..w {
+                acc.put_pixel(x, y, Rgba([g, g, g, 255]));
+            }
+        }
+        let before = acc.height();
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 0, "clean capture must not be trimmed");
+        assert_eq!(acc.height(), before);
+    }
+
+    #[test]
+    fn flat_tail_is_not_trimmed() {
+        // Varied content on top, a tall uniform (whitespace) tail below. The tail
+        // "duplicates" at every band height, but the structure guard refuses to
+        // cut flat blank space.
+        let top = tall_image(120, 150);
+        let (w, top_h) = top.dimensions();
+        let tail = 250;
+        let mut acc = RgbaImage::new(w, top_h + tail);
+        for y in 0..top_h {
+            for x in 0..w {
+                acc.put_pixel(x, y, *top.get_pixel(x, y));
+            }
+        }
+        for y in top_h..top_h + tail {
+            for x in 0..w {
+                acc.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+            }
+        }
+        let before = acc.height();
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 0, "flat whitespace tail must not be trimmed");
+        assert_eq!(acc.height(), before);
+    }
+
+    #[test]
+    fn tiny_image_is_not_trimmed() {
+        let mut acc = tall_image(64, 20);
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 0);
+        assert_eq!(acc.height(), 20);
     }
 }

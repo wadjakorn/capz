@@ -325,7 +325,16 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
             };
 
             emit_progress(&app, progress);
-            if let Some(acc) = finish_acc {
+            if let Some(mut acc) = finish_acc {
+                // Auto-scroll bottomed out: the final frames often duplicate the
+                // fixed bottom window chrome / rounded edge at the very end. Trim
+                // that trailing duplicate band before encoding (no-op unless a
+                // clear duplicate is present). Auto-scroll only — the manual
+                // Capture path leaves the image untouched.
+                let trimmed = stitch::trim_trailing_duplicate(&mut acc);
+                if trimmed > 0 {
+                    log::info!("auto-scroll: trimmed {trimmed} duplicated trailing rows");
+                }
                 // Spinner (emitted above with finishing=true) first, then the
                 // slow encode + open — the session is already out, so there's no
                 // double-finish race with the manual Capture button.
