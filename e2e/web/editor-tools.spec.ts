@@ -9,7 +9,7 @@
 import { test, expect } from "@playwright/test";
 import { installTauriMock } from "../fixtures/tauri-mock";
 
-const TOOLS = ["Select", "Arrow", "Rect", "Text", "Blur", "Sticker", "Pin"];
+const TOOLS = ["Select", "Arrow", "Shapes", "Text", "Blur", "Sticker", "Pin"];
 
 test.beforeEach(async ({ page }) => {
   await installTauriMock(page);
@@ -33,7 +33,7 @@ test("clicking a tool toggles the active visual class", async ({ page }) => {
   await page.waitForLoadState("networkidle");
 
   // ToolButton uses a flat accent fill (`bg-[var(--accent)]`) when active.
-  const rect = page.getByRole("button", { name: "Rect", exact: true });
+  const rect = page.getByRole("button", { name: "Shapes", exact: true });
   const arrow = page.getByRole("button", { name: "Arrow", exact: true });
 
   await rect.click();

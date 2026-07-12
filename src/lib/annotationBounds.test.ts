@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { contentBounds, OVERFLOW_GAP, type AABB } from "./annotationBounds";
+import {
+  annotationAABB,
+  contentBounds,
+  OVERFLOW_GAP,
+  type AABB,
+} from "./annotationBounds";
+import type { ArrowAnnotation } from "@/stores/editor";
 
 // A rendered element box (as node.getClientRect would report it).
 function box(x: number, y: number, w: number, h: number): AABB {
@@ -55,5 +61,33 @@ describe("contentBounds", () => {
     const b = contentBounds(100, 100, [box(-0.5, 0, 10, 10)]);
     expect(Number.isInteger(b.x)).toBe(true);
     expect(b.x).toBe(Math.floor(-0.5 - OVERFLOW_GAP));
+  });
+});
+
+describe("annotationAABB arrow", () => {
+  const base: ArrowAnnotation = {
+    id: "a1",
+    type: "arrow",
+    x1: 10,
+    y1: 20,
+    x2: 50,
+    y2: 40,
+    stroke: "#f00",
+    strokeWidth: 4,
+  };
+
+  it("spans the two endpoints for a straight arrow", () => {
+    expect(annotationAABB(base)).toEqual({ x: 10, y: 20, w: 40, h: 20 });
+  });
+
+  it("grows to include the mid curve-control point when it bulges out", () => {
+    const curved: ArrowAnnotation = { ...base, cx: 30, cy: 80 };
+    // cy=80 is below both endpoints, so the box extends down to it.
+    expect(annotationAABB(curved)).toEqual({ x: 10, y: 20, w: 40, h: 60 });
+  });
+
+  it("ignores a control point that sits inside the endpoint box", () => {
+    const curved: ArrowAnnotation = { ...base, cx: 30, cy: 30 };
+    expect(annotationAABB(curved)).toEqual({ x: 10, y: 20, w: 40, h: 20 });
   });
 });

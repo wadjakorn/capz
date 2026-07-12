@@ -32,6 +32,13 @@ describe("applyCrop", () => {
     expect([a.x1, a.y1, a.x2, a.y2]).toEqual([5, 5, 25, 35]);
   });
 
+  it("shifts an arrow's mid curve-control point too", () => {
+    useEditor.getState().add({ ...arrow("a1"), cx: 20, cy: 25 });
+    useEditor.getState().applyCrop({ x: 5, y: 5, w: 40, h: 40 }, SRC);
+    const a = useEditor.getState().annotations[0] as ArrowAnnotation;
+    expect([a.cx, a.cy]).toEqual([15, 20]);
+  });
+
   it("composes a second crop onto the first (source-relative)", () => {
     useEditor.getState().applyCrop({ x: 10, y: 5, w: 50, h: 40 }, SRC);
     useEditor.getState().applyCrop({ x: 5, y: 5, w: 20, h: 20 }, SRC);

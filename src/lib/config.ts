@@ -1,4 +1,4 @@
-import type { PinShapeKind, PinTailDir } from "@/stores/editor";
+import type { PinShapeKind, PinTailDir, RectShapeKind } from "@/stores/editor";
 import { validateAccelerator } from "@/lib/shortcuts";
 
 export type Tool =
@@ -71,7 +71,12 @@ export type AppConfig = {
     stickerEmoji?: string;
     region?: { monitorId: number; x: number; y: number; w: number; h: number };
     lastCaptureKind?: "full" | "area" | "window";
-    rect?: { strokeColor?: string; strokeWidth?: number };
+    rect?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      shape?: RectShapeKind;
+      cornerRadius?: number;
+    };
     arrow?: { strokeColor?: string; strokeWidth?: number };
     text?: {
       color?: string;
@@ -94,7 +99,12 @@ export type AppConfig = {
     };
   };
   tools: {
-    rect: { strokeColor: string; strokeWidth: number };
+    rect: {
+      strokeColor: string;
+      strokeWidth: number;
+      shape: RectShapeKind;
+      cornerRadius: number;
+    };
     arrow: { strokeColor: string; strokeWidth: number };
     text: {
       fontSize: number;
@@ -176,15 +186,20 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
   },
   tools: {
-    rect: { strokeColor: "#ef4444", strokeWidth: 3 },
-    arrow: { strokeColor: "#ef4444", strokeWidth: 3 },
+    rect: {
+      strokeColor: "#ef4444",
+      strokeWidth: 3,
+      shape: "rect",
+      cornerRadius: 8,
+    },
+    arrow: { strokeColor: "#ef4444", strokeWidth: 4 },
     text: {
       fontSize: 24,
-      color: "#ef4444",
+      color: "#000000",
       fontStyle: "normal",
       textDecoration: "",
       fontFamily: "system-ui, sans-serif",
-      backgroundColor: null,
+      backgroundColor: "#ffffff",
     },
     blur: { blurRadius: 16 },
     sticker: { fontSize: 48 },
@@ -372,6 +387,8 @@ function vTools(
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
       strokeWidth: isNum,
+      shape: inSet("rect", "ellipse"),
+      cornerRadius: isNum,
     }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
       strokeColor: isStr,
@@ -427,7 +444,12 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     }
     if (Object.keys(acc).length) (out as Record<string, unknown>)[key] = acc;
   };
-  keep("rect", { strokeColor: isStr, strokeWidth: isNum });
+  keep("rect", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    shape: inSet("rect", "ellipse"),
+    cornerRadius: isNum,
+  });
   keep("arrow", { strokeColor: isStr, strokeWidth: isNum });
   keep("text", {
     color: isStr,
@@ -512,7 +534,12 @@ export function validateConfig(raw: unknown): ValidatedConfig {
 }
 
 export type EffectiveTools = {
-  rect: { strokeColor: string; strokeWidth: number };
+  rect: {
+    strokeColor: string;
+    strokeWidth: number;
+    shape: RectShapeKind;
+    cornerRadius: number;
+  };
   arrow: { strokeColor: string; strokeWidth: number };
   text: {
     color: string;
@@ -543,6 +570,8 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
     rect: {
       strokeColor: lu?.rect?.strokeColor ?? t.rect.strokeColor,
       strokeWidth: lu?.rect?.strokeWidth ?? t.rect.strokeWidth,
+      shape: lu?.rect?.shape ?? t.rect.shape,
+      cornerRadius: lu?.rect?.cornerRadius ?? t.rect.cornerRadius,
     },
     arrow: {
       strokeColor: lu?.arrow?.strokeColor ?? t.arrow.strokeColor,

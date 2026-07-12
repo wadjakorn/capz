@@ -86,7 +86,14 @@ function uid() {
 function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
   switch (a.type) {
     case "rect":
-      return { rect: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+      return {
+        rect: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          shape: a.shape,
+          cornerRadius: a.cornerRadius,
+        },
+      };
     case "arrow":
       return { arrow: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
     case "text":
@@ -400,6 +407,13 @@ export function EditorStage({ src }: Props) {
     const tr = trRef.current;
     if (!tr) return;
     if (!selectedId) {
+      tr.nodes([]);
+      tr.getLayer()?.batchDraw();
+      return;
+    }
+    // Arrows use their own inline 3-point handles, not the box Transformer.
+    const selAnn = annotations.find((a) => a.id === selectedId);
+    if (selAnn?.type === "arrow") {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -892,6 +906,8 @@ export function EditorStage({ src }: Props) {
           h,
           stroke: toolsCfg.rect.strokeColor,
           strokeWidth: toolsCfg.rect.strokeWidth,
+          shape: toolsCfg.rect.shape,
+          cornerRadius: toolsCfg.rect.cornerRadius,
         };
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1084,6 +1100,8 @@ export function EditorStage({ src }: Props) {
                 bgImage: image,
                 cropOffX: cropBase.x,
                 cropOffY: cropBase.y,
+                selected: selectedId === a.id,
+                scale,
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
@@ -1106,7 +1124,35 @@ export function EditorStage({ src }: Props) {
                 onBoundsChange: bumpBounds,
               }),
             )}
-            {draft?.kind === "rect" && (
+            {draft?.kind === "rect" && toolsCfg.rect.shape === "ellipse" && (
+              <Shape
+                x={Math.min(draft.x, draft.x + draft.w)}
+                y={Math.min(draft.y, draft.y + draft.h)}
+                width={Math.abs(draft.w)}
+                height={Math.abs(draft.h)}
+                stroke={toolsCfg.rect.strokeColor}
+                strokeWidth={toolsCfg.rect.strokeWidth}
+                dash={[6, 4]}
+                listening={false}
+                sceneFunc={(c, shape) => {
+                  const w = shape.width();
+                  const h = shape.height();
+                  c.beginPath();
+                  c.ellipse(
+                    w / 2,
+                    h / 2,
+                    Math.max(0, w / 2),
+                    Math.max(0, h / 2),
+                    0,
+                    0,
+                    Math.PI * 2,
+                  );
+                  c.closePath();
+                  c.strokeShape(shape);
+                }}
+              />
+            )}
+            {draft?.kind === "rect" && toolsCfg.rect.shape !== "ellipse" && (
               <Rect
                 x={Math.min(draft.x, draft.x + draft.w)}
                 y={Math.min(draft.y, draft.y + draft.h)}
@@ -1114,6 +1160,7 @@ export function EditorStage({ src }: Props) {
                 height={Math.abs(draft.h)}
                 stroke={toolsCfg.rect.strokeColor}
                 strokeWidth={toolsCfg.rect.strokeWidth}
+                cornerRadius={toolsCfg.rect.cornerRadius}
                 dash={[6, 4]}
                 listening={false}
               />
@@ -1138,6 +1185,8 @@ export function EditorStage({ src }: Props) {
                 strokeWidth={toolsCfg.arrow.strokeWidth}
                 pointerLength={toolsCfg.arrow.strokeWidth * 4}
                 pointerWidth={toolsCfg.arrow.strokeWidth * 4}
+                lineCap="round"
+                lineJoin="round"
                 listening={false}
               />
             )}
@@ -1397,6 +1446,10 @@ type ShapeCtx = {
   /** Offset from cropped-image space to source-image pixels (for blur sampling). */
   cropOffX: number;
   cropOffY: number;
+  /** Whether this annotation is the selected one (drives inline arrow handles). */
+  selected: boolean;
+  /** Current stage scale, so on-canvas handles keep a constant screen size. */
+  scale: number;
   onSelect: () => void;
   onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
@@ -1436,113 +1489,305 @@ function hoverHandlers(ctx: ShapeCtx) {
 }
 
 function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
-  const ref = useRef<Konva.Rect>(null);
+  // Rect and its ellipse variant share the same bounding-box model (x/y/w/h),
+  // so they reuse identical drag/transform handlers. A callback ref stores the
+  // node (Konva.Rect or Konva.Shape, both Konva.Shape) to sidestep ref variance.
+  const ref = useRef<Konva.Shape | null>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
+  const setLocalRef = (n: Konva.Shape | null) => {
+    ref.current = n;
+  };
+  const shared = {
+    x: a.x,
+    y: a.y,
+    width: a.w,
+    height: a.h,
+    rotation: a.rotation ?? 0,
+    stroke: a.stroke,
+    strokeWidth: a.strokeWidth,
+    draggable: true,
+    ...hoverHandlers(ctx),
+    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      e.cancelBubble = true;
+      ctx.onSelect();
+    },
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const node = e.target;
+      const { dx, dy } = ctx.snapDrag(
+        a.id,
+        { x: node.x(), y: node.y(), w: a.w, h: a.h },
+        e.evt.altKey,
+      );
+      if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+    },
+    onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      ctx.endSnap();
+      ctx.onChange({ x: e.target.x(), y: e.target.y() });
+    },
+    onTransformEnd: () => {
+      const node = ref.current;
+      if (!node) return;
+      const sx = node.scaleX();
+      const sy = node.scaleY();
+      node.scaleX(1);
+      node.scaleY(1);
+      ctx.onChange({
+        x: Math.round(node.x()),
+        y: Math.round(node.y()),
+        w: Math.round(Math.max(2, node.width() * sx)),
+        h: Math.round(Math.max(2, node.height() * sy)),
+        rotation: node.rotation(),
+      });
+    },
+  };
+
+  if (a.shape === "ellipse") {
+    return (
+      <Shape
+        ref={setLocalRef}
+        {...shared}
+        hitStrokeWidth={Math.max(12, a.strokeWidth * 2)}
+        sceneFunc={(c, shape) => {
+          const w = shape.width();
+          const h = shape.height();
+          c.beginPath();
+          c.ellipse(
+            w / 2,
+            h / 2,
+            Math.max(0, w / 2),
+            Math.max(0, h / 2),
+            0,
+            0,
+            Math.PI * 2,
+          );
+          c.closePath();
+          c.strokeShape(shape);
+        }}
+      />
+    );
+  }
   return (
     <Rect
-      ref={ref}
-      x={a.x}
-      y={a.y}
-      width={a.w}
-      height={a.h}
-      rotation={a.rotation ?? 0}
-      stroke={a.stroke}
-      strokeWidth={a.strokeWidth}
-      draggable
-      {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
-        e.cancelBubble = true;
-        ctx.onSelect();
-      }}
-      onDragMove={(e) => {
-        const node = e.target;
-        const { dx, dy } = ctx.snapDrag(
-          a.id,
-          { x: node.x(), y: node.y(), w: a.w, h: a.h },
-          e.evt.altKey,
-        );
-        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
-      }}
-      onDragEnd={(e) => {
-        ctx.endSnap();
-        ctx.onChange({ x: e.target.x(), y: e.target.y() });
-      }}
-      onTransformEnd={() => {
-        const node = ref.current;
-        if (!node) return;
-        const sx = node.scaleX();
-        const sy = node.scaleY();
-        node.scaleX(1);
-        node.scaleY(1);
-        ctx.onChange({
-          x: Math.round(node.x()),
-          y: Math.round(node.y()),
-          w: Math.round(Math.max(2, node.width() * sx)),
-          h: Math.round(Math.max(2, node.height() * sy)),
-          rotation: node.rotation(),
-        });
-      }}
+      ref={setLocalRef}
+      {...shared}
+      cornerRadius={Math.max(0, a.cornerRadius ?? 0)}
     />
   );
 }
 
+/** Live geometry of an arrow while a control handle is being dragged. */
+type ArrowGeom = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  cx?: number;
+  cy?: number;
+};
+
+/**
+ * Re-express a curve-control point relative to a new chord when one endpoint
+ * moves, so the arrow keeps its visual bend (and a straight arrow stays
+ * straight). The control is decomposed into (along-chord fraction, perpendicular
+ * offset) against the old chord and rebuilt on the new one, scaling the
+ * perpendicular offset by the length ratio.
+ */
+function remapArrowControl(
+  oldA: { x: number; y: number },
+  oldB: { x: number; y: number },
+  newA: { x: number; y: number },
+  newB: { x: number; y: number },
+  ctrl: { x: number; y: number },
+): { cx: number; cy: number } {
+  const d0x = oldB.x - oldA.x;
+  const d0y = oldB.y - oldA.y;
+  const len0 = Math.hypot(d0x, d0y);
+  const d1x = newB.x - newA.x;
+  const d1y = newB.y - newA.y;
+  const len1 = Math.hypot(d1x, d1y);
+  if (len0 < 1e-6 || len1 < 1e-6) {
+    return { cx: (newA.x + newB.x) / 2, cy: (newA.y + newB.y) / 2 };
+  }
+  const u0x = d0x / len0;
+  const u0y = d0y / len0;
+  const px = ctrl.x - oldA.x;
+  const py = ctrl.y - oldA.y;
+  const t = (px * u0x + py * u0y) / len0; // fraction along the chord
+  const s = px * -u0y + py * u0x; // perpendicular offset (px)
+  const u1x = d1x / len1;
+  const u1y = d1y / len1;
+  const sScaled = s * (len1 / len0);
+  return {
+    cx: newA.x + u1x * (t * len1) + -u1y * sScaled,
+    cy: newA.y + u1y * (t * len1) + u1x * sScaled,
+  };
+}
+
+const ARROW_HANDLE_COLOR = "#6d7cff";
+
 function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
   const ref = useRef<Konva.Arrow>(null);
+  const [live, setLive] = useState<ArrowGeom | null>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
+
+  const g: ArrowGeom = live ?? {
+    x1: a.x1,
+    y1: a.y1,
+    x2: a.x2,
+    y2: a.y2,
+    cx: a.cx,
+    cy: a.cy,
+  };
+  const hasCurve = g.cx !== undefined && g.cy !== undefined;
+  const mid = hasCurve
+    ? { x: g.cx as number, y: g.cy as number }
+    : { x: (g.x1 + g.x2) / 2, y: (g.y1 + g.y2) / 2 };
+  const points = hasCurve
+    ? [g.x1, g.y1, mid.x, mid.y, g.x2, g.y2]
+    : [g.x1, g.y1, g.x2, g.y2];
+
+  const commit = (next: ArrowGeom) => {
+    const patch: Partial<Annotation> = {
+      x1: next.x1,
+      y1: next.y1,
+      x2: next.x2,
+      y2: next.y2,
+    };
+    if (next.cx !== undefined && next.cy !== undefined) {
+      (patch as Partial<ArrowAnnotation>).cx = next.cx;
+      (patch as Partial<ArrowAnnotation>).cy = next.cy;
+    }
+    ctx.onChange(patch);
+    setLive(null);
+  };
+
+  const hr = Math.max(4, 6 / ctx.scale); // handle radius, constant on screen
+  const hsw = 1.5 / ctx.scale;
+
+  const dragEndpoint = (which: "tail" | "head") => (
+    e: Konva.KonvaEventObject<DragEvent>,
+  ) => {
+    const n = e.target;
+    const p = { x: n.x(), y: n.y() };
+    const tail = which === "tail" ? p : { x: g.x1, y: g.y1 };
+    const head = which === "head" ? p : { x: g.x2, y: g.y2 };
+    const geom: ArrowGeom = { x1: tail.x, y1: tail.y, x2: head.x, y2: head.y };
+    if (hasCurve) {
+      const c = remapArrowControl(
+        { x: g.x1, y: g.y1 },
+        { x: g.x2, y: g.y2 },
+        tail,
+        head,
+        mid,
+      );
+      geom.cx = c.cx;
+      geom.cy = c.cy;
+    }
+    return geom;
+  };
+
   return (
-    <Arrow
-      ref={ref}
-      points={[a.x1, a.y1, a.x2, a.y2]}
-      rotation={a.rotation ?? 0}
-      stroke={a.stroke}
-      fill={a.stroke}
-      strokeWidth={a.strokeWidth}
-      pointerLength={a.strokeWidth * 4}
-      pointerWidth={a.strokeWidth * 4}
-      hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
-      draggable
-      {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
-        e.cancelBubble = true;
-        ctx.onSelect();
-      }}
-      onDragMove={(e) => {
-        const node = e.target;
-        const baseX = Math.min(a.x1, a.x2);
-        const baseY = Math.min(a.y1, a.y2);
-        const w = Math.abs(a.x2 - a.x1);
-        const h = Math.abs(a.y2 - a.y1);
-        const { dx, dy } = ctx.snapDrag(
-          a.id,
-          { x: baseX + node.x(), y: baseY + node.y(), w, h },
-          e.evt.altKey,
-        );
-        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
-      }}
-      onDragEnd={(e) => {
-        ctx.endSnap();
-        const dx = e.target.x();
-        const dy = e.target.y();
-        e.target.position({ x: 0, y: 0 });
-        ctx.onChange({
-          x1: a.x1 + dx,
-          y1: a.y1 + dy,
-          x2: a.x2 + dx,
-          y2: a.y2 + dy,
-        });
-      }}
-      onTransformEnd={() => {
-        const node = ref.current;
-        if (!node) return;
-        ctx.onChange({ rotation: node.rotation() });
-      }}
-    />
+    <>
+      <Arrow
+        ref={ref}
+        points={points}
+        tension={hasCurve ? 0.5 : 0}
+        rotation={a.rotation ?? 0}
+        stroke={a.stroke}
+        fill={a.stroke}
+        strokeWidth={a.strokeWidth}
+        pointerLength={a.strokeWidth * 4}
+        pointerWidth={a.strokeWidth * 4}
+        lineCap="round"
+        lineJoin="round"
+        hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
+        draggable
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragMove={(e) => {
+          const node = e.target;
+          const ab = annotationAABB(a);
+          if (!ab) return;
+          const { dx, dy } = ctx.snapDrag(
+            a.id,
+            { x: ab.x + node.x(), y: ab.y + node.y(), w: ab.w, h: ab.h },
+            e.evt.altKey,
+          );
+          if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+        }}
+        onDragEnd={(e) => {
+          ctx.endSnap();
+          const dx = e.target.x();
+          const dy = e.target.y();
+          e.target.position({ x: 0, y: 0 });
+          const next: ArrowGeom = {
+            x1: a.x1 + dx,
+            y1: a.y1 + dy,
+            x2: a.x2 + dx,
+            y2: a.y2 + dy,
+          };
+          if (a.cx !== undefined && a.cy !== undefined) {
+            next.cx = a.cx + dx;
+            next.cy = a.cy + dy;
+          }
+          commit(next);
+        }}
+      />
+      {ctx.selected && (
+        <>
+          {/* mid curve-control handle */}
+          <Circle
+            x={mid.x}
+            y={mid.y}
+            radius={hr}
+            fill={ARROW_HANDLE_COLOR}
+            stroke="#ffffff"
+            strokeWidth={hsw}
+            draggable
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+            }}
+            onDragMove={(e) => {
+              setLive({ ...g, cx: e.target.x(), cy: e.target.y() });
+            }}
+            onDragEnd={(e) => {
+              commit({ ...g, cx: e.target.x(), cy: e.target.y() });
+            }}
+          />
+          {/* tail + head endpoint handles */}
+          {(["tail", "head"] as const).map((which) => (
+            <Circle
+              key={which}
+              x={which === "tail" ? g.x1 : g.x2}
+              y={which === "tail" ? g.y1 : g.y2}
+              radius={hr}
+              fill="#ffffff"
+              stroke={ARROW_HANDLE_COLOR}
+              strokeWidth={hsw}
+              draggable
+              onMouseDown={(e) => {
+                e.cancelBubble = true;
+              }}
+              onDragMove={(e) => {
+                setLive(dragEndpoint(which)(e));
+              }}
+              onDragEnd={(e) => {
+                commit(dragEndpoint(which)(e));
+              }}
+            />
+          ))}
+        </>
+      )}
+    </>
   );
 }
 
@@ -1606,8 +1851,9 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   const bg = a.backgroundColor ?? null;
-  const padX = bg ? 12 : 0;
-  const padY = bg ? 8 : 0;
+  // Roomier background padding, scaled with font size so large text isn't cramped.
+  const padX = bg ? Math.round(a.fontSize * 0.6) : 0;
+  const padY = bg ? Math.round(a.fontSize * 0.4) : 0;
   const fontStyle = a.fontStyle ?? "normal";
   const textDecoration = a.textDecoration ?? "";
   const fontFamily = a.fontFamily ?? "system-ui, sans-serif";

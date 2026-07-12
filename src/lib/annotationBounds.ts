@@ -11,13 +11,23 @@ export function annotationAABB(a: Annotation): AABB | null {
     case "rect":
     case "blur":
       return { x: a.x, y: a.y, w: a.w, h: a.h };
-    case "arrow":
+    case "arrow": {
+      // Include the optional mid curve-control point so the bend is covered.
+      const xs = [a.x1, a.x2];
+      const ys = [a.y1, a.y2];
+      if (a.cx !== undefined && a.cy !== undefined) {
+        xs.push(a.cx);
+        ys.push(a.cy);
+      }
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
       return {
-        x: Math.min(a.x1, a.x2),
-        y: Math.min(a.y1, a.y2),
-        w: Math.abs(a.x2 - a.x1),
-        h: Math.abs(a.y2 - a.y1),
+        x: minX,
+        y: minY,
+        w: Math.max(...xs) - minX,
+        h: Math.max(...ys) - minY,
       };
+    }
     case "text": {
       // Approximate: width = chars × fontSize × 0.6, height = fontSize × 1.2.
       const lines = a.text.split("\n");

@@ -25,6 +25,9 @@ export type CaptureSource = "full" | "area" | "window" | "scroll" | "other";
 
 type Base = { id: string; rotation?: number };
 
+/** Shape variants drawn by the (formerly "rect") Shapes tool. */
+export type RectShapeKind = "rect" | "ellipse";
+
 export type RectAnnotation = Base & {
   type: "rect";
   x: number;
@@ -33,6 +36,10 @@ export type RectAnnotation = Base & {
   h: number;
   stroke: string;
   strokeWidth: number;
+  /** Which primitive to draw inside the bounding box. Absent = "rect". */
+  shape?: RectShapeKind;
+  /** Corner radius for the rect variant, in image px. Absent = 0. Ignored for ellipse. */
+  cornerRadius?: number;
 };
 
 export type ArrowAnnotation = Base & {
@@ -43,6 +50,13 @@ export type ArrowAnnotation = Base & {
   y2: number;
   stroke: string;
   strokeWidth: number;
+  /**
+   * Optional mid curve-control point (Shottr-style 3-point arrow). When absent
+   * the arrow is a straight segment; when set, the arrow bends smoothly through
+   * (cx, cy). A cx/cy equal to the chord midpoint renders as a straight arrow.
+   */
+  cx?: number;
+  cy?: number;
 };
 
 export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
@@ -136,7 +150,18 @@ type Snapshot = {
 /** Translate an annotation's positional fields by (dx, dy) in image pixels. */
 function shiftAnnotation(a: Annotation, dx: number, dy: number): Annotation {
   if (a.type === "arrow") {
-    return { ...a, x1: a.x1 + dx, y1: a.y1 + dy, x2: a.x2 + dx, y2: a.y2 + dy };
+    const next: ArrowAnnotation = {
+      ...a,
+      x1: a.x1 + dx,
+      y1: a.y1 + dy,
+      x2: a.x2 + dx,
+      y2: a.y2 + dy,
+    };
+    if (a.cx !== undefined && a.cy !== undefined) {
+      next.cx = a.cx + dx;
+      next.cy = a.cy + dy;
+    }
+    return next;
   }
   return { ...a, x: a.x + dx, y: a.y + dy };
 }

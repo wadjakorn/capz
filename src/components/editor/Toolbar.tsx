@@ -42,6 +42,7 @@ import {
   type Tool,
   type PinShapeKind,
   type PinTailDir,
+  type RectShapeKind,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -63,7 +64,7 @@ type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
   { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight },
-  { id: "rect", label: "Rect", hint: "R", icon: Square },
+  { id: "rect", label: "Shapes", hint: "R", icon: Square },
   { id: "text", label: "Text", hint: "T", icon: Type },
   { id: "blur", label: "Blur", hint: "B", icon: Droplet },
   { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
@@ -214,9 +215,15 @@ export function Toolbar({
     value: PinTailDir;
     onChange: (v: PinTailDir) => void;
   };
+  type RectShapeCtx = {
+    value: RectShapeKind;
+    onChange: (v: RectShapeKind) => void;
+  };
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
+  let cornerCtx: NumCtx | null = null;
+  let rectShapeCtx: RectShapeCtx | null = null;
   let textStyleCtx: TextStyleCtx | null = null;
   let pinLabelCtx: ColorCtx | null = null;
   let pinBorderCtx: ColorCtx | null = null;
@@ -248,6 +255,32 @@ export function Toolbar({
           else void updateSettings("tools", { [slot]: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
         },
       };
+      if (selected.type === "rect") {
+        const rectSel = selected;
+        const curShape = rectSel.shape ?? toolsCfg.rect.shape;
+        rectShapeCtx = {
+          value: curShape,
+          onChange: (v) => {
+            updateAnnotation(rectSel.id, { shape: v });
+            if (remember) patchLastUsed({ rect: { shape: v } });
+            else void updateSettings("tools", { rect: { shape: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+        if (curShape === "rect") {
+          cornerCtx = {
+            label: "Radius",
+            value: rectSel.cornerRadius ?? toolsCfg.rect.cornerRadius,
+            min: 0,
+            max: 60,
+            step: 1,
+            onChange: (v) => {
+              updateAnnotation(rectSel.id, { cornerRadius: v });
+              if (remember) patchLastUsed({ rect: { cornerRadius: v } });
+              else void updateSettings("tools", { rect: { cornerRadius: v } } as Partial<AppConfig["tools"]>);
+            },
+          };
+        }
+      }
     } else if (selected.type === "text") {
       const baseText = () => ({
         fontSize: toolsCfg.text.fontSize,
@@ -424,6 +457,28 @@ export function Toolbar({
         else void updateSettings("tools", { [slot]: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
       },
     };
+    if (tool === "rect") {
+      rectShapeCtx = {
+        value: toolsCfg.rect.shape,
+        onChange: (v) => {
+          if (remember) patchLastUsed({ rect: { shape: v } });
+          else void updateSettings("tools", { rect: { shape: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      if (toolsCfg.rect.shape === "rect") {
+        cornerCtx = {
+          label: "Radius",
+          value: toolsCfg.rect.cornerRadius,
+          min: 0,
+          max: 60,
+          step: 1,
+          onChange: (v) => {
+            if (remember) patchLastUsed({ rect: { cornerRadius: v } });
+            else void updateSettings("tools", { rect: { cornerRadius: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
+    }
   } else if (tool === "text") {
     const baseText = () => ({
       fontSize: toolsCfg.text.fontSize,
@@ -1042,6 +1097,35 @@ export function Toolbar({
           </div>
         );
       })()}
+      {rectShapeCtx && (() => {
+        const rsc = rectShapeCtx;
+        const shapeBtn = (
+          v: RectShapeKind,
+          title: string,
+          Icon: LucideIcon,
+        ) => (
+          <button
+            type="button"
+            onClick={() => rsc.onChange(v)}
+            title={title}
+            aria-pressed={rsc.value === v}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              rsc.value === v
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+            ].join(" ")}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+        return (
+          <div className="flex items-center gap-0.5" title="Shape">
+            {shapeBtn("rect", "Rectangle", Square)}
+            {shapeBtn("ellipse", "Circle", CircleIcon)}
+          </div>
+        );
+      })()}
       {widthCtx && (
         <>
           <label
@@ -1061,6 +1145,24 @@ export function Toolbar({
             <span className="w-6 text-right tabular-nums">{Math.round(widthCtx.value)}</span>
           </label>
         </>
+      )}
+      {cornerCtx && (
+        <label
+          className="flex items-center gap-1.5 text-xs text-foreground/80"
+          title={cornerCtx.label}
+        >
+          {cornerCtx.label}
+          <input
+            type="range"
+            min={cornerCtx.min}
+            max={cornerCtx.max}
+            step={cornerCtx.step}
+            value={Math.round(cornerCtx.value)}
+            onChange={(e) => cornerCtx!.onChange(parseInt(e.target.value, 10))}
+            className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
+          />
+          <span className="w-6 text-right tabular-nums">{Math.round(cornerCtx.value)}</span>
+        </label>
       )}
       {sizeCtx && (
         <>
