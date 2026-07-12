@@ -218,15 +218,19 @@ fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(
 const STATIC_ROW_MAX_DIFF: f32 = 6.0;
 
 /// Count the contiguous run of bottom rows that stay (near-)identical between two
-/// same-size frames, scanning upward from the last row. For consecutive frames
-/// of a fixed scroll region this is the height of the **static bottom band** —
-/// window chrome, an app footer/toolbar, or the window's bottom border that
-/// never scrolls. Returns 0 if the frames differ in size or the very bottom row
-/// already changed.
+/// consecutive frames of a fixed scroll region, scanning upward from the last
+/// row — the height of the **static bottom band** (window chrome, an app
+/// footer/toolbar, or the window's bottom border that never scrolls). Returns 0
+/// if the frames differ in size or the very bottom row already changed.
 ///
-/// The caller tracks the running minimum of this over genuinely-scrolled frame
-/// pairs; that minimum is the persistent footer height to trim off the finished
-/// capture (see `commands::scroll`).
+/// The sampler locks this on the **first genuine scroll** (clamped to a fraction
+/// of the frame) as the fixed-footer height and excludes it from every stitch —
+/// see `commands::scroll`. Over-detection (e.g. uniform whitespace at the
+/// viewport bottom read as static) is self-correcting: content wrongly excluded
+/// is re-revealed above the true chrome in the next frame and appended then, and
+/// the final frame's band is re-attached whole at finish, so no content is
+/// dropped while the scroll step exceeds the over-count. `finish_open`'s
+/// duplicate-band trim is a further backstop.
 pub fn static_bottom_rows(a: &RgbaImage, b: &RgbaImage) -> u32 {
     let (aw, ah) = a.dimensions();
     if (aw, ah) != b.dimensions() || ah == 0 {

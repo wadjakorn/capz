@@ -297,12 +297,25 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 // these two consecutive frames — the window chrome/scrollbar/border
                 // that never moves. Clamp it to a plausible fraction of the frame
                 // so a bad measurement can never eat real content.
-                if s.footer.is_none() && matches!(decision, stitch::StitchDecision::Scroll { .. }) {
-                    let frame_h = frame.height();
+                //
+                // The `acc.height() == frame_h` guard enforces the invariant the
+                // trim below relies on: `acc` is still exactly the first frame. It
+                // holds when every prior decision was a Duplicate (appends nothing);
+                // a butt-join before the first real scroll (a fling from rest) would
+                // have grown `acc`, so we skip footer detection in that rare case
+                // rather than trim the wrong rows. Over-detection here is
+                // self-correcting anyway: content wrongly excluded is re-revealed
+                // above the true chrome next frame (and the last band is re-attached
+                // at finish), so nothing is dropped while the scroll step exceeds
+                // the over-count.
+                let frame_h = frame.height();
+                if s.footer.is_none()
+                    && s.acc.height() == frame_h
+                    && matches!(decision, stitch::StitchDecision::Scroll { .. })
+                {
                     let f = stitch::static_bottom_rows(&s.prev, &frame).min(frame_h / 4);
-                    // `acc` is still exactly the first frame here (earlier duplicate
-                    // frames appended nothing), so dropping its bottom `f` rows
-                    // removes the first frame's own footer band.
+                    // `acc` is exactly the first frame here (guard above), so dropping
+                    // its bottom `f` rows removes the first frame's own footer band.
                     stitch::trim_bottom_rows(&mut s.acc, f);
                     s.footer = Some(f);
                     // Re-measure with the now-known footer excluded for a clean
