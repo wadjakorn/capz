@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { contentBounds, OVERFLOW_GAP, type AABB } from "./annotationBounds";
+import {
+  annotationAABB,
+  contentBounds,
+  OVERFLOW_GAP,
+  type AABB,
+} from "./annotationBounds";
+import type {
+  ArrowAnnotation,
+  FreehandAnnotation,
+  MagnifyAnnotation,
+} from "@/stores/editor";
 
 // A rendered element box (as node.getClientRect would report it).
 function box(x: number, y: number, w: number, h: number): AABB {
@@ -55,5 +65,78 @@ describe("contentBounds", () => {
     const b = contentBounds(100, 100, [box(-0.5, 0, 10, 10)]);
     expect(Number.isInteger(b.x)).toBe(true);
     expect(b.x).toBe(Math.floor(-0.5 - OVERFLOW_GAP));
+  });
+});
+
+describe("annotationAABB arrow", () => {
+  const base: ArrowAnnotation = {
+    id: "a1",
+    type: "arrow",
+    x1: 10,
+    y1: 20,
+    x2: 50,
+    y2: 40,
+    stroke: "#f00",
+    strokeWidth: 4,
+  };
+
+  it("spans the two endpoints for a straight arrow", () => {
+    expect(annotationAABB(base)).toEqual({ x: 10, y: 20, w: 40, h: 20 });
+  });
+
+  it("grows to include the mid curve-control point when it bulges out", () => {
+    const curved: ArrowAnnotation = { ...base, cx: 30, cy: 80 };
+    // cy=80 is below both endpoints, so the box extends down to it.
+    expect(annotationAABB(curved)).toEqual({ x: 10, y: 20, w: 40, h: 60 });
+  });
+
+  it("ignores a control point that sits inside the endpoint box", () => {
+    const curved: ArrowAnnotation = { ...base, cx: 30, cy: 30 };
+    expect(annotationAABB(curved)).toEqual({ x: 10, y: 20, w: 40, h: 20 });
+  });
+});
+
+describe("annotationAABB pen/magnify", () => {
+  it("bounds a freehand path from its point extents", () => {
+    const pen: FreehandAnnotation = {
+      id: "p1",
+      type: "pen",
+      points: [10, 10, 30, 5, 20, 40],
+      stroke: "#f00",
+      strokeWidth: 4,
+      mode: "raw",
+    };
+    expect(annotationAABB(pen)).toEqual({ x: 10, y: 5, w: 20, h: 35 });
+  });
+
+  it("returns null for a degenerate (single-point) path", () => {
+    const pen: FreehandAnnotation = {
+      id: "p2",
+      type: "pen",
+      points: [10, 10],
+      stroke: "#f00",
+      strokeWidth: 4,
+      mode: "raw",
+    };
+    expect(annotationAABB(pen)).toBeNull();
+  });
+
+  it("covers the magnify output loupe and its source point", () => {
+    const mag: MagnifyAnnotation = {
+      id: "m1",
+      type: "magnify",
+      sx: 30,
+      sy: 60,
+      srw: 20,
+      srh: 20,
+      x: 100,
+      y: 60,
+      zoom: 2,
+      shape: "circle",
+      stroke: "#facc15",
+      strokeWidth: 3,
+    };
+    // Source area 30±20 → [10,50]; output half 20×2=40 at (100,60) → [60,140]×[20,100].
+    expect(annotationAABB(mag)).toEqual({ x: 10, y: 20, w: 130, h: 80 });
   });
 });

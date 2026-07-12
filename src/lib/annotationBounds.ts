@@ -11,13 +11,23 @@ export function annotationAABB(a: Annotation): AABB | null {
     case "rect":
     case "blur":
       return { x: a.x, y: a.y, w: a.w, h: a.h };
-    case "arrow":
+    case "arrow": {
+      // Include the optional mid curve-control point so the bend is covered.
+      const xs = [a.x1, a.x2];
+      const ys = [a.y1, a.y2];
+      if (a.cx !== undefined && a.cy !== undefined) {
+        xs.push(a.cx);
+        ys.push(a.cy);
+      }
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
       return {
-        x: Math.min(a.x1, a.x2),
-        y: Math.min(a.y1, a.y2),
-        w: Math.abs(a.x2 - a.x1),
-        h: Math.abs(a.y2 - a.y1),
+        x: minX,
+        y: minY,
+        w: Math.max(...xs) - minX,
+        h: Math.max(...ys) - minY,
       };
+    }
     case "text": {
       // Approximate: width = chars × fontSize × 0.6, height = fontSize × 1.2.
       const lines = a.text.split("\n");
@@ -28,6 +38,32 @@ export function annotationAABB(a: Annotation): AABB | null {
         w: maxLen * a.fontSize * 0.6,
         h: lines.length * a.fontSize * 1.2,
       };
+    }
+    case "pen":
+    case "highlighter": {
+      const pts = a.points;
+      if (pts.length < 4) return null; // need ≥ 2 points for any extent
+      let minX = pts[0];
+      let minY = pts[1];
+      let maxX = pts[0];
+      let maxY = pts[1];
+      for (let i = 0; i < pts.length; i += 2) {
+        minX = Math.min(minX, pts[i]);
+        maxX = Math.max(maxX, pts[i]);
+        minY = Math.min(minY, pts[i + 1]);
+        maxY = Math.max(maxY, pts[i + 1]);
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+    case "magnify": {
+      // Cover both the source (magnify) area and the output loupe + connector.
+      const outW = a.srw * a.zoom;
+      const outH = a.srh * a.zoom;
+      const minX = Math.min(a.x - outW, a.sx - a.srw);
+      const minY = Math.min(a.y - outH, a.sy - a.srh);
+      const maxX = Math.max(a.x + outW, a.sx + a.srw);
+      const maxY = Math.max(a.y + outH, a.sy + a.srh);
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     case "sticker": {
       const s = a.fontSize;

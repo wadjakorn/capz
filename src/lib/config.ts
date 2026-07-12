@@ -1,4 +1,11 @@
-import type { PinShapeKind, PinTailDir } from "@/stores/editor";
+import type {
+  PinShapeKind,
+  PinTailDir,
+  RectShapeKind,
+  FreehandMode,
+  MagnifyShape,
+  ArrowHeads,
+} from "@/stores/editor";
 import { validateAccelerator } from "@/lib/shortcuts";
 
 export type Tool =
@@ -7,6 +14,9 @@ export type Tool =
   | "rect"
   | "text"
   | "blur"
+  | "pen"
+  | "highlighter"
+  | "magnify"
   | "sticker"
   | "pin";
 
@@ -71,8 +81,34 @@ export type AppConfig = {
     stickerEmoji?: string;
     region?: { monitorId: number; x: number; y: number; w: number; h: number };
     lastCaptureKind?: "full" | "area" | "window";
-    rect?: { strokeColor?: string; strokeWidth?: number };
-    arrow?: { strokeColor?: string; strokeWidth?: number };
+    rect?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      shape?: RectShapeKind;
+      cornerRadius?: number;
+    };
+    arrow?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      heads?: ArrowHeads;
+      dash?: boolean;
+    };
+    pen?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      mode?: FreehandMode;
+      polygonEpsilon?: number;
+      curveSmoothing?: number;
+    };
+    highlighter?: { strokeColor?: string; strokeWidth?: number; opacity?: number };
+    magnify?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      shape?: MagnifyShape;
+      zoom?: number;
+      areaOpacity?: number;
+      linkDash?: boolean;
+    };
     text?: {
       color?: string;
       fontSize?: number;
@@ -80,6 +116,7 @@ export type AppConfig = {
       textDecoration?: "" | "underline" | "line-through" | "underline line-through";
       fontFamily?: string;
       backgroundColor?: string | null;
+      backgroundPadding?: number;
     };
     blur?: { blurRadius?: number };
     sticker?: { fontSize?: number };
@@ -94,8 +131,18 @@ export type AppConfig = {
     };
   };
   tools: {
-    rect: { strokeColor: string; strokeWidth: number };
-    arrow: { strokeColor: string; strokeWidth: number };
+    rect: {
+      strokeColor: string;
+      strokeWidth: number;
+      shape: RectShapeKind;
+      cornerRadius: number;
+    };
+    arrow: {
+      strokeColor: string;
+      strokeWidth: number;
+      heads: ArrowHeads;
+      dash: boolean;
+    };
     text: {
       fontSize: number;
       color: string;
@@ -103,8 +150,25 @@ export type AppConfig = {
       textDecoration: "" | "underline" | "line-through" | "underline line-through";
       fontFamily: string;
       backgroundColor: string | null;
+      backgroundPadding: number;
     };
     blur: { blurRadius: number };
+    pen: {
+      strokeColor: string;
+      strokeWidth: number;
+      mode: FreehandMode;
+      polygonEpsilon: number;
+      curveSmoothing: number;
+    };
+    highlighter: { strokeColor: string; strokeWidth: number; opacity: number };
+    magnify: {
+      strokeColor: string;
+      strokeWidth: number;
+      shape: MagnifyShape;
+      zoom: number;
+      areaOpacity: number;
+      linkDash: boolean;
+    };
     sticker: { fontSize: number };
   };
   capture: {
@@ -176,17 +240,39 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
   },
   tools: {
-    rect: { strokeColor: "#ef4444", strokeWidth: 3 },
-    arrow: { strokeColor: "#ef4444", strokeWidth: 3 },
+    rect: {
+      strokeColor: "#ef4444",
+      strokeWidth: 3,
+      shape: "rect",
+      cornerRadius: 8,
+    },
+    arrow: { strokeColor: "#ef4444", strokeWidth: 4, heads: "end", dash: false },
     text: {
       fontSize: 24,
-      color: "#ef4444",
+      color: "#000000",
       fontStyle: "normal",
       textDecoration: "",
       fontFamily: "system-ui, sans-serif",
-      backgroundColor: null,
+      backgroundColor: "#ffffff",
+      backgroundPadding: 14,
     },
     blur: { blurRadius: 16 },
+    pen: {
+      strokeColor: "#ef4444",
+      strokeWidth: 4,
+      mode: "raw",
+      polygonEpsilon: 8,
+      curveSmoothing: 6,
+    },
+    highlighter: { strokeColor: "#facc15", strokeWidth: 28, opacity: 0.5 },
+    magnify: {
+      strokeColor: "#facc15",
+      strokeWidth: 3,
+      shape: "circle",
+      zoom: 2,
+      areaOpacity: 0.15,
+      linkDash: true,
+    },
     sticker: { fontSize: 48 },
   },
   capture: {
@@ -372,10 +458,34 @@ function vTools(
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
       strokeWidth: isNum,
+      shape: inSet("rect", "ellipse", "line", "dashline"),
+      cornerRadius: isNum,
     }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
       strokeColor: isStr,
       strokeWidth: isNum,
+      heads: inSet("end", "both", "none"),
+      dash: isBool,
+    }, issues),
+    pen: vsec("tools.pen", r.pen, def.pen, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+      mode: inSet("raw", "polygon", "curve"),
+      polygonEpsilon: isNum,
+      curveSmoothing: isNum,
+    }, issues),
+    highlighter: vsec("tools.highlighter", r.highlighter, def.highlighter, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+      opacity: isNum,
+    }, issues),
+    magnify: vsec("tools.magnify", r.magnify, def.magnify, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+      shape: inSet("circle", "rect"),
+      zoom: isNum,
+      areaOpacity: isNum,
+      linkDash: isBool,
     }, issues),
     text: vsec("tools.text", r.text, def.text, {
       fontSize: isNum,
@@ -384,6 +494,7 @@ function vTools(
       textDecoration: inSet("", "underline", "line-through", "underline line-through"),
       fontFamily: isStr,
       backgroundColor: isStrOrNull,
+      backgroundPadding: isNum,
     }, issues),
     blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }, issues),
     sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }, issues),
@@ -396,7 +507,20 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;
   const out: NonNullable<AppConfig["lastUsed"]> = {};
-  if (inSet("select", "arrow", "rect", "text", "blur", "sticker", "pin")(o.tool))
+  if (
+    inSet(
+      "select",
+      "arrow",
+      "rect",
+      "text",
+      "blur",
+      "pen",
+      "highlighter",
+      "magnify",
+      "sticker",
+      "pin",
+    )(o.tool)
+  )
     out.tool = o.tool as Tool;
   if (isStr(o.stickerEmoji)) out.stickerEmoji = o.stickerEmoji as string;
   if (inSet("full", "area", "window")(o.lastCaptureKind))
@@ -427,8 +551,34 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     }
     if (Object.keys(acc).length) (out as Record<string, unknown>)[key] = acc;
   };
-  keep("rect", { strokeColor: isStr, strokeWidth: isNum });
-  keep("arrow", { strokeColor: isStr, strokeWidth: isNum });
+  keep("rect", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    shape: inSet("rect", "ellipse", "line", "dashline"),
+    cornerRadius: isNum,
+  });
+  keep("arrow", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    heads: inSet("end", "both", "none"),
+    dash: isBool,
+  });
+  keep("pen", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    mode: inSet("raw", "polygon", "curve"),
+    polygonEpsilon: isNum,
+    curveSmoothing: isNum,
+  });
+  keep("highlighter", { strokeColor: isStr, strokeWidth: isNum, opacity: isNum });
+  keep("magnify", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    shape: inSet("circle", "rect"),
+    zoom: isNum,
+    areaOpacity: isNum,
+    linkDash: isBool,
+  });
   keep("text", {
     color: isStr,
     fontSize: isNum,
@@ -436,6 +586,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     textDecoration: inSet("", "underline", "line-through", "underline line-through"),
     fontFamily: isStr,
     backgroundColor: isStrOrNull,
+    backgroundPadding: isNum,
   });
   keep("blur", { blurRadius: isNum });
   keep("sticker", { fontSize: isNum });
@@ -512,8 +663,18 @@ export function validateConfig(raw: unknown): ValidatedConfig {
 }
 
 export type EffectiveTools = {
-  rect: { strokeColor: string; strokeWidth: number };
-  arrow: { strokeColor: string; strokeWidth: number };
+  rect: {
+    strokeColor: string;
+    strokeWidth: number;
+    shape: RectShapeKind;
+    cornerRadius: number;
+  };
+  arrow: {
+    strokeColor: string;
+    strokeWidth: number;
+    heads: ArrowHeads;
+    dash: boolean;
+  };
   text: {
     color: string;
     fontSize: number;
@@ -521,8 +682,25 @@ export type EffectiveTools = {
     textDecoration: "" | "underline" | "line-through" | "underline line-through";
     fontFamily: string;
     backgroundColor: string | null;
+    backgroundPadding: number;
   };
   blur: { blurRadius: number };
+  pen: {
+    strokeColor: string;
+    strokeWidth: number;
+    mode: FreehandMode;
+    polygonEpsilon: number;
+    curveSmoothing: number;
+  };
+  highlighter: { strokeColor: string; strokeWidth: number; opacity: number };
+  magnify: {
+    strokeColor: string;
+    strokeWidth: number;
+    shape: MagnifyShape;
+    zoom: number;
+    areaOpacity: number;
+    linkDash: boolean;
+  };
   sticker: { fontSize: number };
   pin: {
     color: string;
@@ -543,10 +721,34 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
     rect: {
       strokeColor: lu?.rect?.strokeColor ?? t.rect.strokeColor,
       strokeWidth: lu?.rect?.strokeWidth ?? t.rect.strokeWidth,
+      shape: lu?.rect?.shape ?? t.rect.shape,
+      cornerRadius: lu?.rect?.cornerRadius ?? t.rect.cornerRadius,
     },
     arrow: {
       strokeColor: lu?.arrow?.strokeColor ?? t.arrow.strokeColor,
       strokeWidth: lu?.arrow?.strokeWidth ?? t.arrow.strokeWidth,
+      heads: lu?.arrow?.heads ?? t.arrow.heads,
+      dash: lu?.arrow?.dash ?? t.arrow.dash,
+    },
+    pen: {
+      strokeColor: lu?.pen?.strokeColor ?? t.pen.strokeColor,
+      strokeWidth: lu?.pen?.strokeWidth ?? t.pen.strokeWidth,
+      mode: lu?.pen?.mode ?? t.pen.mode,
+      polygonEpsilon: lu?.pen?.polygonEpsilon ?? t.pen.polygonEpsilon,
+      curveSmoothing: lu?.pen?.curveSmoothing ?? t.pen.curveSmoothing,
+    },
+    highlighter: {
+      strokeColor: lu?.highlighter?.strokeColor ?? t.highlighter.strokeColor,
+      strokeWidth: lu?.highlighter?.strokeWidth ?? t.highlighter.strokeWidth,
+      opacity: lu?.highlighter?.opacity ?? t.highlighter.opacity,
+    },
+    magnify: {
+      strokeColor: lu?.magnify?.strokeColor ?? t.magnify.strokeColor,
+      strokeWidth: lu?.magnify?.strokeWidth ?? t.magnify.strokeWidth,
+      shape: lu?.magnify?.shape ?? t.magnify.shape,
+      zoom: lu?.magnify?.zoom ?? t.magnify.zoom,
+      areaOpacity: lu?.magnify?.areaOpacity ?? t.magnify.areaOpacity,
+      linkDash: lu?.magnify?.linkDash ?? t.magnify.linkDash,
     },
     text: {
       color: lu?.text?.color ?? t.text.color,
@@ -558,6 +760,7 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
         lu?.text?.backgroundColor !== undefined
           ? lu.text.backgroundColor
           : t.text.backgroundColor,
+      backgroundPadding: lu?.text?.backgroundPadding ?? t.text.backgroundPadding,
     },
     blur: {
       blurRadius: lu?.blur?.blurRadius ?? t.blur.blurRadius,

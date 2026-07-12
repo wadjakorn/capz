@@ -8,6 +8,9 @@ export type Tool =
   | "rect"
   | "text"
   | "blur"
+  | "pen"
+  | "highlighter"
+  | "magnify"
   | "sticker"
   | "pin"
   | "crop";
@@ -25,6 +28,11 @@ export type CaptureSource = "full" | "area" | "window" | "scroll" | "other";
 
 type Base = { id: string; rotation?: number };
 
+/** Shape variants offered by the (formerly "rect") Shapes tool. "line"/"dashline"
+ *  draw a headless 2-point segment (stored as an arrow with heads:"none"),
+ *  solid or dashed respectively — not a box. */
+export type RectShapeKind = "rect" | "ellipse" | "line" | "dashline";
+
 export type RectAnnotation = Base & {
   type: "rect";
   x: number;
@@ -33,7 +41,14 @@ export type RectAnnotation = Base & {
   h: number;
   stroke: string;
   strokeWidth: number;
+  /** Which primitive to draw inside the bounding box. Absent = "rect". */
+  shape?: RectShapeKind;
+  /** Corner radius for the rect variant, in image px. Absent = 0. Ignored for ellipse. */
+  cornerRadius?: number;
 };
+
+/** Arrowhead placement. "none" is the headless line variant of the Shapes tool. */
+export type ArrowHeads = "end" | "both" | "none";
 
 export type ArrowAnnotation = Base & {
   type: "arrow";
@@ -43,6 +58,70 @@ export type ArrowAnnotation = Base & {
   y2: number;
   stroke: string;
   strokeWidth: number;
+  /**
+   * Optional mid curve-control point (Shottr-style 3-point arrow). When absent
+   * the arrow is a straight segment; when set, the arrow bends smoothly through
+   * (cx, cy). A cx/cy equal to the chord midpoint renders as a straight arrow.
+   */
+  cx?: number;
+  cy?: number;
+  /** Which ends get an arrowhead. Absent = "end" (single head at the tip). */
+  heads?: ArrowHeads;
+  /** Dashed/dotted stroke when true. */
+  dash?: boolean;
+};
+
+/** How a freehand (pen) path is smoothed for rendering. */
+export type FreehandMode = "raw" | "polygon" | "curve";
+
+export type FreehandAnnotation = Base & {
+  type: "pen";
+  /** Flat [x0,y0,x1,y1,…] captured path in image-pixel coords. */
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+  mode: FreehandMode;
+  /** "polygon" straightening strength — RDP epsilon in px. Absent = default. */
+  polygonEpsilon?: number;
+  /** "curve" smoothing strength — RDP epsilon (px) before a fixed spline
+   *  tension; higher = rounder/smoother curve. Absent = default. */
+  curveSmoothing?: number;
+};
+
+export type HighlighterAnnotation = Base & {
+  type: "highlighter";
+  /** Flat [x0,y0,x1,y1,…] captured path in image-pixel coords. */
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+  /** Marker opacity 0..1. Absent = default. */
+  opacity?: number;
+};
+
+export type MagnifyShape = "circle" | "rect";
+
+export type MagnifyAnnotation = Base & {
+  type: "magnify";
+  /** Source (magnify) area center — the region being zoomed (image coords). */
+  sx: number;
+  sy: number;
+  /** Source area half-width / half-height (image px). Non-uniform → rect / oval. */
+  srw: number;
+  srh: number;
+  /** Output center — where the magnified loupe is drawn (image coords). */
+  x: number;
+  y: number;
+  /** Magnification factor; output half-extents = (srw, srh) × zoom. */
+  zoom: number;
+  shape: MagnifyShape;
+  /** Border + connector color. */
+  stroke: string;
+  strokeWidth: number;
+  /** Source-area indicator opacity 0..1 (0 hides it for a clean capture).
+   *  Absent = default (visible). */
+  areaOpacity?: number;
+  /** Connector "link" line dashed when true, solid when false. Absent = dashed. */
+  linkDash?: boolean;
 };
 
 export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
@@ -63,6 +142,8 @@ export type TextAnnotation = Base & {
   textDecoration?: TextDecoration;
   fontFamily?: string;
   backgroundColor?: string | null;
+  /** Horizontal background padding in image px (vertical is derived). Absent = default. */
+  bgPadding?: number;
 };
 
 export type BlurAnnotation = Base & {
@@ -111,6 +192,9 @@ export type Annotation =
   | ArrowAnnotation
   | TextAnnotation
   | BlurAnnotation
+  | FreehandAnnotation
+  | HighlighterAnnotation
+  | MagnifyAnnotation
   | StickerAnnotation
   | PinAnnotation;
 
@@ -136,7 +220,25 @@ type Snapshot = {
 /** Translate an annotation's positional fields by (dx, dy) in image pixels. */
 function shiftAnnotation(a: Annotation, dx: number, dy: number): Annotation {
   if (a.type === "arrow") {
-    return { ...a, x1: a.x1 + dx, y1: a.y1 + dy, x2: a.x2 + dx, y2: a.y2 + dy };
+    const next: ArrowAnnotation = {
+      ...a,
+      x1: a.x1 + dx,
+      y1: a.y1 + dy,
+      x2: a.x2 + dx,
+      y2: a.y2 + dy,
+    };
+    if (a.cx !== undefined && a.cy !== undefined) {
+      next.cx = a.cx + dx;
+      next.cy = a.cy + dy;
+    }
+    return next;
+  }
+  if (a.type === "pen" || a.type === "highlighter") {
+    const pts = a.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy));
+    return { ...a, points: pts };
+  }
+  if (a.type === "magnify") {
+    return { ...a, sx: a.sx + dx, sy: a.sy + dy, x: a.x + dx, y: a.y + dy };
   }
   return { ...a, x: a.x + dx, y: a.y + dy };
 }

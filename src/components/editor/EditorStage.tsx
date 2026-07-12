@@ -9,6 +9,7 @@ import {
   Arrow,
   Text,
   Circle,
+  Ellipse,
   Group,
   Line,
   Shape,
@@ -25,9 +26,13 @@ import {
   type ArrowAnnotation,
   type TextAnnotation,
   type BlurAnnotation,
+  type FreehandAnnotation,
+  type HighlighterAnnotation,
+  type MagnifyAnnotation,
   type StickerAnnotation,
   type PinAnnotation,
 } from "@/stores/editor";
+import { smoothPoints } from "@/lib/freehand";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
@@ -68,7 +73,10 @@ type Props = { src: string };
 type Draft =
   | { kind: "rect"; id: string; x: number; y: number; w: number; h: number }
   | { kind: "arrow"; id: string; x1: number; y1: number; x2: number; y2: number }
-  | { kind: "blur"; id: string; x: number; y: number; w: number; h: number };
+  | { kind: "line"; id: string; x1: number; y1: number; x2: number; y2: number }
+  | { kind: "blur"; id: string; x: number; y: number; w: number; h: number }
+  | { kind: "magnify"; id: string; x: number; y: number; w: number; h: number }
+  | { kind: "freehand"; id: string; tool: "pen" | "highlighter"; points: number[] };
 
 type TextEditor = {
   imgX: number;
@@ -86,9 +94,58 @@ function uid() {
 function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
   switch (a.type) {
     case "rect":
-      return { rect: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+      return {
+        rect: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          shape: a.shape,
+          cornerRadius: a.cornerRadius,
+        },
+      };
     case "arrow":
-      return { arrow: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+      // A headless line belongs to the Shapes tool — persist it under the rect
+      // slot so it never writes heads:"none" into the Arrow defaults (which would
+      // make subsequently-drawn arrows headless).
+      if (a.heads === "none") {
+        return { rect: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+      }
+      return {
+        arrow: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          heads: a.heads,
+          dash: a.dash,
+        },
+      };
+    case "pen":
+      return {
+        pen: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          mode: a.mode,
+          polygonEpsilon: a.polygonEpsilon,
+          curveSmoothing: a.curveSmoothing,
+        },
+      };
+    case "highlighter":
+      return {
+        highlighter: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          opacity: a.opacity,
+        },
+      };
+    case "magnify":
+      return {
+        magnify: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          shape: a.shape,
+          zoom: a.zoom,
+          areaOpacity: a.areaOpacity,
+          linkDash: a.linkDash,
+        },
+      };
     case "text":
       return {
         text: {
@@ -98,6 +155,7 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           textDecoration: a.textDecoration,
           fontFamily: a.fontFamily,
           backgroundColor: a.backgroundColor,
+          backgroundPadding: a.bgPadding,
         },
       };
     case "blur":
@@ -135,6 +193,10 @@ export function EditorStage({ src }: Props) {
   const nodeRefs = useRef(new Map<string, Konva.Node>());
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Pointer position for the highlighter's on-canvas brush guide (image coords).
+  const [brushPoint, setBrushPoint] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   // Live crop selection (in displayed-image coords) while the crop tool is active.
   const [cropSel, setCropSel] = useState<ImageCrop | null>(null);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
@@ -208,6 +270,9 @@ export function EditorStage({ src }: Props) {
         arrow: { ...cur.arrow, ...pendingLastUsed.current.arrow },
         text: { ...cur.text, ...pendingLastUsed.current.text },
         blur: { ...cur.blur, ...pendingLastUsed.current.blur },
+        pen: { ...cur.pen, ...pendingLastUsed.current.pen },
+        highlighter: { ...cur.highlighter, ...pendingLastUsed.current.highlighter },
+        magnify: { ...cur.magnify, ...pendingLastUsed.current.magnify },
         sticker: { ...cur.sticker, ...pendingLastUsed.current.sticker },
         pin: { ...cur.pin, ...pendingLastUsed.current.pin },
       };
@@ -404,6 +469,16 @@ export function EditorStage({ src }: Props) {
       tr.getLayer()?.batchDraw();
       return;
     }
+    // Arrows use their own inline handles, so they skip the box Transformer.
+    // Highlighters attach it as a selection box (resize+rotate off); magnifiers
+    // attach it to their source area (resize on, rotate off) — see the
+    // Transformer's per-type props below.
+    const selAnn = annotations.find((a) => a.id === selectedId);
+    if (selAnn?.type === "arrow") {
+      tr.nodes([]);
+      tr.getLayer()?.batchDraw();
+      return;
+    }
     const node = nodeRefs.current.get(selectedId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
@@ -548,7 +623,9 @@ export function EditorStage({ src }: Props) {
       // NOT a dep — mutating it can't trigger this effect. Node-size changes
       // that don't flow through `annotations` are signalled via `boundsTick`.
       const node = nodeRefs.current.get(a.id);
-      if (node) {
+      // Magnify registers only its source group, so its node rect misses the
+      // output loupe — use the annotation AABB, which unions source + output.
+      if (node && a.type !== "magnify") {
         const r = node.getClientRect({
           relativeTo: node.getLayer() ?? undefined,
           skipShadow: true,
@@ -721,7 +798,10 @@ export function EditorStage({ src }: Props) {
 
     if (empty) {
       const hadSelection = useEditor.getState().selectedId !== null;
-      const continuable = tool === "pin";
+      // Freehand tools stay active for repeated strokes (like pin) until Esc or
+      // another tool is chosen, instead of snapping back to select after one.
+      const continuable =
+        tool === "pin" || tool === "pen" || tool === "highlighter";
       if (hadSelection && !continuable) {
         select(null);
         if (tool !== "select") setTool("select");
@@ -739,11 +819,24 @@ export function EditorStage({ src }: Props) {
     if (!empty) return;
 
     if (tool === "rect") {
-      setDraft({ kind: "rect", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
+      // The Shapes tool's line / dashed-line options draw a 2-point segment.
+      if (toolsCfg.rect.shape === "line" || toolsCfg.rect.shape === "dashline") {
+        setDraft({ kind: "line", id: uid(), x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+      } else {
+        setDraft({ kind: "rect", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
+      }
       return;
     }
     if (tool === "arrow") {
       setDraft({ kind: "arrow", id: uid(), x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+      return;
+    }
+    if (tool === "pen" || tool === "highlighter") {
+      setDraft({ kind: "freehand", id: uid(), tool, points: [p.x, p.y] });
+      return;
+    }
+    if (tool === "magnify") {
+      setDraft({ kind: "magnify", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
       return;
     }
     if (tool === "blur") {
@@ -830,6 +923,7 @@ export function EditorStage({ src }: Props) {
         textDecoration: toolsCfg.text.textDecoration,
         fontFamily: toolsCfg.text.fontFamily,
         backgroundColor: toolsCfg.text.backgroundColor,
+        bgPadding: toolsCfg.text.backgroundPadding,
       };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -865,13 +959,20 @@ export function EditorStage({ src }: Props) {
   }, []);
 
   function handleMouseMove() {
+    if (tool === "highlighter") setBrushPoint(getPointer());
     if (!draft) return;
     const p = getPointer();
     if (!p) return;
-    if (draft.kind === "rect" || draft.kind === "blur") {
+    if (
+      draft.kind === "rect" ||
+      draft.kind === "blur" ||
+      draft.kind === "magnify"
+    ) {
       setDraft({ ...draft, w: p.x - draft.x, h: p.y - draft.y });
-    } else {
+    } else if (draft.kind === "arrow" || draft.kind === "line") {
       setDraft({ ...draft, x2: p.x, y2: p.y });
+    } else if (draft.kind === "freehand") {
+      setDraft({ ...draft, points: [...draft.points, p.x, p.y] });
     }
   }
 
@@ -892,6 +993,8 @@ export function EditorStage({ src }: Props) {
           h,
           stroke: toolsCfg.rect.strokeColor,
           strokeWidth: toolsCfg.rect.strokeWidth,
+          shape: toolsCfg.rect.shape,
+          cornerRadius: toolsCfg.rect.cornerRadius,
         };
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -914,7 +1017,7 @@ export function EditorStage({ src }: Props) {
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
-    } else {
+    } else if (draft.kind === "arrow") {
       const dx = draft.x2 - draft.x1;
       const dy = draft.y2 - draft.y1;
       if (Math.hypot(dx, dy) > 4) {
@@ -927,9 +1030,91 @@ export function EditorStage({ src }: Props) {
           y2: draft.y2,
           stroke: toolsCfg.arrow.strokeColor,
           strokeWidth: toolsCfg.arrow.strokeWidth,
+          heads: toolsCfg.arrow.heads,
+          dash: toolsCfg.arrow.dash,
         };
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+      }
+    } else if (draft.kind === "line") {
+      // Shapes-tool line: a headless arrow. Persists under the arrow's config.
+      const dx = draft.x2 - draft.x1;
+      const dy = draft.y2 - draft.y1;
+      if (Math.hypot(dx, dy) > 4) {
+        const a: ArrowAnnotation = {
+          id: draft.id,
+          type: "arrow",
+          x1: draft.x1,
+          y1: draft.y1,
+          x2: draft.x2,
+          y2: draft.y2,
+          stroke: toolsCfg.rect.strokeColor,
+          strokeWidth: toolsCfg.rect.strokeWidth,
+          heads: "none",
+          dash: toolsCfg.rect.shape === "dashline",
+        };
+        add(a);
+      }
+    } else if (draft.kind === "magnify") {
+      // The drag defines the SOURCE (magnify) area; the output loupe is placed
+      // beside it, sized by the configured zoom.
+      const x = draft.w < 0 ? draft.x + draft.w : draft.x;
+      const y = draft.h < 0 ? draft.y + draft.h : draft.y;
+      const w = Math.abs(draft.w);
+      const h = Math.abs(draft.h);
+      // Respect the drag's aspect so the source can already be a rect/oval.
+      const srw = w > 4 ? w / 2 : 40;
+      const srh = h > 4 ? h / 2 : 40;
+      const sx = w > 4 ? x + w / 2 : draft.x;
+      const sy = h > 4 ? y + h / 2 : draft.y;
+      const zoom = toolsCfg.magnify.zoom;
+      const outW = srw * zoom;
+      // Output sits to the right of the source, clear of it.
+      const a: MagnifyAnnotation = {
+        id: draft.id,
+        type: "magnify",
+        sx,
+        sy,
+        srw,
+        srh,
+        x: sx + srw + outW + 24,
+        y: sy,
+        zoom,
+        shape: toolsCfg.magnify.shape,
+        stroke: toolsCfg.magnify.strokeColor,
+        strokeWidth: toolsCfg.magnify.strokeWidth,
+        areaOpacity: toolsCfg.magnify.areaOpacity,
+        linkDash: toolsCfg.magnify.linkDash,
+      };
+      add(a);
+      scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+    } else if (draft.kind === "freehand") {
+      if (draft.points.length >= 4) {
+        if (draft.tool === "highlighter") {
+          const a: HighlighterAnnotation = {
+            id: draft.id,
+            type: "highlighter",
+            points: draft.points,
+            stroke: toolsCfg.highlighter.strokeColor,
+            strokeWidth: toolsCfg.highlighter.strokeWidth,
+            opacity: toolsCfg.highlighter.opacity,
+          };
+          add(a);
+          scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+        } else {
+          const a: FreehandAnnotation = {
+            id: draft.id,
+            type: "pen",
+            points: draft.points,
+            stroke: toolsCfg.pen.strokeColor,
+            strokeWidth: toolsCfg.pen.strokeWidth,
+            mode: toolsCfg.pen.mode,
+            polygonEpsilon: toolsCfg.pen.polygonEpsilon,
+            curveSmoothing: toolsCfg.pen.curveSmoothing,
+          };
+          add(a);
+          scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+        }
       }
     }
     setDraft(null);
@@ -940,12 +1125,25 @@ export function EditorStage({ src }: Props) {
     else nodeRefs.current.delete(id);
   }
 
+  // Highlighters attach the box Transformer purely as a selection box (no
+  // resize/rotate). Magnifiers attach it to their source area to reshape it
+  // (square↔rect, circle↔oval) but never rotate.
+  const selectedType = annotations.find((a) => a.id === selectedId)?.type;
+  const transformInteractive = selectedType !== "highlighter";
+  const transformResizable = selectedType !== "highlighter";
+  const transformRotatable =
+    selectedType !== "highlighter" && selectedType !== "magnify";
+
   const cursorClass =
     tool === "select"
       ? "cursor-default"
       : tool === "text"
         ? "cursor-text"
-        : "cursor-crosshair";
+        : tool === "highlighter"
+          ? "cursor-none" // replaced by the on-canvas brush pill
+          : tool === "pen"
+            ? "cursor-pen"
+            : "cursor-crosshair";
 
   const sizerW = stageW > 0 ? stageW + padX * 2 : 0;
   const sizerH = stageH > 0 ? stageH + padY * 2 : 0;
@@ -1052,6 +1250,7 @@ export function EditorStage({ src }: Props) {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={() => setBrushPoint(null)}
         >
           <Layer>
             {/* Canvas background — fills the whole (possibly expanded) box,
@@ -1084,6 +1283,8 @@ export function EditorStage({ src }: Props) {
                 bgImage: image,
                 cropOffX: cropBase.x,
                 cropOffY: cropBase.y,
+                selected: selectedId === a.id,
+                scale,
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
@@ -1106,7 +1307,35 @@ export function EditorStage({ src }: Props) {
                 onBoundsChange: bumpBounds,
               }),
             )}
-            {draft?.kind === "rect" && (
+            {draft?.kind === "rect" && toolsCfg.rect.shape === "ellipse" && (
+              <Shape
+                x={Math.min(draft.x, draft.x + draft.w)}
+                y={Math.min(draft.y, draft.y + draft.h)}
+                width={Math.abs(draft.w)}
+                height={Math.abs(draft.h)}
+                stroke={toolsCfg.rect.strokeColor}
+                strokeWidth={toolsCfg.rect.strokeWidth}
+                dash={[6, 4]}
+                listening={false}
+                sceneFunc={(c, shape) => {
+                  const w = shape.width();
+                  const h = shape.height();
+                  c.beginPath();
+                  c.ellipse(
+                    w / 2,
+                    h / 2,
+                    Math.max(0, w / 2),
+                    Math.max(0, h / 2),
+                    0,
+                    0,
+                    Math.PI * 2,
+                  );
+                  c.closePath();
+                  c.strokeShape(shape);
+                }}
+              />
+            )}
+            {draft?.kind === "rect" && toolsCfg.rect.shape !== "ellipse" && (
               <Rect
                 x={Math.min(draft.x, draft.x + draft.w)}
                 y={Math.min(draft.y, draft.y + draft.h)}
@@ -1114,6 +1343,7 @@ export function EditorStage({ src }: Props) {
                 height={Math.abs(draft.h)}
                 stroke={toolsCfg.rect.strokeColor}
                 strokeWidth={toolsCfg.rect.strokeWidth}
+                cornerRadius={toolsCfg.rect.cornerRadius}
                 dash={[6, 4]}
                 listening={false}
               />
@@ -1138,9 +1368,109 @@ export function EditorStage({ src }: Props) {
                 strokeWidth={toolsCfg.arrow.strokeWidth}
                 pointerLength={toolsCfg.arrow.strokeWidth * 4}
                 pointerWidth={toolsCfg.arrow.strokeWidth * 4}
+                pointerAtBeginning={toolsCfg.arrow.heads === "both"}
+                dash={
+                  toolsCfg.arrow.dash
+                    ? [toolsCfg.arrow.strokeWidth * 2, toolsCfg.arrow.strokeWidth * 2]
+                    : undefined
+                }
+                lineCap="round"
+                lineJoin="round"
                 listening={false}
               />
             )}
+            {draft?.kind === "line" && (
+              <Line
+                points={[draft.x1, draft.y1, draft.x2, draft.y2]}
+                stroke={toolsCfg.rect.strokeColor}
+                strokeWidth={toolsCfg.rect.strokeWidth}
+                dash={
+                  toolsCfg.rect.shape === "dashline"
+                    ? [toolsCfg.rect.strokeWidth * 2, toolsCfg.rect.strokeWidth * 2]
+                    : undefined
+                }
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            )}
+            {draft?.kind === "freehand" && (
+              <Line
+                points={draft.points}
+                stroke={
+                  draft.tool === "highlighter"
+                    ? toolsCfg.highlighter.strokeColor
+                    : toolsCfg.pen.strokeColor
+                }
+                strokeWidth={
+                  draft.tool === "highlighter"
+                    ? toolsCfg.highlighter.strokeWidth
+                    : toolsCfg.pen.strokeWidth
+                }
+                opacity={
+                  draft.tool === "highlighter" ? toolsCfg.highlighter.opacity : 1
+                }
+                globalCompositeOperation={
+                  draft.tool === "highlighter" ? "multiply" : undefined
+                }
+                lineCap="round"
+                lineJoin="round"
+                tension={draft.tool === "pen" && toolsCfg.pen.mode === "curve" ? 0.5 : 0}
+                listening={false}
+              />
+            )}
+            {draft?.kind === "magnify" && (
+              <Shape
+                x={Math.min(draft.x, draft.x + draft.w)}
+                y={Math.min(draft.y, draft.y + draft.h)}
+                width={Math.abs(draft.w)}
+                height={Math.abs(draft.h)}
+                stroke={toolsCfg.magnify.strokeColor}
+                strokeWidth={toolsCfg.magnify.strokeWidth}
+                dash={[6, 4]}
+                listening={false}
+                sceneFunc={(c, shape) => {
+                  const w = shape.width();
+                  const h = shape.height();
+                  c.beginPath();
+                  if (toolsCfg.magnify.shape === "rect") {
+                    c.rect(0, 0, w, h);
+                  } else {
+                    c.ellipse(
+                      w / 2,
+                      h / 2,
+                      Math.max(0, w / 2),
+                      Math.max(0, h / 2),
+                      0,
+                      0,
+                      Math.PI * 2,
+                    );
+                  }
+                  c.closePath();
+                  c.strokeShape(shape);
+                }}
+              />
+            )}
+            {tool === "highlighter" && brushPoint && (() => {
+              // Guide footprint equals the actual drawn width: max extent (the
+              // pill height) == strokeWidth; a slim vertical pill hints direction.
+              const w = toolsCfg.highlighter.strokeWidth;
+              const pillW = w * 0.6;
+              return (
+                <Rect
+                  x={brushPoint.x - pillW / 2}
+                  y={brushPoint.y - w / 2}
+                  width={pillW}
+                  height={w}
+                  cornerRadius={pillW / 2}
+                  fill={toolsCfg.highlighter.strokeColor}
+                  opacity={toolsCfg.highlighter.opacity}
+                  stroke="rgba(0,0,0,0.35)"
+                  strokeWidth={1 / scale}
+                  listening={false}
+                />
+              );
+            })()}
             {tool === "crop" && cropSel && (
               <>
                 {/* Dim the area outside the crop selection (4 rects). */}
@@ -1223,9 +1553,12 @@ export function EditorStage({ src }: Props) {
             />
             <Transformer
               ref={trRef}
-              rotateEnabled
+              resizeEnabled={transformResizable}
+              rotateEnabled={transformRotatable}
               rotationSnaps={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]}
-              ignoreStroke
+              // Resizable shapes ignore stroke so the box hugs the geometry; the
+              // highlighter includes its (thick) stroke so the box tracks width.
+              ignoreStroke={transformInteractive}
               boundBoxFunc={(_oldBox, newBox) => {
                 if (Math.abs(newBox.width) < 5 || Math.abs(newBox.height) < 5) {
                   return _oldBox;
@@ -1397,6 +1730,10 @@ type ShapeCtx = {
   /** Offset from cropped-image space to source-image pixels (for blur sampling). */
   cropOffX: number;
   cropOffY: number;
+  /** Whether this annotation is the selected one (drives inline arrow handles). */
+  selected: boolean;
+  /** Current stage scale, so on-canvas handles keep a constant screen size. */
+  scale: number;
   onSelect: () => void;
   onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
@@ -1415,6 +1752,10 @@ function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
   if (a.type === "arrow") return <ArrowShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "text") return <TextShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "blur") return <BlurShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "pen") return <FreehandShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "highlighter")
+    return <HighlighterShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "magnify") return <MagnifyShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "sticker") return <StickerShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "pin") return <PinShape key={a.id} a={a} ctx={ctx} />;
   return null;
@@ -1436,113 +1777,596 @@ function hoverHandlers(ctx: ShapeCtx) {
 }
 
 function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
-  const ref = useRef<Konva.Rect>(null);
+  // Rect and its ellipse variant share the same bounding-box model (x/y/w/h),
+  // so they reuse identical drag/transform handlers. A callback ref stores the
+  // node (Konva.Rect or Konva.Shape, both Konva.Shape) to sidestep ref variance.
+  const ref = useRef<Konva.Shape | null>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
+  const setLocalRef = (n: Konva.Shape | null) => {
+    ref.current = n;
+  };
+  const shared = {
+    x: a.x,
+    y: a.y,
+    width: a.w,
+    height: a.h,
+    rotation: a.rotation ?? 0,
+    stroke: a.stroke,
+    strokeWidth: a.strokeWidth,
+    draggable: true,
+    ...hoverHandlers(ctx),
+    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      e.cancelBubble = true;
+      ctx.onSelect();
+    },
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const node = e.target;
+      const { dx, dy } = ctx.snapDrag(
+        a.id,
+        { x: node.x(), y: node.y(), w: a.w, h: a.h },
+        e.evt.altKey,
+      );
+      if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+    },
+    onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      ctx.endSnap();
+      ctx.onChange({ x: e.target.x(), y: e.target.y() });
+    },
+    onTransformEnd: () => {
+      const node = ref.current;
+      if (!node) return;
+      const sx = node.scaleX();
+      const sy = node.scaleY();
+      node.scaleX(1);
+      node.scaleY(1);
+      ctx.onChange({
+        x: Math.round(node.x()),
+        y: Math.round(node.y()),
+        w: Math.round(Math.max(2, node.width() * sx)),
+        h: Math.round(Math.max(2, node.height() * sy)),
+        rotation: node.rotation(),
+      });
+    },
+  };
+
+  if (a.shape === "ellipse") {
+    return (
+      <Shape
+        ref={setLocalRef}
+        {...shared}
+        hitStrokeWidth={Math.max(12, a.strokeWidth * 2)}
+        sceneFunc={(c, shape) => {
+          const w = shape.width();
+          const h = shape.height();
+          c.beginPath();
+          c.ellipse(
+            w / 2,
+            h / 2,
+            Math.max(0, w / 2),
+            Math.max(0, h / 2),
+            0,
+            0,
+            Math.PI * 2,
+          );
+          c.closePath();
+          c.strokeShape(shape);
+        }}
+      />
+    );
+  }
   return (
     <Rect
-      ref={ref}
-      x={a.x}
-      y={a.y}
-      width={a.w}
-      height={a.h}
-      rotation={a.rotation ?? 0}
-      stroke={a.stroke}
-      strokeWidth={a.strokeWidth}
-      draggable
-      {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
-        e.cancelBubble = true;
-        ctx.onSelect();
-      }}
-      onDragMove={(e) => {
-        const node = e.target;
-        const { dx, dy } = ctx.snapDrag(
-          a.id,
-          { x: node.x(), y: node.y(), w: a.w, h: a.h },
-          e.evt.altKey,
-        );
-        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
-      }}
-      onDragEnd={(e) => {
-        ctx.endSnap();
-        ctx.onChange({ x: e.target.x(), y: e.target.y() });
-      }}
-      onTransformEnd={() => {
-        const node = ref.current;
-        if (!node) return;
-        const sx = node.scaleX();
-        const sy = node.scaleY();
-        node.scaleX(1);
-        node.scaleY(1);
-        ctx.onChange({
-          x: Math.round(node.x()),
-          y: Math.round(node.y()),
-          w: Math.round(Math.max(2, node.width() * sx)),
-          h: Math.round(Math.max(2, node.height() * sy)),
-          rotation: node.rotation(),
-        });
-      }}
+      ref={setLocalRef}
+      {...shared}
+      cornerRadius={Math.max(0, a.cornerRadius ?? 0)}
     />
   );
 }
 
+/** Live geometry of an arrow while a control handle is being dragged. */
+type ArrowGeom = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  cx?: number;
+  cy?: number;
+};
+
+/**
+ * Re-express a curve-control point relative to a new chord when one endpoint
+ * moves, so the arrow keeps its visual bend (and a straight arrow stays
+ * straight). The control is decomposed into (along-chord fraction, perpendicular
+ * offset) against the old chord and rebuilt on the new one, scaling the
+ * perpendicular offset by the length ratio.
+ */
+function remapArrowControl(
+  oldA: { x: number; y: number },
+  oldB: { x: number; y: number },
+  newA: { x: number; y: number },
+  newB: { x: number; y: number },
+  ctrl: { x: number; y: number },
+): { cx: number; cy: number } {
+  const d0x = oldB.x - oldA.x;
+  const d0y = oldB.y - oldA.y;
+  const len0 = Math.hypot(d0x, d0y);
+  const d1x = newB.x - newA.x;
+  const d1y = newB.y - newA.y;
+  const len1 = Math.hypot(d1x, d1y);
+  if (len0 < 1e-6 || len1 < 1e-6) {
+    return { cx: (newA.x + newB.x) / 2, cy: (newA.y + newB.y) / 2 };
+  }
+  const u0x = d0x / len0;
+  const u0y = d0y / len0;
+  const px = ctrl.x - oldA.x;
+  const py = ctrl.y - oldA.y;
+  const t = (px * u0x + py * u0y) / len0; // fraction along the chord
+  const s = px * -u0y + py * u0x; // perpendicular offset (px)
+  const u1x = d1x / len1;
+  const u1y = d1y / len1;
+  const sScaled = s * (len1 / len0);
+  return {
+    cx: newA.x + u1x * (t * len1) + -u1y * sScaled,
+    cy: newA.y + u1y * (t * len1) + u1x * sScaled,
+  };
+}
+
+const ARROW_HANDLE_COLOR = "#6d7cff";
+
 function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
   const ref = useRef<Konva.Arrow>(null);
+  const [live, setLive] = useState<ArrowGeom | null>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
+
+  const g: ArrowGeom = live ?? {
+    x1: a.x1,
+    y1: a.y1,
+    x2: a.x2,
+    y2: a.y2,
+    cx: a.cx,
+    cy: a.cy,
+  };
+  const hasCurve = g.cx !== undefined && g.cy !== undefined;
+  const mid = hasCurve
+    ? { x: g.cx as number, y: g.cy as number }
+    : { x: (g.x1 + g.x2) / 2, y: (g.y1 + g.y2) / 2 };
+  const points = hasCurve
+    ? [g.x1, g.y1, mid.x, mid.y, g.x2, g.y2]
+    : [g.x1, g.y1, g.x2, g.y2];
+
+  const commit = (next: ArrowGeom) => {
+    const patch: Partial<Annotation> = {
+      x1: next.x1,
+      y1: next.y1,
+      x2: next.x2,
+      y2: next.y2,
+    };
+    if (next.cx !== undefined && next.cy !== undefined) {
+      (patch as Partial<ArrowAnnotation>).cx = next.cx;
+      (patch as Partial<ArrowAnnotation>).cy = next.cy;
+    }
+    ctx.onChange(patch);
+    setLive(null);
+  };
+
+  const hr = Math.max(4, 6 / ctx.scale); // handle radius, constant on screen
+  const hsw = 1.5 / ctx.scale;
+
+  const dragEndpoint = (which: "tail" | "head") => (
+    e: Konva.KonvaEventObject<DragEvent>,
+  ) => {
+    const n = e.target;
+    const p = { x: n.x(), y: n.y() };
+    const tail = which === "tail" ? p : { x: g.x1, y: g.y1 };
+    const head = which === "head" ? p : { x: g.x2, y: g.y2 };
+    const geom: ArrowGeom = { x1: tail.x, y1: tail.y, x2: head.x, y2: head.y };
+    if (hasCurve) {
+      const c = remapArrowControl(
+        { x: g.x1, y: g.y1 },
+        { x: g.x2, y: g.y2 },
+        tail,
+        head,
+        mid,
+      );
+      geom.cx = c.cx;
+      geom.cy = c.cy;
+    }
+    return geom;
+  };
+
   return (
-    <Arrow
+    <>
+      <Arrow
+        ref={ref}
+        points={points}
+        tension={hasCurve ? 0.5 : 0}
+        rotation={a.rotation ?? 0}
+        stroke={a.stroke}
+        fill={a.stroke}
+        strokeWidth={a.strokeWidth}
+        pointerLength={a.strokeWidth * 4}
+        pointerWidth={a.strokeWidth * 4}
+        pointerAtEnding={(a.heads ?? "end") !== "none"}
+        pointerAtBeginning={a.heads === "both"}
+        dash={a.dash ? [a.strokeWidth * 2, a.strokeWidth * 2] : undefined}
+        lineCap="round"
+        lineJoin="round"
+        hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
+        draggable
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragMove={(e) => {
+          const node = e.target;
+          const ab = annotationAABB(a);
+          if (!ab) return;
+          const { dx, dy } = ctx.snapDrag(
+            a.id,
+            { x: ab.x + node.x(), y: ab.y + node.y(), w: ab.w, h: ab.h },
+            e.evt.altKey,
+          );
+          if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+        }}
+        onDragEnd={(e) => {
+          ctx.endSnap();
+          const dx = e.target.x();
+          const dy = e.target.y();
+          e.target.position({ x: 0, y: 0 });
+          const next: ArrowGeom = {
+            x1: a.x1 + dx,
+            y1: a.y1 + dy,
+            x2: a.x2 + dx,
+            y2: a.y2 + dy,
+          };
+          if (a.cx !== undefined && a.cy !== undefined) {
+            next.cx = a.cx + dx;
+            next.cy = a.cy + dy;
+          }
+          commit(next);
+        }}
+      />
+      {ctx.selected && (
+        <>
+          {/* mid curve-control handle */}
+          <Circle
+            x={mid.x}
+            y={mid.y}
+            radius={hr}
+            fill={ARROW_HANDLE_COLOR}
+            stroke="#ffffff"
+            strokeWidth={hsw}
+            draggable
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+            }}
+            onDragMove={(e) => {
+              setLive({ ...g, cx: e.target.x(), cy: e.target.y() });
+            }}
+            onDragEnd={(e) => {
+              commit({ ...g, cx: e.target.x(), cy: e.target.y() });
+            }}
+          />
+          {/* tail + head endpoint handles */}
+          {(["tail", "head"] as const).map((which) => (
+            <Circle
+              key={which}
+              x={which === "tail" ? g.x1 : g.x2}
+              y={which === "tail" ? g.y1 : g.y2}
+              radius={hr}
+              fill="#ffffff"
+              stroke={ARROW_HANDLE_COLOR}
+              strokeWidth={hsw}
+              draggable
+              onMouseDown={(e) => {
+                e.cancelBubble = true;
+              }}
+              onDragMove={(e) => {
+                setLive(dragEndpoint(which)(e));
+              }}
+              onDragEnd={(e) => {
+                commit(dragEndpoint(which)(e));
+              }}
+            />
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Shared move/resize handling for point-path shapes (pen + highlighter): drag
+ *  translates the raw points; the Transformer bakes scale/rotation into them via
+ *  the node transform so the stored path stays axis-aligned. */
+function usePathShape(a: FreehandAnnotation | HighlighterAnnotation, ctx: ShapeCtx) {
+  const ref = useRef<Konva.Line>(null);
+  useEffect(() => {
+    ctx.setRef(ref.current);
+    return () => ctx.setRef(null);
+  });
+  const handlers = {
+    draggable: true,
+    ...hoverHandlers(ctx),
+    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      e.cancelBubble = true;
+      ctx.onSelect();
+    },
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const node = e.target;
+      const ab = annotationAABB(a);
+      if (!ab) return;
+      const { dx, dy } = ctx.snapDrag(
+        a.id,
+        { x: ab.x + node.x(), y: ab.y + node.y(), w: ab.w, h: ab.h },
+        e.evt.altKey,
+      );
+      if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+    },
+    onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      ctx.endSnap();
+      const dx = e.target.x();
+      const dy = e.target.y();
+      e.target.position({ x: 0, y: 0 });
+      ctx.onChange({
+        points: a.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy)),
+      });
+    },
+    onTransformEnd: () => {
+      const node = ref.current;
+      if (!node) return;
+      // Fold the node's scale/rotation/translation into the raw points so the
+      // stored path is again untransformed (rotation baked in, reset to 0).
+      const t = node.getTransform().copy();
+      const out: number[] = [];
+      for (let i = 0; i < a.points.length; i += 2) {
+        const p = t.point({ x: a.points[i], y: a.points[i + 1] });
+        out.push(p.x, p.y);
+      }
+      node.scaleX(1);
+      node.scaleY(1);
+      node.rotation(0);
+      node.position({ x: 0, y: 0 });
+      ctx.onChange({ points: out, rotation: 0 });
+    },
+  };
+  return { ref, handlers };
+}
+
+function FreehandShape({ a, ctx }: { a: FreehandAnnotation; ctx: ShapeCtx }) {
+  const { ref, handlers } = usePathShape(a, ctx);
+  const { points, tension } = smoothPoints(a.points, a.mode, {
+    polygonEpsilon: a.polygonEpsilon,
+    curveSmoothing: a.curveSmoothing,
+  });
+  return (
+    <Line
       ref={ref}
-      points={[a.x1, a.y1, a.x2, a.y2]}
+      points={points}
+      tension={tension}
       rotation={a.rotation ?? 0}
       stroke={a.stroke}
-      fill={a.stroke}
       strokeWidth={a.strokeWidth}
-      pointerLength={a.strokeWidth * 4}
-      pointerWidth={a.strokeWidth * 4}
-      hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
-      draggable
-      {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
-        e.cancelBubble = true;
-        ctx.onSelect();
-      }}
-      onDragMove={(e) => {
-        const node = e.target;
-        const baseX = Math.min(a.x1, a.x2);
-        const baseY = Math.min(a.y1, a.y2);
-        const w = Math.abs(a.x2 - a.x1);
-        const h = Math.abs(a.y2 - a.y1);
-        const { dx, dy } = ctx.snapDrag(
-          a.id,
-          { x: baseX + node.x(), y: baseY + node.y(), w, h },
-          e.evt.altKey,
-        );
-        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
-      }}
-      onDragEnd={(e) => {
-        ctx.endSnap();
-        const dx = e.target.x();
-        const dy = e.target.y();
-        e.target.position({ x: 0, y: 0 });
-        ctx.onChange({
-          x1: a.x1 + dx,
-          y1: a.y1 + dy,
-          x2: a.x2 + dx,
-          y2: a.y2 + dy,
-        });
-      }}
-      onTransformEnd={() => {
-        const node = ref.current;
-        if (!node) return;
-        ctx.onChange({ rotation: node.rotation() });
-      }}
+      lineCap="round"
+      lineJoin="round"
+      hitStrokeWidth={Math.max(16, a.strokeWidth * 2)}
+      {...handlers}
     />
+  );
+}
+
+function HighlighterShape({
+  a,
+  ctx,
+}: {
+  a: HighlighterAnnotation;
+  ctx: ShapeCtx;
+}) {
+  const { ref, handlers } = usePathShape(a, ctx);
+  return (
+    <Line
+      ref={ref}
+      points={a.points}
+      rotation={a.rotation ?? 0}
+      stroke={a.stroke}
+      strokeWidth={a.strokeWidth}
+      opacity={a.opacity ?? 0.5}
+      lineCap="round"
+      lineJoin="round"
+      globalCompositeOperation="multiply"
+      hitStrokeWidth={Math.max(16, a.strokeWidth)}
+      {...handlers}
+    />
+  );
+}
+
+function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
+  // The source area is the Transformer target (reshape square↔rect, circle↔oval,
+  // no rotate); the output loupe is a separate draggable node with a zoom handle.
+  const sourceRef = useRef<Konva.Group>(null);
+  const [live, setLive] = useState<Partial<MagnifyAnnotation>>({});
+  useEffect(() => {
+    ctx.setRef(sourceRef.current);
+    return () => ctx.setRef(null);
+  });
+
+  const g = { ...a, ...live };
+  const srcW = g.srw;
+  const srcH = g.srh;
+  const outW = srcW * g.zoom;
+  const outH = srcH * g.zoom;
+  const isRect = g.shape === "rect";
+  const hr = Math.max(4, 6 / ctx.scale);
+  const hsw = 1.5 / ctx.scale;
+  const bw = Math.max(1, a.strokeWidth * 0.6);
+  const linkDashed = a.linkDash ?? true;
+  const areaFill = a.areaOpacity ?? 0.15;
+
+  const commit = (patch: Partial<MagnifyAnnotation>) => {
+    ctx.onChange(patch);
+    setLive({});
+  };
+  const clip = (hw: number, hh: number) => (c: Konva.Context) => {
+    c.beginPath();
+    if (isRect) c.rect(-hw, -hh, hw * 2, hh * 2);
+    else c.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2, false);
+    c.closePath();
+  };
+  // A rect or ellipse centered on its group origin (0,0).
+  const area = (hw: number, hh: number, props: Record<string, unknown>) =>
+    isRect ? (
+      <Rect x={-hw} y={-hh} width={hw * 2} height={hh * 2} {...props} />
+    ) : (
+      <Ellipse x={0} y={0} radiusX={hw} radiusY={hh} {...props} />
+    );
+  // Point on the (possibly non-uniform) perimeter toward (tx,ty), so the
+  // connector meets the area/loupe edges instead of their centers.
+  const edge = (
+    cx: number,
+    cy: number,
+    hw: number,
+    hh: number,
+    tx: number,
+    ty: number,
+  ): [number, number] => {
+    const dx = tx - cx;
+    const dy = ty - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const w = Math.max(1, hw);
+    const h = Math.max(1, hh);
+    const s = isRect
+      ? 1 / Math.max(Math.abs(ux) / w, Math.abs(uy) / h)
+      : 1 / Math.sqrt((ux * ux) / (w * w) + (uy * uy) / (h * h));
+    return [cx + ux * s, cy + uy * s];
+  };
+  const [lsx, lsy] = edge(g.sx, g.sy, srcW, srcH, g.x, g.y);
+  const [lox, loy] = edge(g.x, g.y, outW, outH, g.sx, g.sy);
+
+  return (
+    <>
+      {/* connector: source edge → output edge (dashed or solid per link type) */}
+      <Line
+        points={[lsx, lsy, lox, loy]}
+        stroke={a.stroke}
+        strokeWidth={bw}
+        dash={linkDashed ? [4, 4] : undefined}
+        listening={false}
+      />
+      {/* source (magnify) area — draggable to move, reshapable via Transformer.
+          areaOpacity affects the fill only; the border always shows and follows
+          the link (solid/dotted) style. */}
+      <Group
+        ref={sourceRef}
+        x={g.sx}
+        y={g.sy}
+        draggable
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragMove={(e) =>
+          setLive((p) => ({ ...p, sx: e.target.x(), sy: e.target.y() }))
+        }
+        onDragEnd={(e) => commit({ sx: e.target.x(), sy: e.target.y() })}
+        onTransformEnd={(e) => {
+          const node = e.target;
+          const sxScale = node.scaleX();
+          const syScale = node.scaleY();
+          node.scaleX(1);
+          node.scaleY(1);
+          node.rotation(0);
+          commit({
+            sx: node.x(),
+            sy: node.y(),
+            srw: Math.max(8, Math.round(a.srw * sxScale)),
+            srh: Math.max(8, Math.round(a.srh * syScale)),
+          });
+        }}
+      >
+        {area(srcW, srcH, { fill: a.stroke, opacity: areaFill })}
+        {area(srcW, srcH, {
+          stroke: a.stroke,
+          strokeWidth: bw,
+          dash: linkDashed ? [Math.max(2, bw * 3), Math.max(2, bw * 3)] : undefined,
+        })}
+      </Group>
+      {/* output loupe — draggable; magnified sample clipped to the shape */}
+      <Group
+        x={g.x}
+        y={g.y}
+        draggable
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragMove={(e) =>
+          setLive((p) => ({ ...p, x: e.target.x(), y: e.target.y() }))
+        }
+        onDragEnd={(e) => commit({ x: e.target.x(), y: e.target.y() })}
+      >
+        <Group clipFunc={clip(outW, outH)}>
+          {area(outW, outH, { fill: "rgba(0,0,0,0.001)" })}
+          {ctx.bgImage && (
+            <KonvaImage
+              image={ctx.bgImage}
+              x={-outW}
+              y={-outH}
+              width={outW * 2}
+              height={outH * 2}
+              crop={{
+                x: g.sx - srcW + ctx.cropOffX,
+                y: g.sy - srcH + ctx.cropOffY,
+                width: srcW * 2,
+                height: srcH * 2,
+              }}
+              listening={false}
+            />
+          )}
+        </Group>
+        {area(outW, outH, {
+          stroke: a.stroke,
+          strokeWidth: a.strokeWidth,
+          dash: linkDashed
+            ? [a.strokeWidth * 2.5, a.strokeWidth * 2.5]
+            : undefined,
+          listening: false,
+        })}
+      </Group>
+      {/* zoom handle (output magnification) */}
+      {ctx.selected && (
+        <Circle
+          x={g.x + outW}
+          y={g.y}
+          radius={hr}
+          fill="#ffffff"
+          stroke={a.stroke}
+          strokeWidth={hsw}
+          draggable
+          onMouseDown={(e) => {
+            e.cancelBubble = true;
+          }}
+          onDragMove={(e) =>
+            setLive((p) => ({
+              ...p,
+              zoom: Math.max(1.2, (e.target.x() - g.x) / srcW),
+            }))
+          }
+          onDragEnd={(e) =>
+            commit({ zoom: Math.max(1.2, (e.target.x() - g.x) / srcW) })
+          }
+        />
+      )}
+    </>
   );
 }
 
@@ -1606,8 +2430,10 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   const bg = a.backgroundColor ?? null;
-  const padX = bg ? 12 : 0;
-  const padY = bg ? 8 : 0;
+  // User-adjustable horizontal padding (px); vertical derived to keep the label
+  // shape balanced. Falls back to a roomy default for pre-existing annotations.
+  const padX = bg ? Math.max(0, a.bgPadding ?? 14) : 0;
+  const padY = bg ? Math.round(padX * 0.66) : 0;
   const fontStyle = a.fontStyle ?? "normal";
   const textDecoration = a.textDecoration ?? "";
   const fontFamily = a.fontFamily ?? "system-ui, sans-serif";

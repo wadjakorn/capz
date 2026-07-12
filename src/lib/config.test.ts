@@ -1,5 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { validateConfig, DEFAULT_CONFIG } from "./config";
+import { validateConfig, effectiveTools, DEFAULT_CONFIG } from "./config";
+
+describe("effectiveTools remembers last-used per tool", () => {
+  it("merges lastUsed over defaults for pen / highlighter / magnify", () => {
+    const cfg = {
+      ...DEFAULT_CONFIG,
+      lastUsed: {
+        pen: { strokeColor: "#00f", mode: "curve" as const, curveSmoothing: 20 },
+        highlighter: { strokeWidth: 40, opacity: 0.7 },
+        magnify: { zoom: 5, shape: "rect" as const, areaOpacity: 0, linkDash: false },
+      },
+    };
+    const t = effectiveTools(cfg);
+    expect(t.pen.strokeColor).toBe("#00f");
+    expect(t.pen.mode).toBe("curve");
+    expect(t.pen.curveSmoothing).toBe(20);
+    // unspecified fields fall back to the tool default
+    expect(t.pen.strokeWidth).toBe(DEFAULT_CONFIG.tools.pen.strokeWidth);
+    expect(t.highlighter.strokeWidth).toBe(40);
+    expect(t.highlighter.opacity).toBe(0.7);
+    expect(t.magnify.zoom).toBe(5);
+    expect(t.magnify.shape).toBe("rect");
+    expect(t.magnify.areaOpacity).toBe(0);
+    expect(t.magnify.linkDash).toBe(false);
+  });
+
+  it("keeps a persisted new-tool as lastUsed.tool through validation", () => {
+    for (const tool of ["pen", "highlighter", "magnify"] as const) {
+      const { config } = validateConfig({
+        ...DEFAULT_CONFIG,
+        lastUsed: { tool },
+      });
+      expect(config.lastUsed?.tool).toBe(tool);
+    }
+  });
+
+  it("ignores lastUsed when rememberLastTool is off", () => {
+    const cfg = {
+      ...DEFAULT_CONFIG,
+      general: { ...DEFAULT_CONFIG.general, rememberLastTool: false },
+      lastUsed: { highlighter: { opacity: 0.1 } },
+    };
+    expect(effectiveTools(cfg).highlighter.opacity).toBe(
+      DEFAULT_CONFIG.tools.highlighter.opacity,
+    );
+  });
+});
 
 describe("validateConfig hotkeys", () => {
   it("keeps a valid hotkey", () => {

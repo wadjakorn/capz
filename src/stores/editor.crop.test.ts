@@ -32,6 +32,49 @@ describe("applyCrop", () => {
     expect([a.x1, a.y1, a.x2, a.y2]).toEqual([5, 5, 25, 35]);
   });
 
+  it("shifts an arrow's mid curve-control point too", () => {
+    useEditor.getState().add({ ...arrow("a1"), cx: 20, cy: 25 });
+    useEditor.getState().applyCrop({ x: 5, y: 5, w: 40, h: 40 }, SRC);
+    const a = useEditor.getState().annotations[0] as ArrowAnnotation;
+    expect([a.cx, a.cy]).toEqual([15, 20]);
+  });
+
+  it("shifts freehand path points into the new origin", () => {
+    useEditor.getState().add({
+      id: "f1",
+      type: "pen",
+      points: [10, 10, 20, 30],
+      stroke: "#f00",
+      strokeWidth: 4,
+      mode: "raw",
+    });
+    useEditor.getState().applyCrop({ x: 5, y: 5, w: 40, h: 40 }, SRC);
+    const a = useEditor.getState().annotations[0];
+    expect(a.type === "pen" && a.points).toEqual([5, 5, 15, 25]);
+  });
+
+  it("shifts a magnifier's source and output centers", () => {
+    useEditor.getState().add({
+      id: "mg1",
+      type: "magnify",
+      sx: 20,
+      sy: 20,
+      srw: 10,
+      srh: 10,
+      x: 40,
+      y: 30,
+      zoom: 2,
+      shape: "circle",
+      stroke: "#facc15",
+      strokeWidth: 3,
+    });
+    useEditor.getState().applyCrop({ x: 5, y: 5, w: 40, h: 40 }, SRC);
+    const a = useEditor.getState().annotations[0];
+    expect(a.type === "magnify" && [a.sx, a.sy, a.x, a.y]).toEqual([
+      15, 15, 35, 25,
+    ]);
+  });
+
   it("composes a second crop onto the first (source-relative)", () => {
     useEditor.getState().applyCrop({ x: 10, y: 5, w: 50, h: 40 }, SRC);
     useEditor.getState().applyCrop({ x: 5, y: 5, w: 20, h: 20 }, SRC);
