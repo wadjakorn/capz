@@ -116,6 +116,11 @@ export type MagnifyAnnotation = Base & {
   /** Border + connector color. */
   stroke: string;
   strokeWidth: number;
+  /** Source-area indicator opacity 0..1 (0 hides it for a clean capture).
+   *  Absent = default (visible). */
+  areaOpacity?: number;
+  /** Connector "link" line dashed when true, solid when false. Absent = dashed. */
+  linkDash?: boolean;
 };
 
 export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";

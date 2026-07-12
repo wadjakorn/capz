@@ -62,9 +62,10 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Arrow: 3-point curve handles; two-way head toggle; dashed toggle (straight + curved)
 - [ ] Shapes tool: rect (corner radius) / circle / line / dashed-line options (multi-shape tool icon)
 - [ ] Pen: pen-nib cursor at draw point; raw / polygon / curve modes; "Straighten"/"Curve" sliders (higher curve = rounder)
-- [ ] Highlighter: translucent marker; wide default; move + width + opacity only (no resize handles); brush-pill cursor matches the drawn width
+- [ ] Highlighter: translucent marker; wide default; move + width + opacity only (no resize handles); brush-pill cursor matches the drawn width; stays active for repeated strokes until Esc / another tool (pen too)
+- [ ] Tool settings persist across app restarts (draw with custom pen/highlighter/magnify options, relaunch, defaults retained)
 - [ ] Arrow/line: dashed toggle shows a dashed-line icon (not "Dash" text)
-- [ ] Magnify: first drag sets the magnify (source) area; loupe appears beside it; both source area and loupe are clickable/draggable with live feedback; source + output resize handles show live preview; circle/rect; border color; zoom; **exports WYSIWYG**
+- [ ] Magnify: first drag sets the magnify (source) area; loupe appears beside it; both source area and loupe are clickable/draggable with live feedback; source + output resize handles show live preview; circle/rect; border color; zoom; Area-opacity slider (0 = hide source box for a clean capture); link line normal/dotted toggle; **exports WYSIWYG**
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 

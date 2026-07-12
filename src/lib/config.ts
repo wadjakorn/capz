@@ -106,6 +106,8 @@ export type AppConfig = {
       strokeWidth?: number;
       shape?: MagnifyShape;
       zoom?: number;
+      areaOpacity?: number;
+      linkDash?: boolean;
     };
     text?: {
       color?: string;
@@ -164,6 +166,8 @@ export type AppConfig = {
       strokeWidth: number;
       shape: MagnifyShape;
       zoom: number;
+      areaOpacity: number;
+      linkDash: boolean;
     };
     sticker: { fontSize: number };
   };
@@ -261,7 +265,14 @@ export const DEFAULT_CONFIG: AppConfig = {
       curveSmoothing: 6,
     },
     highlighter: { strokeColor: "#facc15", strokeWidth: 28, opacity: 0.5 },
-    magnify: { strokeColor: "#facc15", strokeWidth: 3, shape: "circle", zoom: 2 },
+    magnify: {
+      strokeColor: "#facc15",
+      strokeWidth: 3,
+      shape: "circle",
+      zoom: 2,
+      areaOpacity: 1,
+      linkDash: true,
+    },
     sticker: { fontSize: 48 },
   },
   capture: {
@@ -473,6 +484,8 @@ function vTools(
       strokeWidth: isNum,
       shape: inSet("circle", "rect"),
       zoom: isNum,
+      areaOpacity: isNum,
+      linkDash: isBool,
     }, issues),
     text: vsec("tools.text", r.text, def.text, {
       fontSize: isNum,
@@ -550,6 +563,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     strokeWidth: isNum,
     shape: inSet("circle", "rect"),
     zoom: isNum,
+    areaOpacity: isNum,
+    linkDash: isBool,
   });
   keep("text", {
     color: isStr,
@@ -670,6 +685,8 @@ export type EffectiveTools = {
     strokeWidth: number;
     shape: MagnifyShape;
     zoom: number;
+    areaOpacity: number;
+    linkDash: boolean;
   };
   sticker: { fontSize: number };
   pin: {
@@ -717,6 +734,8 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       strokeWidth: lu?.magnify?.strokeWidth ?? t.magnify.strokeWidth,
       shape: lu?.magnify?.shape ?? t.magnify.shape,
       zoom: lu?.magnify?.zoom ?? t.magnify.zoom,
+      areaOpacity: lu?.magnify?.areaOpacity ?? t.magnify.areaOpacity,
+      linkDash: lu?.magnify?.linkDash ?? t.magnify.linkDash,
     },
     text: {
       color: lu?.text?.color ?? t.text.color,

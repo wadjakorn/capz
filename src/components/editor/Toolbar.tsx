@@ -200,6 +200,9 @@ export function Toolbar({
       arrow: { ...cur.arrow, ...patch.arrow },
       text: { ...cur.text, ...patch.text },
       blur: { ...cur.blur, ...patch.blur },
+      pen: { ...cur.pen, ...patch.pen },
+      highlighter: { ...cur.highlighter, ...patch.highlighter },
+      magnify: { ...cur.magnify, ...patch.magnify },
       sticker: { ...cur.sticker, ...patch.sticker },
       pin: { ...cur.pin, ...patch.pin },
     };
@@ -495,6 +498,26 @@ export function Toolbar({
           updateAnnotation(mSel.id, { zoom: v });
           if (remember) patchLastUsed({ magnify: { zoom: v } });
           else void updateSettings("tools", { magnify: { zoom: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      widthCtx = {
+        label: "Area",
+        value: Math.round((mSel.areaOpacity ?? toolsCfg.magnify.areaOpacity) * 100),
+        min: 0,
+        max: 100,
+        step: 5,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { areaOpacity: v / 100 });
+          if (remember) patchLastUsed({ magnify: { areaOpacity: v / 100 } });
+          else void updateSettings("tools", { magnify: { areaOpacity: v / 100 } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      arrowDashCtx = {
+        value: mSel.linkDash ?? toolsCfg.magnify.linkDash,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { linkDash: v });
+          if (remember) patchLastUsed({ magnify: { linkDash: v } });
+          else void updateSettings("tools", { magnify: { linkDash: v } } as Partial<AppConfig["tools"]>);
         },
       };
     } else if (selected.type === "text") {
@@ -828,6 +851,24 @@ export function Toolbar({
       onChange: (v) => {
         if (remember) patchLastUsed({ magnify: { zoom: v } });
         else void updateSettings("tools", { magnify: { zoom: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    widthCtx = {
+      label: "Area",
+      value: Math.round(toolsCfg.magnify.areaOpacity * 100),
+      min: 0,
+      max: 100,
+      step: 5,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { areaOpacity: v / 100 } });
+        else void updateSettings("tools", { magnify: { areaOpacity: v / 100 } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    arrowDashCtx = {
+      value: toolsCfg.magnify.linkDash,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { linkDash: v } });
+        else void updateSettings("tools", { magnify: { linkDash: v } } as Partial<AppConfig["tools"]>);
       },
     };
   } else if (tool === "text") {

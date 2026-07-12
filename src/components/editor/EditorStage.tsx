@@ -135,6 +135,8 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           strokeWidth: a.strokeWidth,
           shape: a.shape,
           zoom: a.zoom,
+          areaOpacity: a.areaOpacity,
+          linkDash: a.linkDash,
         },
       };
     case "text":
@@ -261,6 +263,9 @@ export function EditorStage({ src }: Props) {
         arrow: { ...cur.arrow, ...pendingLastUsed.current.arrow },
         text: { ...cur.text, ...pendingLastUsed.current.text },
         blur: { ...cur.blur, ...pendingLastUsed.current.blur },
+        pen: { ...cur.pen, ...pendingLastUsed.current.pen },
+        highlighter: { ...cur.highlighter, ...pendingLastUsed.current.highlighter },
+        magnify: { ...cur.magnify, ...pendingLastUsed.current.magnify },
         sticker: { ...cur.sticker, ...pendingLastUsed.current.sticker },
         pin: { ...cur.pin, ...pendingLastUsed.current.pin },
       };
@@ -786,7 +791,10 @@ export function EditorStage({ src }: Props) {
 
     if (empty) {
       const hadSelection = useEditor.getState().selectedId !== null;
-      const continuable = tool === "pin";
+      // Freehand tools stay active for repeated strokes (like pin) until Esc or
+      // another tool is chosen, instead of snapping back to select after one.
+      const continuable =
+        tool === "pin" || tool === "pen" || tool === "highlighter";
       if (hadSelection && !continuable) {
         select(null);
         if (tool !== "select") setTool("select");
@@ -1065,6 +1073,8 @@ export function EditorStage({ src }: Props) {
         shape: toolsCfg.magnify.shape,
         stroke: toolsCfg.magnify.strokeColor,
         strokeWidth: toolsCfg.magnify.strokeWidth,
+        areaOpacity: toolsCfg.magnify.areaOpacity,
+        linkDash: toolsCfg.magnify.linkDash,
       };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -2192,18 +2202,20 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
 
   return (
     <>
-      {/* connector: source → output */}
+      {/* connector: source → output (dashed or solid) */}
       <Line
         points={[g.sx, g.sy, g.x, g.y]}
         stroke={a.stroke}
         strokeWidth={bw}
-        dash={[4, 4]}
+        dash={(a.linkDash ?? true) ? [4, 4] : undefined}
         listening={false}
       />
-      {/* source (magnify) area — draggable + clickable via its tint fill */}
+      {/* source (magnify) area — draggable + clickable via its tint fill.
+          areaOpacity 0 hides it (clean capture) while it stays hittable. */}
       <Group
         x={g.sx}
         y={g.sy}
+        opacity={a.areaOpacity ?? 1}
         draggable
         {...hoverHandlers(ctx)}
         onMouseDown={(e) => {
