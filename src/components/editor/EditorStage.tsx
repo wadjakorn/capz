@@ -1539,7 +1539,9 @@ export function EditorStage({ src }: Props) {
               resizeEnabled={transformInteractive}
               rotateEnabled={transformInteractive}
               rotationSnaps={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]}
-              ignoreStroke
+              // Resizable shapes ignore stroke so the box hugs the geometry; the
+              // highlighter includes its (thick) stroke so the box tracks width.
+              ignoreStroke={transformInteractive}
               boundBoxFunc={(_oldBox, newBox) => {
                 if (Math.abs(newBox.width) < 5 || Math.abs(newBox.height) < 5) {
                   return _oldBox;

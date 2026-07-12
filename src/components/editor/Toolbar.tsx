@@ -449,7 +449,7 @@ export function Toolbar({
         label: "Width",
         value: hSel.strokeWidth,
         min: 4,
-        max: 60,
+        max: 100,
         step: 1,
         onChange: (v) => {
           updateAnnotation(hSel.id, { strokeWidth: v });
@@ -808,7 +808,7 @@ export function Toolbar({
       label: "Width",
       value: toolsCfg.highlighter.strokeWidth,
       min: 4,
-      max: 60,
+      max: 100,
       step: 1,
       onChange: (v) => {
         if (remember) patchLastUsed({ highlighter: { strokeWidth: v } });
