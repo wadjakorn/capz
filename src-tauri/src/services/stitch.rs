@@ -503,7 +503,9 @@ pub fn apply_frame(
 /// Backward-compatible entry point: measures then applies with **no** fixed
 /// footer (`footer = 0`), i.e. appends the bottom rows exactly as before. The
 /// scrolling sampler uses [`measure_frame`] + [`apply_frame`] directly so it can
-/// exclude the fixed window footer.
+/// exclude the fixed window footer — so outside of the test suite this wrapper
+/// currently has no callers.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn append_frame(
     acc: &mut RgbaImage,
     prev: &RgbaImage,
