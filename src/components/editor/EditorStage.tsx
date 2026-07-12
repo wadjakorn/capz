@@ -103,6 +103,12 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
         },
       };
     case "arrow":
+      // A headless line belongs to the Shapes tool — persist it under the rect
+      // slot so it never writes heads:"none" into the Arrow defaults (which would
+      // make subsequently-drawn arrows headless).
+      if (a.heads === "none") {
+        return { rect: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+      }
       return {
         arrow: {
           strokeColor: a.stroke,

@@ -507,7 +507,20 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;
   const out: NonNullable<AppConfig["lastUsed"]> = {};
-  if (inSet("select", "arrow", "rect", "text", "blur", "sticker", "pin")(o.tool))
+  if (
+    inSet(
+      "select",
+      "arrow",
+      "rect",
+      "text",
+      "blur",
+      "pen",
+      "highlighter",
+      "magnify",
+      "sticker",
+      "pin",
+    )(o.tool)
+  )
     out.tool = o.tool as Tool;
   if (isStr(o.stickerEmoji)) out.stickerEmoji = o.stickerEmoji as string;
   if (inSet("full", "area", "window")(o.lastCaptureKind))

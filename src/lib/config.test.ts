@@ -25,6 +25,16 @@ describe("effectiveTools remembers last-used per tool", () => {
     expect(t.magnify.linkDash).toBe(false);
   });
 
+  it("keeps a persisted new-tool as lastUsed.tool through validation", () => {
+    for (const tool of ["pen", "highlighter", "magnify"] as const) {
+      const { config } = validateConfig({
+        ...DEFAULT_CONFIG,
+        lastUsed: { tool },
+      });
+      expect(config.lastUsed?.tool).toBe(tool);
+    }
+  });
+
   it("ignores lastUsed when rememberLastTool is off", () => {
     const cfg = {
       ...DEFAULT_CONFIG,
