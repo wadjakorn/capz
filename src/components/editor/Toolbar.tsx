@@ -856,9 +856,14 @@ export function Toolbar({
           }
         />
         <Divider />
-        {/* Padded gradient/solid backdrop behind the capture */}
-        {hasImage && <BackdropControl />}
-        <Divider />
+        {/* Padded gradient/solid backdrop behind the capture. Divider travels
+            with the control so an imageless toolbar doesn't show a double rule. */}
+        {hasImage && (
+          <>
+            <BackdropControl />
+            <Divider />
+          </>
+        )}
         {/* OCR detect-text toggle (desktop only — OCR runs in the Rust core) */}
         {tauriUi && (
           <>

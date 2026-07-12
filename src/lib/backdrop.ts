@@ -18,7 +18,7 @@ export type GradientPreset = {
   name: string;
   /** 2–3 CSS colors, top/start → bottom/end. */
   colors: string[];
-  /** Direction in degrees: 0 = left→right, 90 = top→bottom, 135 = TL→BR. */
+  /** Direction in degrees: 0 = left→right, 90 = top→bottom, 135 = TR→BL. */
   angle: number;
 };
 
@@ -72,7 +72,7 @@ export function colorStops(colors: string[]): Array<number | string> {
 /**
  * Start/end points (in the Rect's local coordinate space, i.e. `0..w`, `0..h`)
  * for a linear gradient spanning the box corner-to-corner along `angleDeg`.
- * 0° = left→right, 90° = top→bottom, 135° = top-left→bottom-right.
+ * 0° = left→right, 90° = top→bottom, 135° = top-right→bottom-left.
  */
 export function gradientPoints(
   w: number,
