@@ -127,7 +127,8 @@ describe("annotationAABB pen/magnify", () => {
       type: "magnify",
       sx: 30,
       sy: 60,
-      sr: 20,
+      srw: 20,
+      srh: 20,
       x: 100,
       y: 60,
       zoom: 2,
@@ -135,7 +136,7 @@ describe("annotationAABB pen/magnify", () => {
       stroke: "#facc15",
       strokeWidth: 3,
     };
-    // Source area 30±20 → [10,50]; output radius 20×2=40 at (100,60) → [60,140]×[20,100].
+    // Source area 30±20 → [10,50]; output half 20×2=40 at (100,60) → [60,140]×[20,100].
     expect(annotationAABB(mag)).toEqual({ x: 10, y: 20, w: 130, h: 80 });
   });
 });

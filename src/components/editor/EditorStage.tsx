@@ -9,6 +9,7 @@ import {
   Arrow,
   Text,
   Circle,
+  Ellipse,
   Group,
   Line,
   Shape,
@@ -462,11 +463,12 @@ export function EditorStage({ src }: Props) {
       tr.getLayer()?.batchDraw();
       return;
     }
-    // Arrows and magnifiers use their own inline handles, so they skip the box
-    // Transformer. Highlighters DO attach it (for a selection/move box) but with
-    // resize + rotate disabled — see the Transformer's per-type props below.
+    // Arrows use their own inline handles, so they skip the box Transformer.
+    // Highlighters attach it as a selection box (resize+rotate off); magnifiers
+    // attach it to their source area (resize on, rotate off) — see the
+    // Transformer's per-type props below.
     const selAnn = annotations.find((a) => a.id === selectedId);
-    if (selAnn?.type === "arrow" || selAnn?.type === "magnify") {
+    if (selAnn?.type === "arrow") {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -1052,19 +1054,22 @@ export function EditorStage({ src }: Props) {
       const y = draft.h < 0 ? draft.y + draft.h : draft.y;
       const w = Math.abs(draft.w);
       const h = Math.abs(draft.h);
-      const sr = Math.max(w, h) / 2 || 40;
+      // Respect the drag's aspect so the source can already be a rect/oval.
+      const srw = w > 4 ? w / 2 : 40;
+      const srh = h > 4 ? h / 2 : 40;
       const sx = w > 4 ? x + w / 2 : draft.x;
       const sy = h > 4 ? y + h / 2 : draft.y;
       const zoom = toolsCfg.magnify.zoom;
-      const outR = sr * zoom;
+      const outW = srw * zoom;
       // Output sits to the right of the source, clear of it.
       const a: MagnifyAnnotation = {
         id: draft.id,
         type: "magnify",
         sx,
         sy,
-        sr,
-        x: sx + sr + outR + 24,
+        srw,
+        srh,
+        x: sx + srw + outW + 24,
         y: sy,
         zoom,
         shape: toolsCfg.magnify.shape,
@@ -1112,10 +1117,14 @@ export function EditorStage({ src }: Props) {
     else nodeRefs.current.delete(id);
   }
 
-  // Highlighters attach the box Transformer for selection feedback but must not
-  // be resized/rotated (width is slider-only).
+  // Highlighters attach the box Transformer purely as a selection box (no
+  // resize/rotate). Magnifiers attach it to their source area to reshape it
+  // (square↔rect, circle↔oval) but never rotate.
   const selectedType = annotations.find((a) => a.id === selectedId)?.type;
   const transformInteractive = selectedType !== "highlighter";
+  const transformResizable = selectedType !== "highlighter";
+  const transformRotatable =
+    selectedType !== "highlighter" && selectedType !== "magnify";
 
   const cursorClass =
     tool === "select"
@@ -1536,8 +1545,8 @@ export function EditorStage({ src }: Props) {
             />
             <Transformer
               ref={trRef}
-              resizeEnabled={transformInteractive}
-              rotateEnabled={transformInteractive}
+              resizeEnabled={transformResizable}
+              rotateEnabled={transformRotatable}
               rotationSnaps={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]}
               // Resizable shapes ignore stroke so the box hugs the geometry; the
               // highlighter includes its (thick) stroke so the box tracks width.
@@ -2170,18 +2179,20 @@ function HighlighterShape({
 }
 
 function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
-  const groupRef = useRef<Konva.Group>(null);
-  // Live overrides applied during a handle/body drag for instant feedback; a
-  // single ctx.onChange commits on drag end (keeps undo history clean).
+  // The source area is the Transformer target (reshape square↔rect, circle↔oval,
+  // no rotate); the output loupe is a separate draggable node with a zoom handle.
+  const sourceRef = useRef<Konva.Group>(null);
   const [live, setLive] = useState<Partial<MagnifyAnnotation>>({});
   useEffect(() => {
-    ctx.setRef(groupRef.current);
+    ctx.setRef(sourceRef.current);
     return () => ctx.setRef(null);
   });
 
   const g = { ...a, ...live };
-  const srcR = g.sr;
-  const outR = g.sr * g.zoom;
+  const srcW = g.srw;
+  const srcH = g.srh;
+  const outW = srcW * g.zoom;
+  const outH = srcH * g.zoom;
   const isRect = g.shape === "rect";
   const hr = Math.max(4, 6 / ctx.scale);
   const hsw = 1.5 / ctx.scale;
@@ -2193,25 +2204,26 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
     ctx.onChange(patch);
     setLive({});
   };
-  const clip = (radius: number) => (c: Konva.Context) => {
+  const clip = (hw: number, hh: number) => (c: Konva.Context) => {
     c.beginPath();
-    if (isRect) c.rect(-radius, -radius, radius * 2, radius * 2);
-    else c.arc(0, 0, radius, 0, Math.PI * 2, false);
+    if (isRect) c.rect(-hw, -hh, hw * 2, hh * 2);
+    else c.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2, false);
     c.closePath();
   };
-  // A circle or square centered on its group origin (0,0).
-  const area = (radius: number, props: Record<string, unknown>) =>
+  // A rect or ellipse centered on its group origin (0,0).
+  const area = (hw: number, hh: number, props: Record<string, unknown>) =>
     isRect ? (
-      <Rect x={-radius} y={-radius} width={radius * 2} height={radius * 2} {...props} />
+      <Rect x={-hw} y={-hh} width={hw * 2} height={hh * 2} {...props} />
     ) : (
-      <Circle x={0} y={0} radius={radius} {...props} />
+      <Ellipse x={0} y={0} radiusX={hw} radiusY={hh} {...props} />
     );
-  // Point on a shape's perimeter toward (tx,ty), so the connector meets the
-  // area/loupe edges instead of their centers.
+  // Point on the (possibly non-uniform) perimeter toward (tx,ty), so the
+  // connector meets the area/loupe edges instead of their centers.
   const edge = (
     cx: number,
     cy: number,
-    half: number,
+    hw: number,
+    hh: number,
     tx: number,
     ty: number,
   ): [number, number] => {
@@ -2220,11 +2232,15 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len;
     const uy = dy / len;
-    const s = isRect ? half / Math.max(Math.abs(ux), Math.abs(uy)) : half;
+    const w = Math.max(1, hw);
+    const h = Math.max(1, hh);
+    const s = isRect
+      ? 1 / Math.max(Math.abs(ux) / w, Math.abs(uy) / h)
+      : 1 / Math.sqrt((ux * ux) / (w * w) + (uy * uy) / (h * h));
     return [cx + ux * s, cy + uy * s];
   };
-  const [lsx, lsy] = edge(g.sx, g.sy, srcR, g.x, g.y);
-  const [lox, loy] = edge(g.x, g.y, outR, g.sx, g.sy);
+  const [lsx, lsy] = edge(g.sx, g.sy, srcW, srcH, g.x, g.y);
+  const [lox, loy] = edge(g.x, g.y, outW, outH, g.sx, g.sy);
 
   return (
     <>
@@ -2236,10 +2252,11 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         dash={linkDashed ? [4, 4] : undefined}
         listening={false}
       />
-      {/* source (magnify) area — draggable + clickable via its tint fill.
+      {/* source (magnify) area — draggable to move, reshapable via Transformer.
           areaOpacity affects the fill only; the border always shows and follows
           the link (solid/dotted) style. */}
       <Group
+        ref={sourceRef}
         x={g.sx}
         y={g.sy}
         draggable
@@ -2252,9 +2269,23 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           setLive((p) => ({ ...p, sx: e.target.x(), sy: e.target.y() }))
         }
         onDragEnd={(e) => commit({ sx: e.target.x(), sy: e.target.y() })}
+        onTransformEnd={(e) => {
+          const node = e.target;
+          const sxScale = node.scaleX();
+          const syScale = node.scaleY();
+          node.scaleX(1);
+          node.scaleY(1);
+          node.rotation(0);
+          commit({
+            sx: node.x(),
+            sy: node.y(),
+            srw: Math.max(8, Math.round(a.srw * sxScale)),
+            srh: Math.max(8, Math.round(a.srh * syScale)),
+          });
+        }}
       >
-        {area(srcR, { fill: a.stroke, opacity: areaFill })}
-        {area(srcR, {
+        {area(srcW, srcH, { fill: a.stroke, opacity: areaFill })}
+        {area(srcW, srcH, {
           stroke: a.stroke,
           strokeWidth: bw,
           dash: linkDashed ? [Math.max(2, bw * 3), Math.max(2, bw * 3)] : undefined,
@@ -2262,7 +2293,6 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
       </Group>
       {/* output loupe — draggable; magnified sample clipped to the shape */}
       <Group
-        ref={groupRef}
         x={g.x}
         y={g.y}
         draggable
@@ -2276,30 +2306,26 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         }
         onDragEnd={(e) => commit({ x: e.target.x(), y: e.target.y() })}
       >
-        <Group clipFunc={clip(outR)}>
-          {area(outR, { fill: "rgba(0,0,0,0.001)" })}
-          {ctx.bgImage &&
-            (() => {
-              // Draw the source square magnified to fill the output shape.
-              return (
-                <KonvaImage
-                  image={ctx.bgImage}
-                  x={-outR}
-                  y={-outR}
-                  width={outR * 2}
-                  height={outR * 2}
-                  crop={{
-                    x: g.sx - srcR + ctx.cropOffX,
-                    y: g.sy - srcR + ctx.cropOffY,
-                    width: srcR * 2,
-                    height: srcR * 2,
-                  }}
-                  listening={false}
-                />
-              );
-            })()}
+        <Group clipFunc={clip(outW, outH)}>
+          {area(outW, outH, { fill: "rgba(0,0,0,0.001)" })}
+          {ctx.bgImage && (
+            <KonvaImage
+              image={ctx.bgImage}
+              x={-outW}
+              y={-outH}
+              width={outW * 2}
+              height={outH * 2}
+              crop={{
+                x: g.sx - srcW + ctx.cropOffX,
+                y: g.sy - srcH + ctx.cropOffY,
+                width: srcW * 2,
+                height: srcH * 2,
+              }}
+              listening={false}
+            />
+          )}
         </Group>
-        {area(outR, {
+        {area(outW, outH, {
           stroke: a.stroke,
           strokeWidth: a.strokeWidth,
           dash: linkDashed
@@ -2308,49 +2334,29 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           listening: false,
         })}
       </Group>
-      {/* edit handles */}
+      {/* zoom handle (output magnification) */}
       {ctx.selected && (
-        <>
-          {/* resize the source area */}
-          <Circle
-            x={g.sx + srcR}
-            y={g.sy}
-            radius={hr}
-            fill="#ffffff"
-            stroke={a.stroke}
-            strokeWidth={hsw}
-            draggable
-            onMouseDown={(e) => {
-              e.cancelBubble = true;
-            }}
-            onDragMove={(e) =>
-              setLive((p) => ({ ...p, sr: Math.max(8, e.target.x() - g.sx) }))
-            }
-            onDragEnd={(e) => commit({ sr: Math.max(8, e.target.x() - g.sx) })}
-          />
-          {/* resize the output (zoom) */}
-          <Circle
-            x={g.x + outR}
-            y={g.y}
-            radius={hr}
-            fill="#ffffff"
-            stroke={a.stroke}
-            strokeWidth={hsw}
-            draggable
-            onMouseDown={(e) => {
-              e.cancelBubble = true;
-            }}
-            onDragMove={(e) =>
-              setLive((p) => ({
-                ...p,
-                zoom: Math.max(1.2, (e.target.x() - g.x) / g.sr),
-              }))
-            }
-            onDragEnd={(e) =>
-              commit({ zoom: Math.max(1.2, (e.target.x() - g.x) / g.sr) })
-            }
-          />
-        </>
+        <Circle
+          x={g.x + outW}
+          y={g.y}
+          radius={hr}
+          fill="#ffffff"
+          stroke={a.stroke}
+          strokeWidth={hsw}
+          draggable
+          onMouseDown={(e) => {
+            e.cancelBubble = true;
+          }}
+          onDragMove={(e) =>
+            setLive((p) => ({
+              ...p,
+              zoom: Math.max(1.2, (e.target.x() - g.x) / srcW),
+            }))
+          }
+          onDragEnd={(e) =>
+            commit({ zoom: Math.max(1.2, (e.target.x() - g.x) / srcW) })
+          }
+        />
       )}
     </>
   );

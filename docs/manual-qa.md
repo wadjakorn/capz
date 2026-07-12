@@ -65,7 +65,7 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Highlighter: translucent marker; wide default; move + width + opacity only (no resize handles); brush-pill cursor matches the drawn width; stays active for repeated strokes until Esc / another tool (pen too)
 - [ ] Tool settings persist across app restarts (draw with custom pen/highlighter/magnify options, relaunch, defaults retained)
 - [ ] Arrow/line: dashed toggle shows a dashed-line icon (not "Dash" text)
-- [ ] Magnify: first drag sets the magnify (source) area; loupe appears beside it; both source area and loupe are clickable/draggable with live feedback; source + output resize handles show live preview; circle/rect; border color; zoom; Area-opacity slider (0 = hide source box for a clean capture); link line normal/dotted toggle; **exports WYSIWYG**
+- [ ] Magnify: first drag sets the magnify (source) area (aspect respected); loupe appears beside it; both source area and loupe are clickable/draggable; source area reshapes via transform handles (square↔rect, circle↔oval) but never rotates; output zoom handle; circle/rect; border color; Area-opacity slider (fill only, 0 = clean); connector meets edges + follows link normal/dotted style; **exports WYSIWYG**
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 

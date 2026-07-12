@@ -105,12 +105,13 @@ export type MagnifyAnnotation = Base & {
   /** Source (magnify) area center — the region being zoomed (image coords). */
   sx: number;
   sy: number;
-  /** Source area half-size (radius for circle, half-side for rect), image px. */
-  sr: number;
+  /** Source area half-width / half-height (image px). Non-uniform → rect / oval. */
+  srw: number;
+  srh: number;
   /** Output center — where the magnified loupe is drawn (image coords). */
   x: number;
   y: number;
-  /** Magnification factor; output half-size = sr × zoom. */
+  /** Magnification factor; output half-extents = (srw, srh) × zoom. */
   zoom: number;
   shape: MagnifyShape;
   /** Border + connector color. */
