@@ -590,6 +590,16 @@ export function EditorStage({ src }: Props) {
   const stageW = contentBox.w * scale;
   const stageH = contentBox.h * scale;
 
+  // Konva draws the image through a shared, Stage-sized buffer canvas whenever
+  // it has BOTH a corner radius and a shadow (Image._useBufferCanvas). On the
+  // first frame after the image loads, contentBox — and thus stageW/stageH — is
+  // still 0 (its measuring effect runs post-paint), so that buffer canvas is
+  // 0×0 and drawImage(bufferCanvas, …) throws "InvalidStateError". Gate the
+  // backdrop's buffer-triggering props on a non-zero stage so the transient
+  // frame draws the image directly (no buffer); the backdrop appears the same
+  // frame contentBox becomes non-zero.
+  const backdropRender = backdropOn && stageW > 0 && stageH > 0;
+
   // Background fill for the canvas Rect: a gradient/solid backdrop when enabled,
   // else the flush canvas color. All gradient keys are always present (undefined
   // when unused) so react-konva clears stale gradient props on style switch.
@@ -1062,12 +1072,12 @@ export function EditorStage({ src }: Props) {
               crop={{ x: cropBase.x, y: cropBase.y, width: cropBase.w, height: cropBase.h }}
               name="bg-image"
               listening
-              cornerRadius={backdropOn ? backdropRadius : 0}
-              shadowEnabled={backdropOn && backdrop.shadow}
+              cornerRadius={backdropRender ? backdropRadius : 0}
+              shadowEnabled={backdropRender && backdrop.shadow}
               shadowColor="black"
-              shadowBlur={backdropOn && backdrop.shadow ? backdropShadowBlur : 0}
-              shadowOpacity={backdropOn && backdrop.shadow ? 0.35 : 0}
-              shadowOffsetY={backdropOn && backdrop.shadow ? backdropShadowOffsetY : 0}
+              shadowBlur={backdropRender && backdrop.shadow ? backdropShadowBlur : 0}
+              shadowOpacity={backdropRender && backdrop.shadow ? 0.35 : 0}
+              shadowOffsetY={backdropRender && backdrop.shadow ? backdropShadowOffsetY : 0}
             />
             {annotations.map((a) =>
               renderAnnotation(a, {
