@@ -409,6 +409,16 @@ fn append_content_rows(acc: &mut RgbaImage, src: &RgbaImage, rows: u32, footer: 
     rows
 }
 
+/// Append `src`'s bottom `footer` rows — the fixed window bottom edge — onto
+/// `acc`. The footer is excluded from every stitch so it is never welded into a
+/// seam; this re-attaches it **once** at the very end so a finished capture
+/// terminates at the natural window edge instead of a hard mid-content cut.
+/// No-op when `footer` is 0. `acc` must share `src`'s width.
+pub fn append_footer_band(acc: &mut RgbaImage, src: &RgbaImage, footer: u32) {
+    // `append_content_rows(.., rows=footer, footer=0)` copies src[sh-footer, sh).
+    append_content_rows(acc, src, footer, 0);
+}
+
 /// The stitcher's decision for one frame, independent of where it is applied.
 /// Produced by [`measure_frame`] and consumed by [`apply_frame`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -939,6 +949,31 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn append_footer_band_reattaches_the_bottom_edge() {
+        // `acc` holds a frame's content (its bottom `footer` rows removed);
+        // re-attaching that frame's footer band restores the full frame.
+        let src = vnoise_image(50, 100);
+        let footer = 20;
+        let mut acc =
+            image::imageops::crop_imm(&src, 0, 0, 50, 100 - footer).to_image();
+        append_footer_band(&mut acc, &src, footer);
+        assert_eq!(acc.height(), 100);
+        for y in 0..100 {
+            for x in 0..50 {
+                assert_eq!(acc.get_pixel(x, y), src.get_pixel(x, y), "mismatch at ({x},{y})");
+            }
+        }
+    }
+
+    #[test]
+    fn append_footer_band_zero_is_noop() {
+        let src = vnoise_image(40, 60);
+        let mut acc = src.clone();
+        append_footer_band(&mut acc, &src, 0);
+        assert_eq!(acc.height(), 60);
     }
 
     #[test]

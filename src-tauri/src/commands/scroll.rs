@@ -346,7 +346,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 let mut progress = ScrollProgress::from_session(s);
                 progress.note = note;
                 progress.finishing = bottomed;
-                let finish_acc = if bottomed { guard.take().map(|s| s.acc) } else { None };
+                let finish_acc = if bottomed { guard.take().map(finalize_capture) } else { None };
                 (progress, finish_acc)
             };
 
@@ -449,7 +449,19 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         windows::close_scroll_hud(&app);
         return Err("no scroll capture in progress".into());
     };
-    finish_open(&app, session.acc).await
+    finish_open(&app, finalize_capture(session)).await
+}
+
+/// Produce the final stitched image from a finished session: re-attach the fixed
+/// window bottom edge (excluded from every seam during stitching) once at the
+/// very bottom, so the capture ends at the natural window edge instead of a hard
+/// mid-content cut. No-op when no footer was detected.
+fn finalize_capture(session: ScrollSession) -> image::RgbaImage {
+    let mut acc = session.acc;
+    if let Some(footer) = session.footer {
+        stitch::append_footer_band(&mut acc, &session.prev, footer);
+    }
+    acc
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.
