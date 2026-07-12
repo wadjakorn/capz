@@ -108,7 +108,9 @@ pub async fn paste_into_editor<R: Runtime>(app: AppHandle<R>) -> Result<String, 
     let app2 = app.clone();
     let p_open = path_str.clone();
     app.run_on_main_thread(move || {
-        if let Err(e) = windows::load_editor_image(&app2, &p_open) {
+        if let Err(e) =
+            windows::load_editor_image(&app2, &p_open, windows::CaptureSource::Other)
+        {
             log::error!("load_editor_image: {e}");
         }
     })

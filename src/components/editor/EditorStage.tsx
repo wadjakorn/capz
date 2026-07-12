@@ -43,6 +43,12 @@ import {
 } from "@/lib/stageBridge";
 import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
+import {
+  colorStops,
+  gradientPoints,
+  paddedBox,
+  resolveGradient,
+} from "@/lib/backdrop";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
 import {
@@ -152,6 +158,7 @@ export function EditorStage({ src }: Props) {
   const select = useEditor((s) => s.select);
   const imageCrop = useEditor((s) => s.imageCrop);
   const applyCrop = useEditor((s) => s.applyCrop);
+  const backdropOn = useEditor((s) => s.backdropOn);
 
   const settingsReady = useSettings((s) => s.ready);
   const initSettings = useSettings((s) => s.init);
@@ -511,6 +518,15 @@ export function EditorStage({ src }: Props) {
   // the padding is pixel-accurate and identical on every side; a freshly-added
   // element with no node yet falls back to its estimated AABB for one frame.
   const canvasBg = config.general.canvasBackground;
+  const backdrop = config.general.backdrop;
+  // Clamp padding to a sane range; the padded frame is folded into contentBox
+  // below (same mechanism as annotation overflow), so every overlay coordinate
+  // formula that already keys off contentBox.x stays correct.
+  const backdropPad = backdropOn ? Math.max(0, Math.min(backdrop.padding, 4096)) : 0;
+  const backdropRadius = Math.max(0, backdrop.cornerRadius);
+  // Shadow scaled to the padding so it stays proportional at any frame size.
+  const backdropShadowBlur = Math.round(backdropPad * 0.5);
+  const backdropShadowOffsetY = Math.round(backdropPad * 0.15);
   const [contentBox, setContentBox] = useState<AABB>({ x: 0, y: 0, w: 0, h: 0 });
   // Bumped when an element's rendered size changes without an `annotations`
   // change — currently only an image sticker whose bitmap loads asynchronously.
@@ -543,13 +559,17 @@ export function EditorStage({ src }: Props) {
         if (est) boxes.push(est);
       }
     }
-    const next = contentBounds(imgW, imgH, boxes);
+    // Fold the backdrop padding into the content box: it grows the frame
+    // uniformly around the image + any overflow, exactly like a symmetric
+    // overflow, so the background Rect, export box, stage size and every
+    // overlay origin (all keyed off contentBox) expand together.
+    const next = paddedBox(contentBounds(imgW, imgH, boxes), backdropPad);
     setContentBox((prev) =>
       prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h
         ? prev
         : next,
     );
-  }, [imgW, imgH, annotations, boundsTick]);
+  }, [imgW, imgH, annotations, boundsTick, backdropPad]);
 
   // Publish the export region so Save/Copy snapshots the full expanded canvas.
   // `contentBox` is state with a guarded identity (only replaced on real change),
@@ -569,6 +589,55 @@ export function EditorStage({ src }: Props) {
   const scale = displayScale > 0 ? displayScale : 1;
   const stageW = contentBox.w * scale;
   const stageH = contentBox.h * scale;
+
+  // Konva draws the image through a shared, Stage-sized buffer canvas whenever
+  // it has BOTH a corner radius and a shadow (Image._useBufferCanvas). On the
+  // first frame after the image loads, contentBox — and thus stageW/stageH — is
+  // still 0 (its measuring effect runs post-paint), so that buffer canvas is
+  // 0×0 and drawImage(bufferCanvas, …) throws "InvalidStateError". Gate the
+  // backdrop's buffer-triggering props on a non-zero stage so the transient
+  // frame draws the image directly (no buffer); the backdrop appears the same
+  // frame contentBox becomes non-zero.
+  const backdropRender = backdropOn && stageW > 0 && stageH > 0;
+
+  // Background fill for the canvas Rect: a gradient/solid backdrop when enabled,
+  // else the flush canvas color. All gradient keys are always present (undefined
+  // when unused) so react-konva clears stale gradient props on style switch.
+  const bgFill = useMemo(() => {
+    const base: {
+      fill?: string;
+      fillLinearGradientStartPoint?: { x: number; y: number };
+      fillLinearGradientEndPoint?: { x: number; y: number };
+      fillLinearGradientColorStops?: Array<number | string>;
+    } = {
+      fill: undefined,
+      fillLinearGradientStartPoint: undefined,
+      fillLinearGradientEndPoint: undefined,
+      fillLinearGradientColorStops: undefined,
+    };
+    if (backdropOn && backdrop.style === "gradient") {
+      const g = resolveGradient(backdrop.presetId);
+      const { start, end } = gradientPoints(contentBox.w, contentBox.h, g.angle);
+      return {
+        ...base,
+        fillLinearGradientStartPoint: start,
+        fillLinearGradientEndPoint: end,
+        fillLinearGradientColorStops: colorStops(g.colors),
+      };
+    }
+    if (backdropOn && backdrop.style === "solid") {
+      return { ...base, fill: backdrop.solidColor };
+    }
+    return { ...base, fill: canvasBg };
+  }, [
+    backdropOn,
+    backdrop.style,
+    backdrop.presetId,
+    backdrop.solidColor,
+    canvasBg,
+    contentBox.w,
+    contentBox.h,
+  ]);
 
   const padX = Math.max(MIN_PADDING, container.w);
   const padY = Math.max(MIN_PADDING, container.h);
@@ -993,7 +1062,7 @@ export function EditorStage({ src }: Props) {
               y={contentBox.y}
               width={contentBox.w}
               height={contentBox.h}
-              fill={canvasBg}
+              {...bgFill}
               listening={false}
             />
             <KonvaImage
@@ -1003,6 +1072,12 @@ export function EditorStage({ src }: Props) {
               crop={{ x: cropBase.x, y: cropBase.y, width: cropBase.w, height: cropBase.h }}
               name="bg-image"
               listening
+              cornerRadius={backdropRender ? backdropRadius : 0}
+              shadowEnabled={backdropRender && backdrop.shadow}
+              shadowColor="black"
+              shadowBlur={backdropRender && backdrop.shadow ? backdropShadowBlur : 0}
+              shadowOpacity={backdropRender && backdrop.shadow ? 0.35 : 0}
+              shadowOffsetY={backdropRender && backdrop.shadow ? backdropShadowOffsetY : 0}
             />
             {annotations.map((a) =>
               renderAnnotation(a, {

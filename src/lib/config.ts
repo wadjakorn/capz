@@ -49,6 +49,22 @@ export type AppConfig = {
     showRulers: boolean;
     snapEnabled: boolean;
     canvasBackground: string;
+    /** Optional padded gradient/solid backdrop behind the capture. */
+    backdrop: {
+      style: "gradient" | "solid";
+      /** Gradient preset id (see lib/backdrop GRADIENT_PRESETS). */
+      presetId: string;
+      /** Solid-style background color. */
+      solidColor: string;
+      /** Uniform padding around the capture, logical px. */
+      padding: number;
+      /** Corner radius applied to the floated capture, px. */
+      cornerRadius: number;
+      /** Drop shadow under the floated capture. */
+      shadow: boolean;
+      /** Auto-enable the backdrop for window captures. */
+      autoForWindow: boolean;
+    };
   };
   lastUsed?: {
     tool?: Tool;
@@ -149,6 +165,15 @@ export const DEFAULT_CONFIG: AppConfig = {
     showRulers: false,
     snapEnabled: true,
     canvasBackground: "#ffffff",
+    backdrop: {
+      style: "gradient",
+      presetId: "slate",
+      solidColor: "#1b1f2a",
+      padding: 64,
+      cornerRadius: 12,
+      shadow: true,
+      autoForWindow: true,
+    },
   },
   tools: {
     rect: { strokeColor: "#ef4444", strokeWidth: 3 },
@@ -311,6 +336,25 @@ function vGeneral(
     ewRaw,
     def.editorWindow,
     { width: isNum, height: isNum },
+    issues,
+  );
+  const bdRaw =
+    raw && typeof raw === "object"
+      ? (raw as Record<string, unknown>).backdrop
+      : undefined;
+  flat.backdrop = vsec(
+    "general.backdrop",
+    bdRaw,
+    def.backdrop,
+    {
+      style: inSet("gradient", "solid"),
+      presetId: isStr,
+      solidColor: isStr,
+      padding: isNum,
+      cornerRadius: isNum,
+      shadow: isBool,
+      autoForWindow: isBool,
+    },
     issues,
   );
   return flat;

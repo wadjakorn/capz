@@ -9,7 +9,7 @@ import { SettingsView } from "@/components/settings/SettingsView";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
-import { useEditor } from "@/stores/editor";
+import { useEditor, type CaptureSource } from "@/stores/editor";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
 import {
@@ -50,7 +50,10 @@ export default function EditorPage() {
   useScreenRecordingHealthCheck(openRecovery);
   useUpdateCheckListener();
 
-  const applyFile = useCallback(async (path: string | null) => {
+  const applyFile = useCallback(async (
+    path: string | null,
+    source: CaptureSource = "other",
+  ) => {
     if (!path) {
       setFile(null);
       setSrc("");
@@ -67,7 +70,14 @@ export default function EditorPage() {
     useOcr.getState().setKey(path);
     setHasImage(true);
     await useSettings.getState().init();
-    const pins = useSettings.getState().config.pins;
+    const config = useSettings.getState().config;
+    // Seed the padded backdrop: on for window captures (per config), off
+    // otherwise. Runs after resetEditor so it isn't clobbered.
+    useEditor.getState().setCaptureSource(source);
+    useEditor
+      .getState()
+      .setBackdropOn(config.general.backdrop.autoForWindow && source === "window");
+    const pins = config.pins;
     const start =
       pins.continuityMode === "continue"
         ? Math.max(pins.lastUsedNumber + 1, pins.defaultStartNumber)
@@ -120,10 +130,19 @@ export default function EditorPage() {
     let unlisten: (() => void) | undefined;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen<string>("editor:load-image", (e) => {
-        void applyFile(e.payload);
-        setView("editor");
-      });
+      unlisten = await listen<string | { path: string; source?: CaptureSource }>(
+        "editor:load-image",
+        (e) => {
+          // Payload is `{ path, source }`; tolerate a bare string (legacy).
+          const p = e.payload;
+          if (typeof p === "string") {
+            void applyFile(p);
+          } else {
+            void applyFile(p.path, p.source ?? "other");
+          }
+          setView("editor");
+        },
+      );
     })();
     return () => unlisten?.();
   }, [applyFile]);
