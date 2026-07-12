@@ -211,18 +211,198 @@ fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(
     best.map(|(s, mean)| (s, mean, zero_mean))
 }
 
+/// Mean per-sample grayscale difference at or below which a bottom row is
+/// considered unchanged between two consecutive frames. The fixed footer /
+/// window border is captured from the same on-screen pixels each frame, so it is
+/// near-identical; a small tolerance absorbs any AA/animation noise.
+const STATIC_ROW_MAX_DIFF: f32 = 6.0;
+
+/// Count the contiguous run of bottom rows that stay (near-)identical between two
+/// consecutive frames of a fixed scroll region, scanning upward from the last
+/// row — the height of the **static bottom band** (window chrome, an app
+/// footer/toolbar, or the window's bottom border that never scrolls). Returns 0
+/// if the frames differ in size or the very bottom row already changed.
+///
+/// The sampler locks this on the **first genuine scroll** (clamped to a fraction
+/// of the frame) as the fixed-footer height and excludes it from every stitch —
+/// see `commands::scroll`. Over-detection (e.g. uniform whitespace at the
+/// viewport bottom read as static) is self-correcting: content wrongly excluded
+/// is re-revealed above the true chrome in the next frame and appended then, and
+/// the final frame's band is re-attached whole at finish, so no content is
+/// dropped while the scroll step exceeds the over-count. `finish_open`'s
+/// duplicate-band trim is a further backstop.
+pub fn static_bottom_rows(a: &RgbaImage, b: &RgbaImage) -> u32 {
+    let (aw, ah) = a.dimensions();
+    if (aw, ah) != b.dimensions() || ah == 0 {
+        return 0;
+    }
+    let fa = Fingerprint::new(a);
+    let fb = Fingerprint::new(b);
+    let mut count = 0u32;
+    let mut y = ah;
+    while y > 0 {
+        y -= 1;
+        let mean = row_abs_diff(fa.row(y), fb.row(y)) as f32 / ROW_SAMPLES as f32;
+        if mean > STATIC_ROW_MAX_DIFF {
+            break;
+        }
+        count += 1;
+    }
+    count
+}
+
+/// Smallest trailing band (rows) considered for the duplicate-trim below.
+const MIN_DUP_BAND: u32 = 16;
+
+/// Largest trailing band the duplicate-trim will remove. Window chrome / a
+/// rounded bottom edge is small; capping the search well under a full capture
+/// keeps a coincidental large-band match from ever eating real content. Also
+/// bounded by half the image height at the call site.
+const MAX_DUP_BAND: u32 = 600;
+
+/// Mean per-sample grayscale difference at or below which a trailing band is
+/// accepted as a duplicate of the band directly above it (same units as
+/// [`CONFIDENT_MEAN_ABS_DIFF`]). Tuned conservatively: a real doubled chrome
+/// band scores near-zero, while a genuine (non-repeating) tail scores well
+/// above this, so clean captures are never trimmed.
+const DUP_MEAN_ABS_DIFF: f32 = 10.0;
+
+/// Minimum vertical spread of row brightness (0–255) required in the trailing
+/// region before we trust a duplicate match. A near-uniform tail (flat
+/// whitespace, a solid footer color) "duplicates" trivially at every band
+/// height; trimming it would cut legitimate blank space, so we skip it.
+const MIN_STRUCTURE_SPREAD: f32 = 8.0;
+
+/// Mean per-sample grayscale value of a fingerprint row.
+fn row_mean(fp: &Fingerprint, y: u32) -> f32 {
+    fp.row(y).iter().map(|&v| v as u32).sum::<u32>() as f32 / ROW_SAMPLES as f32
+}
+
+/// True if rows in `[lo, hi)` carry real vertical variation (max − min row
+/// brightness ≥ [`MIN_STRUCTURE_SPREAD`]) rather than being a flat band.
+fn region_has_structure(fp: &Fingerprint, lo: u32, hi: u32) -> bool {
+    let mut min = f32::MAX;
+    let mut max = f32::MIN;
+    let mut y = lo;
+    while y < hi {
+        let m = row_mean(fp, y);
+        min = min.min(m);
+        max = max.max(m);
+        y += ROW_STEP;
+    }
+    max - min >= MIN_STRUCTURE_SPREAD
+}
+
+/// Mean per-sample grayscale difference between the trailing band `[h-b, h)` and
+/// the band directly above it `[h-2b, h)`, comparing row `h-2b+i` to `h-b+i`.
+/// Requires `2 * b <= h`.
+fn trailing_band_diff(fp: &Fingerprint, h: u32, b: u32) -> f32 {
+    let mut total: u64 = 0;
+    let mut count: u32 = 0;
+    let mut i = 0;
+    while i < b {
+        total += row_abs_diff(fp.row(h - 2 * b + i), fp.row(h - b + i)) as u64;
+        count += 1;
+        i += ROW_STEP;
+    }
+    if count == 0 {
+        return f32::MAX;
+    }
+    total as f32 / (count as f32 * ROW_SAMPLES as f32)
+}
+
+/// Truncate `acc` by removing its bottom `rows` rows in place. No-op if `rows`
+/// is 0 or would empty the image. Reuses the backing buffer.
+pub fn trim_bottom_rows(acc: &mut RgbaImage, rows: u32) {
+    let (w, h) = acc.dimensions();
+    if rows == 0 || rows >= h {
+        return;
+    }
+    let new_h = h - rows;
+    let keep = w as usize * new_h as usize * 4;
+    let old = std::mem::replace(acc, RgbaImage::new(0, 0));
+    let mut buf = old.into_raw();
+    buf.truncate(keep);
+    *acc = RgbaImage::from_raw(w, new_h, buf).expect("trim buffer size invariant");
+}
+
+/// Detect and trim a duplicated trailing band from a finished auto-scroll
+/// accumulator, returning the number of rows removed.
+///
+/// When a scrolling capture reaches the page bottom, the selected region's
+/// bottom edge often overlaps fixed window chrome (footer / toolbar) or the
+/// rounded window bottom edge. Because [`append_frame`] appends the *literal
+/// bottom rows* of the final frame(s), that static band ends up duplicated at
+/// the very bottom of the output (observed: the last ~96 rows a near-exact copy
+/// of the 96 above them). This finds the largest trailing band whose rows
+/// duplicate the band directly above it (mean diff ≤ [`DUP_MEAN_ABS_DIFF`]) and
+/// removes it.
+///
+/// Conservative by construction — it returns 0 (no trim) unless a clear
+/// duplicate is present, skips a near-uniform band (see [`region_has_structure`]
+/// so flat whitespace is never cut), and bounds the band to at most
+/// [`MAX_DUP_BAND`] / half the image, so it can never eat the whole capture.
+pub fn trim_trailing_duplicate(acc: &mut RgbaImage) -> u32 {
+    let (w, h) = acc.dimensions();
+    if w == 0 || h < 2 * MIN_DUP_BAND {
+        return 0;
+    }
+    let max_b = (h / 2).min(MAX_DUP_BAND);
+    if max_b < MIN_DUP_BAND {
+        return 0;
+    }
+
+    let fp = Fingerprint::new(acc);
+
+    // Choose the LARGEST band that both aligns with the band above it (mean diff
+    // within tolerance) and carries real vertical structure. Largest — not
+    // lowest-mean — so a noisy doubled chrome band is removed whole rather than
+    // leaving the part above a more-exactly-matching suffix. The per-band
+    // structure check (on `[h-b, h)`, the band actually being removed) is what
+    // stops a flat blank tail from being cut even when varied content sits
+    // above it.
+    let mut chosen: Option<u32> = None;
+    for b in MIN_DUP_BAND..=max_b {
+        if trailing_band_diff(&fp, h, b) <= DUP_MEAN_ABS_DIFF
+            && region_has_structure(&fp, h - b, h)
+        {
+            chosen = Some(b);
+        }
+    }
+
+    match chosen {
+        Some(b) => {
+            trim_bottom_rows(acc, b);
+            b
+        }
+        None => 0,
+    }
+}
+
 /// Append the bottom `rows` rows of `src` onto `acc` (which must share `src`'s
 /// width). Grows `acc` by `rows` rows. Reuses the accumulator's backing buffer
 /// (`into_raw` → `extend` → `from_raw`) so repeated appends amortize instead of
 /// re-copying the whole growing image each frame.
-fn append_bottom_rows(acc: &mut RgbaImage, src: &RgbaImage, rows: u32) {
-    if rows == 0 {
-        return;
-    }
+/// Append the `rows` genuinely-new content rows of `src` onto `acc`, taken from
+/// just ABOVE the fixed bottom band: `src[sh-footer-rows, sh-footer)`. The
+/// `footer` fixed rows (window chrome / scrollbar / bottom border that never
+/// scrolls) are skipped so they are never welded into a seam. Returns the number
+/// of rows actually appended (clamped to the available content height). Reuses
+/// the accumulator buffer (into_raw → extend → from_raw).
+///
+/// `footer = 0` reproduces the original bottom-rows behavior exactly:
+/// `src[sh-rows, sh)`.
+fn append_content_rows(acc: &mut RgbaImage, src: &RgbaImage, rows: u32, footer: u32) -> u32 {
     let (w, sh) = src.dimensions();
-    let rows = rows.min(sh);
+    let footer = footer.min(sh);
+    let content_h = sh - footer; // rows above the fixed band
+    let rows = rows.min(content_h);
+    if rows == 0 {
+        return 0;
+    }
     let row_bytes = (w * 4) as usize;
-    let src_start = (sh - rows) as usize * row_bytes;
+    // Source region: [content_h - rows, content_h) == [sh-footer-rows, sh-footer).
+    let src_start = (content_h - rows) as usize * row_bytes;
     let add = &src.as_raw()[src_start..src_start + rows as usize * row_bytes];
 
     let ah = acc.height();
@@ -230,91 +410,124 @@ fn append_bottom_rows(acc: &mut RgbaImage, src: &RgbaImage, rows: u32) {
     let mut buf = old.into_raw();
     buf.extend_from_slice(add);
     *acc = RgbaImage::from_raw(w, ah + rows, buf).expect("stitch buffer size invariant");
+    rows
 }
 
-/// Vertically stitch `next` onto `acc`, using `prev` (the previously appended
-/// frame, whose full content forms the tail of `acc`) as the alignment
-/// reference. Only the newly revealed rows are appended.
-///
-/// `exclude` rows at the top and bottom of each frame are ignored during
-/// matching so sticky headers/footers don't dominate the correlation. Pass `0`
-/// to disable band exclusion.
-///
-/// Preconditions: `acc`, `prev`, and `next` all share the same width, and
-/// `prev`/`next` share the same height (they are captures of the same fixed
-/// region).
-pub fn append_frame(
-    acc: &mut RgbaImage,
-    prev: &RgbaImage,
-    next: &RgbaImage,
-    exclude: u32,
-) -> StitchOutcome {
+/// Append `src`'s bottom `footer` rows — the fixed window bottom edge — onto
+/// `acc`. The footer is excluded from every stitch so it is never welded into a
+/// seam; this re-attaches it **once** at the very end so a finished capture
+/// terminates at the natural window edge instead of a hard mid-content cut.
+/// No-op when `footer` is 0. `acc` must share `src`'s width.
+pub fn append_footer_band(acc: &mut RgbaImage, src: &RgbaImage, footer: u32) {
+    // `append_content_rows(.., rows=footer, footer=0)` copies src[sh-footer, sh).
+    append_content_rows(acc, src, footer, 0);
+}
+
+/// The stitcher's decision for one frame, independent of where it is applied.
+/// Produced by [`measure_frame`] and consumed by [`apply_frame`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StitchDecision {
+    /// Frame identical / paused — append nothing.
+    Duplicate,
+    /// Confident/plausible downward scroll of `s` rows. `low_confidence` marks
+    /// the looser plausible tier (soft seam warning).
+    Scroll { s: u32, low_confidence: bool },
+    /// No overlap found — butt-join the whole frame.
+    ButtJoin,
+}
+
+/// Decide how `next` stitches onto `prev` **without mutating any accumulator**.
+/// Same tiers as before; separated so the sampler can inspect the decision (and
+/// establish the fixed-footer height) before choosing where to append.
+pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> StitchDecision {
     // De-dup: identical raw buffers → the user didn't scroll.
     if prev.as_raw() == next.as_raw() {
-        return StitchOutcome {
-            appended: 0,
-            duplicate: true,
-            low_confidence: false,
-        };
+        return StitchDecision::Duplicate;
     }
 
     let prev_fp = Fingerprint::new(prev);
     let next_fp = Fingerprint::new(next);
 
     match best_offset(&prev_fp, &next_fp, exclude) {
-        // Genuine downward scroll: a confident overlap that also beats the
-        // stationary baseline by a real margin. The margin check is what stops a
-        // paused frame (whose best positive offset barely improves on — or is
-        // worse than — no movement) from being mistaken for a tiny scroll.
+        // Genuine downward scroll: confident overlap that also beats the
+        // stationary baseline by a real margin (stops a paused frame with dynamic
+        // noise from reading as a tiny scroll).
         Some((s, mean, zero_mean))
             if mean <= CONFIDENT_MEAN_ABS_DIFF && zero_mean - mean >= MIN_SCROLL_IMPROVEMENT =>
         {
-            append_bottom_rows(acc, next, s);
-            StitchOutcome {
-                appended: s,
-                duplicate: false,
-                low_confidence: false,
-            }
+            StitchDecision::Scroll { s, low_confidence: false }
         }
-        // Not a confident scroll, but the frames align well *without* moving:
-        // the user paused and only dynamic noise (caret, cursor) changed. Treat
-        // it as a duplicate — append nothing.
-        Some((_, _, zero_mean)) if zero_mean <= CONFIDENT_MEAN_ABS_DIFF => StitchOutcome {
+        // Aligns well *without* moving — a paused frame with dynamic noise. Dup.
+        Some((_, _, zero_mean)) if zero_mean <= CONFIDENT_MEAN_ABS_DIFF => {
+            StitchDecision::Duplicate
+        }
+        // Plausible scroll: the strict gate failed on capture noise, but the best
+        // offset clearly beats the stationary baseline and stays under the looser
+        // PLAUSIBLE bound. Trust its `s` rather than butt-joining a whole frame.
+        Some((s, mean, zero_mean))
+            if mean <= PLAUSIBLE_MEAN_ABS_DIFF && zero_mean - mean >= MIN_SCROLL_IMPROVEMENT =>
+        {
+            StitchDecision::Scroll { s, low_confidence: true }
+        }
+        // No plausible overlap and no stationary alignment (a fling past a full
+        // viewport) — butt-join.
+        _ => StitchDecision::ButtJoin,
+    }
+}
+
+/// Apply a [`StitchDecision`] to `acc`, appending only the genuinely-new content
+/// rows and skipping the fixed bottom band of height `footer` (window chrome /
+/// scrollbar / border that never scrolls, so it must not be welded into a seam).
+/// `footer = 0` reproduces the original bottom-rows behavior exactly.
+pub fn apply_frame(
+    acc: &mut RgbaImage,
+    next: &RgbaImage,
+    decision: StitchDecision,
+    footer: u32,
+) -> StitchOutcome {
+    let h = next.height();
+    let footer = footer.min(h);
+    match decision {
+        StitchDecision::Duplicate => StitchOutcome {
             appended: 0,
             duplicate: true,
             low_confidence: false,
         },
-        // Plausible scroll: the strict confidence gate failed (real capture noise
-        // — sharp text at a fractional-DPI scroll position pushes the aligned
-        // mean above CONFIDENT_MEAN_ABS_DIFF), but the best offset still clearly
-        // beats the stationary baseline and stays under the looser PLAUSIBLE
-        // bound. Append only its `s` newly-revealed rows rather than butt-joining
-        // the whole frame, which would duplicate `height - s` overlap rows at the
-        // seam (the "not fine cut" bug). Flag low-confidence so the HUD surfaces a
-        // soft seam warning.
-        Some((s, mean, zero_mean))
-            if mean <= PLAUSIBLE_MEAN_ABS_DIFF && zero_mean - mean >= MIN_SCROLL_IMPROVEMENT =>
-        {
-            append_bottom_rows(acc, next, s);
+        StitchDecision::Scroll { s, low_confidence } => {
+            let appended = append_content_rows(acc, next, s, footer);
             StitchOutcome {
-                appended: s,
+                appended,
                 duplicate: false,
-                low_confidence: true,
+                low_confidence,
             }
         }
-        _ => {
-            // No plausible overlap and the frames don't align stationary either
-            // (e.g. a fling past a full viewport) — butt-join the whole frame and
-            // warn. May duplicate a little content at the seam, but never drops any.
-            let h = next.height();
-            append_bottom_rows(acc, next, h);
+        StitchDecision::ButtJoin => {
+            // Whole frame minus the fixed footer band.
+            let appended = append_content_rows(acc, next, h - footer, footer);
             StitchOutcome {
-                appended: h,
+                appended,
                 duplicate: false,
                 low_confidence: true,
             }
         }
     }
+}
+
+/// Vertically stitch `next` onto `acc`, using `prev` as the alignment reference.
+/// Backward-compatible entry point: measures then applies with **no** fixed
+/// footer (`footer = 0`), i.e. appends the bottom rows exactly as before. The
+/// scrolling sampler uses [`measure_frame`] + [`apply_frame`] directly so it can
+/// exclude the fixed window footer — so outside of the test suite this wrapper
+/// currently has no callers.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn append_frame(
+    acc: &mut RgbaImage,
+    prev: &RgbaImage,
+    next: &RgbaImage,
+    exclude: u32,
+) -> StitchOutcome {
+    let decision = measure_frame(prev, next, exclude);
+    apply_frame(acc, next, decision, 0)
 }
 
 #[cfg(test)]
@@ -532,5 +745,258 @@ mod tests {
         assert!(out.low_confidence);
         assert_eq!(out.appended, 200);
         assert_eq!(acc.height(), 400);
+    }
+
+    /// Row-constant pseudo-random brightness: each row is one well-mixed gray, so
+    /// the image has strong vertical structure but no periodicity or gradient —
+    /// like real UI content, only an *exact* duplicate band aligns (a smooth
+    /// gradient would also loosely match nearby band heights).
+    fn vnoise_image(w: u32, h: u32) -> RgbaImage {
+        let mut img = RgbaImage::new(w, h);
+        for y in 0..h {
+            let mut v = (y as u32).wrapping_add(1).wrapping_mul(2_654_435_761);
+            v ^= v >> 15;
+            v = v.wrapping_mul(2_246_822_519);
+            v ^= v >> 13;
+            let g = (v & 0xff) as u8;
+            for x in 0..w {
+                img.put_pixel(x, y, Rgba([g, g, g, 255]));
+            }
+        }
+        img
+    }
+
+    /// Copy the bottom `band` rows of `src` and append them, simulating the
+    /// auto-scroll artifact where fixed bottom chrome gets duplicated at the end.
+    fn append_duplicate_tail(src: &RgbaImage, band: u32) -> RgbaImage {
+        let (w, h) = src.dimensions();
+        let mut out = RgbaImage::new(w, h + band);
+        for y in 0..h {
+            for x in 0..w {
+                out.put_pixel(x, y, *src.get_pixel(x, y));
+            }
+        }
+        for i in 0..band {
+            for x in 0..w {
+                out.put_pixel(x, h + i, *src.get_pixel(x, h - band + i));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn trims_duplicated_trailing_band() {
+        // 400 rows of high-entropy content with its own last 96 rows appended
+        // again (the doubled-chrome artifact). Only b=96 aligns; every other band
+        // scores far above threshold, so exactly 96 rows come off.
+        let base = vnoise_image(120, 400);
+        let mut acc = append_duplicate_tail(&base, 96);
+        assert_eq!(acc.height(), 496);
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 96, "should trim exactly the duplicated band");
+        assert_eq!(acc.height(), 400);
+        // The remaining image is pixel-identical to the original content.
+        for y in 0..400 {
+            for x in 0..120 {
+                assert_eq!(acc.get_pixel(x, y), base.get_pixel(x, y), "content altered at ({x},{y})");
+            }
+        }
+    }
+
+    #[test]
+    fn clean_capture_is_not_trimmed() {
+        // Aperiodic content: each row is a distinct, monotonically brightening
+        // gray (luma ≈ y, no wrap over height 200), so no two bands align —
+        // nothing to trim.
+        let (w, h) = (120u32, 200u32);
+        let mut acc = RgbaImage::new(w, h);
+        for y in 0..h {
+            let g = y as u8;
+            for x in 0..w {
+                acc.put_pixel(x, y, Rgba([g, g, g, 255]));
+            }
+        }
+        let before = acc.height();
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 0, "clean capture must not be trimmed");
+        assert_eq!(acc.height(), before);
+    }
+
+    #[test]
+    fn flat_tail_is_not_trimmed() {
+        // Varied content on top, a tall uniform (whitespace) tail below. The tail
+        // "duplicates" at every band height, but the structure guard refuses to
+        // cut flat blank space.
+        let top = tall_image(120, 150);
+        let (w, top_h) = top.dimensions();
+        let tail = 250;
+        let mut acc = RgbaImage::new(w, top_h + tail);
+        for y in 0..top_h {
+            for x in 0..w {
+                acc.put_pixel(x, y, *top.get_pixel(x, y));
+            }
+        }
+        for y in top_h..top_h + tail {
+            for x in 0..w {
+                acc.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+            }
+        }
+        let before = acc.height();
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 0, "flat whitespace tail must not be trimmed");
+        assert_eq!(acc.height(), before);
+    }
+
+    #[test]
+    fn tiny_image_is_not_trimmed() {
+        let mut acc = tall_image(64, 20);
+        let trimmed = trim_trailing_duplicate(&mut acc);
+        assert_eq!(trimmed, 0);
+        assert_eq!(acc.height(), 20);
+    }
+
+    #[test]
+    fn static_bottom_rows_measures_fixed_footer() {
+        // Two consecutive frames: identical bottom `footer` rows (fixed window
+        // chrome), different content above (it scrolled).
+        let (w, h, footer) = (100u32, 300u32, 40u32);
+        let a = vnoise_image(w, h);
+        let mut b = a.clone();
+        for y in 0..(h - footer) {
+            for x in 0..w {
+                let p = a.get_pixel(x, y).0;
+                b.put_pixel(x, y, Rgba([p[0] ^ 0xff, p[1], p[2], 255]));
+            }
+        }
+        assert_eq!(static_bottom_rows(&a, &b), footer);
+    }
+
+    #[test]
+    fn static_bottom_rows_zero_when_bottom_changes() {
+        let a = vnoise_image(80, 120);
+        let mut b = a.clone();
+        for x in 0..80 {
+            let p = a.get_pixel(x, 119).0;
+            b.put_pixel(x, 119, Rgba([p[0] ^ 0xff, p[1], p[2], 255]));
+        }
+        assert_eq!(static_bottom_rows(&a, &b), 0);
+    }
+
+    #[test]
+    fn static_bottom_rows_full_height_when_identical() {
+        let a = vnoise_image(60, 100);
+        assert_eq!(static_bottom_rows(&a, &a), 100);
+    }
+
+    #[test]
+    fn fixed_bottom_chrome_is_never_stitched_into_a_seam() {
+        // The reported bug: every frame carries a fixed bottom band (window
+        // boundary / scrollbar) that never scrolls. The old stitcher appended the
+        // literal bottom rows, welding that band into the middle of the output.
+        // This replicates the sampler's footer-aware stitch and asserts the
+        // result is pixel-exact clean page content — no chrome, no misalignment.
+        let w = 120;
+        let full_h = 900;
+        let vh = 300;
+        let footer = 24; // fixed window band height
+        let step = 90;
+        const EXCLUDE_BAND: u32 = 48;
+        let full = tall_image(w, full_h);
+        let chrome = Rgba([222u8, 111, 55, 255]);
+        let framed = |top: u32| -> RgbaImage {
+            let mut f = viewport(&full, top, vh);
+            for y in (vh - footer)..vh {
+                for x in 0..w {
+                    f.put_pixel(x, y, chrome);
+                }
+            }
+            f
+        };
+
+        let f0 = framed(0);
+        let mut acc = f0.clone();
+        let mut prev = f0;
+        let mut locked: Option<u32> = None;
+        let mut expected_h = acc.height(); // updated once footer is trimmed
+
+        let mut top = step;
+        while top + vh <= full_h {
+            let next = framed(top);
+            let exclude = EXCLUDE_BAND.max(locked.unwrap_or(0));
+            let mut decision = measure_frame(&prev, &next, exclude);
+            if !matches!(decision, StitchDecision::Duplicate) && locked.is_none() {
+                let f = static_bottom_rows(&prev, &next);
+                trim_bottom_rows(&mut acc, f);
+                locked = Some(f);
+                expected_h = acc.height();
+                decision = measure_frame(&prev, &next, EXCLUDE_BAND.max(f));
+            }
+            let out = apply_frame(&mut acc, &next, decision, locked.unwrap_or(0));
+            assert!(!out.duplicate, "distinct slice flagged duplicate at top={top}");
+            assert!(!out.low_confidence, "lost alignment at top={top}");
+            expected_h += out.appended;
+            prev = next;
+            top += step;
+        }
+
+        // The fixed band height was detected exactly.
+        assert_eq!(locked, Some(footer), "wrong detected footer");
+        assert_eq!(acc.height(), expected_h, "unexpected output height");
+        // Pixel-exact clean page content: if the chrome band had leaked into any
+        // seam, these rows would differ (and misalign everything below).
+        for y in 0..acc.height() {
+            for x in 0..w {
+                assert_eq!(
+                    acc.get_pixel(x, y),
+                    full.get_pixel(x, y),
+                    "output diverges from clean page content at ({x},{y})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn append_footer_band_reattaches_the_bottom_edge() {
+        // `acc` holds a frame's content (its bottom `footer` rows removed);
+        // re-attaching that frame's footer band restores the full frame.
+        let src = vnoise_image(50, 100);
+        let footer = 20;
+        let mut acc =
+            image::imageops::crop_imm(&src, 0, 0, 50, 100 - footer).to_image();
+        append_footer_band(&mut acc, &src, footer);
+        assert_eq!(acc.height(), 100);
+        for y in 0..100 {
+            for x in 0..50 {
+                assert_eq!(acc.get_pixel(x, y), src.get_pixel(x, y), "mismatch at ({x},{y})");
+            }
+        }
+    }
+
+    #[test]
+    fn append_footer_band_zero_is_noop() {
+        let src = vnoise_image(40, 60);
+        let mut acc = src.clone();
+        append_footer_band(&mut acc, &src, 0);
+        assert_eq!(acc.height(), 60);
+    }
+
+    #[test]
+    fn static_bottom_rows_excludes_scrolled_whitespace() {
+        // The first-vs-last-frame comparison the finish path uses: `first` has
+        // real content above a fixed chrome band; `last` has whitespace above the
+        // same chrome (the page ended). Only the chrome band matches from the
+        // bottom, so scrolled-in whitespace is NOT counted as footer.
+        let (w, h, chrome) = (100u32, 300u32, 30u32);
+        let mut first = RgbaImage::from_pixel(w, h, Rgba([100, 100, 100, 255]));
+        let mut last = RgbaImage::from_pixel(w, h, Rgba([255, 255, 255, 255]));
+        let chrome_img = vnoise_image(w, chrome);
+        for y in 0..chrome {
+            for x in 0..w {
+                let p = *chrome_img.get_pixel(x, y);
+                first.put_pixel(x, h - chrome + y, p);
+                last.put_pixel(x, h - chrome + y, p);
+            }
+        }
+        assert_eq!(static_bottom_rows(&first, &last), chrome);
     }
 }

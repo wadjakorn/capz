@@ -40,6 +40,11 @@ pub struct ScrollSession {
     /// would misread those as auto progress and finish a truncated capture when
     /// the target actually ignores synthetic scroll. Reset each time auto starts.
     pub auto_progressed: bool,
+    /// Height (physical px) of the fixed bottom band (window chrome / scrollbar /
+    /// bottom border) that never scrolls, locked on the first genuine scroll.
+    /// Excluded from every stitch so it is never welded into a seam. `None` until
+    /// the first real scroll establishes it. See `commands::scroll`.
+    pub footer: Option<u32>,
 }
 
 /// App-wide runtime state.
