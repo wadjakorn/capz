@@ -617,7 +617,9 @@ export function EditorStage({ src }: Props) {
       // NOT a dep — mutating it can't trigger this effect. Node-size changes
       // that don't flow through `annotations` are signalled via `boundsTick`.
       const node = nodeRefs.current.get(a.id);
-      if (node) {
+      // Magnify registers only its source group, so its node rect misses the
+      // output loupe — use the annotation AABB, which unions source + output.
+      if (node && a.type !== "magnify") {
         const r = node.getClientRect({
           relativeTo: node.getLayer() ?? undefined,
           skipShadow: true,
