@@ -462,14 +462,11 @@ export function EditorStage({ src }: Props) {
       tr.getLayer()?.batchDraw();
       return;
     }
-    // Arrows and magnifiers use their own inline handles; highlighters are
-    // move-only (width via slider) — none attach the box Transformer.
+    // Arrows and magnifiers use their own inline handles, so they skip the box
+    // Transformer. Highlighters DO attach it (for a selection/move box) but with
+    // resize + rotate disabled — see the Transformer's per-type props below.
     const selAnn = annotations.find((a) => a.id === selectedId);
-    if (
-      selAnn?.type === "arrow" ||
-      selAnn?.type === "magnify" ||
-      selAnn?.type === "highlighter"
-    ) {
+    if (selAnn?.type === "arrow" || selAnn?.type === "magnify") {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -1115,6 +1112,11 @@ export function EditorStage({ src }: Props) {
     else nodeRefs.current.delete(id);
   }
 
+  // Highlighters attach the box Transformer for selection feedback but must not
+  // be resized/rotated (width is slider-only).
+  const selectedType = annotations.find((a) => a.id === selectedId)?.type;
+  const transformInteractive = selectedType !== "highlighter";
+
   const cursorClass =
     tool === "select"
       ? "cursor-default"
@@ -1534,7 +1536,8 @@ export function EditorStage({ src }: Props) {
             />
             <Transformer
               ref={trRef}
-              rotateEnabled
+              resizeEnabled={transformInteractive}
+              rotateEnabled={transformInteractive}
               rotationSnaps={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]}
               ignoreStroke
               boundBoxFunc={(_oldBox, newBox) => {
@@ -2181,6 +2184,8 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
   const hr = Math.max(4, 6 / ctx.scale);
   const hsw = 1.5 / ctx.scale;
   const bw = Math.max(1, a.strokeWidth * 0.6);
+  const linkDashed = a.linkDash ?? true;
+  const areaFill = a.areaOpacity ?? 0.15;
 
   const commit = (patch: Partial<MagnifyAnnotation>) => {
     ctx.onChange(patch);
@@ -2199,23 +2204,42 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
     ) : (
       <Circle x={0} y={0} radius={radius} {...props} />
     );
+  // Point on a shape's perimeter toward (tx,ty), so the connector meets the
+  // area/loupe edges instead of their centers.
+  const edge = (
+    cx: number,
+    cy: number,
+    half: number,
+    tx: number,
+    ty: number,
+  ): [number, number] => {
+    const dx = tx - cx;
+    const dy = ty - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const s = isRect ? half / Math.max(Math.abs(ux), Math.abs(uy)) : half;
+    return [cx + ux * s, cy + uy * s];
+  };
+  const [lsx, lsy] = edge(g.sx, g.sy, srcR, g.x, g.y);
+  const [lox, loy] = edge(g.x, g.y, outR, g.sx, g.sy);
 
   return (
     <>
-      {/* connector: source → output (dashed or solid) */}
+      {/* connector: source edge → output edge (dashed or solid per link type) */}
       <Line
-        points={[g.sx, g.sy, g.x, g.y]}
+        points={[lsx, lsy, lox, loy]}
         stroke={a.stroke}
         strokeWidth={bw}
-        dash={(a.linkDash ?? true) ? [4, 4] : undefined}
+        dash={linkDashed ? [4, 4] : undefined}
         listening={false}
       />
       {/* source (magnify) area — draggable + clickable via its tint fill.
-          areaOpacity 0 hides it (clean capture) while it stays hittable. */}
+          areaOpacity affects the fill only; the border always shows and follows
+          the link (solid/dotted) style. */}
       <Group
         x={g.sx}
         y={g.sy}
-        opacity={a.areaOpacity ?? 1}
         draggable
         {...hoverHandlers(ctx)}
         onMouseDown={(e) => {
@@ -2227,8 +2251,12 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         }
         onDragEnd={(e) => commit({ sx: e.target.x(), sy: e.target.y() })}
       >
-        {area(srcR, { fill: a.stroke, opacity: 0.14 })}
-        {area(srcR, { stroke: a.stroke, strokeWidth: bw, dash: [3, 3] })}
+        {area(srcR, { fill: a.stroke, opacity: areaFill })}
+        {area(srcR, {
+          stroke: a.stroke,
+          strokeWidth: bw,
+          dash: linkDashed ? [Math.max(2, bw * 3), Math.max(2, bw * 3)] : undefined,
+        })}
       </Group>
       {/* output loupe — draggable; magnified sample clipped to the shape */}
       <Group
@@ -2272,6 +2300,9 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         {area(outR, {
           stroke: a.stroke,
           strokeWidth: a.strokeWidth,
+          dash: linkDashed
+            ? [a.strokeWidth * 2.5, a.strokeWidth * 2.5]
+            : undefined,
           listening: false,
         })}
       </Group>

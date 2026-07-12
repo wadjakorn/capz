@@ -270,7 +270,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       strokeWidth: 3,
       shape: "circle",
       zoom: 2,
-      areaOpacity: 1,
+      areaOpacity: 0.15,
       linkDash: true,
     },
     sticker: { fontSize: 48 },
