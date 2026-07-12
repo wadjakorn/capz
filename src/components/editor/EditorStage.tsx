@@ -25,9 +25,13 @@ import {
   type ArrowAnnotation,
   type TextAnnotation,
   type BlurAnnotation,
+  type FreehandAnnotation,
+  type HighlighterAnnotation,
+  type MagnifyAnnotation,
   type StickerAnnotation,
   type PinAnnotation,
 } from "@/stores/editor";
+import { smoothPoints } from "@/lib/freehand";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
@@ -68,7 +72,10 @@ type Props = { src: string };
 type Draft =
   | { kind: "rect"; id: string; x: number; y: number; w: number; h: number }
   | { kind: "arrow"; id: string; x1: number; y1: number; x2: number; y2: number }
-  | { kind: "blur"; id: string; x: number; y: number; w: number; h: number };
+  | { kind: "line"; id: string; x1: number; y1: number; x2: number; y2: number }
+  | { kind: "blur"; id: string; x: number; y: number; w: number; h: number }
+  | { kind: "magnify"; id: string; x: number; y: number; w: number; h: number }
+  | { kind: "freehand"; id: string; tool: "pen" | "highlighter"; points: number[] };
 
 type TextEditor = {
   imgX: number;
@@ -95,7 +102,35 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
         },
       };
     case "arrow":
-      return { arrow: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
+      return {
+        arrow: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          heads: a.heads,
+          dash: a.dash,
+        },
+      };
+    case "pen":
+      return {
+        pen: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          mode: a.mode,
+        },
+      };
+    case "highlighter":
+      return {
+        highlighter: { strokeColor: a.stroke, strokeWidth: a.strokeWidth },
+      };
+    case "magnify":
+      return {
+        magnify: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          shape: a.shape,
+          zoom: a.zoom,
+        },
+      };
     case "text":
       return {
         text: {
@@ -412,9 +447,9 @@ export function EditorStage({ src }: Props) {
       tr.getLayer()?.batchDraw();
       return;
     }
-    // Arrows use their own inline 3-point handles, not the box Transformer.
+    // Arrows and magnifiers use their own inline handles, not the box Transformer.
     const selAnn = annotations.find((a) => a.id === selectedId);
-    if (selAnn?.type === "arrow") {
+    if (selAnn?.type === "arrow" || selAnn?.type === "magnify") {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -754,11 +789,24 @@ export function EditorStage({ src }: Props) {
     if (!empty) return;
 
     if (tool === "rect") {
-      setDraft({ kind: "rect", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
+      // The Shapes tool's "line" option draws a 2-point segment, not a box.
+      if (toolsCfg.rect.shape === "line") {
+        setDraft({ kind: "line", id: uid(), x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+      } else {
+        setDraft({ kind: "rect", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
+      }
       return;
     }
     if (tool === "arrow") {
       setDraft({ kind: "arrow", id: uid(), x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+      return;
+    }
+    if (tool === "pen" || tool === "highlighter") {
+      setDraft({ kind: "freehand", id: uid(), tool, points: [p.x, p.y] });
+      return;
+    }
+    if (tool === "magnify") {
+      setDraft({ kind: "magnify", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
       return;
     }
     if (tool === "blur") {
@@ -884,10 +932,16 @@ export function EditorStage({ src }: Props) {
     if (!draft) return;
     const p = getPointer();
     if (!p) return;
-    if (draft.kind === "rect" || draft.kind === "blur") {
+    if (
+      draft.kind === "rect" ||
+      draft.kind === "blur" ||
+      draft.kind === "magnify"
+    ) {
       setDraft({ ...draft, w: p.x - draft.x, h: p.y - draft.y });
-    } else {
+    } else if (draft.kind === "arrow" || draft.kind === "line") {
       setDraft({ ...draft, x2: p.x, y2: p.y });
+    } else if (draft.kind === "freehand") {
+      setDraft({ ...draft, points: [...draft.points, p.x, p.y] });
     }
   }
 
@@ -932,7 +986,7 @@ export function EditorStage({ src }: Props) {
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
-    } else {
+    } else if (draft.kind === "arrow") {
       const dx = draft.x2 - draft.x1;
       const dy = draft.y2 - draft.y1;
       if (Math.hypot(dx, dy) > 4) {
@@ -945,9 +999,82 @@ export function EditorStage({ src }: Props) {
           y2: draft.y2,
           stroke: toolsCfg.arrow.strokeColor,
           strokeWidth: toolsCfg.arrow.strokeWidth,
+          heads: toolsCfg.arrow.heads,
+          dash: toolsCfg.arrow.dash,
         };
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+      }
+    } else if (draft.kind === "line") {
+      // Shapes-tool line: a headless arrow. Persists under the arrow's config.
+      const dx = draft.x2 - draft.x1;
+      const dy = draft.y2 - draft.y1;
+      if (Math.hypot(dx, dy) > 4) {
+        const a: ArrowAnnotation = {
+          id: draft.id,
+          type: "arrow",
+          x1: draft.x1,
+          y1: draft.y1,
+          x2: draft.x2,
+          y2: draft.y2,
+          stroke: toolsCfg.rect.strokeColor,
+          strokeWidth: toolsCfg.rect.strokeWidth,
+          heads: "none",
+          dash: toolsCfg.arrow.dash,
+        };
+        add(a);
+      }
+    } else if (draft.kind === "magnify") {
+      const x = draft.w < 0 ? draft.x + draft.w : draft.x;
+      const y = draft.h < 0 ? draft.y + draft.h : draft.y;
+      const w = Math.abs(draft.w);
+      const h = Math.abs(draft.h);
+      // Output half-size from the drag; fall back to a sensible default on a click.
+      const radius = Math.max(w, h) / 2 || 60;
+      const cx = w > 4 ? x + w / 2 : draft.x;
+      const cy = h > 4 ? y + h / 2 : draft.y;
+      // Source defaults a few radii to the left of the output, clamped to image.
+      const sx = Math.max(radius, cx - radius * 3);
+      const sy = cy;
+      const a: MagnifyAnnotation = {
+        id: draft.id,
+        type: "magnify",
+        sx,
+        sy,
+        x: cx,
+        y: cy,
+        radius,
+        zoom: toolsCfg.magnify.zoom,
+        shape: toolsCfg.magnify.shape,
+        stroke: toolsCfg.magnify.strokeColor,
+        strokeWidth: toolsCfg.magnify.strokeWidth,
+      };
+      add(a);
+      scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+    } else if (draft.kind === "freehand") {
+      if (draft.points.length >= 4) {
+        if (draft.tool === "highlighter") {
+          const a: HighlighterAnnotation = {
+            id: draft.id,
+            type: "highlighter",
+            points: draft.points,
+            stroke: toolsCfg.highlighter.strokeColor,
+            strokeWidth: toolsCfg.highlighter.strokeWidth,
+          };
+          add(a);
+          scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+        } else {
+          const a: FreehandAnnotation = {
+            id: draft.id,
+            type: "pen",
+            points: draft.points,
+            stroke: toolsCfg.pen.strokeColor,
+            strokeWidth: toolsCfg.pen.strokeWidth,
+            mode: toolsCfg.pen.mode,
+          };
+          add(a);
+          scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+        }
       }
     }
     setDraft(null);
@@ -1187,9 +1314,82 @@ export function EditorStage({ src }: Props) {
                 strokeWidth={toolsCfg.arrow.strokeWidth}
                 pointerLength={toolsCfg.arrow.strokeWidth * 4}
                 pointerWidth={toolsCfg.arrow.strokeWidth * 4}
+                pointerAtBeginning={toolsCfg.arrow.heads === "both"}
+                dash={
+                  toolsCfg.arrow.dash
+                    ? [toolsCfg.arrow.strokeWidth * 2, toolsCfg.arrow.strokeWidth * 2]
+                    : undefined
+                }
                 lineCap="round"
                 lineJoin="round"
                 listening={false}
+              />
+            )}
+            {draft?.kind === "line" && (
+              <Line
+                points={[draft.x1, draft.y1, draft.x2, draft.y2]}
+                stroke={toolsCfg.rect.strokeColor}
+                strokeWidth={toolsCfg.rect.strokeWidth}
+                dash={
+                  toolsCfg.arrow.dash
+                    ? [toolsCfg.rect.strokeWidth * 2, toolsCfg.rect.strokeWidth * 2]
+                    : undefined
+                }
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            )}
+            {draft?.kind === "freehand" && (
+              <Line
+                points={draft.points}
+                stroke={
+                  draft.tool === "highlighter"
+                    ? toolsCfg.highlighter.strokeColor
+                    : toolsCfg.pen.strokeColor
+                }
+                strokeWidth={
+                  draft.tool === "highlighter"
+                    ? toolsCfg.highlighter.strokeWidth
+                    : toolsCfg.pen.strokeWidth
+                }
+                opacity={draft.tool === "highlighter" ? 0.4 : 1}
+                lineCap="round"
+                lineJoin="round"
+                tension={draft.tool === "pen" && toolsCfg.pen.mode === "curve" ? 0.5 : 0}
+                listening={false}
+              />
+            )}
+            {draft?.kind === "magnify" && (
+              <Shape
+                x={Math.min(draft.x, draft.x + draft.w)}
+                y={Math.min(draft.y, draft.y + draft.h)}
+                width={Math.abs(draft.w)}
+                height={Math.abs(draft.h)}
+                stroke={toolsCfg.magnify.strokeColor}
+                strokeWidth={toolsCfg.magnify.strokeWidth}
+                dash={[6, 4]}
+                listening={false}
+                sceneFunc={(c, shape) => {
+                  const w = shape.width();
+                  const h = shape.height();
+                  c.beginPath();
+                  if (toolsCfg.magnify.shape === "rect") {
+                    c.rect(0, 0, w, h);
+                  } else {
+                    c.ellipse(
+                      w / 2,
+                      h / 2,
+                      Math.max(0, w / 2),
+                      Math.max(0, h / 2),
+                      0,
+                      0,
+                      Math.PI * 2,
+                    );
+                  }
+                  c.closePath();
+                  c.strokeShape(shape);
+                }}
               />
             )}
             {tool === "crop" && cropSel && (
@@ -1470,6 +1670,10 @@ function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
   if (a.type === "arrow") return <ArrowShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "text") return <TextShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "blur") return <BlurShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "pen") return <FreehandShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "highlighter")
+    return <HighlighterShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "magnify") return <MagnifyShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "sticker") return <StickerShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "pin") return <PinShape key={a.id} a={a} ctx={ctx} />;
   return null;
@@ -1706,6 +1910,9 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
         strokeWidth={a.strokeWidth}
         pointerLength={a.strokeWidth * 4}
         pointerWidth={a.strokeWidth * 4}
+        pointerAtEnding={(a.heads ?? "end") !== "none"}
+        pointerAtBeginning={a.heads === "both"}
+        dash={a.dash ? [a.strokeWidth * 2, a.strokeWidth * 2] : undefined}
         lineCap="round"
         lineJoin="round"
         hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
@@ -1787,6 +1994,259 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
               }}
             />
           ))}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Shared move/resize handling for point-path shapes (pen + highlighter): drag
+ *  translates the raw points; the Transformer bakes scale/rotation into them via
+ *  the node transform so the stored path stays axis-aligned. */
+function usePathShape(a: FreehandAnnotation | HighlighterAnnotation, ctx: ShapeCtx) {
+  const ref = useRef<Konva.Line>(null);
+  useEffect(() => {
+    ctx.setRef(ref.current);
+    return () => ctx.setRef(null);
+  });
+  const handlers = {
+    draggable: true,
+    ...hoverHandlers(ctx),
+    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      e.cancelBubble = true;
+      ctx.onSelect();
+    },
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const node = e.target;
+      const ab = annotationAABB(a);
+      if (!ab) return;
+      const { dx, dy } = ctx.snapDrag(
+        a.id,
+        { x: ab.x + node.x(), y: ab.y + node.y(), w: ab.w, h: ab.h },
+        e.evt.altKey,
+      );
+      if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+    },
+    onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      ctx.endSnap();
+      const dx = e.target.x();
+      const dy = e.target.y();
+      e.target.position({ x: 0, y: 0 });
+      ctx.onChange({
+        points: a.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy)),
+      });
+    },
+    onTransformEnd: () => {
+      const node = ref.current;
+      if (!node) return;
+      // Fold the node's scale/rotation/translation into the raw points so the
+      // stored path is again untransformed (rotation baked in, reset to 0).
+      const t = node.getTransform().copy();
+      const out: number[] = [];
+      for (let i = 0; i < a.points.length; i += 2) {
+        const p = t.point({ x: a.points[i], y: a.points[i + 1] });
+        out.push(p.x, p.y);
+      }
+      node.scaleX(1);
+      node.scaleY(1);
+      node.rotation(0);
+      node.position({ x: 0, y: 0 });
+      ctx.onChange({ points: out, rotation: 0 });
+    },
+  };
+  return { ref, handlers };
+}
+
+function FreehandShape({ a, ctx }: { a: FreehandAnnotation; ctx: ShapeCtx }) {
+  const { ref, handlers } = usePathShape(a, ctx);
+  const { points, tension } = smoothPoints(a.points, a.mode);
+  return (
+    <Line
+      ref={ref}
+      points={points}
+      tension={tension}
+      rotation={a.rotation ?? 0}
+      stroke={a.stroke}
+      strokeWidth={a.strokeWidth}
+      lineCap="round"
+      lineJoin="round"
+      hitStrokeWidth={Math.max(16, a.strokeWidth * 2)}
+      {...handlers}
+    />
+  );
+}
+
+function HighlighterShape({
+  a,
+  ctx,
+}: {
+  a: HighlighterAnnotation;
+  ctx: ShapeCtx;
+}) {
+  const { ref, handlers } = usePathShape(a, ctx);
+  return (
+    <Line
+      ref={ref}
+      points={a.points}
+      rotation={a.rotation ?? 0}
+      stroke={a.stroke}
+      strokeWidth={a.strokeWidth}
+      opacity={0.4}
+      lineCap="round"
+      lineJoin="round"
+      globalCompositeOperation="multiply"
+      hitStrokeWidth={Math.max(16, a.strokeWidth)}
+      {...handlers}
+    />
+  );
+}
+
+function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
+  const groupRef = useRef<Konva.Group>(null);
+  useEffect(() => {
+    ctx.setRef(groupRef.current);
+    return () => ctx.setRef(null);
+  });
+  const r = a.radius;
+  const srcR = r / Math.max(1, a.zoom);
+  const isRect = a.shape === "rect";
+  const hr = Math.max(4, 6 / ctx.scale);
+  const hsw = 1.5 / ctx.scale;
+  return (
+    <>
+      {/* connector: source → output */}
+      <Line
+        points={[a.sx, a.sy, a.x, a.y]}
+        stroke={a.stroke}
+        strokeWidth={Math.max(1, a.strokeWidth * 0.6)}
+        dash={[4, 4]}
+        listening={false}
+      />
+      {/* source region indicator */}
+      {isRect ? (
+        <Rect
+          x={a.sx - srcR}
+          y={a.sy - srcR}
+          width={srcR * 2}
+          height={srcR * 2}
+          stroke={a.stroke}
+          strokeWidth={Math.max(1, a.strokeWidth * 0.6)}
+          dash={[3, 3]}
+          listening={false}
+        />
+      ) : (
+        <Circle
+          x={a.sx}
+          y={a.sy}
+          radius={srcR}
+          stroke={a.stroke}
+          strokeWidth={Math.max(1, a.strokeWidth * 0.6)}
+          dash={[3, 3]}
+          listening={false}
+        />
+      )}
+      {/* output loupe: magnified sample of the source region, clipped to shape */}
+      <Group
+        ref={groupRef}
+        x={a.x - r}
+        y={a.y - r}
+        draggable
+        clipFunc={(c) => {
+          c.beginPath();
+          if (isRect) c.rect(0, 0, r * 2, r * 2);
+          else c.arc(r, r, r, 0, Math.PI * 2, false);
+          c.closePath();
+        }}
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragMove={(e) => {
+          const node = e.target;
+          const { dx, dy } = ctx.snapDrag(
+            a.id,
+            { x: node.x(), y: node.y(), w: r * 2, h: r * 2 },
+            e.evt.altKey,
+          );
+          if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+        }}
+        onDragEnd={(e) => {
+          ctx.endSnap();
+          ctx.onChange({ x: e.target.x() + r, y: e.target.y() + r });
+        }}
+      >
+        {ctx.bgImage && (
+          <KonvaImage
+            image={ctx.bgImage}
+            x={0}
+            y={0}
+            width={r * 2}
+            height={r * 2}
+            crop={{
+              x: a.sx - srcR + ctx.cropOffX,
+              y: a.sy - srcR + ctx.cropOffY,
+              width: srcR * 2,
+              height: srcR * 2,
+            }}
+            listening={false}
+          />
+        )}
+      </Group>
+      {/* border */}
+      {isRect ? (
+        <Rect
+          x={a.x - r}
+          y={a.y - r}
+          width={r * 2}
+          height={r * 2}
+          stroke={a.stroke}
+          strokeWidth={a.strokeWidth}
+          listening={false}
+        />
+      ) : (
+        <Circle
+          x={a.x}
+          y={a.y}
+          radius={r}
+          stroke={a.stroke}
+          strokeWidth={a.strokeWidth}
+          listening={false}
+        />
+      )}
+      {/* edit handles */}
+      {ctx.selected && (
+        <>
+          <Circle
+            x={a.sx}
+            y={a.sy}
+            radius={hr}
+            fill="#ffffff"
+            stroke={a.stroke}
+            strokeWidth={hsw}
+            draggable
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+            }}
+            onDragEnd={(e) => {
+              ctx.onChange({ sx: e.target.x(), sy: e.target.y() });
+            }}
+          />
+          <Circle
+            x={a.x + r}
+            y={a.y}
+            radius={hr}
+            fill="#ffffff"
+            stroke={a.stroke}
+            strokeWidth={hsw}
+            draggable
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+            }}
+            onDragEnd={(e) => {
+              ctx.onChange({ radius: Math.max(20, e.target.x() - a.x) });
+            }}
+          />
         </>
       )}
     </>

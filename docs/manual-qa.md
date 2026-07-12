@@ -55,10 +55,15 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 
 ## Editor (sanity)
 
-- [ ] Tools: select / arrow / rect / text / blur / sticker / pin all draw
+- [ ] Tools: select / arrow / shapes / text / blur / pen / highlighter / magnify / sticker / pin all draw
 - [ ] Undo/redo across all tools
 - [ ] Sticker library loads custom dir from settings
-- [ ] Text tool: bold/italic/underline/strikethrough/font family toggles
+- [ ] Text tool: bold/italic/underline/strikethrough/font family toggles; bg ON/OFF toggle + padding
+- [ ] Arrow: 3-point curve handles; two-way head toggle; dashed toggle (straight + curved)
+- [ ] Shapes tool: rect (corner radius) / circle / line options
+- [ ] Pen: draw freehand; raw / polygon / curve smoothing modes re-shape the stroke
+- [ ] Highlighter: translucent marker stroke, overlaps darken; color/width
+- [ ] Magnify: place loupe; drag source + output handles; circle/rect shape; border color; zoom; **exports WYSIWYG**
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 

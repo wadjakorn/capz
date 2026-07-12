@@ -8,6 +8,9 @@ export type Tool =
   | "rect"
   | "text"
   | "blur"
+  | "pen"
+  | "highlighter"
+  | "magnify"
   | "sticker"
   | "pin"
   | "crop";
@@ -25,8 +28,9 @@ export type CaptureSource = "full" | "area" | "window" | "scroll" | "other";
 
 type Base = { id: string; rotation?: number };
 
-/** Shape variants drawn by the (formerly "rect") Shapes tool. */
-export type RectShapeKind = "rect" | "ellipse";
+/** Shape variants offered by the (formerly "rect") Shapes tool. "line" draws a
+ *  headless 2-point segment (stored as an arrow with heads:"none"), not a box. */
+export type RectShapeKind = "rect" | "ellipse" | "line";
 
 export type RectAnnotation = Base & {
   type: "rect";
@@ -41,6 +45,9 @@ export type RectAnnotation = Base & {
   /** Corner radius for the rect variant, in image px. Absent = 0. Ignored for ellipse. */
   cornerRadius?: number;
 };
+
+/** Arrowhead placement. "none" is the headless line variant of the Shapes tool. */
+export type ArrowHeads = "end" | "both" | "none";
 
 export type ArrowAnnotation = Base & {
   type: "arrow";
@@ -57,6 +64,50 @@ export type ArrowAnnotation = Base & {
    */
   cx?: number;
   cy?: number;
+  /** Which ends get an arrowhead. Absent = "end" (single head at the tip). */
+  heads?: ArrowHeads;
+  /** Dashed/dotted stroke when true. */
+  dash?: boolean;
+};
+
+/** How a freehand (pen) path is smoothed for rendering. */
+export type FreehandMode = "raw" | "polygon" | "curve";
+
+export type FreehandAnnotation = Base & {
+  type: "pen";
+  /** Flat [x0,y0,x1,y1,…] captured path in image-pixel coords. */
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+  mode: FreehandMode;
+};
+
+export type HighlighterAnnotation = Base & {
+  type: "highlighter";
+  /** Flat [x0,y0,x1,y1,…] captured path in image-pixel coords. */
+  points: number[];
+  stroke: string;
+  strokeWidth: number;
+};
+
+export type MagnifyShape = "circle" | "rect";
+
+export type MagnifyAnnotation = Base & {
+  type: "magnify";
+  /** Source center — the point being magnified (image coords). */
+  sx: number;
+  sy: number;
+  /** Output center — where the magnified loupe is drawn (image coords). */
+  x: number;
+  y: number;
+  /** Output half-size (radius for circle, half-side for rect), image px. */
+  radius: number;
+  /** Magnification factor; source region half-size = radius / zoom. */
+  zoom: number;
+  shape: MagnifyShape;
+  /** Border + connector color. */
+  stroke: string;
+  strokeWidth: number;
 };
 
 export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
@@ -127,6 +178,9 @@ export type Annotation =
   | ArrowAnnotation
   | TextAnnotation
   | BlurAnnotation
+  | FreehandAnnotation
+  | HighlighterAnnotation
+  | MagnifyAnnotation
   | StickerAnnotation
   | PinAnnotation;
 
@@ -164,6 +218,13 @@ function shiftAnnotation(a: Annotation, dx: number, dy: number): Annotation {
       next.cy = a.cy + dy;
     }
     return next;
+  }
+  if (a.type === "pen" || a.type === "highlighter") {
+    const pts = a.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy));
+    return { ...a, points: pts };
+  }
+  if (a.type === "magnify") {
+    return { ...a, sx: a.sx + dx, sy: a.sy + dy, x: a.x + dx, y: a.y + dy };
   }
   return { ...a, x: a.x + dx, y: a.y + dy };
 }

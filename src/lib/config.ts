@@ -1,4 +1,11 @@
-import type { PinShapeKind, PinTailDir, RectShapeKind } from "@/stores/editor";
+import type {
+  PinShapeKind,
+  PinTailDir,
+  RectShapeKind,
+  FreehandMode,
+  MagnifyShape,
+  ArrowHeads,
+} from "@/stores/editor";
 import { validateAccelerator } from "@/lib/shortcuts";
 
 export type Tool =
@@ -7,6 +14,9 @@ export type Tool =
   | "rect"
   | "text"
   | "blur"
+  | "pen"
+  | "highlighter"
+  | "magnify"
   | "sticker"
   | "pin";
 
@@ -77,7 +87,20 @@ export type AppConfig = {
       shape?: RectShapeKind;
       cornerRadius?: number;
     };
-    arrow?: { strokeColor?: string; strokeWidth?: number };
+    arrow?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      heads?: ArrowHeads;
+      dash?: boolean;
+    };
+    pen?: { strokeColor?: string; strokeWidth?: number; mode?: FreehandMode };
+    highlighter?: { strokeColor?: string; strokeWidth?: number };
+    magnify?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      shape?: MagnifyShape;
+      zoom?: number;
+    };
     text?: {
       color?: string;
       fontSize?: number;
@@ -106,7 +129,12 @@ export type AppConfig = {
       shape: RectShapeKind;
       cornerRadius: number;
     };
-    arrow: { strokeColor: string; strokeWidth: number };
+    arrow: {
+      strokeColor: string;
+      strokeWidth: number;
+      heads: ArrowHeads;
+      dash: boolean;
+    };
     text: {
       fontSize: number;
       color: string;
@@ -117,6 +145,14 @@ export type AppConfig = {
       backgroundPadding: number;
     };
     blur: { blurRadius: number };
+    pen: { strokeColor: string; strokeWidth: number; mode: FreehandMode };
+    highlighter: { strokeColor: string; strokeWidth: number };
+    magnify: {
+      strokeColor: string;
+      strokeWidth: number;
+      shape: MagnifyShape;
+      zoom: number;
+    };
     sticker: { fontSize: number };
   };
   capture: {
@@ -194,7 +230,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       shape: "rect",
       cornerRadius: 8,
     },
-    arrow: { strokeColor: "#ef4444", strokeWidth: 4 },
+    arrow: { strokeColor: "#ef4444", strokeWidth: 4, heads: "end", dash: false },
     text: {
       fontSize: 24,
       color: "#000000",
@@ -205,6 +241,9 @@ export const DEFAULT_CONFIG: AppConfig = {
       backgroundPadding: 14,
     },
     blur: { blurRadius: 16 },
+    pen: { strokeColor: "#ef4444", strokeWidth: 4, mode: "raw" },
+    highlighter: { strokeColor: "#facc15", strokeWidth: 18 },
+    magnify: { strokeColor: "#facc15", strokeWidth: 3, shape: "circle", zoom: 2 },
     sticker: { fontSize: 48 },
   },
   capture: {
@@ -390,12 +429,29 @@ function vTools(
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
       strokeWidth: isNum,
-      shape: inSet("rect", "ellipse"),
+      shape: inSet("rect", "ellipse", "line"),
       cornerRadius: isNum,
     }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
       strokeColor: isStr,
       strokeWidth: isNum,
+      heads: inSet("end", "both", "none"),
+      dash: isBool,
+    }, issues),
+    pen: vsec("tools.pen", r.pen, def.pen, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+      mode: inSet("raw", "polygon", "curve"),
+    }, issues),
+    highlighter: vsec("tools.highlighter", r.highlighter, def.highlighter, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+    }, issues),
+    magnify: vsec("tools.magnify", r.magnify, def.magnify, {
+      strokeColor: isStr,
+      strokeWidth: isNum,
+      shape: inSet("circle", "rect"),
+      zoom: isNum,
     }, issues),
     text: vsec("tools.text", r.text, def.text, {
       fontSize: isNum,
@@ -451,10 +507,27 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   keep("rect", {
     strokeColor: isStr,
     strokeWidth: isNum,
-    shape: inSet("rect", "ellipse"),
+    shape: inSet("rect", "ellipse", "line"),
     cornerRadius: isNum,
   });
-  keep("arrow", { strokeColor: isStr, strokeWidth: isNum });
+  keep("arrow", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    heads: inSet("end", "both", "none"),
+    dash: isBool,
+  });
+  keep("pen", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    mode: inSet("raw", "polygon", "curve"),
+  });
+  keep("highlighter", { strokeColor: isStr, strokeWidth: isNum });
+  keep("magnify", {
+    strokeColor: isStr,
+    strokeWidth: isNum,
+    shape: inSet("circle", "rect"),
+    zoom: isNum,
+  });
   keep("text", {
     color: isStr,
     fontSize: isNum,
@@ -545,7 +618,12 @@ export type EffectiveTools = {
     shape: RectShapeKind;
     cornerRadius: number;
   };
-  arrow: { strokeColor: string; strokeWidth: number };
+  arrow: {
+    strokeColor: string;
+    strokeWidth: number;
+    heads: ArrowHeads;
+    dash: boolean;
+  };
   text: {
     color: string;
     fontSize: number;
@@ -556,6 +634,14 @@ export type EffectiveTools = {
     backgroundPadding: number;
   };
   blur: { blurRadius: number };
+  pen: { strokeColor: string; strokeWidth: number; mode: FreehandMode };
+  highlighter: { strokeColor: string; strokeWidth: number };
+  magnify: {
+    strokeColor: string;
+    strokeWidth: number;
+    shape: MagnifyShape;
+    zoom: number;
+  };
   sticker: { fontSize: number };
   pin: {
     color: string;
@@ -582,6 +668,23 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
     arrow: {
       strokeColor: lu?.arrow?.strokeColor ?? t.arrow.strokeColor,
       strokeWidth: lu?.arrow?.strokeWidth ?? t.arrow.strokeWidth,
+      heads: lu?.arrow?.heads ?? t.arrow.heads,
+      dash: lu?.arrow?.dash ?? t.arrow.dash,
+    },
+    pen: {
+      strokeColor: lu?.pen?.strokeColor ?? t.pen.strokeColor,
+      strokeWidth: lu?.pen?.strokeWidth ?? t.pen.strokeWidth,
+      mode: lu?.pen?.mode ?? t.pen.mode,
+    },
+    highlighter: {
+      strokeColor: lu?.highlighter?.strokeColor ?? t.highlighter.strokeColor,
+      strokeWidth: lu?.highlighter?.strokeWidth ?? t.highlighter.strokeWidth,
+    },
+    magnify: {
+      strokeColor: lu?.magnify?.strokeColor ?? t.magnify.strokeColor,
+      strokeWidth: lu?.magnify?.strokeWidth ?? t.magnify.strokeWidth,
+      shape: lu?.magnify?.shape ?? t.magnify.shape,
+      zoom: lu?.magnify?.zoom ?? t.magnify.zoom,
     },
     text: {
       color: lu?.text?.color ?? t.text.color,

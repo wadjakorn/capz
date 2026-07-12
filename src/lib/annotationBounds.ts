@@ -39,6 +39,30 @@ export function annotationAABB(a: Annotation): AABB | null {
         h: lines.length * a.fontSize * 1.2,
       };
     }
+    case "pen":
+    case "highlighter": {
+      const pts = a.points;
+      if (pts.length < 4) return null; // need ≥ 2 points for any extent
+      let minX = pts[0];
+      let minY = pts[1];
+      let maxX = pts[0];
+      let maxY = pts[1];
+      for (let i = 0; i < pts.length; i += 2) {
+        minX = Math.min(minX, pts[i]);
+        maxX = Math.max(maxX, pts[i]);
+        minY = Math.min(minY, pts[i + 1]);
+        maxY = Math.max(maxY, pts[i + 1]);
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+    case "magnify": {
+      // Cover the output loupe plus the source point + connector.
+      const minX = Math.min(a.x - a.radius, a.sx);
+      const minY = Math.min(a.y - a.radius, a.sy);
+      const maxX = Math.max(a.x + a.radius, a.sx);
+      const maxY = Math.max(a.y + a.radius, a.sy);
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
     case "sticker": {
       const s = a.fontSize;
       return { x: a.x, y: a.y, w: s, h: s * 1.2 };

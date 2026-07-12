@@ -43,6 +43,9 @@ function mergeTools(
     arrow: { ...base.arrow, ...t?.arrow },
     text: { ...base.text, ...t?.text },
     blur: { ...base.blur, ...t?.blur },
+    pen: { ...base.pen, ...t?.pen },
+    highlighter: { ...base.highlighter, ...t?.highlighter },
+    magnify: { ...base.magnify, ...t?.magnify },
     sticker: { ...base.sticker, ...t?.sticker },
   };
 }

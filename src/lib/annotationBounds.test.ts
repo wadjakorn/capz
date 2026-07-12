@@ -5,7 +5,11 @@ import {
   OVERFLOW_GAP,
   type AABB,
 } from "./annotationBounds";
-import type { ArrowAnnotation } from "@/stores/editor";
+import type {
+  ArrowAnnotation,
+  FreehandAnnotation,
+  MagnifyAnnotation,
+} from "@/stores/editor";
 
 // A rendered element box (as node.getClientRect would report it).
 function box(x: number, y: number, w: number, h: number): AABB {
@@ -89,5 +93,49 @@ describe("annotationAABB arrow", () => {
   it("ignores a control point that sits inside the endpoint box", () => {
     const curved: ArrowAnnotation = { ...base, cx: 30, cy: 30 };
     expect(annotationAABB(curved)).toEqual({ x: 10, y: 20, w: 40, h: 20 });
+  });
+});
+
+describe("annotationAABB pen/magnify", () => {
+  it("bounds a freehand path from its point extents", () => {
+    const pen: FreehandAnnotation = {
+      id: "p1",
+      type: "pen",
+      points: [10, 10, 30, 5, 20, 40],
+      stroke: "#f00",
+      strokeWidth: 4,
+      mode: "raw",
+    };
+    expect(annotationAABB(pen)).toEqual({ x: 10, y: 5, w: 20, h: 35 });
+  });
+
+  it("returns null for a degenerate (single-point) path", () => {
+    const pen: FreehandAnnotation = {
+      id: "p2",
+      type: "pen",
+      points: [10, 10],
+      stroke: "#f00",
+      strokeWidth: 4,
+      mode: "raw",
+    };
+    expect(annotationAABB(pen)).toBeNull();
+  });
+
+  it("covers the magnify output loupe and its source point", () => {
+    const mag: MagnifyAnnotation = {
+      id: "m1",
+      type: "magnify",
+      sx: 10,
+      sy: 50,
+      x: 100,
+      y: 60,
+      radius: 40,
+      zoom: 2,
+      shape: "circle",
+      stroke: "#facc15",
+      strokeWidth: 3,
+    };
+    // Left/top bounded by source (10,50), right/bottom by output (140,100).
+    expect(annotationAABB(mag)).toEqual({ x: 10, y: 20, w: 130, h: 80 });
   });
 });

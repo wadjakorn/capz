@@ -12,6 +12,14 @@ import {
   Smile,
   MapPin,
   Crop,
+  Pencil,
+  Highlighter,
+  Search,
+  Minus,
+  Spline,
+  Waypoints,
+  PenLine,
+  ArrowLeftRight,
   Circle as CircleIcon,
   MessageCircle,
   ArrowUp,
@@ -43,6 +51,9 @@ import {
   type PinShapeKind,
   type PinTailDir,
   type RectShapeKind,
+  type FreehandMode,
+  type MagnifyShape,
+  type ArrowHeads,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -67,6 +78,9 @@ const TOOLS: ToolDef[] = [
   { id: "rect", label: "Shapes", hint: "R", icon: Square },
   { id: "text", label: "Text", hint: "T", icon: Type },
   { id: "blur", label: "Blur", hint: "B", icon: Droplet },
+  { id: "pen", label: "Pen", hint: "D", icon: Pencil },
+  { id: "highlighter", label: "Highlighter", hint: "H", icon: Highlighter },
+  { id: "magnify", label: "Magnify", hint: "M", icon: Search },
   { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
   { id: "pin", label: "Pin", hint: "P", icon: MapPin },
   { id: "crop", label: "Crop", hint: "C", icon: Crop },
@@ -224,11 +238,28 @@ export function Toolbar({
     value: RectShapeKind;
     onChange: (v: RectShapeKind) => void;
   };
+  type PenModeCtx = {
+    value: FreehandMode;
+    onChange: (v: FreehandMode) => void;
+  };
+  type MagnifyShapeCtx = {
+    value: MagnifyShape;
+    onChange: (v: MagnifyShape) => void;
+  };
+  type ArrowHeadsCtx = {
+    value: ArrowHeads;
+    onChange: (v: ArrowHeads) => void;
+  };
+  type ToggleCtx = { value: boolean; onChange: (v: boolean) => void };
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
   let cornerCtx: NumCtx | null = null;
   let rectShapeCtx: RectShapeCtx | null = null;
+  let penModeCtx: PenModeCtx | null = null;
+  let magnifyShapeCtx: MagnifyShapeCtx | null = null;
+  let arrowHeadsCtx: ArrowHeadsCtx | null = null;
+  let arrowDashCtx: ToggleCtx | null = null;
   let textStyleCtx: TextStyleCtx | null = null;
   let pinLabelCtx: ColorCtx | null = null;
   let pinBorderCtx: ColorCtx | null = null;
@@ -238,7 +269,12 @@ export function Toolbar({
 
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
-      const slot = selected.type;
+      // A headless line is drawn by the Shapes tool, so its color/width persist
+      // under the "rect" slot alongside the other shapes.
+      const slot =
+        selected.type === "arrow" && selected.heads === "none"
+          ? "rect"
+          : selected.type;
       colorCtx = {
         label: "Stroke",
         value: selected.stroke,
@@ -286,6 +322,122 @@ export function Toolbar({
           };
         }
       }
+      if (selected.type === "arrow" && selected.heads !== "none") {
+        const arrowSel = selected;
+        arrowHeadsCtx = {
+          value: arrowSel.heads ?? "end",
+          onChange: (v) => {
+            updateAnnotation(arrowSel.id, { heads: v });
+            if (remember) patchLastUsed({ arrow: { heads: v } });
+            else void updateSettings("tools", { arrow: { heads: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+        arrowDashCtx = {
+          value: arrowSel.dash ?? false,
+          onChange: (v) => {
+            updateAnnotation(arrowSel.id, { dash: v });
+            if (remember) patchLastUsed({ arrow: { dash: v } });
+            else void updateSettings("tools", { arrow: { dash: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
+      if (selected.type === "arrow" && selected.heads === "none") {
+        // Headless line (from the Shapes tool): only the dash toggle applies.
+        const lineSel = selected;
+        arrowDashCtx = {
+          value: lineSel.dash ?? false,
+          onChange: (v) => {
+            updateAnnotation(lineSel.id, { dash: v });
+            if (remember) patchLastUsed({ arrow: { dash: v } });
+            else void updateSettings("tools", { arrow: { dash: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
+    } else if (selected.type === "pen") {
+      const penSel = selected;
+      colorCtx = {
+        label: "Stroke",
+        value: penSel.stroke,
+        onChange: (v) => {
+          updateAnnotation(penSel.id, { stroke: v });
+          if (remember) patchLastUsed({ pen: { strokeColor: v } });
+          else void updateSettings("tools", { pen: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      widthCtx = {
+        label: "Width",
+        value: penSel.strokeWidth,
+        min: 1,
+        max: 40,
+        step: 1,
+        onChange: (v) => {
+          updateAnnotation(penSel.id, { strokeWidth: v });
+          if (remember) patchLastUsed({ pen: { strokeWidth: v } });
+          else void updateSettings("tools", { pen: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      penModeCtx = {
+        value: penSel.mode,
+        onChange: (v) => {
+          updateAnnotation(penSel.id, { mode: v });
+          if (remember) patchLastUsed({ pen: { mode: v } });
+          else void updateSettings("tools", { pen: { mode: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+    } else if (selected.type === "highlighter") {
+      const hSel = selected;
+      colorCtx = {
+        label: "Color",
+        value: hSel.stroke,
+        onChange: (v) => {
+          updateAnnotation(hSel.id, { stroke: v });
+          if (remember) patchLastUsed({ highlighter: { strokeColor: v } });
+          else void updateSettings("tools", { highlighter: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      widthCtx = {
+        label: "Width",
+        value: hSel.strokeWidth,
+        min: 4,
+        max: 60,
+        step: 1,
+        onChange: (v) => {
+          updateAnnotation(hSel.id, { strokeWidth: v });
+          if (remember) patchLastUsed({ highlighter: { strokeWidth: v } });
+          else void updateSettings("tools", { highlighter: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+    } else if (selected.type === "magnify") {
+      const mSel = selected;
+      colorCtx = {
+        label: "Border",
+        value: mSel.stroke,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { stroke: v });
+          if (remember) patchLastUsed({ magnify: { strokeColor: v } });
+          else void updateSettings("tools", { magnify: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      magnifyShapeCtx = {
+        value: mSel.shape,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { shape: v });
+          if (remember) patchLastUsed({ magnify: { shape: v } });
+          else void updateSettings("tools", { magnify: { shape: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      sizeCtx = {
+        label: "Zoom",
+        value: mSel.zoom,
+        min: 2,
+        max: 8,
+        step: 1,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { zoom: v });
+          if (remember) patchLastUsed({ magnify: { zoom: v } });
+          else void updateSettings("tools", { magnify: { zoom: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
     } else if (selected.type === "text") {
       const baseText = () => ({
         fontSize: toolsCfg.text.fontSize,
@@ -490,7 +642,107 @@ export function Toolbar({
           },
         };
       }
+      // The Shapes "line" option reuses the arrow dash toggle.
+      if (toolsCfg.rect.shape === "line") {
+        arrowDashCtx = {
+          value: toolsCfg.arrow.dash,
+          onChange: (v) => {
+            if (remember) patchLastUsed({ arrow: { dash: v } });
+            else void updateSettings("tools", { arrow: { dash: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
     }
+    if (tool === "arrow") {
+      arrowHeadsCtx = {
+        value: toolsCfg.arrow.heads,
+        onChange: (v) => {
+          if (remember) patchLastUsed({ arrow: { heads: v } });
+          else void updateSettings("tools", { arrow: { heads: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      arrowDashCtx = {
+        value: toolsCfg.arrow.dash,
+        onChange: (v) => {
+          if (remember) patchLastUsed({ arrow: { dash: v } });
+          else void updateSettings("tools", { arrow: { dash: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+    }
+  } else if (tool === "pen") {
+    colorCtx = {
+      label: "Stroke",
+      value: toolsCfg.pen.strokeColor,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pen: { strokeColor: v } });
+        else void updateSettings("tools", { pen: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    widthCtx = {
+      label: "Width",
+      value: toolsCfg.pen.strokeWidth,
+      min: 1,
+      max: 40,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pen: { strokeWidth: v } });
+        else void updateSettings("tools", { pen: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    penModeCtx = {
+      value: toolsCfg.pen.mode,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pen: { mode: v } });
+        else void updateSettings("tools", { pen: { mode: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+  } else if (tool === "highlighter") {
+    colorCtx = {
+      label: "Color",
+      value: toolsCfg.highlighter.strokeColor,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ highlighter: { strokeColor: v } });
+        else void updateSettings("tools", { highlighter: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    widthCtx = {
+      label: "Width",
+      value: toolsCfg.highlighter.strokeWidth,
+      min: 4,
+      max: 60,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ highlighter: { strokeWidth: v } });
+        else void updateSettings("tools", { highlighter: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+  } else if (tool === "magnify") {
+    colorCtx = {
+      label: "Border",
+      value: toolsCfg.magnify.strokeColor,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { strokeColor: v } });
+        else void updateSettings("tools", { magnify: { strokeColor: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    magnifyShapeCtx = {
+      value: toolsCfg.magnify.shape,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { shape: v } });
+        else void updateSettings("tools", { magnify: { shape: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    sizeCtx = {
+      label: "Zoom",
+      value: toolsCfg.magnify.zoom,
+      min: 2,
+      max: 8,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { zoom: v } });
+        else void updateSettings("tools", { magnify: { zoom: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
   } else if (tool === "text") {
     const baseText = () => ({
       fontSize: toolsCfg.text.fontSize,
@@ -1141,7 +1393,98 @@ export function Toolbar({
           <div className="flex items-center gap-0.5" title="Shape">
             {shapeBtn("rect", "Rectangle", Square)}
             {shapeBtn("ellipse", "Circle", CircleIcon)}
+            {shapeBtn("line", "Line", Minus)}
           </div>
+        );
+      })()}
+      {penModeCtx && (() => {
+        const pmc = penModeCtx;
+        const modeBtn = (v: FreehandMode, title: string, Icon: LucideIcon) => (
+          <button
+            type="button"
+            onClick={() => pmc.onChange(v)}
+            title={title}
+            aria-pressed={pmc.value === v}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              pmc.value === v
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+            ].join(" ")}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+        return (
+          <div className="flex items-center gap-0.5" title="Smoothing">
+            {modeBtn("raw", "Raw", PenLine)}
+            {modeBtn("polygon", "Polygon", Waypoints)}
+            {modeBtn("curve", "Curve", Spline)}
+          </div>
+        );
+      })()}
+      {magnifyShapeCtx && (() => {
+        const msc = magnifyShapeCtx;
+        const shapeBtn = (v: MagnifyShape, title: string, Icon: LucideIcon) => (
+          <button
+            type="button"
+            onClick={() => msc.onChange(v)}
+            title={title}
+            aria-pressed={msc.value === v}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              msc.value === v
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+            ].join(" ")}
+          >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+        return (
+          <div className="flex items-center gap-0.5" title="Loupe shape">
+            {shapeBtn("circle", "Circle", CircleIcon)}
+            {shapeBtn("rect", "Rectangle", Square)}
+          </div>
+        );
+      })()}
+      {arrowHeadsCtx && (() => {
+        const ahc = arrowHeadsCtx;
+        const twoWay = ahc.value === "both";
+        return (
+          <button
+            type="button"
+            onClick={() => ahc.onChange(twoWay ? "end" : "both")}
+            title="Two-way arrowhead"
+            aria-pressed={twoWay}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              twoWay
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+            ].join(" ")}
+          >
+            <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        );
+      })()}
+      {arrowDashCtx && (() => {
+        const adc = arrowDashCtx;
+        return (
+          <button
+            type="button"
+            onClick={() => adc.onChange(!adc.value)}
+            title="Dashed line"
+            aria-pressed={adc.value}
+            className={[
+              "flex h-7 items-center justify-center rounded px-2 text-[11px] transition-colors",
+              adc.value
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+            ].join(" ")}
+          >
+            Dash
+          </button>
         );
       })()}
       {widthCtx && (

@@ -1,30 +1,49 @@
 /**
- * Editor tool palette: select/arrow/rect/text/blur/sticker/pin buttons.
+ * Editor tool palette: select/arrow/shapes/text/blur/pen/highlighter/magnify/
+ * sticker/pin buttons.
  *
  * Tier-1 scope: assert that each tool button is reachable by accessible name
- * and that clicking toggles the active visual state. Real drawing requires
- * a loaded image (useImage anonymous fetch), which Konva can't satisfy under
- * a headless mock — covered manually in docs/manual-qa.md.
+ * (directly, or via the overflow menu at narrow widths) and that clicking
+ * toggles the active visual state. Real drawing requires a loaded image
+ * (useImage anonymous fetch), which Konva can't satisfy under a headless mock —
+ * covered manually in docs/manual-qa.md.
  */
 import { test, expect } from "@playwright/test";
 import { installTauriMock } from "../fixtures/tauri-mock";
 
-const TOOLS = ["Select", "Arrow", "Shapes", "Text", "Blur", "Sticker", "Pin"];
+const TOOLS = [
+  "Select",
+  "Arrow",
+  "Shapes",
+  "Text",
+  "Blur",
+  "Pen",
+  "Highlighter",
+  "Magnify",
+  "Sticker",
+  "Pin",
+];
 
 test.beforeEach(async ({ page }) => {
   await installTauriMock(page);
 });
 
-test("tool palette renders all 7 tools by accessible name", async ({ page }) => {
+test("tool palette exposes every tool by accessible name", async ({ page }) => {
   await page.goto("/editor");
   await page.waitForLoadState("networkidle");
 
   for (const label of TOOLS) {
-    // Some tools may collapse into the OverflowMenu at narrow widths; the test
-    // viewport is desktop-sized, so they should all be visible at the top level.
+    const direct = page.getByRole("button", { name: label, exact: true });
+    if (await direct.isVisible().catch(() => false)) {
+      await expect(direct).toBeVisible();
+      continue;
+    }
+    // Collapsed into the overflow menu at this width — reachable via "More tools".
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
     await expect(
       page.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
+    await page.keyboard.press("Escape");
   }
 });
 
