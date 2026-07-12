@@ -105,6 +105,7 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           textDecoration: a.textDecoration,
           fontFamily: a.fontFamily,
           backgroundColor: a.backgroundColor,
+          backgroundPadding: a.bgPadding,
         },
       };
     case "blur":
@@ -844,6 +845,7 @@ export function EditorStage({ src }: Props) {
         textDecoration: toolsCfg.text.textDecoration,
         fontFamily: toolsCfg.text.fontFamily,
         backgroundColor: toolsCfg.text.backgroundColor,
+        bgPadding: toolsCfg.text.backgroundPadding,
       };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1851,9 +1853,10 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   const bg = a.backgroundColor ?? null;
-  // Roomier background padding, scaled with font size so large text isn't cramped.
-  const padX = bg ? Math.round(a.fontSize * 0.6) : 0;
-  const padY = bg ? Math.round(a.fontSize * 0.4) : 0;
+  // User-adjustable horizontal padding (px); vertical derived to keep the label
+  // shape balanced. Falls back to a roomy default for pre-existing annotations.
+  const padX = bg ? Math.max(0, a.bgPadding ?? 14) : 0;
+  const padY = bg ? Math.round(padX * 0.66) : 0;
   const fontStyle = a.fontStyle ?? "normal";
   const textDecoration = a.textDecoration ?? "";
   const fontFamily = a.fontFamily ?? "system-ui, sans-serif";

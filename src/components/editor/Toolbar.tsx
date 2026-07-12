@@ -174,6 +174,9 @@ export function Toolbar({
   };
 
   const [exporting, setExporting] = useState(false);
+  // Remember the last non-null text background color so the ON/OFF toggle can
+  // restore it without forcing the user to re-pick a color.
+  const [lastBgColor, setLastBgColor] = useState("#ffffff");
   const colorInputRef = useRef<HTMLInputElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -202,10 +205,12 @@ export function Toolbar({
     textDecoration: TextDecoration;
     fontFamily: string;
     backgroundColor: string | null;
+    bgPadding: number;
     setFontStyle: (v: TextFontStyle) => void;
     setTextDecoration: (v: TextDecoration) => void;
     setFontFamily: (v: string) => void;
     setBackgroundColor: (v: string | null) => void;
+    setBgPadding: (v: number) => void;
   };
   type PinShapeCtx = {
     value: PinShapeKind;
@@ -289,6 +294,7 @@ export function Toolbar({
         textDecoration: toolsCfg.text.textDecoration,
         fontFamily: toolsCfg.text.fontFamily,
         backgroundColor: toolsCfg.text.backgroundColor,
+        backgroundPadding: toolsCfg.text.backgroundPadding,
       });
       colorCtx = {
         label: "Color",
@@ -320,6 +326,7 @@ export function Toolbar({
         textDecoration: curDeco,
         fontFamily: curFamily,
         backgroundColor: curBg,
+        bgPadding: selected.bgPadding ?? toolsCfg.text.backgroundPadding,
         setFontStyle: (v) => {
           updateAnnotation(selected.id, { fontStyle: v });
           if (remember) patchLastUsed({ text: { fontStyle: v } });
@@ -339,6 +346,11 @@ export function Toolbar({
           updateAnnotation(selected.id, { backgroundColor: v });
           if (remember) patchLastUsed({ text: { backgroundColor: v } });
           else void updateSettings("tools", { text: { ...baseText(), backgroundColor: v } });
+        },
+        setBgPadding: (v) => {
+          updateAnnotation(selected.id, { bgPadding: v });
+          if (remember) patchLastUsed({ text: { backgroundPadding: v } });
+          else void updateSettings("tools", { text: { ...baseText(), backgroundPadding: v } });
         },
       };
     } else if (selected.type === "pin") {
@@ -487,6 +499,7 @@ export function Toolbar({
       textDecoration: toolsCfg.text.textDecoration,
       fontFamily: toolsCfg.text.fontFamily,
       backgroundColor: toolsCfg.text.backgroundColor,
+      backgroundPadding: toolsCfg.text.backgroundPadding,
     });
     colorCtx = {
       label: "Color",
@@ -512,6 +525,7 @@ export function Toolbar({
       textDecoration: toolsCfg.text.textDecoration,
       fontFamily: toolsCfg.text.fontFamily,
       backgroundColor: toolsCfg.text.backgroundColor,
+      bgPadding: toolsCfg.text.backgroundPadding,
       setFontStyle: (v) => {
         if (remember) patchLastUsed({ text: { fontStyle: v } });
         else void updateSettings("tools", { text: { ...baseText(), fontStyle: v } });
@@ -527,6 +541,10 @@ export function Toolbar({
       setBackgroundColor: (v) => {
         if (remember) patchLastUsed({ text: { backgroundColor: v } });
         else void updateSettings("tools", { text: { ...baseText(), backgroundColor: v } });
+      },
+      setBgPadding: (v) => {
+        if (remember) patchLastUsed({ text: { backgroundPadding: v } });
+        else void updateSettings("tools", { text: { ...baseText(), backgroundPadding: v } });
       },
     };
   } else if (tool === "pin") {
@@ -1233,32 +1251,55 @@ export function Toolbar({
                 ))}
               </select>
             </label>
-            <label
-              className="flex items-center gap-1.5 text-xs text-foreground/80"
-              title="Background / highlight — pick a color to turn it on"
-            >
-              Bg
-              <input
-                type="color"
-                value={tsc.backgroundColor ?? "#ffff00"}
-                onChange={(e) => tsc.setBackgroundColor(e.target.value)}
-                className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-              />
-              {tsc.backgroundColor === null ? (
-                <span className="text-[10px] uppercase tracking-wide text-[var(--fg-2)]">
-                  Off
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => tsc.setBackgroundColor(null)}
-                  title="Remove background"
-                  className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--fg-2)] transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
-                >
-                  Clear
-                </button>
+            <div className="flex items-center gap-1.5 text-xs text-foreground/80">
+              <button
+                type="button"
+                onClick={() =>
+                  tsc.setBackgroundColor(
+                    tsc.backgroundColor === null ? lastBgColor : null,
+                  )
+                }
+                aria-pressed={tsc.backgroundColor !== null}
+                title="Text background on/off"
+                className={[
+                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  tsc.backgroundColor !== null
+                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                    : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+                ].join(" ")}
+              >
+                Bg
+              </button>
+              {tsc.backgroundColor !== null && (
+                <>
+                  <input
+                    type="color"
+                    value={tsc.backgroundColor}
+                    title="Background color"
+                    onChange={(e) => {
+                      setLastBgColor(e.target.value);
+                      tsc.setBackgroundColor(e.target.value);
+                    }}
+                    className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
+                  />
+                  <label className="flex items-center gap-1" title="Background padding">
+                    Pad
+                    <input
+                      type="range"
+                      min={0}
+                      max={48}
+                      step={1}
+                      value={Math.round(tsc.bgPadding)}
+                      onChange={(e) => tsc.setBgPadding(parseInt(e.target.value, 10))}
+                      className="h-1 w-20 cursor-pointer accent-[var(--accent)]"
+                    />
+                    <span className="w-5 text-right tabular-nums">
+                      {Math.round(tsc.bgPadding)}
+                    </span>
+                  </label>
+                </>
               )}
-            </label>
+            </div>
           </>
         );
       })()}

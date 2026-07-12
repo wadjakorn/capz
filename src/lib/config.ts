@@ -85,6 +85,7 @@ export type AppConfig = {
       textDecoration?: "" | "underline" | "line-through" | "underline line-through";
       fontFamily?: string;
       backgroundColor?: string | null;
+      backgroundPadding?: number;
     };
     blur?: { blurRadius?: number };
     sticker?: { fontSize?: number };
@@ -113,6 +114,7 @@ export type AppConfig = {
       textDecoration: "" | "underline" | "line-through" | "underline line-through";
       fontFamily: string;
       backgroundColor: string | null;
+      backgroundPadding: number;
     };
     blur: { blurRadius: number };
     sticker: { fontSize: number };
@@ -200,6 +202,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       textDecoration: "",
       fontFamily: "system-ui, sans-serif",
       backgroundColor: "#ffffff",
+      backgroundPadding: 14,
     },
     blur: { blurRadius: 16 },
     sticker: { fontSize: 48 },
@@ -401,6 +404,7 @@ function vTools(
       textDecoration: inSet("", "underline", "line-through", "underline line-through"),
       fontFamily: isStr,
       backgroundColor: isStrOrNull,
+      backgroundPadding: isNum,
     }, issues),
     blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }, issues),
     sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }, issues),
@@ -458,6 +462,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     textDecoration: inSet("", "underline", "line-through", "underline line-through"),
     fontFamily: isStr,
     backgroundColor: isStrOrNull,
+    backgroundPadding: isNum,
   });
   keep("blur", { blurRadius: isNum });
   keep("sticker", { fontSize: isNum });
@@ -548,6 +553,7 @@ export type EffectiveTools = {
     textDecoration: "" | "underline" | "line-through" | "underline line-through";
     fontFamily: string;
     backgroundColor: string | null;
+    backgroundPadding: number;
   };
   blur: { blurRadius: number };
   sticker: { fontSize: number };
@@ -587,6 +593,7 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
         lu?.text?.backgroundColor !== undefined
           ? lu.text.backgroundColor
           : t.text.backgroundColor,
+      backgroundPadding: lu?.text?.backgroundPadding ?? t.text.backgroundPadding,
     },
     blur: {
       blurRadius: lu?.blur?.blurRadius ?? t.blur.blurRadius,

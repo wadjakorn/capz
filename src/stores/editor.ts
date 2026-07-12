@@ -77,6 +77,8 @@ export type TextAnnotation = Base & {
   textDecoration?: TextDecoration;
   fontFamily?: string;
   backgroundColor?: string | null;
+  /** Horizontal background padding in image px (vertical is derived). Absent = default. */
+  bgPadding?: number;
 };
 
 export type BlurAnnotation = Base & {
