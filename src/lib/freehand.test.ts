@@ -55,8 +55,12 @@ describe("smoothPoints", () => {
     expect(strong.points.length).toBeLessThanOrEqual(gentle.points.length);
   });
 
-  it("honors a custom curve tension", () => {
-    expect(smoothPoints(zig, "curve", { curveTension: 0.2 }).tension).toBe(0.2);
-    expect(smoothPoints(zig, "curve", { curveTension: 0.9 }).tension).toBe(0.9);
+  it("curve uses a fixed tension and honors custom smoothing", () => {
+    const gentle = smoothPoints(zig, "curve", { curveSmoothing: 0 });
+    const strong = smoothPoints(zig, "curve", { curveSmoothing: 40 });
+    expect(gentle.tension).toBe(0.5);
+    expect(strong.tension).toBe(0.5);
+    // More smoothing → fewer points (rounder curve).
+    expect(strong.points.length).toBeLessThanOrEqual(gentle.points.length);
   });
 });

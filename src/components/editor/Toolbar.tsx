@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -420,14 +420,14 @@ export function Toolbar({
       } else if (penSel.mode === "curve") {
         penLevelCtx = {
           label: "Curve",
-          value: Math.round((penSel.curveTension ?? toolsCfg.pen.curveTension) * 100),
+          value: penSel.curveSmoothing ?? toolsCfg.pen.curveSmoothing,
           min: 0,
-          max: 100,
-          step: 5,
+          max: 30,
+          step: 1,
           onChange: (v) => {
-            updateAnnotation(penSel.id, { curveTension: v / 100 });
-            if (remember) patchLastUsed({ pen: { curveTension: v / 100 } });
-            else void updateSettings("tools", { pen: { curveTension: v / 100 } } as Partial<AppConfig["tools"]>);
+            updateAnnotation(penSel.id, { curveSmoothing: v });
+            if (remember) patchLastUsed({ pen: { curveSmoothing: v } });
+            else void updateSettings("tools", { pen: { curveSmoothing: v } } as Partial<AppConfig["tools"]>);
           },
         };
       }
@@ -452,6 +452,18 @@ export function Toolbar({
           updateAnnotation(hSel.id, { strokeWidth: v });
           if (remember) patchLastUsed({ highlighter: { strokeWidth: v } });
           else void updateSettings("tools", { highlighter: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      sizeCtx = {
+        label: "Opacity",
+        value: Math.round((hSel.opacity ?? toolsCfg.highlighter.opacity) * 100),
+        min: 10,
+        max: 100,
+        step: 5,
+        onChange: (v) => {
+          updateAnnotation(hSel.id, { opacity: v / 100 });
+          if (remember) patchLastUsed({ highlighter: { opacity: v / 100 } });
+          else void updateSettings("tools", { highlighter: { opacity: v / 100 } } as Partial<AppConfig["tools"]>);
         },
       };
     } else if (selected.type === "magnify") {
@@ -689,16 +701,8 @@ export function Toolbar({
           },
         };
       }
-      // The Shapes "line" option reuses the arrow dash toggle.
-      if (toolsCfg.rect.shape === "line") {
-        arrowDashCtx = {
-          value: toolsCfg.arrow.dash,
-          onChange: (v) => {
-            if (remember) patchLastUsed({ arrow: { dash: v } });
-            else void updateSettings("tools", { arrow: { dash: v } } as Partial<AppConfig["tools"]>);
-          },
-        };
-      }
+      // Solid vs. dotted line is chosen via the shape picker (line / dashline),
+      // so no separate dash toggle here.
     }
     if (tool === "arrow") {
       arrowHeadsCtx = {
@@ -758,13 +762,13 @@ export function Toolbar({
     } else if (toolsCfg.pen.mode === "curve") {
       penLevelCtx = {
         label: "Curve",
-        value: Math.round(toolsCfg.pen.curveTension * 100),
+        value: toolsCfg.pen.curveSmoothing,
         min: 0,
-        max: 100,
-        step: 5,
+        max: 30,
+        step: 1,
         onChange: (v) => {
-          if (remember) patchLastUsed({ pen: { curveTension: v / 100 } });
-          else void updateSettings("tools", { pen: { curveTension: v / 100 } } as Partial<AppConfig["tools"]>);
+          if (remember) patchLastUsed({ pen: { curveSmoothing: v } });
+          else void updateSettings("tools", { pen: { curveSmoothing: v } } as Partial<AppConfig["tools"]>);
         },
       };
     }
@@ -786,6 +790,17 @@ export function Toolbar({
       onChange: (v) => {
         if (remember) patchLastUsed({ highlighter: { strokeWidth: v } });
         else void updateSettings("tools", { highlighter: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    sizeCtx = {
+      label: "Opacity",
+      value: Math.round(toolsCfg.highlighter.opacity * 100),
+      min: 10,
+      max: 100,
+      step: 5,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ highlighter: { opacity: v / 100 } });
+        else void updateSettings("tools", { highlighter: { opacity: v / 100 } } as Partial<AppConfig["tools"]>);
       },
     };
   } else if (tool === "magnify") {
@@ -1444,7 +1459,7 @@ export function Toolbar({
         const shapeBtn = (
           v: RectShapeKind,
           title: string,
-          Icon: LucideIcon,
+          Icon: ComponentType<{ className?: string }>,
         ) => (
           <button
             type="button"
@@ -1466,6 +1481,7 @@ export function Toolbar({
             {shapeBtn("rect", "Rectangle", Square)}
             {shapeBtn("ellipse", "Circle", CircleIcon)}
             {shapeBtn("line", "Line", Minus)}
+            {shapeBtn("dashline", "Dashed line", DashLineIcon)}
           </div>
         );
       })()}

@@ -60,10 +60,11 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Sticker library loads custom dir from settings
 - [ ] Text tool: bold/italic/underline/strikethrough/font family toggles; bg ON/OFF toggle + padding
 - [ ] Arrow: 3-point curve handles; two-way head toggle; dashed toggle (straight + curved)
-- [ ] Shapes tool: rect (corner radius) / circle / line options
-- [ ] Pen: draw freehand; raw / polygon / curve modes; polygon "Straighten" + curve "Curve" sliders re-shape the stroke
-- [ ] Highlighter: translucent marker; wide default; move + width only (no resize handles); brush-pill cursor tracks pointer and follows width
-- [ ] Magnify: click loupe to select, drag it to move; drag source + radius handles; circle/rect shape; border color; zoom; **exports WYSIWYG**
+- [ ] Shapes tool: rect (corner radius) / circle / line / dashed-line options (multi-shape tool icon)
+- [ ] Pen: pen-nib cursor at draw point; raw / polygon / curve modes; "Straighten"/"Curve" sliders (higher curve = rounder)
+- [ ] Highlighter: translucent marker; wide default; move + width + opacity only (no resize handles); brush-pill cursor matches the drawn width
+- [ ] Arrow/line: dashed toggle shows a dashed-line icon (not "Dash" text)
+- [ ] Magnify: first drag sets the magnify (source) area; loupe appears beside it; both source area and loupe are clickable/draggable with live feedback; source + output resize handles show live preview; circle/rect; border color; zoom; **exports WYSIWYG**
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 

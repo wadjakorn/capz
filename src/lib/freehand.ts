@@ -60,15 +60,17 @@ export function rdpSimplify(pts: number[], epsilon: number): number[] {
 export function smoothPoints(
   points: number[],
   mode: FreehandMode,
-  opts?: { polygonEpsilon?: number; curveTension?: number },
+  opts?: { polygonEpsilon?: number; curveSmoothing?: number },
 ): { points: number[]; tension: number } {
   switch (mode) {
     case "polygon":
       return { points: rdpSimplify(points, opts?.polygonEpsilon ?? 8), tension: 0 };
     case "curve":
+      // Higher smoothing removes more detail before a fixed spline tension, so
+      // the stroke reads as a rounder, flowing curve (monotonic: more = curvier).
       return {
-        points: rdpSimplify(points, 2),
-        tension: opts?.curveTension ?? 0.5,
+        points: rdpSimplify(points, opts?.curveSmoothing ?? 6),
+        tension: 0.5,
       };
     case "raw":
     default:

@@ -98,9 +98,9 @@ export type AppConfig = {
       strokeWidth?: number;
       mode?: FreehandMode;
       polygonEpsilon?: number;
-      curveTension?: number;
+      curveSmoothing?: number;
     };
-    highlighter?: { strokeColor?: string; strokeWidth?: number };
+    highlighter?: { strokeColor?: string; strokeWidth?: number; opacity?: number };
     magnify?: {
       strokeColor?: string;
       strokeWidth?: number;
@@ -156,9 +156,9 @@ export type AppConfig = {
       strokeWidth: number;
       mode: FreehandMode;
       polygonEpsilon: number;
-      curveTension: number;
+      curveSmoothing: number;
     };
-    highlighter: { strokeColor: string; strokeWidth: number };
+    highlighter: { strokeColor: string; strokeWidth: number; opacity: number };
     magnify: {
       strokeColor: string;
       strokeWidth: number;
@@ -258,9 +258,9 @@ export const DEFAULT_CONFIG: AppConfig = {
       strokeWidth: 4,
       mode: "raw",
       polygonEpsilon: 8,
-      curveTension: 0.5,
+      curveSmoothing: 6,
     },
-    highlighter: { strokeColor: "#facc15", strokeWidth: 28 },
+    highlighter: { strokeColor: "#facc15", strokeWidth: 28, opacity: 0.5 },
     magnify: { strokeColor: "#facc15", strokeWidth: 3, shape: "circle", zoom: 2 },
     sticker: { fontSize: 48 },
   },
@@ -447,7 +447,7 @@ function vTools(
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
       strokeWidth: isNum,
-      shape: inSet("rect", "ellipse", "line"),
+      shape: inSet("rect", "ellipse", "line", "dashline"),
       cornerRadius: isNum,
     }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
@@ -461,11 +461,12 @@ function vTools(
       strokeWidth: isNum,
       mode: inSet("raw", "polygon", "curve"),
       polygonEpsilon: isNum,
-      curveTension: isNum,
+      curveSmoothing: isNum,
     }, issues),
     highlighter: vsec("tools.highlighter", r.highlighter, def.highlighter, {
       strokeColor: isStr,
       strokeWidth: isNum,
+      opacity: isNum,
     }, issues),
     magnify: vsec("tools.magnify", r.magnify, def.magnify, {
       strokeColor: isStr,
@@ -527,7 +528,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   keep("rect", {
     strokeColor: isStr,
     strokeWidth: isNum,
-    shape: inSet("rect", "ellipse", "line"),
+    shape: inSet("rect", "ellipse", "line", "dashline"),
     cornerRadius: isNum,
   });
   keep("arrow", {
@@ -541,9 +542,9 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     strokeWidth: isNum,
     mode: inSet("raw", "polygon", "curve"),
     polygonEpsilon: isNum,
-    curveTension: isNum,
+    curveSmoothing: isNum,
   });
-  keep("highlighter", { strokeColor: isStr, strokeWidth: isNum });
+  keep("highlighter", { strokeColor: isStr, strokeWidth: isNum, opacity: isNum });
   keep("magnify", {
     strokeColor: isStr,
     strokeWidth: isNum,
@@ -661,9 +662,9 @@ export type EffectiveTools = {
     strokeWidth: number;
     mode: FreehandMode;
     polygonEpsilon: number;
-    curveTension: number;
+    curveSmoothing: number;
   };
-  highlighter: { strokeColor: string; strokeWidth: number };
+  highlighter: { strokeColor: string; strokeWidth: number; opacity: number };
   magnify: {
     strokeColor: string;
     strokeWidth: number;
@@ -704,11 +705,12 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       strokeWidth: lu?.pen?.strokeWidth ?? t.pen.strokeWidth,
       mode: lu?.pen?.mode ?? t.pen.mode,
       polygonEpsilon: lu?.pen?.polygonEpsilon ?? t.pen.polygonEpsilon,
-      curveTension: lu?.pen?.curveTension ?? t.pen.curveTension,
+      curveSmoothing: lu?.pen?.curveSmoothing ?? t.pen.curveSmoothing,
     },
     highlighter: {
       strokeColor: lu?.highlighter?.strokeColor ?? t.highlighter.strokeColor,
       strokeWidth: lu?.highlighter?.strokeWidth ?? t.highlighter.strokeWidth,
+      opacity: lu?.highlighter?.opacity ?? t.highlighter.opacity,
     },
     magnify: {
       strokeColor: lu?.magnify?.strokeColor ?? t.magnify.strokeColor,

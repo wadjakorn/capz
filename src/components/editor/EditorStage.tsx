@@ -117,12 +117,16 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           strokeWidth: a.strokeWidth,
           mode: a.mode,
           polygonEpsilon: a.polygonEpsilon,
-          curveTension: a.curveTension,
+          curveSmoothing: a.curveSmoothing,
         },
       };
     case "highlighter":
       return {
-        highlighter: { strokeColor: a.stroke, strokeWidth: a.strokeWidth },
+        highlighter: {
+          strokeColor: a.stroke,
+          strokeWidth: a.strokeWidth,
+          opacity: a.opacity,
+        },
       };
     case "magnify":
       return {
@@ -800,8 +804,8 @@ export function EditorStage({ src }: Props) {
     if (!empty) return;
 
     if (tool === "rect") {
-      // The Shapes tool's "line" option draws a 2-point segment, not a box.
-      if (toolsCfg.rect.shape === "line") {
+      // The Shapes tool's line / dashed-line options draw a 2-point segment.
+      if (toolsCfg.rect.shape === "line" || toolsCfg.rect.shape === "dashline") {
         setDraft({ kind: "line", id: uid(), x1: p.x, y1: p.y, x2: p.x, y2: p.y });
       } else {
         setDraft({ kind: "rect", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
@@ -1032,31 +1036,32 @@ export function EditorStage({ src }: Props) {
           stroke: toolsCfg.rect.strokeColor,
           strokeWidth: toolsCfg.rect.strokeWidth,
           heads: "none",
-          dash: toolsCfg.arrow.dash,
+          dash: toolsCfg.rect.shape === "dashline",
         };
         add(a);
       }
     } else if (draft.kind === "magnify") {
+      // The drag defines the SOURCE (magnify) area; the output loupe is placed
+      // beside it, sized by the configured zoom.
       const x = draft.w < 0 ? draft.x + draft.w : draft.x;
       const y = draft.h < 0 ? draft.y + draft.h : draft.y;
       const w = Math.abs(draft.w);
       const h = Math.abs(draft.h);
-      // Output half-size from the drag; fall back to a sensible default on a click.
-      const radius = Math.max(w, h) / 2 || 60;
-      const cx = w > 4 ? x + w / 2 : draft.x;
-      const cy = h > 4 ? y + h / 2 : draft.y;
-      // Source defaults a few radii to the left of the output, clamped to image.
-      const sx = Math.max(radius, cx - radius * 3);
-      const sy = cy;
+      const sr = Math.max(w, h) / 2 || 40;
+      const sx = w > 4 ? x + w / 2 : draft.x;
+      const sy = h > 4 ? y + h / 2 : draft.y;
+      const zoom = toolsCfg.magnify.zoom;
+      const outR = sr * zoom;
+      // Output sits to the right of the source, clear of it.
       const a: MagnifyAnnotation = {
         id: draft.id,
         type: "magnify",
         sx,
         sy,
-        x: cx,
-        y: cy,
-        radius,
-        zoom: toolsCfg.magnify.zoom,
+        sr,
+        x: sx + sr + outR + 24,
+        y: sy,
+        zoom,
         shape: toolsCfg.magnify.shape,
         stroke: toolsCfg.magnify.strokeColor,
         strokeWidth: toolsCfg.magnify.strokeWidth,
@@ -1072,6 +1077,7 @@ export function EditorStage({ src }: Props) {
             points: draft.points,
             stroke: toolsCfg.highlighter.strokeColor,
             strokeWidth: toolsCfg.highlighter.strokeWidth,
+            opacity: toolsCfg.highlighter.opacity,
           };
           add(a);
           scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1084,7 +1090,7 @@ export function EditorStage({ src }: Props) {
             strokeWidth: toolsCfg.pen.strokeWidth,
             mode: toolsCfg.pen.mode,
             polygonEpsilon: toolsCfg.pen.polygonEpsilon,
-            curveTension: toolsCfg.pen.curveTension,
+            curveSmoothing: toolsCfg.pen.curveSmoothing,
           };
           add(a);
           scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1106,7 +1112,9 @@ export function EditorStage({ src }: Props) {
         ? "cursor-text"
         : tool === "highlighter"
           ? "cursor-none" // replaced by the on-canvas brush pill
-          : "cursor-crosshair";
+          : tool === "pen"
+            ? "cursor-pen"
+            : "cursor-crosshair";
 
   const sizerW = stageW > 0 ? stageW + padX * 2 : 0;
   const sizerH = stageH > 0 ? stageH + padY * 2 : 0;
@@ -1348,7 +1356,7 @@ export function EditorStage({ src }: Props) {
                 stroke={toolsCfg.rect.strokeColor}
                 strokeWidth={toolsCfg.rect.strokeWidth}
                 dash={
-                  toolsCfg.arrow.dash
+                  toolsCfg.rect.shape === "dashline"
                     ? [toolsCfg.rect.strokeWidth * 2, toolsCfg.rect.strokeWidth * 2]
                     : undefined
                 }
@@ -1370,7 +1378,12 @@ export function EditorStage({ src }: Props) {
                     ? toolsCfg.highlighter.strokeWidth
                     : toolsCfg.pen.strokeWidth
                 }
-                opacity={draft.tool === "highlighter" ? 0.4 : 1}
+                opacity={
+                  draft.tool === "highlighter" ? toolsCfg.highlighter.opacity : 1
+                }
+                globalCompositeOperation={
+                  draft.tool === "highlighter" ? "multiply" : undefined
+                }
                 lineCap="round"
                 lineJoin="round"
                 tension={draft.tool === "pen" && toolsCfg.pen.mode === "curve" ? 0.5 : 0}
@@ -1409,19 +1422,26 @@ export function EditorStage({ src }: Props) {
                 }}
               />
             )}
-            {tool === "highlighter" && brushPoint && (
-              <Rect
-                x={brushPoint.x - toolsCfg.highlighter.strokeWidth / 2}
-                y={brushPoint.y - (toolsCfg.highlighter.strokeWidth * 1.7) / 2}
-                width={toolsCfg.highlighter.strokeWidth}
-                height={toolsCfg.highlighter.strokeWidth * 1.7}
-                cornerRadius={toolsCfg.highlighter.strokeWidth / 2}
-                fill="rgba(250,204,21,0.35)"
-                stroke="rgba(160,120,10,0.85)"
-                strokeWidth={1 / scale}
-                listening={false}
-              />
-            )}
+            {tool === "highlighter" && brushPoint && (() => {
+              // Guide footprint equals the actual drawn width: max extent (the
+              // pill height) == strokeWidth; a slim vertical pill hints direction.
+              const w = toolsCfg.highlighter.strokeWidth;
+              const pillW = w * 0.6;
+              return (
+                <Rect
+                  x={brushPoint.x - pillW / 2}
+                  y={brushPoint.y - w / 2}
+                  width={pillW}
+                  height={w}
+                  cornerRadius={pillW / 2}
+                  fill={toolsCfg.highlighter.strokeColor}
+                  opacity={toolsCfg.highlighter.opacity}
+                  stroke="rgba(0,0,0,0.35)"
+                  strokeWidth={1 / scale}
+                  listening={false}
+                />
+              );
+            })()}
             {tool === "crop" && cropSel && (
               <>
                 {/* Dim the area outside the crop selection (4 rects). */}
@@ -2091,7 +2111,7 @@ function FreehandShape({ a, ctx }: { a: FreehandAnnotation; ctx: ShapeCtx }) {
   const { ref, handlers } = usePathShape(a, ctx);
   const { points, tension } = smoothPoints(a.points, a.mode, {
     polygonEpsilon: a.polygonEpsilon,
-    curveTension: a.curveTension,
+    curveSmoothing: a.curveSmoothing,
   });
   return (
     <Line
@@ -2124,7 +2144,7 @@ function HighlighterShape({
       rotation={a.rotation ?? 0}
       stroke={a.stroke}
       strokeWidth={a.strokeWidth}
-      opacity={0.4}
+      opacity={a.opacity ?? 0.5}
       lineCap="round"
       lineJoin="round"
       globalCompositeOperation="multiply"
@@ -2136,126 +2156,120 @@ function HighlighterShape({
 
 function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
   const groupRef = useRef<Konva.Group>(null);
+  // Live overrides applied during a handle/body drag for instant feedback; a
+  // single ctx.onChange commits on drag end (keeps undo history clean).
+  const [live, setLive] = useState<Partial<MagnifyAnnotation>>({});
   useEffect(() => {
     ctx.setRef(groupRef.current);
     return () => ctx.setRef(null);
   });
-  const r = a.radius;
-  const srcR = r / Math.max(1, a.zoom);
-  const isRect = a.shape === "rect";
+
+  const g = { ...a, ...live };
+  const srcR = g.sr;
+  const outR = g.sr * g.zoom;
+  const isRect = g.shape === "rect";
   const hr = Math.max(4, 6 / ctx.scale);
   const hsw = 1.5 / ctx.scale;
+  const bw = Math.max(1, a.strokeWidth * 0.6);
+
+  const commit = (patch: Partial<MagnifyAnnotation>) => {
+    ctx.onChange(patch);
+    setLive({});
+  };
+  const clip = (radius: number) => (c: Konva.Context) => {
+    c.beginPath();
+    if (isRect) c.rect(-radius, -radius, radius * 2, radius * 2);
+    else c.arc(0, 0, radius, 0, Math.PI * 2, false);
+    c.closePath();
+  };
+  // A circle or square centered on its group origin (0,0).
+  const area = (radius: number, props: Record<string, unknown>) =>
+    isRect ? (
+      <Rect x={-radius} y={-radius} width={radius * 2} height={radius * 2} {...props} />
+    ) : (
+      <Circle x={0} y={0} radius={radius} {...props} />
+    );
+
   return (
     <>
       {/* connector: source → output */}
       <Line
-        points={[a.sx, a.sy, a.x, a.y]}
+        points={[g.sx, g.sy, g.x, g.y]}
         stroke={a.stroke}
-        strokeWidth={Math.max(1, a.strokeWidth * 0.6)}
+        strokeWidth={bw}
         dash={[4, 4]}
         listening={false}
       />
-      {/* source region indicator */}
-      {isRect ? (
-        <Rect
-          x={a.sx - srcR}
-          y={a.sy - srcR}
-          width={srcR * 2}
-          height={srcR * 2}
-          stroke={a.stroke}
-          strokeWidth={Math.max(1, a.strokeWidth * 0.6)}
-          dash={[3, 3]}
-          listening={false}
-        />
-      ) : (
-        <Circle
-          x={a.sx}
-          y={a.sy}
-          radius={srcR}
-          stroke={a.stroke}
-          strokeWidth={Math.max(1, a.strokeWidth * 0.6)}
-          dash={[3, 3]}
-          listening={false}
-        />
-      )}
-      {/* output loupe: magnified sample of the source region, clipped to shape */}
+      {/* source (magnify) area — draggable + clickable via its tint fill */}
       <Group
-        ref={groupRef}
-        x={a.x - r}
-        y={a.y - r}
+        x={g.sx}
+        y={g.sy}
         draggable
-        clipFunc={(c) => {
-          c.beginPath();
-          if (isRect) c.rect(0, 0, r * 2, r * 2);
-          else c.arc(r, r, r, 0, Math.PI * 2, false);
-          c.closePath();
-        }}
         {...hoverHandlers(ctx)}
         onMouseDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
-        onDragMove={(e) => {
-          const node = e.target;
-          const { dx, dy } = ctx.snapDrag(
-            a.id,
-            { x: node.x(), y: node.y(), w: r * 2, h: r * 2 },
-            e.evt.altKey,
-          );
-          if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
-        }}
-        onDragEnd={(e) => {
-          ctx.endSnap();
-          ctx.onChange({ x: e.target.x() + r, y: e.target.y() + r });
-        }}
+        onDragMove={(e) =>
+          setLive((p) => ({ ...p, sx: e.target.x(), sy: e.target.y() }))
+        }
+        onDragEnd={(e) => commit({ sx: e.target.x(), sy: e.target.y() })}
       >
-        {/* Transparent hit fill so the whole loupe (even before the image
-            loads) is clickable/draggable; the clip keeps the hit area to shape. */}
-        <Rect x={0} y={0} width={r * 2} height={r * 2} fill="rgba(0,0,0,0.001)" />
-        {ctx.bgImage && (
-          <KonvaImage
-            image={ctx.bgImage}
-            x={0}
-            y={0}
-            width={r * 2}
-            height={r * 2}
-            crop={{
-              x: a.sx - srcR + ctx.cropOffX,
-              y: a.sy - srcR + ctx.cropOffY,
-              width: srcR * 2,
-              height: srcR * 2,
-            }}
-            listening={false}
-          />
-        )}
+        {area(srcR, { fill: a.stroke, opacity: 0.14 })}
+        {area(srcR, { stroke: a.stroke, strokeWidth: bw, dash: [3, 3] })}
       </Group>
-      {/* border */}
-      {isRect ? (
-        <Rect
-          x={a.x - r}
-          y={a.y - r}
-          width={r * 2}
-          height={r * 2}
-          stroke={a.stroke}
-          strokeWidth={a.strokeWidth}
-          listening={false}
-        />
-      ) : (
-        <Circle
-          x={a.x}
-          y={a.y}
-          radius={r}
-          stroke={a.stroke}
-          strokeWidth={a.strokeWidth}
-          listening={false}
-        />
-      )}
+      {/* output loupe — draggable; magnified sample clipped to the shape */}
+      <Group
+        ref={groupRef}
+        x={g.x}
+        y={g.y}
+        draggable
+        {...hoverHandlers(ctx)}
+        onMouseDown={(e) => {
+          e.cancelBubble = true;
+          ctx.onSelect();
+        }}
+        onDragMove={(e) =>
+          setLive((p) => ({ ...p, x: e.target.x(), y: e.target.y() }))
+        }
+        onDragEnd={(e) => commit({ x: e.target.x(), y: e.target.y() })}
+      >
+        <Group clipFunc={clip(outR)}>
+          {area(outR, { fill: "rgba(0,0,0,0.001)" })}
+          {ctx.bgImage &&
+            (() => {
+              // Draw the source square magnified to fill the output shape.
+              return (
+                <KonvaImage
+                  image={ctx.bgImage}
+                  x={-outR}
+                  y={-outR}
+                  width={outR * 2}
+                  height={outR * 2}
+                  crop={{
+                    x: g.sx - srcR + ctx.cropOffX,
+                    y: g.sy - srcR + ctx.cropOffY,
+                    width: srcR * 2,
+                    height: srcR * 2,
+                  }}
+                  listening={false}
+                />
+              );
+            })()}
+        </Group>
+        {area(outR, {
+          stroke: a.stroke,
+          strokeWidth: a.strokeWidth,
+          listening: false,
+        })}
+      </Group>
       {/* edit handles */}
       {ctx.selected && (
         <>
+          {/* resize the source area */}
           <Circle
-            x={a.sx}
-            y={a.sy}
+            x={g.sx + srcR}
+            y={g.sy}
             radius={hr}
             fill="#ffffff"
             stroke={a.stroke}
@@ -2264,13 +2278,15 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
             onMouseDown={(e) => {
               e.cancelBubble = true;
             }}
-            onDragEnd={(e) => {
-              ctx.onChange({ sx: e.target.x(), sy: e.target.y() });
-            }}
+            onDragMove={(e) =>
+              setLive((p) => ({ ...p, sr: Math.max(8, e.target.x() - g.sx) }))
+            }
+            onDragEnd={(e) => commit({ sr: Math.max(8, e.target.x() - g.sx) })}
           />
+          {/* resize the output (zoom) */}
           <Circle
-            x={a.x + r}
-            y={a.y}
+            x={g.x + outR}
+            y={g.y}
             radius={hr}
             fill="#ffffff"
             stroke={a.stroke}
@@ -2279,9 +2295,15 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
             onMouseDown={(e) => {
               e.cancelBubble = true;
             }}
-            onDragEnd={(e) => {
-              ctx.onChange({ radius: Math.max(20, e.target.x() - a.x) });
-            }}
+            onDragMove={(e) =>
+              setLive((p) => ({
+                ...p,
+                zoom: Math.max(1.2, (e.target.x() - g.x) / g.sr),
+              }))
+            }
+            onDragEnd={(e) =>
+              commit({ zoom: Math.max(1.2, (e.target.x() - g.x) / g.sr) })
+            }
           />
         </>
       )}

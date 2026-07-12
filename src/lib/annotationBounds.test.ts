@@ -125,17 +125,17 @@ describe("annotationAABB pen/magnify", () => {
     const mag: MagnifyAnnotation = {
       id: "m1",
       type: "magnify",
-      sx: 10,
-      sy: 50,
+      sx: 30,
+      sy: 60,
+      sr: 20,
       x: 100,
       y: 60,
-      radius: 40,
       zoom: 2,
       shape: "circle",
       stroke: "#facc15",
       strokeWidth: 3,
     };
-    // Left/top bounded by source (10,50), right/bottom by output (140,100).
+    // Source area 30±20 → [10,50]; output radius 20×2=40 at (100,60) → [60,140]×[20,100].
     expect(annotationAABB(mag)).toEqual({ x: 10, y: 20, w: 130, h: 80 });
   });
 });

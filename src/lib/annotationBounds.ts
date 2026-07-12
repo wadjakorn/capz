@@ -56,11 +56,12 @@ export function annotationAABB(a: Annotation): AABB | null {
       return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     case "magnify": {
-      // Cover the output loupe plus the source point + connector.
-      const minX = Math.min(a.x - a.radius, a.sx);
-      const minY = Math.min(a.y - a.radius, a.sy);
-      const maxX = Math.max(a.x + a.radius, a.sx);
-      const maxY = Math.max(a.y + a.radius, a.sy);
+      // Cover both the source (magnify) area and the output loupe + connector.
+      const outR = a.sr * a.zoom;
+      const minX = Math.min(a.x - outR, a.sx - a.sr);
+      const minY = Math.min(a.y - outR, a.sy - a.sr);
+      const maxX = Math.max(a.x + outR, a.sx + a.sr);
+      const maxY = Math.max(a.y + outR, a.sy + a.sr);
       return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     case "sticker": {

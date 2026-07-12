@@ -28,9 +28,10 @@ export type CaptureSource = "full" | "area" | "window" | "scroll" | "other";
 
 type Base = { id: string; rotation?: number };
 
-/** Shape variants offered by the (formerly "rect") Shapes tool. "line" draws a
- *  headless 2-point segment (stored as an arrow with heads:"none"), not a box. */
-export type RectShapeKind = "rect" | "ellipse" | "line";
+/** Shape variants offered by the (formerly "rect") Shapes tool. "line"/"dashline"
+ *  draw a headless 2-point segment (stored as an arrow with heads:"none"),
+ *  solid or dashed respectively — not a box. */
+export type RectShapeKind = "rect" | "ellipse" | "line" | "dashline";
 
 export type RectAnnotation = Base & {
   type: "rect";
@@ -82,8 +83,9 @@ export type FreehandAnnotation = Base & {
   mode: FreehandMode;
   /** "polygon" straightening strength — RDP epsilon in px. Absent = default. */
   polygonEpsilon?: number;
-  /** "curve" smoothing strength — Konva tension 0..1. Absent = default. */
-  curveTension?: number;
+  /** "curve" smoothing strength — RDP epsilon (px) before a fixed spline
+   *  tension; higher = rounder/smoother curve. Absent = default. */
+  curveSmoothing?: number;
 };
 
 export type HighlighterAnnotation = Base & {
@@ -92,21 +94,23 @@ export type HighlighterAnnotation = Base & {
   points: number[];
   stroke: string;
   strokeWidth: number;
+  /** Marker opacity 0..1. Absent = default. */
+  opacity?: number;
 };
 
 export type MagnifyShape = "circle" | "rect";
 
 export type MagnifyAnnotation = Base & {
   type: "magnify";
-  /** Source center — the point being magnified (image coords). */
+  /** Source (magnify) area center — the region being zoomed (image coords). */
   sx: number;
   sy: number;
+  /** Source area half-size (radius for circle, half-side for rect), image px. */
+  sr: number;
   /** Output center — where the magnified loupe is drawn (image coords). */
   x: number;
   y: number;
-  /** Output half-size (radius for circle, half-side for rect), image px. */
-  radius: number;
-  /** Magnification factor; source region half-size = radius / zoom. */
+  /** Magnification factor; output half-size = sr × zoom. */
   zoom: number;
   shape: MagnifyShape;
   /** Border + connector color. */
