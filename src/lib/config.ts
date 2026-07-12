@@ -93,7 +93,13 @@ export type AppConfig = {
       heads?: ArrowHeads;
       dash?: boolean;
     };
-    pen?: { strokeColor?: string; strokeWidth?: number; mode?: FreehandMode };
+    pen?: {
+      strokeColor?: string;
+      strokeWidth?: number;
+      mode?: FreehandMode;
+      polygonEpsilon?: number;
+      curveTension?: number;
+    };
     highlighter?: { strokeColor?: string; strokeWidth?: number };
     magnify?: {
       strokeColor?: string;
@@ -145,7 +151,13 @@ export type AppConfig = {
       backgroundPadding: number;
     };
     blur: { blurRadius: number };
-    pen: { strokeColor: string; strokeWidth: number; mode: FreehandMode };
+    pen: {
+      strokeColor: string;
+      strokeWidth: number;
+      mode: FreehandMode;
+      polygonEpsilon: number;
+      curveTension: number;
+    };
     highlighter: { strokeColor: string; strokeWidth: number };
     magnify: {
       strokeColor: string;
@@ -241,8 +253,14 @@ export const DEFAULT_CONFIG: AppConfig = {
       backgroundPadding: 14,
     },
     blur: { blurRadius: 16 },
-    pen: { strokeColor: "#ef4444", strokeWidth: 4, mode: "raw" },
-    highlighter: { strokeColor: "#facc15", strokeWidth: 18 },
+    pen: {
+      strokeColor: "#ef4444",
+      strokeWidth: 4,
+      mode: "raw",
+      polygonEpsilon: 8,
+      curveTension: 0.5,
+    },
+    highlighter: { strokeColor: "#facc15", strokeWidth: 28 },
     magnify: { strokeColor: "#facc15", strokeWidth: 3, shape: "circle", zoom: 2 },
     sticker: { fontSize: 48 },
   },
@@ -442,6 +460,8 @@ function vTools(
       strokeColor: isStr,
       strokeWidth: isNum,
       mode: inSet("raw", "polygon", "curve"),
+      polygonEpsilon: isNum,
+      curveTension: isNum,
     }, issues),
     highlighter: vsec("tools.highlighter", r.highlighter, def.highlighter, {
       strokeColor: isStr,
@@ -520,6 +540,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     strokeColor: isStr,
     strokeWidth: isNum,
     mode: inSet("raw", "polygon", "curve"),
+    polygonEpsilon: isNum,
+    curveTension: isNum,
   });
   keep("highlighter", { strokeColor: isStr, strokeWidth: isNum });
   keep("magnify", {
@@ -634,7 +656,13 @@ export type EffectiveTools = {
     backgroundPadding: number;
   };
   blur: { blurRadius: number };
-  pen: { strokeColor: string; strokeWidth: number; mode: FreehandMode };
+  pen: {
+    strokeColor: string;
+    strokeWidth: number;
+    mode: FreehandMode;
+    polygonEpsilon: number;
+    curveTension: number;
+  };
   highlighter: { strokeColor: string; strokeWidth: number };
   magnify: {
     strokeColor: string;
@@ -675,6 +703,8 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       strokeColor: lu?.pen?.strokeColor ?? t.pen.strokeColor,
       strokeWidth: lu?.pen?.strokeWidth ?? t.pen.strokeWidth,
       mode: lu?.pen?.mode ?? t.pen.mode,
+      polygonEpsilon: lu?.pen?.polygonEpsilon ?? t.pen.polygonEpsilon,
+      curveTension: lu?.pen?.curveTension ?? t.pen.curveTension,
     },
     highlighter: {
       strokeColor: lu?.highlighter?.strokeColor ?? t.highlighter.strokeColor,

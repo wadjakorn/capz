@@ -80,6 +80,10 @@ export type FreehandAnnotation = Base & {
   stroke: string;
   strokeWidth: number;
   mode: FreehandMode;
+  /** "polygon" straightening strength — RDP epsilon in px. Absent = default. */
+  polygonEpsilon?: number;
+  /** "curve" smoothing strength — Konva tension 0..1. Absent = default. */
+  curveTension?: number;
 };
 
 export type HighlighterAnnotation = Base & {

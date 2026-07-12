@@ -61,9 +61,9 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Text tool: bold/italic/underline/strikethrough/font family toggles; bg ON/OFF toggle + padding
 - [ ] Arrow: 3-point curve handles; two-way head toggle; dashed toggle (straight + curved)
 - [ ] Shapes tool: rect (corner radius) / circle / line options
-- [ ] Pen: draw freehand; raw / polygon / curve smoothing modes re-shape the stroke
-- [ ] Highlighter: translucent marker stroke, overlaps darken; color/width
-- [ ] Magnify: place loupe; drag source + output handles; circle/rect shape; border color; zoom; **exports WYSIWYG**
+- [ ] Pen: draw freehand; raw / polygon / curve modes; polygon "Straighten" + curve "Curve" sliders re-shape the stroke
+- [ ] Highlighter: translucent marker; wide default; move + width only (no resize handles); brush-pill cursor tracks pointer and follows width
+- [ ] Magnify: click loupe to select, drag it to move; drag source + radius handles; circle/rect shape; border color; zoom; **exports WYSIWYG**
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 

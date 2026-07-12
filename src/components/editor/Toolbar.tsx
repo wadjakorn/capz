@@ -20,6 +20,7 @@ import {
   Waypoints,
   PenLine,
   ArrowLeftRight,
+  Shapes as ShapesIcon,
   Circle as CircleIcon,
   MessageCircle,
   ArrowUp,
@@ -72,10 +73,28 @@ import { isTauriRuntime } from "@/lib/platform";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
+/** Dashed horizontal line — no lucide equivalent, so a tiny inline SVG. */
+function DashLineIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeDasharray="3 3"
+      className={className}
+      aria-hidden
+    >
+      <line x1="1.5" y1="8" x2="14.5" y2="8" />
+    </svg>
+  );
+}
+
 const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
   { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight },
-  { id: "rect", label: "Shapes", hint: "R", icon: Square },
+  { id: "rect", label: "Shapes", hint: "R", icon: ShapesIcon },
   { id: "text", label: "Text", hint: "T", icon: Type },
   { id: "blur", label: "Blur", hint: "B", icon: Droplet },
   { id: "pen", label: "Pen", hint: "D", icon: Pencil },
@@ -255,6 +274,7 @@ export function Toolbar({
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
   let cornerCtx: NumCtx | null = null;
+  let penLevelCtx: NumCtx | null = null;
   let rectShapeCtx: RectShapeCtx | null = null;
   let penModeCtx: PenModeCtx | null = null;
   let magnifyShapeCtx: MagnifyShapeCtx | null = null;
@@ -384,6 +404,33 @@ export function Toolbar({
           else void updateSettings("tools", { pen: { mode: v } } as Partial<AppConfig["tools"]>);
         },
       };
+      if (penSel.mode === "polygon") {
+        penLevelCtx = {
+          label: "Straighten",
+          value: penSel.polygonEpsilon ?? toolsCfg.pen.polygonEpsilon,
+          min: 2,
+          max: 40,
+          step: 1,
+          onChange: (v) => {
+            updateAnnotation(penSel.id, { polygonEpsilon: v });
+            if (remember) patchLastUsed({ pen: { polygonEpsilon: v } });
+            else void updateSettings("tools", { pen: { polygonEpsilon: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      } else if (penSel.mode === "curve") {
+        penLevelCtx = {
+          label: "Curve",
+          value: Math.round((penSel.curveTension ?? toolsCfg.pen.curveTension) * 100),
+          min: 0,
+          max: 100,
+          step: 5,
+          onChange: (v) => {
+            updateAnnotation(penSel.id, { curveTension: v / 100 });
+            if (remember) patchLastUsed({ pen: { curveTension: v / 100 } });
+            else void updateSettings("tools", { pen: { curveTension: v / 100 } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
     } else if (selected.type === "highlighter") {
       const hSel = selected;
       colorCtx = {
@@ -696,6 +743,31 @@ export function Toolbar({
         else void updateSettings("tools", { pen: { mode: v } } as Partial<AppConfig["tools"]>);
       },
     };
+    if (toolsCfg.pen.mode === "polygon") {
+      penLevelCtx = {
+        label: "Straighten",
+        value: toolsCfg.pen.polygonEpsilon,
+        min: 2,
+        max: 40,
+        step: 1,
+        onChange: (v) => {
+          if (remember) patchLastUsed({ pen: { polygonEpsilon: v } });
+          else void updateSettings("tools", { pen: { polygonEpsilon: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+    } else if (toolsCfg.pen.mode === "curve") {
+      penLevelCtx = {
+        label: "Curve",
+        value: Math.round(toolsCfg.pen.curveTension * 100),
+        min: 0,
+        max: 100,
+        step: 5,
+        onChange: (v) => {
+          if (remember) patchLastUsed({ pen: { curveTension: v / 100 } });
+          else void updateSettings("tools", { pen: { curveTension: v / 100 } } as Partial<AppConfig["tools"]>);
+        },
+      };
+    }
   } else if (tool === "highlighter") {
     colorCtx = {
       label: "Color",
@@ -1476,14 +1548,15 @@ export function Toolbar({
             onClick={() => adc.onChange(!adc.value)}
             title="Dashed line"
             aria-pressed={adc.value}
+            aria-label="Dashed line"
             className={[
-              "flex h-7 items-center justify-center rounded px-2 text-[11px] transition-colors",
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
               adc.value
                 ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                 : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
             ].join(" ")}
           >
-            Dash
+            <DashLineIcon className="h-3.5 w-3.5" />
           </button>
         );
       })()}
@@ -1523,6 +1596,24 @@ export function Toolbar({
             className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
           />
           <span className="w-6 text-right tabular-nums">{Math.round(cornerCtx.value)}</span>
+        </label>
+      )}
+      {penLevelCtx && (
+        <label
+          className="flex items-center gap-1.5 text-xs text-foreground/80"
+          title={penLevelCtx.label}
+        >
+          {penLevelCtx.label}
+          <input
+            type="range"
+            min={penLevelCtx.min}
+            max={penLevelCtx.max}
+            step={penLevelCtx.step}
+            value={Math.round(penLevelCtx.value)}
+            onChange={(e) => penLevelCtx!.onChange(parseInt(e.target.value, 10))}
+            className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
+          />
+          <span className="w-7 text-right tabular-nums">{Math.round(penLevelCtx.value)}</span>
         </label>
       )}
       {sizeCtx && (

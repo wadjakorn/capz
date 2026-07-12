@@ -60,12 +60,16 @@ export function rdpSimplify(pts: number[], epsilon: number): number[] {
 export function smoothPoints(
   points: number[],
   mode: FreehandMode,
+  opts?: { polygonEpsilon?: number; curveTension?: number },
 ): { points: number[]; tension: number } {
   switch (mode) {
     case "polygon":
-      return { points: rdpSimplify(points, 8), tension: 0 };
+      return { points: rdpSimplify(points, opts?.polygonEpsilon ?? 8), tension: 0 };
     case "curve":
-      return { points: rdpSimplify(points, 2), tension: 0.5 };
+      return {
+        points: rdpSimplify(points, 2),
+        tension: opts?.curveTension ?? 0.5,
+      };
     case "raw":
     default:
       return { points: rdpSimplify(points, 0.75), tension: 0 };

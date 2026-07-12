@@ -116,6 +116,8 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           strokeColor: a.stroke,
           strokeWidth: a.strokeWidth,
           mode: a.mode,
+          polygonEpsilon: a.polygonEpsilon,
+          curveTension: a.curveTension,
         },
       };
     case "highlighter":
@@ -178,6 +180,10 @@ export function EditorStage({ src }: Props) {
   const nodeRefs = useRef(new Map<string, Konva.Node>());
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Pointer position for the highlighter's on-canvas brush guide (image coords).
+  const [brushPoint, setBrushPoint] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   // Live crop selection (in displayed-image coords) while the crop tool is active.
   const [cropSel, setCropSel] = useState<ImageCrop | null>(null);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
@@ -447,9 +453,14 @@ export function EditorStage({ src }: Props) {
       tr.getLayer()?.batchDraw();
       return;
     }
-    // Arrows and magnifiers use their own inline handles, not the box Transformer.
+    // Arrows and magnifiers use their own inline handles; highlighters are
+    // move-only (width via slider) — none attach the box Transformer.
     const selAnn = annotations.find((a) => a.id === selectedId);
-    if (selAnn?.type === "arrow" || selAnn?.type === "magnify") {
+    if (
+      selAnn?.type === "arrow" ||
+      selAnn?.type === "magnify" ||
+      selAnn?.type === "highlighter"
+    ) {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -929,6 +940,7 @@ export function EditorStage({ src }: Props) {
   }, []);
 
   function handleMouseMove() {
+    if (tool === "highlighter") setBrushPoint(getPointer());
     if (!draft) return;
     const p = getPointer();
     if (!p) return;
@@ -1071,6 +1083,8 @@ export function EditorStage({ src }: Props) {
             stroke: toolsCfg.pen.strokeColor,
             strokeWidth: toolsCfg.pen.strokeWidth,
             mode: toolsCfg.pen.mode,
+            polygonEpsilon: toolsCfg.pen.polygonEpsilon,
+            curveTension: toolsCfg.pen.curveTension,
           };
           add(a);
           scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1090,7 +1104,9 @@ export function EditorStage({ src }: Props) {
       ? "cursor-default"
       : tool === "text"
         ? "cursor-text"
-        : "cursor-crosshair";
+        : tool === "highlighter"
+          ? "cursor-none" // replaced by the on-canvas brush pill
+          : "cursor-crosshair";
 
   const sizerW = stageW > 0 ? stageW + padX * 2 : 0;
   const sizerH = stageH > 0 ? stageH + padY * 2 : 0;
@@ -1197,6 +1213,7 @@ export function EditorStage({ src }: Props) {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={() => setBrushPoint(null)}
         >
           <Layer>
             {/* Canvas background — fills the whole (possibly expanded) box,
@@ -1390,6 +1407,19 @@ export function EditorStage({ src }: Props) {
                   c.closePath();
                   c.strokeShape(shape);
                 }}
+              />
+            )}
+            {tool === "highlighter" && brushPoint && (
+              <Rect
+                x={brushPoint.x - toolsCfg.highlighter.strokeWidth / 2}
+                y={brushPoint.y - (toolsCfg.highlighter.strokeWidth * 1.7) / 2}
+                width={toolsCfg.highlighter.strokeWidth}
+                height={toolsCfg.highlighter.strokeWidth * 1.7}
+                cornerRadius={toolsCfg.highlighter.strokeWidth / 2}
+                fill="rgba(250,204,21,0.35)"
+                stroke="rgba(160,120,10,0.85)"
+                strokeWidth={1 / scale}
+                listening={false}
               />
             )}
             {tool === "crop" && cropSel && (
@@ -2059,7 +2089,10 @@ function usePathShape(a: FreehandAnnotation | HighlighterAnnotation, ctx: ShapeC
 
 function FreehandShape({ a, ctx }: { a: FreehandAnnotation; ctx: ShapeCtx }) {
   const { ref, handlers } = usePathShape(a, ctx);
-  const { points, tension } = smoothPoints(a.points, a.mode);
+  const { points, tension } = smoothPoints(a.points, a.mode, {
+    polygonEpsilon: a.polygonEpsilon,
+    curveTension: a.curveTension,
+  });
   return (
     <Line
       ref={ref}
@@ -2176,6 +2209,9 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           ctx.onChange({ x: e.target.x() + r, y: e.target.y() + r });
         }}
       >
+        {/* Transparent hit fill so the whole loupe (even before the image
+            loads) is clickable/draggable; the clip keeps the hit area to shape. */}
+        <Rect x={0} y={0} width={r * 2} height={r * 2} fill="rgba(0,0,0,0.001)" />
         {ctx.bgImage && (
           <KonvaImage
             image={ctx.bgImage}

@@ -48,4 +48,15 @@ describe("smoothPoints", () => {
     expect(poly.points.length).toBeLessThanOrEqual(raw.points.length);
     expect(poly.tension).toBe(0);
   });
+
+  it("honors a custom polygon epsilon (larger → fewer points)", () => {
+    const gentle = smoothPoints(zig, "polygon", { polygonEpsilon: 0.5 });
+    const strong = smoothPoints(zig, "polygon", { polygonEpsilon: 40 });
+    expect(strong.points.length).toBeLessThanOrEqual(gentle.points.length);
+  });
+
+  it("honors a custom curve tension", () => {
+    expect(smoothPoints(zig, "curve", { curveTension: 0.2 }).tension).toBe(0.2);
+    expect(smoothPoints(zig, "curve", { curveTension: 0.9 }).tension).toBe(0.9);
+  });
 });
