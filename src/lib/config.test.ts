@@ -94,6 +94,31 @@ describe("validateConfig general.backdrop", () => {
     expect(issues.join(" ")).not.toMatch(/backdrop/);
   });
 
+  it("keeps per-capture auto-enable overrides", () => {
+    const { config, issues } = validateConfig({
+      schemaVersion: 1,
+      general: {
+        ...DEFAULT_CONFIG.general,
+        backdrop: {
+          ...DEFAULT_CONFIG.general.backdrop,
+          autoForFull: true,
+          autoForArea: true,
+          autoForWindow: false,
+        },
+      },
+    });
+    expect(config.general.backdrop.autoForFull).toBe(true);
+    expect(config.general.backdrop.autoForArea).toBe(true);
+    expect(config.general.backdrop.autoForWindow).toBe(false);
+    expect(issues.join(" ")).not.toMatch(/backdrop/);
+  });
+
+  it("defaults auto-enable to full/area off, window on", () => {
+    expect(DEFAULT_CONFIG.general.backdrop.autoForFull).toBe(false);
+    expect(DEFAULT_CONFIG.general.backdrop.autoForArea).toBe(false);
+    expect(DEFAULT_CONFIG.general.backdrop.autoForWindow).toBe(true);
+  });
+
   it("drops invalid fields to default and records an issue", () => {
     const { config, issues } = validateConfig({
       schemaVersion: 1,

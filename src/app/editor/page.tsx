@@ -71,12 +71,19 @@ export default function EditorPage() {
     setHasImage(true);
     await useSettings.getState().init();
     const config = useSettings.getState().config;
-    // Seed the padded backdrop: on for window captures (per config), off
-    // otherwise. Runs after resetEditor so it isn't clobbered.
+    // Seed the padded backdrop per capture kind (per config), off for anything
+    // else. Runs after resetEditor so it isn't clobbered.
     useEditor.getState().setCaptureSource(source);
-    useEditor
-      .getState()
-      .setBackdropOn(config.general.backdrop.autoForWindow && source === "window");
+    const bd = config.general.backdrop;
+    const autoBackdrop =
+      source === "full"
+        ? bd.autoForFull
+        : source === "area"
+          ? bd.autoForArea
+          : source === "window"
+            ? bd.autoForWindow
+            : false;
+    useEditor.getState().setBackdropOn(autoBackdrop);
     const pins = config.pins;
     const start =
       pins.continuityMode === "continue"

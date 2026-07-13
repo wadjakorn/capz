@@ -337,6 +337,39 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                 </div>
               </FieldRow>
               <FieldRow
+                label="Auto-add backdrop"
+                hint="Start the padded gradient/solid backdrop on automatically for these capture types. You can still toggle it per image in the editor."
+              >
+                <div className="flex flex-col gap-1.5">
+                  {(
+                    [
+                      ["autoForFull", "Full screen"],
+                      ["autoForArea", "Area"],
+                      ["autoForWindow", "Window"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 text-sm text-foreground"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={config.general.backdrop[key]}
+                        onChange={(e) =>
+                          update("general", {
+                            backdrop: {
+                              ...config.general.backdrop,
+                              [key]: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </FieldRow>
+              <FieldRow
                 label="On editor close/hide"
                 hint="Run an export action when the editor window is closed or Esc-hidden."
               >
