@@ -313,7 +313,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               />
               <FieldRow
                 label="Canvas background"
-                hint="Fills the area around the image when elements overflow its edges. Applies on-screen and in exports."
+                hint="Flush fill shown through transparent images. When elements overflow the image edges, the exposed area uses the backdrop gradient/solid instead. Applies on-screen and in exports."
               >
                 <div className="flex items-center gap-2">
                   <input
