@@ -1,11 +1,53 @@
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
+use crate::services::monitor_service;
 use crate::shortcuts::CaptureKind;
 use crate::windows;
 
 pub fn dispatch_full<R: Runtime>(app: &AppHandle<R>) {
+    // Single-monitor fast path: there is nothing to pick, so grab that one
+    // display straight away instead of popping the "click a screen" overlay
+    // (saves the redundant click). Multi-monitor still shows the picker.
+    //
+    // Only fast-path when no overlay is already up. If an area/window/scroll
+    // selection is in progress, defer to `show_overlay_mode`, which re-focuses
+    // the existing overlay and leaves that in-progress selection intact —
+    // matching the multi-monitor path rather than yanking a full-screen shot
+    // out from under the user.
+    let overlay_open = app
+        .webview_windows()
+        .keys()
+        .any(|label| label.starts_with("overlay-"));
+    match monitor_service::list_monitors() {
+        Ok(mons) if !overlay_open && mons.len() == 1 => {
+            let monitor_id = mons[0].id;
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                capture_single_monitor(app, monitor_id).await;
+            });
+            return;
+        }
+        Ok(_) => {}
+        Err(e) => log::warn!("dispatch_full: list_monitors failed ({e}); showing picker"),
+    }
     if let Err(e) = windows::show_overlay_mode(app, "full") {
         log::error!("show_overlay_mode(full) failed: {e}");
+    }
+}
+
+/// Capture the sole display directly, bypassing the pick-a-screen overlay.
+/// Hides the editor first so a capture launched from it doesn't bake the editor
+/// chrome into the shot — this mirrors the hotkey path's pre-dispatch hide and
+/// also covers the tray entry point, which dispatches without hiding the editor.
+async fn capture_single_monitor<R: Runtime>(app: AppHandle<R>, monitor_id: u32) {
+    if let Err(e) = windows::hide_editor_and_wait(&app).await {
+        log::warn!("hide editor before instant fullscreen: {e}");
+    }
+    if let Err(e) =
+        crate::commands::pickers::capture_full_monitor(app.clone(), monitor_id).await
+    {
+        log::error!("instant fullscreen capture failed: {e}");
+        windows::show_editor_if_hidden(&app);
     }
 }
 
