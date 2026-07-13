@@ -48,12 +48,7 @@ import {
 } from "@/lib/stageBridge";
 import { toast } from "sonner";
 import { effectiveTools, type AppConfig } from "@/lib/config";
-import {
-  colorStops,
-  gradientPoints,
-  paddedBox,
-  resolveGradient,
-} from "@/lib/backdrop";
+import { canvasFill, paddedBox } from "@/lib/backdrop";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
 import {
@@ -603,6 +598,9 @@ export function EditorStage({ src }: Props) {
   const backdropShadowBlur = Math.round(backdropPad * 0.5);
   const backdropShadowOffsetY = Math.round(backdropPad * 0.15);
   const [contentBox, setContentBox] = useState<AABB>({ x: 0, y: 0, w: 0, h: 0 });
+  // True when any element extends past the image edges (padding excluded), so
+  // the exposed band follows the backdrop rather than the flush canvas color.
+  const [hasOverflow, setHasOverflow] = useState(false);
   // Bumped when an element's rendered size changes without an `annotations`
   // change — currently only an image sticker whose bitmap loads asynchronously.
   // Stable identity so it can sit in child effect deps without re-firing.
@@ -636,11 +634,19 @@ export function EditorStage({ src }: Props) {
         if (est) boxes.push(est);
       }
     }
+    // Bounds before the backdrop padding is folded in — used to detect whether
+    // any element actually overflows the image (padding alone is not overflow).
+    const raw = contentBounds(imgW, imgH, boxes);
+    setHasOverflow((prev) => {
+      const overflow =
+        raw.x !== 0 || raw.y !== 0 || raw.w !== imgW || raw.h !== imgH;
+      return prev === overflow ? prev : overflow;
+    });
     // Fold the backdrop padding into the content box: it grows the frame
     // uniformly around the image + any overflow, exactly like a symmetric
     // overflow, so the background Rect, export box, stage size and every
     // overlay origin (all keyed off contentBox) expand together.
-    const next = paddedBox(contentBounds(imgW, imgH, boxes), backdropPad);
+    const next = paddedBox(raw, backdropPad);
     setContentBox((prev) =>
       prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h
         ? prev
@@ -677,44 +683,30 @@ export function EditorStage({ src }: Props) {
   // frame contentBox becomes non-zero.
   const backdropRender = backdropOn && stageW > 0 && stageH > 0;
 
-  // Background fill for the canvas Rect: a gradient/solid backdrop when enabled,
-  // else the flush canvas color. All gradient keys are always present (undefined
-  // when unused) so react-konva clears stale gradient props on style switch.
-  const bgFill = useMemo(() => {
-    const base: {
-      fill?: string;
-      fillLinearGradientStartPoint?: { x: number; y: number };
-      fillLinearGradientEndPoint?: { x: number; y: number };
-      fillLinearGradientColorStops?: Array<number | string>;
-    } = {
-      fill: undefined,
-      fillLinearGradientStartPoint: undefined,
-      fillLinearGradientEndPoint: undefined,
-      fillLinearGradientColorStops: undefined,
-    };
-    if (backdropOn && backdrop.style === "gradient") {
-      const g = resolveGradient(backdrop.presetId);
-      const { start, end } = gradientPoints(contentBox.w, contentBox.h, g.angle);
-      return {
-        ...base,
-        fillLinearGradientStartPoint: start,
-        fillLinearGradientEndPoint: end,
-        fillLinearGradientColorStops: colorStops(g.colors),
-      };
-    }
-    if (backdropOn && backdrop.style === "solid") {
-      return { ...base, fill: backdrop.solidColor };
-    }
-    return { ...base, fill: canvasBg };
-  }, [
-    backdropOn,
-    backdrop.style,
-    backdrop.presetId,
-    backdrop.solidColor,
-    canvasBg,
-    contentBox.w,
-    contentBox.h,
-  ]);
+  // Background fill for the canvas Rect. The exposed band (padded frame or an
+  // overflow region around the image) follows the gradient/solid backdrop
+  // whenever the frame is on OR an element overflows — so overflow no longer
+  // falls back to a hard white `canvasBg`. With the backdrop off and nothing
+  // overflowing, the Rect matches the image exactly, so the flush color only
+  // shows through transparent images.
+  const bgFill = useMemo(
+    () =>
+      canvasFill(
+        backdrop,
+        contentBox.w,
+        contentBox.h,
+        canvasBg,
+        backdropOn || hasOverflow ? "backdrop" : "flush",
+      ),
+    [
+      backdrop,
+      backdropOn,
+      hasOverflow,
+      canvasBg,
+      contentBox.w,
+      contentBox.h,
+    ],
+  );
 
   const padX = Math.max(MIN_PADDING, container.w);
   const padY = Math.max(MIN_PADDING, container.h);
@@ -1264,6 +1256,20 @@ export function EditorStage({ src }: Props) {
               {...bgFill}
               listening={false}
             />
+            {/* With the padded frame off, the backdrop fill is only meant for the
+                overflow band — so restore the flush canvas color behind the image
+                itself, otherwise a transparent capture would show the backdrop
+                through its interior once anything overflows. */}
+            {!backdropOn && hasOverflow && (
+              <Rect
+                x={0}
+                y={0}
+                width={imgW}
+                height={imgH}
+                fill={canvasBg}
+                listening={false}
+              />
+            )}
             <KonvaImage
               image={image}
               width={imgW}

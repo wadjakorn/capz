@@ -91,3 +91,61 @@ export function gradientPoints(
     end: { x: cx + dx * half, y: cy + dy * half },
   };
 }
+
+/** Konva fill props for a Rect — a gradient set OR a flat `fill`, never both. */
+export type CanvasFill = {
+  fill?: string;
+  fillLinearGradientStartPoint?: { x: number; y: number };
+  fillLinearGradientEndPoint?: { x: number; y: number };
+  fillLinearGradientColorStops?: Array<number | string>;
+};
+
+/** Backdrop appearance fields needed to paint the canvas background. */
+export type BackdropFill = {
+  style: BackdropStyle;
+  presetId: string;
+  solidColor: string;
+};
+
+/**
+ * Konva fill props for the editor's canvas-background Rect.
+ *
+ * `mode` decides what the exposed area (padding frame + any overflow band
+ * around the image) is filled with:
+ *  - `"backdrop"` — the configured gradient/solid backdrop. Used whenever the
+ *    padded frame is on OR an element overflows the image, so the exposed band
+ *    follows the beautifier background instead of a hard fallback color.
+ *  - `"flush"` — the plain `canvasColor` (used behind transparent images when
+ *    the backdrop is off and nothing overflows).
+ *
+ * All gradient keys are always present (undefined when unused) so react-konva
+ * clears stale gradient props when switching style/mode on the same node.
+ */
+export function canvasFill(
+  backdrop: BackdropFill,
+  boxW: number,
+  boxH: number,
+  canvasColor: string,
+  mode: "backdrop" | "flush",
+): CanvasFill {
+  const base: CanvasFill = {
+    fill: undefined,
+    fillLinearGradientStartPoint: undefined,
+    fillLinearGradientEndPoint: undefined,
+    fillLinearGradientColorStops: undefined,
+  };
+  if (mode === "backdrop" && backdrop.style === "gradient") {
+    const g = resolveGradient(backdrop.presetId);
+    const { start, end } = gradientPoints(boxW, boxH, g.angle);
+    return {
+      ...base,
+      fillLinearGradientStartPoint: start,
+      fillLinearGradientEndPoint: end,
+      fillLinearGradientColorStops: colorStops(g.colors),
+    };
+  }
+  if (mode === "backdrop" && backdrop.style === "solid") {
+    return { ...base, fill: backdrop.solidColor };
+  }
+  return { ...base, fill: canvasColor };
+}

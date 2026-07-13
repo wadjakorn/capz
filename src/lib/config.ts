@@ -72,6 +72,10 @@ export type AppConfig = {
       cornerRadius: number;
       /** Drop shadow under the floated capture. */
       shadow: boolean;
+      /** Auto-enable the backdrop for full-screen captures. */
+      autoForFull: boolean;
+      /** Auto-enable the backdrop for area captures. */
+      autoForArea: boolean;
       /** Auto-enable the backdrop for window captures. */
       autoForWindow: boolean;
     };
@@ -236,6 +240,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       padding: 64,
       cornerRadius: 12,
       shadow: true,
+      autoForFull: false,
+      autoForArea: false,
       autoForWindow: true,
     },
   },
@@ -439,6 +445,8 @@ function vGeneral(
       padding: isNum,
       cornerRadius: isNum,
       shadow: isBool,
+      autoForFull: isBool,
+      autoForArea: isBool,
       autoForWindow: isBool,
     },
     issues,

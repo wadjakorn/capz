@@ -313,7 +313,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               />
               <FieldRow
                 label="Canvas background"
-                hint="Fills the area around the image when elements overflow its edges. Applies on-screen and in exports."
+                hint="Flush fill shown through transparent images. When elements overflow the image edges, the exposed area uses the backdrop gradient/solid instead. Applies on-screen and in exports."
               >
                 <div className="flex items-center gap-2">
                   <input
@@ -334,6 +334,39 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   >
                     Reset
                   </button>
+                </div>
+              </FieldRow>
+              <FieldRow
+                label="Auto-add backdrop"
+                hint="Start the padded gradient/solid backdrop on automatically for these capture types. You can still toggle it per image in the editor."
+              >
+                <div className="flex flex-col gap-1.5">
+                  {(
+                    [
+                      ["autoForFull", "Full screen"],
+                      ["autoForArea", "Area"],
+                      ["autoForWindow", "Window"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 text-sm text-foreground"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={config.general.backdrop[key]}
+                        onChange={(e) =>
+                          update("general", {
+                            backdrop: {
+                              ...config.general.backdrop,
+                              [key]: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
                 </div>
               </FieldRow>
               <FieldRow

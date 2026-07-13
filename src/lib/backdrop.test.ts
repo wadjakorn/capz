@@ -6,6 +6,8 @@ import {
   paddedBox,
   colorStops,
   gradientPoints,
+  canvasFill,
+  type BackdropFill,
 } from "./backdrop";
 
 describe("resolveGradient", () => {
@@ -78,5 +80,48 @@ describe("gradientPoints", () => {
     expect(start.y).toBeCloseTo(0);
     expect(end.x).toBeCloseTo(0);
     expect(end.y).toBeCloseTo(100);
+  });
+});
+
+describe("canvasFill", () => {
+  const gradientBackdrop: BackdropFill = {
+    style: "gradient",
+    presetId: "slate",
+    solidColor: "#1b1f2a",
+  };
+  const solidBackdrop: BackdropFill = {
+    style: "solid",
+    presetId: "slate",
+    solidColor: "#123456",
+  };
+
+  it("paints the gradient backdrop in backdrop mode", () => {
+    const f = canvasFill(gradientBackdrop, 200, 100, "#ffffff", "backdrop");
+    const g = resolveGradient("slate");
+    expect(f.fill).toBeUndefined();
+    expect(f.fillLinearGradientColorStops).toEqual(colorStops(g.colors));
+    expect(f.fillLinearGradientStartPoint).toBeDefined();
+    expect(f.fillLinearGradientEndPoint).toBeDefined();
+  });
+
+  it("paints the solid backdrop color in backdrop mode", () => {
+    const f = canvasFill(solidBackdrop, 200, 100, "#ffffff", "backdrop");
+    expect(f.fill).toBe("#123456");
+    expect(f.fillLinearGradientColorStops).toBeUndefined();
+  });
+
+  it("uses the flush canvas color in flush mode regardless of style", () => {
+    const g = canvasFill(gradientBackdrop, 200, 100, "#eeeeee", "flush");
+    expect(g.fill).toBe("#eeeeee");
+    expect(g.fillLinearGradientColorStops).toBeUndefined();
+    const s = canvasFill(solidBackdrop, 200, 100, "#eeeeee", "flush");
+    expect(s.fill).toBe("#eeeeee");
+  });
+
+  it("keeps every gradient key present so react-konva clears stale props", () => {
+    const f = canvasFill(solidBackdrop, 10, 10, "#fff", "backdrop");
+    expect("fillLinearGradientStartPoint" in f).toBe(true);
+    expect("fillLinearGradientEndPoint" in f).toBe(true);
+    expect("fillLinearGradientColorStops" in f).toBe(true);
   });
 });
