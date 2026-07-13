@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::services::monitor_service;
 use crate::shortcuts::CaptureKind;
@@ -8,8 +8,18 @@ pub fn dispatch_full<R: Runtime>(app: &AppHandle<R>) {
     // Single-monitor fast path: there is nothing to pick, so grab that one
     // display straight away instead of popping the "click a screen" overlay
     // (saves the redundant click). Multi-monitor still shows the picker.
+    //
+    // Only fast-path when no overlay is already up. If an area/window/scroll
+    // selection is in progress, defer to `show_overlay_mode`, which re-focuses
+    // the existing overlay and leaves that in-progress selection intact —
+    // matching the multi-monitor path rather than yanking a full-screen shot
+    // out from under the user.
+    let overlay_open = app
+        .webview_windows()
+        .keys()
+        .any(|label| label.starts_with("overlay-"));
     match monitor_service::list_monitors() {
-        Ok(mons) if mons.len() == 1 => {
+        Ok(mons) if !overlay_open && mons.len() == 1 => {
             let monitor_id = mons[0].id;
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
