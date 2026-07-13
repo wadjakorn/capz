@@ -1256,6 +1256,20 @@ export function EditorStage({ src }: Props) {
               {...bgFill}
               listening={false}
             />
+            {/* With the padded frame off, the backdrop fill is only meant for the
+                overflow band — so restore the flush canvas color behind the image
+                itself, otherwise a transparent capture would show the backdrop
+                through its interior once anything overflows. */}
+            {!backdropOn && hasOverflow && (
+              <Rect
+                x={0}
+                y={0}
+                width={imgW}
+                height={imgH}
+                fill={canvasBg}
+                listening={false}
+              />
+            )}
             <KonvaImage
               image={image}
               width={imgW}
