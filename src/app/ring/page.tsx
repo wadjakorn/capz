@@ -73,9 +73,12 @@ export default function CommandRingPage() {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  // Grab focus so Esc and focus-loss both work without a click first.
+  // Grab focus so Esc and focus-loss both work without a click first. Best
+  // effort from JS: the window is already focused by Rust (show_command_ring),
+  // and no capability grants JS set-focus — so swallow the rejection exactly
+  // like the area overlay does, rather than surfacing it as a runtime error.
   useEffect(() => {
-    void getCurrentWindow().setFocus();
+    getCurrentWindow().setFocus().catch(() => {});
     let disposed = false;
     // Close when focus is lost (clicked another app, or hotkey toggled). Guarded
     // by a short grace window so the initial setFocus round-trip can't self-close.
