@@ -136,6 +136,7 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           strokeColor: a.stroke,
           strokeWidth: a.strokeWidth,
           sourceStrokeWidth: a.sourceStrokeWidth,
+          borderLinked: a.borderLinked,
           shape: a.shape,
           zoom: a.zoom,
           areaOpacity: a.areaOpacity,
@@ -1077,6 +1078,7 @@ export function EditorStage({ src }: Props) {
         stroke: toolsCfg.magnify.strokeColor,
         strokeWidth: toolsCfg.magnify.strokeWidth,
         sourceStrokeWidth: toolsCfg.magnify.sourceStrokeWidth,
+        borderLinked: toolsCfg.magnify.borderLinked,
         areaOpacity: toolsCfg.magnify.areaOpacity,
         linkDash: toolsCfg.magnify.linkDash,
       };
