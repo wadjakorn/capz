@@ -26,6 +26,8 @@ export type AppConfig = {
     captureFull: string;
     captureArea: string;
     captureWindow: string;
+    /** Scrolling capture — may be "" (unbound; no default key). */
+    captureScroll: string;
     showEditor: string;
   };
   output: {
@@ -204,6 +206,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureFull: "CmdOrCtrl+Alt+Shift+3",
     captureArea: "CmdOrCtrl+Alt+Shift+4",
     captureWindow: "CmdOrCtrl+Alt+Shift+5",
+    captureScroll: "",
     showEditor: "CmdOrCtrl+Alt+Shift+0",
   },
   output: {
@@ -345,6 +348,10 @@ const isNum: Validator = (v) => typeof v === "number" && Number.isFinite(v);
 const isStrOrNull: Validator = (v) => v === null || typeof v === "string";
 const isValidAccelerator: Validator = (v) =>
   typeof v === "string" && validateAccelerator(v).ok;
+// Same, but an empty string is allowed — used for hotkeys that may be unbound
+// (e.g. scrolling capture ships with no default key).
+const isValidOrEmptyAccelerator: Validator = (v) =>
+  v === "" || (typeof v === "string" && validateAccelerator(v).ok);
 const isNumOrNull: Validator = (v) =>
   v === null || (typeof v === "number" && Number.isFinite(v));
 const inSet =
@@ -635,6 +642,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       captureFull: isValidAccelerator,
       captureArea: isValidAccelerator,
       captureWindow: isValidAccelerator,
+      captureScroll: isValidOrEmptyAccelerator,
       showEditor: isValidAccelerator,
     }, issues),
     output: vsec("output", r.output, d.output, {

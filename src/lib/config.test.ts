@@ -65,6 +65,23 @@ describe("validateConfig hotkeys", () => {
     expect(config.hotkeys.captureFull).toBe(DEFAULT_CONFIG.hotkeys.captureFull);
     expect(issues.some((i) => i.includes("hotkeys.captureFull"))).toBe(true);
   });
+
+  it("accepts an empty captureScroll (unbound) without an issue", () => {
+    const { config, issues } = validateConfig({
+      schemaVersion: 1,
+      hotkeys: { ...DEFAULT_CONFIG.hotkeys, captureScroll: "" },
+    });
+    expect(config.hotkeys.captureScroll).toBe("");
+    expect(issues.join(" ")).not.toMatch(/captureScroll/);
+  });
+
+  it("keeps a valid captureScroll binding", () => {
+    const { config } = validateConfig({
+      schemaVersion: 1,
+      hotkeys: { ...DEFAULT_CONFIG.hotkeys, captureScroll: "CmdOrCtrl+Alt+Shift+6" },
+    });
+    expect(config.hotkeys.captureScroll).toBe("CmdOrCtrl+Alt+Shift+6");
+  });
 });
 
 describe("validateConfig general.backdrop", () => {
