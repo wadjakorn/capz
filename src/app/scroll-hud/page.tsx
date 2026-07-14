@@ -185,10 +185,10 @@ export default function ScrollHudPage() {
               }}
             />
             <div className="flex min-w-0 flex-1 flex-col" role="status" aria-live="polite">
-              <span className="text-[12px] font-semibold tracking-wide text-white/90">
+              <span className="truncate text-[12px] font-semibold tracking-wide text-white/90">
                 Processing capture…
               </span>
-              <span className="text-[11px] text-white/60">
+              <span className="truncate text-[11px] text-white/60">
                 Stitching {progress.height}px · opening editor
               </span>
             </div>
@@ -196,7 +196,10 @@ export default function ScrollHudPage() {
         ) : (
           <>
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[12px] font-semibold tracking-wide text-white/90">
+              {/* truncate (not wrap): the buttons are shrink-0, so a narrow pill
+                  must ellipsize this title rather than wrap it to a second line
+                  and push the bar past the HUD window height. */}
+              <span className="truncate text-[12px] font-semibold tracking-wide text-white/90">
                 Scrolling capture
               </span>
               <span className="truncate text-[11px] text-white/60">
@@ -219,7 +222,7 @@ export default function ScrollHudPage() {
                   type="button"
                   onClick={cancel}
                   disabled={busy}
-                  className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
+                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
                   style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
                 >
                   Cancel
@@ -228,7 +231,7 @@ export default function ScrollHudPage() {
                   type="button"
                   onClick={startAuto}
                   disabled={busy}
-                  className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-50"
+                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-50"
                   style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
                   title="Let capz scroll the page automatically to the bottom"
                 >
@@ -240,7 +243,7 @@ export default function ScrollHudPage() {
               type="button"
               onClick={finish}
               disabled={busy}
-              className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
             >
               Capture
