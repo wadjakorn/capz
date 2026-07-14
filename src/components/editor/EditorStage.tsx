@@ -577,21 +577,6 @@ export function EditorStage({ src }: Props) {
     return () => clearStageImageSize();
   }, [imgW, imgH]);
 
-  // First-load fit: when an image becomes available and the container has a
-  // measurable size, derive an initial scale via zoomFit if the user hasn't
-  // zoomed yet (displayScale === 0 sentinel).
-  useEffect(() => {
-    if (!imgW || !imgH) return;
-    if (container.w <= 0 || container.h <= 0) return;
-    if (displayScale !== 0) return;
-    zoomFit({
-      vw: Math.max(container.w - FIT_INSET * 2, 1),
-      vh: Math.max(container.h - FIT_INSET * 2, 1),
-      iw: imgW,
-      ih: imgH,
-    });
-  }, [imgW, imgH, container.w, container.h, displayScale, zoomFit]);
-
   // Canvas grows to the union of the image rect and any element that overflows
   // its edges; the origin goes negative for top/left overflow. With no overflow
   // this equals the image rect, so nothing about the default view changes.
@@ -679,6 +664,23 @@ export function EditorStage({ src }: Props) {
     }
     return () => setStageExportBox(null);
   }, [contentBox]);
+
+  // First-load / resize fit: when the content box and container both have a
+  // measurable size and the user hasn't zoomed (displayScale === 0 sentinel),
+  // derive an initial scale via zoomFit. Fit the full content box (image + any
+  // overflowing elements + backdrop padding), not the raw image rect, so an
+  // expanded canvas isn't clipped after a fit — matches what the stage renders.
+  useEffect(() => {
+    if (contentBox.w <= 0 || contentBox.h <= 0) return;
+    if (container.w <= 0 || container.h <= 0) return;
+    if (displayScale !== 0) return;
+    zoomFit({
+      vw: Math.max(container.w - FIT_INSET * 2, 1),
+      vh: Math.max(container.h - FIT_INSET * 2, 1),
+      iw: contentBox.w,
+      ih: contentBox.h,
+    });
+  }, [contentBox.w, contentBox.h, container.w, container.h, displayScale, zoomFit]);
 
   const scale = displayScale > 0 ? displayScale : 1;
   const stageW = contentBox.w * scale;

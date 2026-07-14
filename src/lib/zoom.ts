@@ -2,6 +2,7 @@ import { clampZoom, useEditor } from "@/stores/editor";
 import {
   getScrollContainer,
   getStage,
+  getStageExportBox,
   getStageImageSize,
 } from "@/lib/stageBridge";
 
@@ -77,8 +78,13 @@ function recenterScroll() {
 
 export function zoomToFit() {
   const el = getScrollContainer();
-  const size = getStageImageSize();
-  if (!el || !size) return;
+  if (!el) return;
+  // Fit the full rendered canvas — image plus any overflowing elements and the
+  // backdrop padding (the export box) — not just the raw image rect, so nothing
+  // that extends past the image edges gets clipped after a fit.
+  const box = getStageExportBox();
+  const size = box ? { w: box.w, h: box.h } : getStageImageSize();
+  if (!size) return;
   useEditor.getState().zoomFit({
     vw: el.clientWidth,
     vh: el.clientHeight,
