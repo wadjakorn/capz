@@ -14,8 +14,14 @@ import {
 /** Fraction of the half-min-dimension used for the outer ring / dead-zone. */
 const OUTER_FRAC = 0.9;
 const INNER_FRAC = 0.46;
+/** Visible center-button disc as a fraction of the inner (dead-zone) radius. */
+const CENTER_FRAC = 0.8;
 /** Wedge boundary angles (the diagonals), where the radial separators sit. */
 const DIVIDERS = [45, 135, 225, 315];
+
+/** What the cursor is over: a capture wedge, the center editor button, or
+ *  nothing (outside the ring → dismiss). */
+type Target = RingWedge | "center";
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -46,7 +52,7 @@ function closeRing() {
 export default function CommandRingPage() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [hover, setHover] = useState<RingWedge | null>(null);
+  const [hover, setHover] = useState<Target | null>(null);
   const selectedRef = useRef(false);
 
   // The ring window is transparent — clear the opaque app background so only
@@ -110,39 +116,48 @@ export default function CommandRingPage() {
   const half = Math.min(size.w, size.h) / 2;
   const rOuter = half * OUTER_FRAC;
   const rInner = half * INNER_FRAC;
+  const rCenter = rInner * CENTER_FRAC;
   const rLabel = (rInner + rOuter) / 2;
 
-  const wedgeFor = useCallback(
-    (px: number, py: number): RingWedge | null => {
-      const w = wedgeAtPoint(px, py, cx, cy, rInner);
-      if (!w) return null;
-      // Only within the ring band counts; outside the outer edge = "no wedge".
-      if (Math.hypot(px - cx, py - cy) > rOuter) return null;
-      return w;
+  // Center (dead-zone) → editor button; ring band → capture wedge; beyond the
+  // outer edge → null (dismiss). The whole inner circle is the editor hit-area,
+  // not just the visible disc, so clicks near the center never fall through.
+  const targetAt = useCallback(
+    (px: number, py: number): Target | null => {
+      const d = Math.hypot(px - cx, py - cy);
+      if (d < rInner) return "center";
+      if (d <= rOuter) return wedgeAtPoint(px, py, cx, cy, rInner);
+      return null;
     },
     [cx, cy, rInner, rOuter],
   );
 
   const onMove = useCallback(
-    (e: React.PointerEvent) => setHover(wedgeFor(e.clientX, e.clientY)),
-    [wedgeFor],
+    (e: React.PointerEvent) => setHover(targetAt(e.clientX, e.clientY)),
+    [targetAt],
   );
 
   const onDown = useCallback(
     (e: React.PointerEvent) => {
-      const w = wedgeFor(e.clientX, e.clientY);
-      if (!w) {
-        // Click in the dead-zone or outside the ring dismisses it.
+      const t = targetAt(e.clientX, e.clientY);
+      if (t === null) {
+        // Click outside the ring dismisses it.
         closeRing();
         return;
       }
       if (selectedRef.current) return;
       selectedRef.current = true;
-      invoke("command_ring_select", { kind: w }).catch((err) =>
-        console.error("command_ring_select failed", err),
-      );
+      if (t === "center") {
+        invoke("command_ring_editor").catch((err) =>
+          console.error("command_ring_editor failed", err),
+        );
+      } else {
+        invoke("command_ring_select", { kind: t }).catch((err) =>
+          console.error("command_ring_select failed", err),
+        );
+      }
     },
-    [wedgeFor],
+    [targetAt],
   );
 
   const ready = size.w > 0 && size.h > 0;
@@ -158,33 +173,35 @@ export default function CommandRingPage() {
     >
       {ready && (
         <svg width={size.w} height={size.h} className="absolute inset-0">
-          {/* Floating backdrop disc — fully opaque (no see-through to the
-              desktop). The window outside this disc stays transparent so the
-              ring reads as a floating circle. */}
+          {/* Floating backdrop disc — opaque surface token (no see-through to
+              the desktop), theme-aware. The window outside this disc stays
+              transparent so the ring reads as a floating circle. Colors go
+              through `style` because CSS var() does not resolve inside SVG
+              presentation attributes. */}
           <circle
             cx={cx}
             cy={cy}
             r={rOuter + 12}
-            fill="#17171c"
-            stroke="rgba(255,255,255,0.14)"
             strokeWidth={1}
-            style={{ filter: "drop-shadow(0 10px 30px rgba(0,0,0,0.55))" }}
+            style={{
+              fill: "var(--surface-overlay)",
+              stroke: "var(--border-strong)",
+              filter: "drop-shadow(0 10px 30px rgba(0,0,0,0.45))",
+            }}
           />
 
-          {/* Hovered wedge highlight (accent tokens, as literals — CSS vars do
-              not resolve inside SVG presentation attributes) */}
-          {hover && (
+          {/* Hovered wedge highlight */}
+          {hover && hover !== "center" && (
             <path
               d={wedgePath(cx, cy, rInner, rOuter, (RING_ANGLE[hover] * 180) / Math.PI)}
-              fill="rgba(109,124,255,0.30)"
-              stroke="#6d7cff"
               strokeWidth={1.5}
+              style={{ fill: "var(--accent-soft)", stroke: "var(--accent)" }}
             />
           )}
 
           {/* Concentric ring outlines */}
-          <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth={1.25} />
-          <circle cx={cx} cy={cy} r={rInner} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth={1.25} />
+          <circle cx={cx} cy={cy} r={rOuter} strokeWidth={1.25} style={{ fill: "none", stroke: "var(--border-strong)" }} />
+          <circle cx={cx} cy={cy} r={rInner} strokeWidth={1.25} style={{ fill: "none", stroke: "var(--border-strong)" }} />
 
           {/* Radial separators at the wedge boundaries */}
           {DIVIDERS.map((deg) => {
@@ -197,8 +214,8 @@ export default function CommandRingPage() {
                 y1={y0}
                 x2={x1}
                 y2={y1}
-                stroke="rgba(255,255,255,0.22)"
                 strokeWidth={1.25}
+                style={{ stroke: "var(--border-strong)" }}
               />
             );
           })}
@@ -215,13 +232,51 @@ export default function CommandRingPage() {
                 dominantBaseline="central"
                 fontSize={Math.max(13, half * 0.115)}
                 fontWeight={600}
-                fill={hover === w ? "#ffffff" : "rgba(236,237,240,0.92)"}
-                style={{ pointerEvents: "none" }}
+                style={{
+                  fill: hover === w ? "var(--accent)" : "var(--fg)",
+                  pointerEvents: "none",
+                }}
               >
                 {RING_LABELS[w]}
               </text>
             );
           })}
+
+          {/* Center button → open / refocus the editor */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={rCenter}
+            strokeWidth={1.25}
+            style={{
+              fill: hover === "center" ? "var(--accent-soft)" : "var(--surface-overlay)",
+              stroke: hover === "center" ? "var(--accent)" : "var(--border-strong)",
+            }}
+          />
+          {(() => {
+            const icon = rCenter * 1.15;
+            return (
+              <svg
+                x={cx - icon / 2}
+                y={cy - icon / 2}
+                width={icon}
+                height={icon}
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  stroke: hover === "center" ? "var(--accent)" : "var(--fg)",
+                  pointerEvents: "none",
+                }}
+              >
+                {/* lucide "square-pen" */}
+                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" />
+              </svg>
+            );
+          })()}
         </svg>
       )}
     </div>

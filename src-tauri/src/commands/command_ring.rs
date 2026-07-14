@@ -22,6 +22,20 @@ pub async fn command_ring_select<R: Runtime>(
     crate::capture_dispatch::trigger_capture(app, parsed).await
 }
 
+/// The center button was clicked: close the ring, then open/refocus the editor
+/// (same entry point as the Show-editor hotkey / tray item).
+#[tauri::command]
+pub fn command_ring_editor<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    windows::close_command_ring(&app);
+    let app2 = app.clone();
+    app.run_on_main_thread(move || {
+        if let Err(e) = windows::show_editor(&app2) {
+            log::error!("command ring: show_editor failed: {e}");
+        }
+    })
+    .map_err(|e| e.to_string())
+}
+
 /// Dismiss the ring without capturing (Esc / blur / click outside the ring).
 #[tauri::command]
 pub fn close_command_ring<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {

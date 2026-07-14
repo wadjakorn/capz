@@ -146,6 +146,7 @@ pub fn run() {
             commands::scroll::scroll_capture_auto_stop_command,
             commands::overlay::close_overlay_command,
             commands::command_ring::command_ring_select,
+            commands::command_ring::command_ring_editor,
             commands::command_ring::close_command_ring,
             commands::editor::editor_current_image,
             commands::editor::open_editor,
