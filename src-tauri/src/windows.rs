@@ -755,9 +755,11 @@ pub const SCROLL_GUIDE_LABEL: &str = "scroll-guide";
 /// `src/app/scroll-guide/page.tsx`).
 const GUIDE_BORDER: f64 = 2.0;
 
-/// Logical size of the HUD pill.
-const HUD_W: f64 = 380.0;
-const HUD_H: f64 = 76.0;
+/// Logical size of the HUD pill. Width fits the title + Cancel/Auto-scroll/
+/// Capture on one row; height leaves vertical slack so the pill (~61px) centers
+/// without its drop-shadow being clipped by the window edge.
+const HUD_W: f64 = 408.0;
+const HUD_H: f64 = 84.0;
 /// Gap between the HUD and the nearest edge of the capture region / display
 /// (logical px).
 const HUD_BOTTOM_MARGIN: f64 = 48.0;

@@ -14,9 +14,11 @@ import {
 type Props = {
   value: string;
   onChange: (accel: string) => void;
+  /** Show a Clear button to unbind the shortcut (empty string). */
+  clearable?: boolean;
 };
 
-export function HotkeyRecorder({ value, onChange }: Props) {
+export function HotkeyRecorder({ value, onChange, clearable = false }: Props) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
@@ -94,26 +96,45 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     ref.current?.blur();
   }
 
-  const display = recording ? "Press keys…" : formatShortcut(value) || "Click to record";
+  const display = recording
+    ? "Press keys…"
+    : formatShortcut(value) || (clearable ? "Click to set" : "Click to record");
 
   return (
     <div className="flex flex-col gap-1">
-      <Input
-        ref={ref}
-        readOnly
-        value={display}
-        onFocus={() => {
-          setRecording(true);
-          setError(null);
-          void suspend();
-        }}
-        onBlur={() => {
-          setRecording(false);
-          void resume();
-        }}
-        onKeyDown={(e) => void handleKey(e)}
-        className="font-mono cursor-pointer"
-      />
+      <div className="flex items-center gap-2">
+        <Input
+          ref={ref}
+          readOnly
+          value={display}
+          onFocus={() => {
+            setRecording(true);
+            setError(null);
+            void suspend();
+          }}
+          onBlur={() => {
+            setRecording(false);
+            void resume();
+          }}
+          onKeyDown={(e) => void handleKey(e)}
+          className="font-mono cursor-pointer"
+        />
+        {clearable && value && (
+          <button
+            type="button"
+            // Prevent the input's blur/record cycle from swallowing the click.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setError(null);
+              onChange("");
+            }}
+            className="shrink-0 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            title="Remove this shortcut"
+          >
+            Clear
+          </button>
+        )}
+      </div>
       {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );

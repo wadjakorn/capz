@@ -12,6 +12,7 @@ export type HotkeyAction =
   | "captureFull"
   | "captureArea"
   | "captureWindow"
+  | "captureScroll"
   | "showEditor"
   | "commandRing";
 export type RegoResult = {

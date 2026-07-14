@@ -49,6 +49,10 @@ export default function ScrollHudPage() {
   // Transient status line; cleared a few seconds after it last changed.
   const [note, setNote] = useState<string | null>(null);
   const noteTimer = useRef<number | null>(null);
+  // Synchronous guard so a commit can't be kicked off twice within one click
+  // (e.g. a button's onClick plus the pill's bubble handler, or Enter+click).
+  // The `busy`/`finishing` state flags update async and don't protect that.
+  const committing = useRef(false);
 
   useEffect(() => {
     const prevBody = document.body.style.background;
@@ -82,21 +86,24 @@ export default function ScrollHudPage() {
   const finish = useCallback(() => {
     // Ignore once finishing — including a backend-driven auto-finish, whose
     // spinner is already up — so a stray Enter can't kick off a second finish
-    // and flip the spinner back off mid-encode.
-    if (busy || finishing) return;
+    // and flip the spinner back off mid-encode. `committing` also blocks a
+    // duplicate within the same click tick (state flags update async).
+    if (busy || finishing || committing.current) return;
+    committing.current = true;
     setBusy(true);
     setFinishing(true);
     invoke("scroll_capture_finish_command").catch((e) => {
       console.error("scroll_capture_finish_command failed", e);
       // Re-enable so the user can retry/cancel if finishing failed; on success
       // the backend closes this window, so this state is never seen.
+      committing.current = false;
       setBusy(false);
       setFinishing(false);
     });
   }, [busy, finishing]);
 
   const cancel = useCallback(() => {
-    if (busy || finishing) return;
+    if (busy || finishing || committing.current) return;
     setBusy(true);
     invoke("scroll_capture_cancel_command").catch((e) => {
       console.error("scroll_capture_cancel_command failed", e);
@@ -133,14 +140,6 @@ export default function ScrollHudPage() {
     });
   }, [busy, finishing]);
 
-  const stopAuto = useCallback(() => {
-    if (busy || finishing) return;
-    setAuto(false);
-    invoke("scroll_capture_auto_stop_command").catch((e) =>
-      console.error("scroll_capture_auto_stop_command failed", e),
-    );
-  }, [busy, finishing]);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
@@ -148,16 +147,26 @@ export default function ScrollHudPage() {
         finish();
       } else if (e.key === "Escape") {
         e.preventDefault();
-        cancel();
+        // While auto-scrolling capz drives the target's scroll, so the user
+        // can't reliably aim the mouse — make ESC (like Enter/any click) stop
+        // and commit rather than discard. In manual mode ESC still cancels.
+        if (auto) finish();
+        else cancel();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [finish, cancel]);
+  }, [finish, cancel, auto]);
+
+  // During auto-scroll any click on the pill commits (see ESC note above).
+  const onPillClick = useCallback(() => {
+    if (auto) finish();
+  }, [auto, finish]);
 
   return (
     <div className="flex h-screen w-screen items-center justify-center select-none" style={{ background: "transparent" }}>
       <div
+        onClick={onPillClick}
         className="flex w-full items-center gap-3 rounded-2xl px-4 py-3"
         style={{
           background: "var(--surface-overlay)",
@@ -176,10 +185,10 @@ export default function ScrollHudPage() {
               }}
             />
             <div className="flex min-w-0 flex-1 flex-col" role="status" aria-live="polite">
-              <span className="text-[12px] font-semibold tracking-wide text-white/90">
+              <span className="truncate text-[12px] font-semibold tracking-wide text-white/90">
                 Processing capture…
               </span>
-              <span className="text-[11px] text-white/60">
+              <span className="truncate text-[11px] text-white/60">
                 Stitching {progress.height}px · opening editor
               </span>
             </div>
@@ -187,7 +196,10 @@ export default function ScrollHudPage() {
         ) : (
           <>
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[12px] font-semibold tracking-wide text-white/90">
+              {/* truncate (not wrap): the buttons are shrink-0, so a narrow pill
+                  must ellipsize this title rather than wrap it to a second line
+                  and push the bar past the HUD window height. */}
+              <span className="truncate text-[12px] font-semibold tracking-wide text-white/90">
                 Scrolling capture
               </span>
               <span className="truncate text-[11px] text-white/60">
@@ -197,31 +209,20 @@ export default function ScrollHudPage() {
                   <>
                     {/* Down-only: the stitcher models downward scroll; scrolling back up
                         duplicates content (see services/stitch.rs). */}
-                    {auto ? "Auto-scrolling" : "Scroll down"} · {progress.height}px ·{" "}
+                    {auto ? "Auto-scrolling · Enter/Esc/click to capture" : "Scroll down"} · {progress.height}px ·{" "}
                     {progress.frames} frame{progress.frames === 1 ? "" : "s"}
                     {progress.warnings > 0 ? " · ⚠ seams" : ""}
                   </>
                 )}
               </span>
             </div>
-            {auto ? (
-              <button
-                type="button"
-                onClick={stopAuto}
-                disabled={busy}
-                className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
-                style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-                title="Stop auto-scroll and scroll manually"
-              >
-                Stop
-              </button>
-            ) : (
+            {auto ? null : (
               <>
                 <button
                   type="button"
                   onClick={cancel}
                   disabled={busy}
-                  className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
+                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
                   style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
                 >
                   Cancel
@@ -230,7 +231,7 @@ export default function ScrollHudPage() {
                   type="button"
                   onClick={startAuto}
                   disabled={busy}
-                  className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-50"
+                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-50"
                   style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
                   title="Let capz scroll the page automatically to the bottom"
                 >
@@ -242,7 +243,7 @@ export default function ScrollHudPage() {
               type="button"
               onClick={finish}
               disabled={busy}
-              className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
             >
               Capture
