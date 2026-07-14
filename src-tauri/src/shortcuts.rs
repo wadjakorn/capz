@@ -11,6 +11,7 @@ const DEFAULT_FULL: &str = "CmdOrCtrl+Alt+Shift+3";
 const DEFAULT_AREA: &str = "CmdOrCtrl+Alt+Shift+4";
 const DEFAULT_WINDOW: &str = "CmdOrCtrl+Alt+Shift+5";
 const DEFAULT_SHOW_EDITOR: &str = "CmdOrCtrl+Alt+Shift+0";
+const DEFAULT_COMMAND_RING: &str = "CmdOrCtrl+Shift+Space";
 // Scrolling capture ships UNBOUND by default — the user assigns a key in
 // Settings. Empty means "no shortcut registered".
 const DEFAULT_SCROLL: &str = "";
@@ -46,6 +47,7 @@ pub enum HotkeyAction {
     CaptureWindow,
     CaptureScroll,
     ShowEditor,
+    CommandRing,
 }
 
 #[derive(Clone, Serialize, Debug)]
@@ -64,6 +66,7 @@ fn default_accel(action: HotkeyAction) -> &'static str {
         HotkeyAction::CaptureWindow => DEFAULT_WINDOW,
         HotkeyAction::CaptureScroll => DEFAULT_SCROLL,
         HotkeyAction::ShowEditor => DEFAULT_SHOW_EDITOR,
+        HotkeyAction::CommandRing => DEFAULT_COMMAND_RING,
     }
 }
 
@@ -84,6 +87,7 @@ struct Hotkeys {
     window: String,
     scroll: String,
     show_editor: String,
+    command_ring: String,
 }
 
 fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
@@ -93,6 +97,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
         window: DEFAULT_WINDOW.into(),
         scroll: DEFAULT_SCROLL.into(),
         show_editor: DEFAULT_SHOW_EDITOR.into(),
+        command_ring: DEFAULT_COMMAND_RING.into(),
     };
     let Ok(path) = config_store_path(app) else {
         return defaults();
@@ -122,6 +127,9 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
             if let Some(s) = map.get("showEditor").and_then(|x| x.as_str()) {
                 hk.show_editor = s.to_string();
             }
+            if let Some(s) = map.get("commandRing").and_then(|x| x.as_str()) {
+                hk.command_ring = s.to_string();
+            }
         }
     }
     hk
@@ -137,6 +145,12 @@ fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
             log::info!("shortcut triggered: show_editor");
             if let Err(e) = windows::show_editor(app) {
                 log::error!("show_editor failed: {e}");
+            }
+        }
+        HotkeyAction::CommandRing => {
+            log::info!("shortcut triggered: command_ring");
+            if let Err(e) = windows::show_command_ring(app) {
+                log::error!("show_command_ring failed: {e}");
             }
         }
     }
@@ -172,6 +186,7 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
         (HotkeyAction::CaptureWindow, hk.window),
         (HotkeyAction::CaptureScroll, hk.scroll),
         (HotkeyAction::ShowEditor, hk.show_editor),
+        (HotkeyAction::CommandRing, hk.command_ring),
     ];
 
     let mut report = Vec::with_capacity(items.len());

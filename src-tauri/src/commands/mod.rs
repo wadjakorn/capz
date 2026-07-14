@@ -1,4 +1,5 @@
 pub mod capture;
+pub mod command_ring;
 pub mod editor;
 pub mod ocr;
 pub mod output;

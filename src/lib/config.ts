@@ -29,6 +29,7 @@ export type AppConfig = {
     /** Scrolling capture — may be "" (unbound; no default key). */
     captureScroll: string;
     showEditor: string;
+    commandRing: string;
   };
   output: {
     defaultMode: "file" | "clipboard" | "both";
@@ -208,6 +209,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureWindow: "CmdOrCtrl+Alt+Shift+5",
     captureScroll: "",
     showEditor: "CmdOrCtrl+Alt+Shift+0",
+    commandRing: "CmdOrCtrl+Shift+Space",
   },
   output: {
     defaultMode: "clipboard",
@@ -644,6 +646,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       captureWindow: isValidAccelerator,
       captureScroll: isValidOrEmptyAccelerator,
       showEditor: isValidAccelerator,
+      commandRing: isValidAccelerator,
     }, issues),
     output: vsec("output", r.output, d.output, {
       defaultMode: inSet("file", "clipboard", "both"),

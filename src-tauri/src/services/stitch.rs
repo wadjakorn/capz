@@ -754,7 +754,7 @@ mod tests {
     fn vnoise_image(w: u32, h: u32) -> RgbaImage {
         let mut img = RgbaImage::new(w, h);
         for y in 0..h {
-            let mut v = (y as u32).wrapping_add(1).wrapping_mul(2_654_435_761);
+            let mut v = y.wrapping_add(1).wrapping_mul(2_654_435_761);
             v ^= v >> 15;
             v = v.wrapping_mul(2_246_822_519);
             v ^= v >> 13;
