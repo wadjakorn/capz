@@ -194,11 +194,12 @@ export function Toolbar({
   const reorderAnnotation = useEditor((s) => s.reorder);
   const addImageMode = useEditor((s) => s.addImageMode);
   const setAddImageMode = useEditor((s) => s.setAddImageMode);
-  // Add-image mode only makes sense with a base image; clear it when the
-  // workspace empties so the mode can't stay stuck on after a clear/close.
+  // Add-image mode only makes sense with a base image and while in the Select
+  // tool: clear it when the workspace empties, or when the user activates any
+  // other (drawing) tool — picking a tool means they're no longer adding images.
   useEffect(() => {
-    if (!hasImage && addImageMode) setAddImageMode(false);
-  }, [hasImage, addImageMode, setAddImageMode]);
+    if (addImageMode && (!hasImage || tool !== "select")) setAddImageMode(false);
+  }, [hasImage, tool, addImageMode, setAddImageMode]);
   const pinsCfg = useSettings((s) => s.config.pins);
   const fullConfig = useSettings((s) => s.config);
   const toolsCfg = effectiveTools(fullConfig);
@@ -1479,7 +1480,13 @@ export function Toolbar({
           }
           pressed={addImageMode}
           disabled={!hasImage}
-          onClick={() => setAddImageMode(!addImageMode)}
+          onClick={() => {
+            const next = !addImageMode;
+            setAddImageMode(next);
+            // Enabling drops into Select so add-image works and isn't instantly
+            // cleared by the tool-switch guard above.
+            if (next) setTool("select");
+          }}
         />
         {addImageMode && (
           <ToolButton
