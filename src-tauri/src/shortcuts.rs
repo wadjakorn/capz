@@ -11,6 +11,7 @@ const DEFAULT_FULL: &str = "CmdOrCtrl+Alt+Shift+3";
 const DEFAULT_AREA: &str = "CmdOrCtrl+Alt+Shift+4";
 const DEFAULT_WINDOW: &str = "CmdOrCtrl+Alt+Shift+5";
 const DEFAULT_SHOW_EDITOR: &str = "CmdOrCtrl+Alt+Shift+0";
+const DEFAULT_COMMAND_RING: &str = "CmdOrCtrl+Shift+Space";
 
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -42,6 +43,7 @@ pub enum HotkeyAction {
     CaptureArea,
     CaptureWindow,
     ShowEditor,
+    CommandRing,
 }
 
 #[derive(Clone, Serialize, Debug)]
@@ -59,6 +61,7 @@ fn default_accel(action: HotkeyAction) -> &'static str {
         HotkeyAction::CaptureArea => DEFAULT_AREA,
         HotkeyAction::CaptureWindow => DEFAULT_WINDOW,
         HotkeyAction::ShowEditor => DEFAULT_SHOW_EDITOR,
+        HotkeyAction::CommandRing => DEFAULT_COMMAND_RING,
     }
 }
 
@@ -73,13 +76,14 @@ pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (Str
     }
 }
 
-fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, String) {
+fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, String, String) {
     let defaults = || {
         (
             DEFAULT_FULL.into(),
             DEFAULT_AREA.into(),
             DEFAULT_WINDOW.into(),
             DEFAULT_SHOW_EDITOR.into(),
+            DEFAULT_COMMAND_RING.into(),
         )
     };
     let Ok(path) = config_store_path(app) else {
@@ -94,6 +98,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, Stri
     let mut area = DEFAULT_AREA.to_string();
     let mut window = DEFAULT_WINDOW.to_string();
     let mut show_editor = DEFAULT_SHOW_EDITOR.to_string();
+    let mut command_ring = DEFAULT_COMMAND_RING.to_string();
     if let Some(v) = value {
         if let Some(hk) = v.get("hotkeys") {
             if let Some(s) = hk.get("captureFull").and_then(|x| x.as_str()) {
@@ -108,9 +113,12 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, Stri
             if let Some(s) = hk.get("showEditor").and_then(|x| x.as_str()) {
                 show_editor = s.to_string();
             }
+            if let Some(s) = hk.get("commandRing").and_then(|x| x.as_str()) {
+                command_ring = s.to_string();
+            }
         }
     }
-    (full, area, window, show_editor)
+    (full, area, window, show_editor, command_ring)
 }
 
 fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
@@ -122,6 +130,12 @@ fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
             log::info!("shortcut triggered: show_editor");
             if let Err(e) = windows::show_editor(app) {
                 log::error!("show_editor failed: {e}");
+            }
+        }
+        HotkeyAction::CommandRing => {
+            log::info!("shortcut triggered: command_ring");
+            if let Err(e) = windows::show_command_ring(app) {
+                log::error!("show_command_ring failed: {e}");
             }
         }
     }
@@ -146,7 +160,7 @@ fn register_one<R: Runtime>(
 /// Register all four hotkeys independently. One failure never aborts the rest.
 /// Returns a per-action report; each status describes the requested value.
 pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
-    let (full, area, window, show_editor) = read_hotkeys(app);
+    let (full, area, window, show_editor, command_ring) = read_hotkeys(app);
     let _ = app.global_shortcut().unregister_all();
     let win = cfg!(target_os = "windows");
 
@@ -155,6 +169,7 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
         (HotkeyAction::CaptureArea, area),
         (HotkeyAction::CaptureWindow, window),
         (HotkeyAction::ShowEditor, show_editor),
+        (HotkeyAction::CommandRing, command_ring),
     ];
 
     let mut report = Vec::with_capacity(items.len());

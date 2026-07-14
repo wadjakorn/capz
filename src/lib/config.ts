@@ -27,6 +27,7 @@ export type AppConfig = {
     captureArea: string;
     captureWindow: string;
     showEditor: string;
+    commandRing: string;
   };
   output: {
     defaultMode: "file" | "clipboard" | "both";
@@ -205,6 +206,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureArea: "CmdOrCtrl+Alt+Shift+4",
     captureWindow: "CmdOrCtrl+Alt+Shift+5",
     showEditor: "CmdOrCtrl+Alt+Shift+0",
+    commandRing: "CmdOrCtrl+Shift+Space",
   },
   output: {
     defaultMode: "clipboard",
@@ -636,6 +638,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       captureArea: isValidAccelerator,
       captureWindow: isValidAccelerator,
       showEditor: isValidAccelerator,
+      commandRing: isValidAccelerator,
     }, issues),
     output: vsec("output", r.output, d.output, {
       defaultMode: inSet("file", "clipboard", "both"),

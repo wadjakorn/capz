@@ -249,6 +249,159 @@ unsafe fn cursor_cg_point() -> Option<(f64, f64)> {
     Some((pt.x, h_primary - pt.y))
 }
 
+/// Window label for the radial command ring. Distinct from the `overlay-*`
+/// family so the overlay iteration/close helpers never touch it.
+const COMMAND_RING_LABEL: &str = "command-ring";
+/// Fixed logical (macOS points / physical px elsewhere, matching the overlay
+/// convention) size of the square command-ring window. The ring art, labels and
+/// hover glow all live inside this box; positioning clamps the whole box inside
+/// the display under the cursor.
+const COMMAND_RING_SIZE: f64 = 360.0;
+
+/// Center a `ring_w`x`ring_h` box on the cursor, then clamp it fully inside the
+/// display rect. Pure so it is unit-testable; mirrors the clamp discipline in
+/// `hud_position`. Every value shares one coordinate space + unit (logical
+/// points on macOS, physical pixels on Windows/Linux — the cursor is sampled in
+/// the same space as the monitor rect).
+#[allow(clippy::too_many_arguments)] // flat geometry args mirror `hud_position`
+fn ring_position(
+    cursor_x: f64,
+    cursor_y: f64,
+    disp_x: f64,
+    disp_y: f64,
+    disp_w: f64,
+    disp_h: f64,
+    ring_w: f64,
+    ring_h: f64,
+) -> (f64, f64) {
+    let disp_right = disp_x + disp_w;
+    let disp_bottom = disp_y + disp_h;
+    // `hi` floored at `lo` so a ring larger than the display lands at the origin
+    // rather than off-screen.
+    let clampf = |v: f64, lo: f64, hi: f64| v.clamp(lo, hi.max(lo));
+    let x = clampf(cursor_x - ring_w / 2.0, disp_x, disp_right - ring_w);
+    let y = clampf(cursor_y - ring_h / 2.0, disp_y, disp_bottom - ring_h);
+    (x, y)
+}
+
+/// Show the radial command ring centered on the current mouse position. If it
+/// is already up, refocus and bail. Transparent, always-on-top, borderless;
+/// the frontend (`ring/`) draws the four wedges (window/full/scroll/area) and
+/// dispatches the chosen capture via `command_ring_select`, or closes on
+/// Esc / blur / click-outside.
+pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    let mons = monitor_service::list_monitors()
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("list monitors: {e}")))?;
+    if mons.is_empty() {
+        return Err(tauri::Error::Anyhow(anyhow::anyhow!("no monitors")));
+    }
+
+    // Build hidden first: on Windows/Linux `cursor_position()` needs a live
+    // window. We reposition + reveal once the cursor's display is known.
+    let win = WebviewWindowBuilder::new(app, COMMAND_RING_LABEL, WebviewUrl::App("ring/".into()))
+        .title("capz — Command ring")
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .shadow(false)
+        .inner_size(COMMAND_RING_SIZE, COMMAND_RING_SIZE)
+        .visible(false)
+        .build()?;
+
+    // Cursor in the same space xcap reports monitors: logical CG points on
+    // macOS, physical pixels on Windows/Linux.
+    #[cfg(target_os = "macos")]
+    let cursor: Option<(f64, f64)> = unsafe { cursor_cg_point() };
+    #[cfg(not(target_os = "macos"))]
+    let cursor: Option<(f64, f64)> = win.cursor_position().ok().map(|p| (p.x, p.y));
+
+    // Display under the cursor; fall back to primary, then first.
+    let disp = cursor
+        .and_then(|(cx, cy)| {
+            mons.iter().find(|m| {
+                cx >= m.x as f64
+                    && cx < (m.x + m.width as i32) as f64
+                    && cy >= m.y as f64
+                    && cy < (m.y + m.height as i32) as f64
+            })
+        })
+        .or_else(|| mons.iter().find(|m| m.is_primary))
+        .or_else(|| mons.first())
+        .expect("monitor list is non-empty");
+
+    // Unknown cursor → center on the chosen display.
+    let (cx, cy) = cursor.unwrap_or((
+        disp.x as f64 + disp.width as f64 / 2.0,
+        disp.y as f64 + disp.height as f64 / 2.0,
+    ));
+
+    let (x, y) = ring_position(
+        cx,
+        cy,
+        disp.x as f64,
+        disp.y as f64,
+        disp.width as f64,
+        disp.height as f64,
+        COMMAND_RING_SIZE,
+        COMMAND_RING_SIZE,
+    );
+
+    log::info!("command ring: cursor=({cx}, {cy}) pos=({x}, {y}) on monitor {}", disp.id);
+
+    #[cfg(target_os = "macos")]
+    {
+        win.set_position(LogicalPosition::new(x, y))?;
+        win.set_size(LogicalSize::new(COMMAND_RING_SIZE, COMMAND_RING_SIZE))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        win.set_position(PhysicalPosition::new(x, y))?;
+        win.set_size(PhysicalSize::new(
+            COMMAND_RING_SIZE as u32,
+            COMMAND_RING_SIZE as u32,
+        ))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    disable_dwm_transitions(&win);
+
+    win.show()?;
+    let _ = win.set_focus();
+
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::{msg_send, runtime::AnyObject};
+        let ns_window = win.ns_window()? as *mut AnyObject;
+        unsafe {
+            // NSScreenSaverWindowLevel = 1000; above menu bar / dock.
+            let _: () = msg_send![ns_window, setLevel: 1000_i64];
+            // CanJoinAllSpaces | FullScreenAuxiliary
+            let behavior: u64 = (1u64 << 0) | (1u64 << 8);
+            let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+        }
+    }
+
+    Ok(())
+}
+
+/// Close the command-ring window if present. Safe to call when it does not
+/// exist. Used on cancel (Esc / blur) and after a wedge selection.
+pub fn close_command_ring<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
+        if let Err(e) = win.close() {
+            log::warn!("close command ring failed: {e}");
+        }
+    }
+}
+
 /// Show (or create) the single persistent editor window. No image is loaded
 /// here — call `load_editor_image` to push a path into the workspace.
 pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -625,6 +778,7 @@ const HUD_BOTTOM_MARGIN: f64 = 48.0;
 /// region effectively fills the display (no placement fits) do we fall back to
 /// the legacy bottom-center spot, which may overlap — there is simply nowhere
 /// else to put it.
+#[allow(clippy::too_many_arguments)] // flat display+region+hud geometry args
 fn hud_position(
     disp_x: f64,
     disp_y: f64,
@@ -962,9 +1116,10 @@ pub fn close_scroll_guide<R: Runtime>(app: &AppHandle<R>) {
 
 #[cfg(test)]
 mod tests {
-    use super::hud_position;
+    use super::{hud_position, ring_position};
 
     /// Do two axis-aligned rects (x, y, w, h) overlap with positive area?
+    #[allow(clippy::too_many_arguments)] // two flat (x,y,w,h) rects
     fn overlaps(
         ax: f64,
         ay: f64,
@@ -979,6 +1134,7 @@ mod tests {
     }
 
     /// Is rect `(x, y, w, h)` fully inside the display `(dx, dy, dw, dh)`?
+    #[allow(clippy::too_many_arguments)] // flat rect + display geometry
     fn within(x: f64, y: f64, w: f64, h: f64, dx: f64, dy: f64, dw: f64, dh: f64) -> bool {
         x >= dx - 1e-6 && y >= dy - 1e-6 && x + w <= dx + dw + 1e-6 && y + h <= dy + dh + 1e-6
     }
@@ -1042,5 +1198,53 @@ mod tests {
             px, py, HW, HH, region.0, region.1, region.2, region.3
         ));
         assert!(within(px, py, HW, HH, dx, dy, dw, dh));
+    }
+
+    const RING: f64 = 360.0;
+
+    #[test]
+    fn ring_centers_on_cursor_when_room() {
+        // Cursor mid-display: ring top-left is cursor minus half the ring.
+        let (x, y) = ring_position(720.0, 450.0, 0.0, 0.0, 1440.0, 900.0, RING, RING);
+        assert!((x - (720.0 - RING / 2.0)).abs() < 1e-6);
+        assert!((y - (450.0 - RING / 2.0)).abs() < 1e-6);
+        assert!(within(x, y, RING, RING, 0.0, 0.0, 1440.0, 900.0));
+    }
+
+    #[test]
+    fn ring_clamped_at_every_corner() {
+        let (dx, dy, dw, dh) = (0.0, 0.0, 1440.0, 900.0);
+        for (cx, cy) in [
+            (0.0, 0.0),
+            (1440.0, 0.0),
+            (0.0, 900.0),
+            (1440.0, 900.0),
+            (2.0, 450.0),
+            (1439.0, 899.0),
+        ] {
+            let (x, y) = ring_position(cx, cy, dx, dy, dw, dh, RING, RING);
+            assert!(
+                within(x, y, RING, RING, dx, dy, dw, dh),
+                "ring at cursor ({cx},{cy}) -> ({x},{y}) escaped the display"
+            );
+        }
+    }
+
+    #[test]
+    fn ring_clamps_within_offset_display() {
+        // Secondary display with a negative origin (normal in a multi-mon setup).
+        let (dx, dy, dw, dh) = (-1920.0, -200.0, 1920.0, 1080.0);
+        let (x, y) = ring_position(-1910.0, -190.0, dx, dy, dw, dh, RING, RING);
+        assert!(within(x, y, RING, RING, dx, dy, dw, dh));
+        // Pinned to the display's top-left, not off its edge.
+        assert!((x - dx).abs() < 1e-6);
+        assert!((y - dy).abs() < 1e-6);
+    }
+
+    #[test]
+    fn ring_larger_than_display_lands_at_origin() {
+        let (x, y) = ring_position(100.0, 100.0, 0.0, 0.0, 200.0, 200.0, RING, RING);
+        assert!((x - 0.0).abs() < 1e-6);
+        assert!((y - 0.0).abs() < 1e-6);
     }
 }

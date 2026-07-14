@@ -8,7 +8,12 @@ export function currentPlatform(): Platform {
 
 // ---- IPC types (hand-mirrored from Rust; keep in sync with shortcuts.rs) ----
 export type RegoStatus = "ok" | "invalid" | "taken" | "reserved";
-export type HotkeyAction = "captureFull" | "captureArea" | "captureWindow" | "showEditor";
+export type HotkeyAction =
+  | "captureFull"
+  | "captureArea"
+  | "captureWindow"
+  | "showEditor"
+  | "commandRing";
 export type RegoResult = {
   action: HotkeyAction;
   requested: string;

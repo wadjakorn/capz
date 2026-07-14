@@ -31,6 +31,7 @@ type HotkeyPatch = {
   captureArea?: string;
   captureWindow?: string;
   showEditor?: string;
+  commandRing?: string;
 };
 
 const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
@@ -38,6 +39,7 @@ const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
   captureArea: "Capture area",
   captureWindow: "Capture window",
   showEditor: "Show editor",
+  commandRing: "Command ring",
 };
 
 async function applyHotkey(
@@ -242,6 +244,14 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   value={config.hotkeys.showEditor}
                   onChange={(v) =>
                     applyHotkey(useSettings.getState, update, { showEditor: v })
+                  }
+                />
+              </FieldRow>
+              <FieldRow label="Command ring">
+                <HotkeyRecorder
+                  value={config.hotkeys.commandRing}
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { commandRing: v })
                   }
                 />
               </FieldRow>
