@@ -45,6 +45,7 @@ import {
   Link2,
   Link2Off,
   ImagePlus,
+  ImageDown,
   BringToFront,
   SendToBack,
   ChevronsUp,
@@ -1305,6 +1306,35 @@ export function Toolbar({
     })();
   };
 
+  // Import an image file from disk, honoring Add-image mode (add overlay vs.
+  // replace). Desktop opens a native file dialog; web dispatches to the /paste
+  // page's hidden file input, which routes through the same add-vs-replace path.
+  const importImageFile = () => {
+    void (async () => {
+      if (!isTauriRuntime()) {
+        window.dispatchEvent(new CustomEvent("capz:web-import"));
+        return;
+      }
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const picked = await open({
+          multiple: false,
+          directory: false,
+          filters: [
+            { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] },
+          ],
+        });
+        if (typeof picked !== "string") return; // cancelled
+        const { importImagePathDesktop } = await import("@/lib/importImage");
+        const ok = await importImagePathDesktop(picked);
+        if (!ok) toast.error("Couldn't import image");
+      } catch (err) {
+        console.error("import image failed", err);
+        toast.error("Import failed", { description: String(err) });
+      }
+    })();
+  };
+
   // Tool palette overflow zone
   const paletteRef = useRef<HTMLDivElement | null>(null);
   const activeToolIndex = TOOLS.findIndex((t) => t.id === tool);
@@ -1466,6 +1496,18 @@ export function Toolbar({
           }
         />
         <Divider />
+        {/* Import an image file (native picker on desktop, file input on web).
+            Honors Add-image mode: overlay object when on, replace when off.
+            Enabled even with no base image so it can load the first one. */}
+        <ToolButton
+          icon={ImageDown}
+          label={
+            addImageMode
+              ? "Import image file as overlay"
+              : "Import image file (replaces workspace)"
+          }
+          onClick={importImageFile}
+        />
         {/* Add-image mode: paste/drop/pick layers images as movable overlay
             objects instead of replacing the workspace. When on, a paste button
             adds the clipboard image on demand. */}

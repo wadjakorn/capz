@@ -268,6 +268,9 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .min_inner_size(1024.0, 680.0)
         .resizable(true)
         .visible(true)
+        // OS file drops arrive as Tauri drag-drop events by default (the
+        // frontend's onDragDropEvent handles image import). Do NOT call
+        // disable_drag_drop_handler() here or that import path breaks.
         .build()?;
 
     macos_activate();

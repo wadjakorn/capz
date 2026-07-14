@@ -285,6 +285,39 @@ export default function EditorPage() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
+  // Desktop file drag-drop: dropping an image file onto the editor window
+  // imports it, honoring Add-image mode (add overlay vs. replace). Non-image
+  // drops are ignored with a toast. OS drops arrive as Tauri drag-drop events
+  // because the editor window has drag_drop_enabled.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      unlisten = await getCurrentWebview().onDragDropEvent((event) => {
+        if (event.payload.type !== "drop") return;
+        const paths = event.payload.paths ?? [];
+        void (async () => {
+          const { isImportableImagePath, importImagePathDesktop } = await import(
+            "@/lib/importImage"
+          );
+          const imgPath = paths.find(isImportableImagePath);
+          if (!imgPath) {
+            if (paths.length > 0) toast.error("Not an image");
+            return;
+          }
+          try {
+            const ok = await importImagePathDesktop(imgPath);
+            if (!ok) toast.error("Couldn't import image");
+          } catch (err) {
+            console.error("drop import failed", err);
+            toast.error("Import failed", { description: String(err) });
+          }
+        })();
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
+
   // Tag the document with the OS for OS-specific behaviour.
   useEffect(() => {
     const p = typeof navigator !== "undefined" ? navigator.platform : "";
