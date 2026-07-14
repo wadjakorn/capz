@@ -44,3 +44,7 @@ e2e/test-results/
 e2e/playwright-report/
 e2e/.cache/
 playwright/.cache/
+.playwright-mcp/
+
+# Local capture/debug artifacts
+hud-default.png
