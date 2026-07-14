@@ -31,6 +31,7 @@ import {
   type MagnifyAnnotation,
   type StickerAnnotation,
   type PinAnnotation,
+  type ImageAnnotation,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
 import { useSettings } from "@/stores/settings";
@@ -173,6 +174,9 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           bubbleTail: a.bubbleTail,
         },
       };
+    case "image":
+      // Layered images carry no persisted per-tool defaults.
+      return {};
   }
 }
 
@@ -188,6 +192,9 @@ export function EditorStage({ src }: Props) {
   const cropTrRef = useRef<Konva.Transformer>(null);
   const cropRectRef = useRef<Konva.Rect>(null);
   const nodeRefs = useRef(new Map<string, Konva.Node>());
+  // Loaded bitmaps for image annotations, keyed by annotation id — so a blur
+  // placed over an added image can composite (and thus blur) that image too.
+  const imageEls = useRef(new Map<string, HTMLImageElement>());
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   // Pointer position for the highlighter's on-canvas brush guide (image coords).
@@ -604,6 +611,17 @@ export function EditorStage({ src }: Props) {
   // Stable identity so it can sit in child effect deps without re-firing.
   const [boundsTick, setBoundsTick] = useState(0);
   const bumpBounds = useCallback(() => setBoundsTick((t) => t + 1), []);
+  // Stable identity: ImageShape registers its bitmap in an effect keyed on this
+  // callback, so an inline (per-render) function would re-fire the effect every
+  // render → bumpBounds → re-render → infinite loop (UI freeze on add/paste).
+  const registerImage = useCallback(
+    (id: string, el: HTMLImageElement | null) => {
+      if (el) imageEls.current.set(id, el);
+      else imageEls.current.delete(id);
+      bumpBounds();
+    },
+    [bumpBounds],
+  );
   useEffect(() => {
     if (!(imgW > 0 && imgH > 0)) {
       setContentBox((prev) =>
@@ -1193,15 +1211,25 @@ export function EditorStage({ src }: Props) {
   async function ctxPaste() {
     setCtxMenu(null);
     if (!isTauriRuntime()) {
-      // Web build: the /paste page owns image loading — hand off to it.
+      // Web build: the /paste page owns image loading — hand off to it. It reads
+      // the add-vs-replace decision from the store itself.
       window.dispatchEvent(new CustomEvent("capz:web-paste"));
       return;
     }
+    const addMode = useEditor.getState().addImageMode;
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke<string>("paste_into_editor");
+      if (addMode) {
+        // Add-image mode: overlay the clipboard image instead of replacing.
+        const dataUrl = await invoke<string>("read_clipboard_image_data_url");
+        const { addOverlayImage } = await import("@/lib/addImage");
+        const id = await addOverlayImage(dataUrl);
+        if (!id) toast.error("Couldn't add clipboard image");
+      } else {
+        await invoke<string>("paste_into_editor");
+      }
     } catch (err) {
-      console.warn("paste_into_editor failed", err);
+      console.warn("clipboard paste failed", err);
       toast.error("Clipboard has no image");
     }
   }
@@ -1301,7 +1329,7 @@ export function EditorStage({ src }: Props) {
               shadowOpacity={backdropRender && backdrop.shadow ? 0.35 : 0}
               shadowOffsetY={backdropRender && backdrop.shadow ? backdropShadowOffsetY : 0}
             />
-            {annotations.map((a) =>
+            {annotations.map((a, i) =>
               renderAnnotation(a, {
                 bgImage: image,
                 cropOffX: cropBase.x,
@@ -1309,6 +1337,17 @@ export function EditorStage({ src }: Props) {
                 selected: selectedId === a.id,
                 interactive: tool === "select",
                 scale,
+                // Image annotations stacked below this one (only needed by blur,
+                // so it composites + blurs them along with the base image).
+                imagesBelow:
+                  a.type === "blur"
+                    ? annotations.slice(0, i).flatMap((x) => {
+                        if (x.type !== "image") return [];
+                        const el = imageEls.current.get(x.id);
+                        return el ? [{ ann: x, el }] : [];
+                      })
+                    : undefined,
+                registerImage,
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
@@ -1772,6 +1811,13 @@ type ShapeCtx = {
    *  store (e.g. an image sticker's bitmap finished loading), so the canvas
    *  overflow box is recomputed. */
   onBoundsChange: () => void;
+  /** Image annotations stacked below the current one, with their loaded
+   *  bitmaps — used by BlurShape to composite (and blur) overlay images that
+   *  sit beneath it, not just the base screenshot. */
+  imagesBelow?: { ann: ImageAnnotation; el: HTMLImageElement }[];
+  /** Register/unregister an image annotation's loaded bitmap so blurs above it
+   *  can sample it. Called by ImageShape when its bitmap loads/unmounts. */
+  registerImage?: (id: string, el: HTMLImageElement | null) => void;
 };
 
 function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
@@ -1785,6 +1831,7 @@ function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
   if (a.type === "magnify") return <MagnifyShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "sticker") return <StickerShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "pin") return <PinShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "image") return <ImageShape key={a.id} a={a} ctx={ctx} />;
   return null;
 }
 
@@ -2557,28 +2604,84 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
 }
 
 function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
+  // A single blurred KonvaImage (selectable/draggable/cheap to cache). Its
+  // source is an offscreen canvas compositing the base-image region under the
+  // rect PLUS any image annotation stacked below and overlapping it — so
+  // blurring over an added image blurs that image's pixels, not the base behind
+  // it. Compositing into one bitmap (vs. a clipped Group of live nodes) keeps
+  // the node hit-testable and avoids caching a heavy container every change.
   const ref = useRef<Konva.Image>(null);
+  const rot = a.rotation ?? 0;
+  const below = ctx.imagesBelow ?? [];
+  const bgImage = ctx.bgImage;
+  const cropOffX = ctx.cropOffX;
+  const cropOffY = ctx.cropOffY;
+  const w = Math.max(1, Math.round(a.w));
+  const h = Math.max(1, Math.round(a.h));
+  // Stable dependency signature over everything that affects the composite.
+  const belowSig = below
+    .map((b) => `${b.ann.id}:${b.ann.x},${b.ann.y},${b.ann.w},${b.ann.h},${b.ann.rotation ?? 0}:${!!b.el}`)
+    .join("|");
+
+  // Build the composited source bitmap in the blur's un-rotated local frame
+  // (origin at the rect's top-left); the KonvaImage applies the rect rotation.
+  const composite = useMemo(() => {
+    if (!bgImage) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const g = canvas.getContext("2d");
+    if (!g) return null;
+    // Base screenshot region under the rect.
+    g.drawImage(bgImage, a.x + cropOffX, a.y + cropOffY, w, h, 0, 0, w, h);
+    // Overlay images beneath the blur, drawn exactly as on the main canvas.
+    const gr = (-rot * Math.PI) / 180;
+    const cos = Math.cos(gr);
+    const sin = Math.sin(gr);
+    for (const b of below) {
+      if (!b.el) continue;
+      const dx = b.ann.x - a.x;
+      const dy = b.ann.y - a.y;
+      const lx = dx * cos - dy * sin;
+      const ly = dx * sin + dy * cos;
+      g.save();
+      g.translate(lx, ly);
+      g.rotate((((b.ann.rotation ?? 0) - rot) * Math.PI) / 180);
+      const c = b.ann.crop;
+      if (c) {
+        g.drawImage(b.el, c.x, c.y, c.w, c.h, 0, 0, b.ann.w, b.ann.h);
+      } else {
+        g.drawImage(b.el, 0, 0, b.ann.w, b.ann.h);
+      }
+      g.restore();
+    }
+    return canvas;
+    // belowSig captures the below-image geometry/bitmap set; `below` is read
+    // inside but is safe to omit since belowSig changes whenever it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bgImage, a.x, a.y, w, h, rot, cropOffX, cropOffY, belowSig]);
+
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
   useEffect(() => {
     const node = ref.current;
-    if (!node || !ctx.bgImage) return;
+    if (!node || !composite) return;
     node.cache();
     node.getLayer()?.batchDraw();
-  }, [ctx.bgImage, a.x, a.y, a.w, a.h, a.blurRadius, ctx.cropOffX, ctx.cropOffY]);
-  if (!ctx.bgImage) return null;
+  }, [composite, a.blurRadius]);
+
+  if (!composite) return null;
   return (
     <KonvaImage
       ref={ref}
-      image={ctx.bgImage}
+      image={composite}
       x={a.x}
       y={a.y}
-      rotation={a.rotation ?? 0}
+      rotation={rot}
       width={a.w}
       height={a.h}
-      crop={{ x: a.x + ctx.cropOffX, y: a.y + ctx.cropOffY, width: a.w, height: a.h }}
       filters={[Konva.Filters.Blur]}
       blurRadius={a.blurRadius}
       draggable
@@ -2877,6 +2980,84 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         node.scaleY(1);
         ctx.onChange({
           fontSize: Math.round(Math.max(12, a.fontSize * sx)),
+          rotation: node.rotation(),
+        });
+      }}
+    />
+  );
+}
+
+function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
+  // A layered image ("Add image" mode): its own draggable/resizable box with an
+  // independent w/h (free aspect) — modeled on RectShape's box transform plus
+  // the image-sticker's async-bitmap handling. A per-object `crop` selects a
+  // sub-rect of the source in natural pixels via KonvaImage's native `crop`.
+  const ref = useRef<Konva.Image>(null);
+  const [img] = useImage(a.src, "anonymous");
+  useEffect(() => {
+    ctx.setRef(ref.current);
+    return () => ctx.setRef(null);
+  });
+  // The overflow/export box is driven by annotations, but the node's real rect
+  // only exists once the bitmap loads — recompute bounds then. Also publish the
+  // loaded bitmap so a blur stacked above this image can sample it.
+  const onBoundsChange = ctx.onBoundsChange;
+  const registerImage = ctx.registerImage;
+  const id = a.id;
+  useEffect(() => {
+    if (img) onBoundsChange();
+  }, [img, onBoundsChange]);
+  useEffect(() => {
+    registerImage?.(id, img ?? null);
+    return () => registerImage?.(id, null);
+  }, [id, img, registerImage]);
+  const crop = a.crop
+    ? { x: a.crop.x, y: a.crop.y, width: a.crop.w, height: a.crop.h }
+    : undefined;
+  return (
+    <KonvaImage
+      ref={ref}
+      image={img}
+      x={a.x}
+      y={a.y}
+      width={a.w}
+      height={a.h}
+      crop={crop}
+      rotation={a.rotation ?? 0}
+      // Gate hit-testing on the Select tool (like MagnifyShape) so a large
+      // overlay image doesn't swallow clicks — other tools draw over it.
+      draggable={ctx.interactive}
+      listening={ctx.interactive}
+      {...hoverHandlers(ctx)}
+      onMouseDown={(e) => {
+        e.cancelBubble = true;
+        ctx.onSelect();
+      }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x(), y: node.y(), w: a.w, h: a.h },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
+      onDragEnd={(e) => {
+        ctx.endSnap();
+        ctx.onChange({ x: e.target.x(), y: e.target.y() });
+      }}
+      onTransformEnd={() => {
+        const node = ref.current;
+        if (!node) return;
+        const sx = node.scaleX();
+        const sy = node.scaleY();
+        node.scaleX(1);
+        node.scaleY(1);
+        ctx.onChange({
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          w: Math.round(Math.max(8, a.w * sx)),
+          h: Math.round(Math.max(8, a.h * sy)),
           rotation: node.rotation(),
         });
       }}

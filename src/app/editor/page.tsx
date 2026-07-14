@@ -267,9 +267,17 @@ export default function EditorPage() {
       ev.preventDefault();
       try {
         const { invoke } = await import("@tauri-apps/api/core");
-        await invoke<string>("paste_into_editor");
+        if (useEditor.getState().addImageMode) {
+          // Add-image mode: layer the clipboard image as an overlay object.
+          const dataUrl = await invoke<string>("read_clipboard_image_data_url");
+          const { addOverlayImage } = await import("@/lib/addImage");
+          const id = await addOverlayImage(dataUrl);
+          if (!id) toast.error("Couldn't add clipboard image");
+        } else {
+          await invoke<string>("paste_into_editor");
+        }
       } catch (err) {
-        console.warn("paste_into_editor failed", err);
+        console.warn("clipboard paste failed", err);
         toast.error("Clipboard has no image");
       }
     };

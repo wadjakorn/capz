@@ -194,6 +194,22 @@ export type PinAnnotation = Base & {
   bubbleTail?: PinTailDir;
 };
 
+/**
+ * An additional image layered onto the canvas (via "Add image" mode / import),
+ * distinct from the single base screenshot. Unlike an image sticker it has
+ * independent `w`/`h`, so the shared Transformer resizes it with a free box.
+ */
+export type ImageAnnotation = Base & {
+  type: "image";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  src: string;
+  /** Per-object crop in the image's own natural pixels. Absent = full image. */
+  crop?: { x: number; y: number; w: number; h: number };
+};
+
 export type Annotation =
   | RectAnnotation
   | ArrowAnnotation
@@ -203,7 +219,39 @@ export type Annotation =
   | HighlighterAnnotation
   | MagnifyAnnotation
   | StickerAnnotation
-  | PinAnnotation;
+  | PinAnnotation
+  | ImageAnnotation;
+
+/** Stacking-order operation for a single annotation within the render array. */
+export type ReorderMode = "front" | "back" | "forward" | "backward";
+
+/**
+ * Return a new annotations array with `id` moved per `mode`, or null when the
+ * move is a no-op (id absent, or already at the target edge). Array position IS
+ * z-order — later index draws on top; index 0 is just above the base image.
+ */
+export function reorderAnnotations(
+  list: Annotation[],
+  id: string,
+  mode: ReorderMode,
+): Annotation[] | null {
+  const from = list.findIndex((a) => a.id === id);
+  if (from < 0) return null;
+  const last = list.length - 1;
+  const to =
+    mode === "front"
+      ? last
+      : mode === "back"
+        ? 0
+        : mode === "forward"
+          ? Math.min(last, from + 1)
+          : Math.max(0, from - 1);
+  if (to === from) return null;
+  const next = list.slice();
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
 
 export const STICKERS = [
   "⭐",
@@ -269,6 +317,11 @@ type State = {
   captureSource: CaptureSource;
   /** Whether the padded backdrop is rendered behind the capture. */
   backdropOn: boolean;
+  /**
+   * "Add image" mode. When true, pasting / dropping / picking an image ADDS it
+   * as a layered `ImageAnnotation` on top instead of replacing the workspace.
+   */
+  addImageMode: boolean;
   /** Current crop into the source image, or null for the full image. */
   imageCrop: ImageCrop | null;
   /** 0 = uninitialised; EditorStage fits on first image load and on `reset`. */
@@ -288,10 +341,13 @@ type State = {
   setHasImage: (v: boolean) => void;
   setCaptureSource: (s: CaptureSource) => void;
   setBackdropOn: (on: boolean) => void;
+  setAddImageMode: (on: boolean) => void;
   select: (id: string | null) => void;
   add: (a: Annotation) => void;
   update: (id: string, patch: Partial<Annotation>) => void;
   remove: (id: string) => void;
+  /** Change a single annotation's stacking order; history-tracked. */
+  reorder: (id: string, mode: ReorderMode) => void;
   clear: () => void;
   reset: () => void;
   /**
@@ -332,6 +388,7 @@ export const useEditor = create<State>((set, get) => ({
   hasImage: false,
   captureSource: "other",
   backdropOn: false,
+  addImageMode: false,
   imageCrop: null,
   displayScale: 0,
   userZoomed: false,
@@ -344,6 +401,7 @@ export const useEditor = create<State>((set, get) => ({
   setHasImage: (v) => set({ hasImage: v }),
   setCaptureSource: (s) => set({ captureSource: s }),
   setBackdropOn: (on) => set({ backdropOn: on }),
+  setAddImageMode: (on) => set({ addImageMode: on }),
   select: (id) => set({ selectedId: id }),
 
   add: (a) => {
@@ -377,6 +435,17 @@ export const useEditor = create<State>((set, get) => ({
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
       selectedId: selectedId === id ? null : selectedId,
+    });
+  },
+
+  reorder: (id, mode) => {
+    const { annotations, nextPinNumber, past, imageCrop } = get();
+    const next = reorderAnnotations(annotations, id, mode);
+    if (!next) return;
+    set({
+      annotations: next,
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
     });
   },
 

@@ -68,6 +68,30 @@ export default function PastePage() {
     [resetEditor, setHasImage],
   );
 
+  // Add-vs-replace router: in "Add image" mode a paste/drop/pick layers the
+  // image as an overlay object (converted to a persistent data URL); otherwise
+  // it replaces the workspace like before. With no base image yet, always
+  // replace so the first image becomes the base.
+  const acceptBlob = useCallback(
+    (blob: Blob) => {
+      if (!useEditor.getState().addImageMode || !srcRef.current) {
+        applyBlob(blob);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        void (async () => {
+          const { addOverlayImage } = await import("@/lib/addImage");
+          const id = await addOverlayImage(reader.result as string);
+          if (!id) toast.error("Couldn't add image");
+        })();
+      };
+      reader.onerror = () => toast.error("Couldn't read image");
+      reader.readAsDataURL(blob);
+    },
+    [applyBlob],
+  );
+
   // Drop the current image and annotations, back to the empty state.
   const clearImage = useCallback(() => {
     if (srcRef.current) URL.revokeObjectURL(srcRef.current);
@@ -95,17 +119,17 @@ export default function PastePage() {
         return;
       }
       ev.preventDefault();
-      applyBlob(blob);
+      acceptBlob(blob);
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [applyBlob]);
+  }, [acceptBlob]);
 
   // Context-menu Paste inside the stage dispatches this (see EditorStage).
   useEffect(() => {
     const onWebPaste = () => {
       void readClipboardPng().then((blob) => {
-        if (blob) applyBlob(blob);
+        if (blob) acceptBlob(blob);
         else toast.error("Clipboard has no image", {
           description: "Copy a screenshot first, or press Ctrl+V / ⌘V.",
         });
@@ -113,7 +137,7 @@ export default function PastePage() {
     };
     window.addEventListener("capz:web-paste", onWebPaste);
     return () => window.removeEventListener("capz:web-paste", onWebPaste);
-  }, [applyBlob]);
+  }, [acceptBlob]);
 
   // Drag & drop an image file.
   useEffect(() => {
@@ -122,7 +146,7 @@ export default function PastePage() {
       e.preventDefault();
       const blob = extractImageBlob(e.dataTransfer?.items);
       if (!blob) { toast.error("Not an image"); return; }
-      applyBlob(blob);
+      acceptBlob(blob);
     };
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("drop", onDrop);
@@ -130,7 +154,7 @@ export default function PastePage() {
       window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("drop", onDrop);
     };
-  }, [applyBlob]);
+  }, [acceptBlob]);
 
   // Cmd/Ctrl+C with no selection copies the flattened result.
   useEffect(() => {
