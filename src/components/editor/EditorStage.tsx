@@ -192,6 +192,9 @@ export function EditorStage({ src }: Props) {
   const cropTrRef = useRef<Konva.Transformer>(null);
   const cropRectRef = useRef<Konva.Rect>(null);
   const nodeRefs = useRef(new Map<string, Konva.Node>());
+  // Loaded bitmaps for image annotations, keyed by annotation id — so a blur
+  // placed over an added image can composite (and thus blur) that image too.
+  const imageEls = useRef(new Map<string, HTMLImageElement>());
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   // Pointer position for the highlighter's on-canvas brush guide (image coords).
@@ -625,7 +628,9 @@ export function EditorStage({ src }: Props) {
       const node = nodeRefs.current.get(a.id);
       // Magnify registers only its source group, so its node rect misses the
       // output loupe — use the annotation AABB, which unions source + output.
-      if (node && a.type !== "magnify") {
+      // Blur is a Group whose getClientRect ignores its clip, so its composited
+      // below-image children would inflate it — use its exact rect AABB instead.
+      if (node && a.type !== "magnify" && a.type !== "blur") {
         const r = node.getClientRect({
           relativeTo: node.getLayer() ?? undefined,
           skipShadow: true,
@@ -1315,7 +1320,7 @@ export function EditorStage({ src }: Props) {
               shadowOpacity={backdropRender && backdrop.shadow ? 0.35 : 0}
               shadowOffsetY={backdropRender && backdrop.shadow ? backdropShadowOffsetY : 0}
             />
-            {annotations.map((a) =>
+            {annotations.map((a, i) =>
               renderAnnotation(a, {
                 bgImage: image,
                 cropOffX: cropBase.x,
@@ -1323,6 +1328,21 @@ export function EditorStage({ src }: Props) {
                 selected: selectedId === a.id,
                 interactive: tool === "select",
                 scale,
+                // Image annotations stacked below this one (only needed by blur,
+                // so it composites + blurs them along with the base image).
+                imagesBelow:
+                  a.type === "blur"
+                    ? annotations.slice(0, i).flatMap((x) => {
+                        if (x.type !== "image") return [];
+                        const el = imageEls.current.get(x.id);
+                        return el ? [{ ann: x, el }] : [];
+                      })
+                    : undefined,
+                registerImage: (id, el) => {
+                  if (el) imageEls.current.set(id, el);
+                  else imageEls.current.delete(id);
+                  bumpBounds();
+                },
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
@@ -1786,6 +1806,13 @@ type ShapeCtx = {
    *  store (e.g. an image sticker's bitmap finished loading), so the canvas
    *  overflow box is recomputed. */
   onBoundsChange: () => void;
+  /** Image annotations stacked below the current one, with their loaded
+   *  bitmaps — used by BlurShape to composite (and blur) overlay images that
+   *  sit beneath it, not just the base screenshot. */
+  imagesBelow?: { ann: ImageAnnotation; el: HTMLImageElement }[];
+  /** Register/unregister an image annotation's loaded bitmap so blurs above it
+   *  can sample it. Called by ImageShape when its bitmap loads/unmounts. */
+  registerImage?: (id: string, el: HTMLImageElement | null) => void;
 };
 
 function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
@@ -2572,28 +2599,61 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
 }
 
 function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
-  const ref = useRef<Konva.Image>(null);
+  // The blur is a cached, blurred Group holding a crop of the base image PLUS a
+  // copy of every image annotation stacked below it that the blur overlaps — so
+  // blurring over an added image blurs that image's pixels, not the base behind
+  // it. Sampling only the base bitmap (the old single-KonvaImage approach) would
+  // reveal unrelated base content over an added image.
+  const ref = useRef<Konva.Group>(null);
+  const rot = a.rotation ?? 0;
+  const below = ctx.imagesBelow ?? [];
+  // Express a canvas point in the group's local (un-rotated) frame so below
+  // images land correctly even when the blur rect itself is rotated.
+  const gr = (-rot * Math.PI) / 180;
+  const cos = Math.cos(gr);
+  const sin = Math.sin(gr);
+  const toLocal = (px: number, py: number) => {
+    const dx = px - a.x;
+    const dy = py - a.y;
+    return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+  };
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
+  // Re-cache whenever the sampled content changes: blur geometry, the base
+  // image, or any below image's geometry/bitmap.
+  const belowSig = below
+    .map((b) => `${b.ann.id}:${b.ann.x},${b.ann.y},${b.ann.w},${b.ann.h},${b.ann.rotation ?? 0}`)
+    .join("|");
   useEffect(() => {
     const node = ref.current;
     if (!node || !ctx.bgImage) return;
     node.cache();
     node.getLayer()?.batchDraw();
-  }, [ctx.bgImage, a.x, a.y, a.w, a.h, a.blurRadius, ctx.cropOffX, ctx.cropOffY]);
+  }, [
+    ctx.bgImage,
+    a.x,
+    a.y,
+    a.w,
+    a.h,
+    a.blurRadius,
+    rot,
+    ctx.cropOffX,
+    ctx.cropOffY,
+    belowSig,
+  ]);
   if (!ctx.bgImage) return null;
   return (
-    <KonvaImage
+    <Group
       ref={ref}
-      image={ctx.bgImage}
       x={a.x}
       y={a.y}
-      rotation={a.rotation ?? 0}
-      width={a.w}
-      height={a.h}
-      crop={{ x: a.x + ctx.cropOffX, y: a.y + ctx.cropOffY, width: a.w, height: a.h }}
+      rotation={rot}
+      clipX={0}
+      clipY={0}
+      clipWidth={a.w}
+      clipHeight={a.h}
       filters={[Konva.Filters.Blur]}
       blurRadius={a.blurRadius}
       draggable
@@ -2630,7 +2690,45 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
           rotation: node.rotation(),
         });
       }}
-    />
+    >
+      {/* Base screenshot region under the blur rect. */}
+      <KonvaImage
+        image={ctx.bgImage}
+        x={0}
+        y={0}
+        width={a.w}
+        height={a.h}
+        crop={{ x: a.x + ctx.cropOffX, y: a.y + ctx.cropOffY, width: a.w, height: a.h }}
+        listening={false}
+      />
+      {/* Overlay images beneath this blur, drawn exactly as on the main canvas
+          (own bitmap, own crop) so the composited/blurred result matches. */}
+      {below.map((b) => {
+        const lp = toLocal(b.ann.x, b.ann.y);
+        return (
+          <KonvaImage
+            key={b.ann.id}
+            image={b.el}
+            x={lp.x}
+            y={lp.y}
+            width={b.ann.w}
+            height={b.ann.h}
+            rotation={(b.ann.rotation ?? 0) - rot}
+            crop={
+              b.ann.crop
+                ? {
+                    x: b.ann.crop.x,
+                    y: b.ann.crop.y,
+                    width: b.ann.crop.w,
+                    height: b.ann.crop.h,
+                  }
+                : undefined
+            }
+            listening={false}
+          />
+        );
+      })}
+    </Group>
   );
 }
 
@@ -2911,11 +3009,18 @@ function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   // The overflow/export box is driven by annotations, but the node's real rect
-  // only exists once the bitmap loads — recompute bounds then.
+  // only exists once the bitmap loads — recompute bounds then. Also publish the
+  // loaded bitmap so a blur stacked above this image can sample it.
   const onBoundsChange = ctx.onBoundsChange;
+  const registerImage = ctx.registerImage;
+  const id = a.id;
   useEffect(() => {
     if (img) onBoundsChange();
   }, [img, onBoundsChange]);
+  useEffect(() => {
+    registerImage?.(id, img ?? null);
+    return () => registerImage?.(id, null);
+  }, [id, img, registerImage]);
   const crop = a.crop
     ? { x: a.crop.x, y: a.crop.y, width: a.crop.w, height: a.crop.h }
     : undefined;
