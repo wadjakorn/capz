@@ -10,6 +10,7 @@ export function annotationAABB(a: Annotation): AABB | null {
   switch (a.type) {
     case "rect":
     case "blur":
+    case "image":
       return { x: a.x, y: a.y, w: a.w, h: a.h };
     case "arrow": {
       // Include the optional mid curve-control point so the bend is covered.

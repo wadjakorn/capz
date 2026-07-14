@@ -117,3 +117,44 @@ pub async fn paste_into_editor<R: Runtime>(app: AppHandle<R>) -> Result<String, 
     .map_err(|e| e.to_string())?;
     Ok(path_str)
 }
+
+/// Read an image from the clipboard and return it as a `data:image/png;base64,…`
+/// URL, WITHOUT touching the workspace. Used by "Add image" mode to layer the
+/// clipboard image as an overlay object instead of replacing the base.
+#[tauri::command]
+pub async fn read_clipboard_image_data_url<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<String, String> {
+    let img = app
+        .clipboard()
+        .read_image()
+        .map_err(|e| format!("clipboard read: {e}"))?;
+
+    let rgba = img.rgba();
+    let width = img.width();
+    let height = img.height();
+    if width == 0 || height == 0 || rgba.is_empty() {
+        return Err("clipboard has no image".into());
+    }
+    let rgba_vec = rgba.to_vec();
+
+    let data_url = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
+        use anyhow::anyhow;
+        use base64::Engine;
+        use image::{codecs::png::PngEncoder, ExtendedColorType, ImageEncoder};
+
+        let buf = image::RgbaImage::from_raw(width, height, rgba_vec)
+            .ok_or_else(|| anyhow!("rgba dimension mismatch"))?;
+        let mut out = Vec::with_capacity((width * height) as usize * 4 / 2);
+        PngEncoder::new(&mut out)
+            .write_image(&buf, width, height, ExtendedColorType::Rgba8)
+            .map_err(|e| anyhow!("png encode: {e}"))?;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&out);
+        Ok(format!("data:image/png;base64,{encoded}"))
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())?;
+
+    Ok(data_url)
+}

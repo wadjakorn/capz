@@ -31,6 +31,7 @@ import {
   type MagnifyAnnotation,
   type StickerAnnotation,
   type PinAnnotation,
+  type ImageAnnotation,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
 import { useSettings } from "@/stores/settings";
@@ -173,6 +174,9 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           bubbleTail: a.bubbleTail,
         },
       };
+    case "image":
+      // Layered images carry no persisted per-tool defaults.
+      return {};
   }
 }
 
@@ -1193,15 +1197,25 @@ export function EditorStage({ src }: Props) {
   async function ctxPaste() {
     setCtxMenu(null);
     if (!isTauriRuntime()) {
-      // Web build: the /paste page owns image loading — hand off to it.
+      // Web build: the /paste page owns image loading — hand off to it. It reads
+      // the add-vs-replace decision from the store itself.
       window.dispatchEvent(new CustomEvent("capz:web-paste"));
       return;
     }
+    const addMode = useEditor.getState().addImageMode;
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke<string>("paste_into_editor");
+      if (addMode) {
+        // Add-image mode: overlay the clipboard image instead of replacing.
+        const dataUrl = await invoke<string>("read_clipboard_image_data_url");
+        const { addOverlayImage } = await import("@/lib/addImage");
+        const id = await addOverlayImage(dataUrl);
+        if (!id) toast.error("Couldn't add clipboard image");
+      } else {
+        await invoke<string>("paste_into_editor");
+      }
     } catch (err) {
-      console.warn("paste_into_editor failed", err);
+      console.warn("clipboard paste failed", err);
       toast.error("Clipboard has no image");
     }
   }
@@ -1785,6 +1799,7 @@ function renderAnnotation(a: Annotation, ctx: ShapeCtx) {
   if (a.type === "magnify") return <MagnifyShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "sticker") return <StickerShape key={a.id} a={a} ctx={ctx} />;
   if (a.type === "pin") return <PinShape key={a.id} a={a} ctx={ctx} />;
+  if (a.type === "image") return <ImageShape key={a.id} a={a} ctx={ctx} />;
   return null;
 }
 
@@ -2877,6 +2892,74 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         node.scaleY(1);
         ctx.onChange({
           fontSize: Math.round(Math.max(12, a.fontSize * sx)),
+          rotation: node.rotation(),
+        });
+      }}
+    />
+  );
+}
+
+function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
+  // A layered image ("Add image" mode): its own draggable/resizable box with an
+  // independent w/h (free aspect) — modeled on RectShape's box transform plus
+  // the image-sticker's async-bitmap handling. A per-object `crop` selects a
+  // sub-rect of the source in natural pixels via KonvaImage's native `crop`.
+  const ref = useRef<Konva.Image>(null);
+  const [img] = useImage(a.src, "anonymous");
+  useEffect(() => {
+    ctx.setRef(ref.current);
+    return () => ctx.setRef(null);
+  });
+  // The overflow/export box is driven by annotations, but the node's real rect
+  // only exists once the bitmap loads — recompute bounds then.
+  const onBoundsChange = ctx.onBoundsChange;
+  useEffect(() => {
+    if (img) onBoundsChange();
+  }, [img, onBoundsChange]);
+  const crop = a.crop
+    ? { x: a.crop.x, y: a.crop.y, width: a.crop.w, height: a.crop.h }
+    : undefined;
+  return (
+    <KonvaImage
+      ref={ref}
+      image={img}
+      x={a.x}
+      y={a.y}
+      width={a.w}
+      height={a.h}
+      crop={crop}
+      rotation={a.rotation ?? 0}
+      draggable
+      {...hoverHandlers(ctx)}
+      onMouseDown={(e) => {
+        e.cancelBubble = true;
+        ctx.onSelect();
+      }}
+      onDragMove={(e) => {
+        const node = e.target;
+        const { dx, dy } = ctx.snapDrag(
+          a.id,
+          { x: node.x(), y: node.y(), w: a.w, h: a.h },
+          e.evt.altKey,
+        );
+        if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
+      }}
+      onDragEnd={(e) => {
+        ctx.endSnap();
+        ctx.onChange({ x: e.target.x(), y: e.target.y() });
+      }}
+      onTransformEnd={() => {
+        const node = ref.current;
+        if (!node) return;
+        const sx = node.scaleX();
+        const sy = node.scaleY();
+        node.scaleX(1);
+        node.scaleY(1);
+        ctx.onChange({
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          w: Math.round(Math.max(8, a.w * sx)),
+          h: Math.round(Math.max(8, a.h * sy)),
           rotation: node.rotation(),
         });
       }}

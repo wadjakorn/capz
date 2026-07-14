@@ -44,6 +44,11 @@ import {
   Monitor,
   Link2,
   Link2Off,
+  ImagePlus,
+  BringToFront,
+  SendToBack,
+  ChevronsUp,
+  ChevronsDown,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
@@ -186,6 +191,9 @@ export function Toolbar({
   const annotations = useEditor((s) => s.annotations);
   const selectedId = useEditor((s) => s.selectedId);
   const updateAnnotation = useEditor((s) => s.update);
+  const reorderAnnotation = useEditor((s) => s.reorder);
+  const addImageMode = useEditor((s) => s.addImageMode);
+  const setAddImageMode = useEditor((s) => s.setAddImageMode);
   const pinsCfg = useSettings((s) => s.config.pins);
   const fullConfig = useSettings((s) => s.config);
   const toolsCfg = effectiveTools(fullConfig);
@@ -1270,6 +1278,27 @@ export function Toolbar({
     })();
   };
 
+  // On-demand "add clipboard image as an overlay" (used by the Add-image mode's
+  // paste affordance). Desktop reads the clipboard directly; web routes through
+  // the /paste page's clipboard reader, which honors the add-vs-replace mode.
+  const addImageFromClipboard = () => {
+    void (async () => {
+      if (!isTauriRuntime()) {
+        window.dispatchEvent(new CustomEvent("capz:web-paste"));
+        return;
+      }
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const dataUrl = await invoke<string>("read_clipboard_image_data_url");
+        const { addOverlayImage } = await import("@/lib/addImage");
+        const id = await addOverlayImage(dataUrl);
+        if (!id) toast.error("Couldn't add clipboard image");
+      } catch {
+        toast.error("Clipboard has no image");
+      }
+    })();
+  };
+
   // Tool palette overflow zone
   const paletteRef = useRef<HTMLDivElement | null>(null);
   const activeToolIndex = TOOLS.findIndex((t) => t.id === tool);
@@ -1299,6 +1328,10 @@ export function Toolbar({
     sizeCtx ||
     textStyleCtx ||
     pinLabelCtx ||
+    // Any selected annotation gets the option bar so the reorder (z-order)
+    // controls are always available — even for types with no other options
+    // (e.g. a layered image).
+    selected ||
     tool === "pin" ||
     tool === "sticker"
   );
@@ -1321,6 +1354,36 @@ export function Toolbar({
   };
 
   const Divider = () => <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />;
+
+  // Stacking-order (z-index) controls, shown for any selected annotation. The
+  // base screenshot is always behind every annotation and is not reorderable.
+  const selIndex = selected
+    ? annotations.findIndex((a) => a.id === selected.id)
+    : -1;
+  const atFront = selIndex >= 0 && selIndex === annotations.length - 1;
+  const atBack = selIndex === 0;
+  const reorderBtn = (
+    Icon: LucideIcon,
+    title: string,
+    mode: "front" | "back" | "forward" | "backward",
+    disabled: boolean,
+  ) => (
+    <button
+      type="button"
+      onClick={() => selected && reorderAnnotation(selected.id, mode)}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className={[
+        "flex h-7 w-7 items-center justify-center rounded transition-colors",
+        disabled
+          ? "text-[var(--fg-2)] opacity-40"
+          : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+      ].join(" ")}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+    </button>
+  );
 
   return (
     <div className="relative z-20 flex flex-col border-b border-[var(--border)] bg-[var(--surface-overlay)] px-2 py-1.5">
@@ -1396,6 +1459,28 @@ export function Toolbar({
             })
           }
         />
+        <Divider />
+        {/* Add-image mode: paste/drop/pick layers images as movable overlay
+            objects instead of replacing the workspace. When on, a paste button
+            adds the clipboard image on demand. */}
+        <ToolButton
+          icon={ImagePlus}
+          label={
+            addImageMode
+              ? "Add-image mode on — paste/drop layers images"
+              : "Add-image mode — layer images instead of replacing"
+          }
+          pressed={addImageMode}
+          onClick={() => setAddImageMode(!addImageMode)}
+        />
+        {addImageMode && (
+          <ToolButton
+            icon={CopyIcon}
+            label={hasImage ? "Paste clipboard image as overlay" : "Load a base image first"}
+            disabled={!hasImage}
+            onClick={addImageFromClipboard}
+          />
+        )}
         <Divider />
         {/* Padded gradient/solid backdrop behind the capture. Divider travels
             with the control so an imageless toolbar doesn't show a double rule. */}
@@ -2013,6 +2098,21 @@ export function Toolbar({
                     </button>
                   );
                 })}
+          </div>
+        </>
+      )}
+      {selected && (
+        <>
+          <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
+          <div
+            className="flex items-center gap-0.5"
+            role="group"
+            aria-label="Stacking order"
+          >
+            {reorderBtn(SendToBack, "Send to back", "back", atBack)}
+            {reorderBtn(ChevronsDown, "Send backward", "backward", atBack)}
+            {reorderBtn(ChevronsUp, "Bring forward", "forward", atFront)}
+            {reorderBtn(BringToFront, "Bring to front", "front", atFront)}
           </div>
         </>
       )}
