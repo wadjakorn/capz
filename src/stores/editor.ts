@@ -266,6 +266,12 @@ type State = {
   imageCrop: ImageCrop | null;
   /** 0 = uninitialised; EditorStage fits on first image load and on `reset`. */
   displayScale: number;
+  /**
+   * True once the user sets a custom zoom (wheel, +/-, 100%). Cleared by any
+   * auto/explicit fit. EditorStage only re-fits on window resize while this is
+   * false, so a deliberate zoom survives resizing.
+   */
+  userZoomed: boolean;
   /** Transient snap guide lines (image-pixel coords). Not in undo history. */
   guides: { x: number[]; y: number[] };
 
@@ -321,6 +327,7 @@ export const useEditor = create<State>((set, get) => ({
   backdropOn: false,
   imageCrop: null,
   displayScale: 0,
+  userZoomed: false,
   guides: { x: [], y: [] },
 
   setTool: (t) =>
@@ -385,6 +392,7 @@ export const useEditor = create<State>((set, get) => ({
       future: [],
       imageCrop: null,
       displayScale: 0,
+      userZoomed: false,
       guides: { x: [], y: [] },
     }),
 
@@ -408,6 +416,7 @@ export const useEditor = create<State>((set, get) => ({
       tool: "select",
       // Re-fit + re-center for the new image dimensions (0 = fit sentinel).
       displayScale: 0,
+      userZoomed: false,
     });
   },
 
@@ -423,7 +432,7 @@ export const useEditor = create<State>((set, get) => ({
       past: past.slice(0, -1),
       future: [{ annotations, nextPinNumber, imageCrop }, ...future],
       selectedId: null,
-      ...(cropChanged ? { displayScale: 0 } : {}),
+      ...(cropChanged ? { displayScale: 0, userZoomed: false } : {}),
     });
   },
 
@@ -439,15 +448,22 @@ export const useEditor = create<State>((set, get) => ({
       past: [...past, { annotations, nextPinNumber, imageCrop }],
       future: future.slice(1),
       selectedId: null,
-      ...(cropChanged ? { displayScale: 0 } : {}),
+      ...(cropChanged ? { displayScale: 0, userZoomed: false } : {}),
     });
   },
 
-  setDisplayScale: (s) => set({ displayScale: clampZoom(s) }),
+  // s <= 0 is the fit sentinel (re-fit on next paint): keep it exactly 0 and
+  // treat it as "not user-zoomed". Any positive scale is a deliberate user zoom.
+  setDisplayScale: (s) =>
+    set(
+      s <= 0
+        ? { displayScale: 0, userZoomed: false }
+        : { displayScale: clampZoom(s), userZoomed: true },
+    ),
   zoomFit: ({ vw, vh, iw, ih }) => {
     if (iw <= 0 || ih <= 0 || vw <= 0 || vh <= 0) return;
-    set({ displayScale: clampZoom(Math.min(vw / iw, vh / ih)) });
+    set({ displayScale: clampZoom(Math.min(vw / iw, vh / ih)), userZoomed: false });
   },
-  zoomReset100: () => set({ displayScale: 1 }),
+  zoomReset100: () => set({ displayScale: 1, userZoomed: true }),
   setGuides: (g) => set({ guides: g }),
 }));

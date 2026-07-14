@@ -336,8 +336,19 @@ export function EditorStage({ src }: Props) {
     if (!containerRef.current) return;
     const el = containerRef.current;
     setScrollContainer(el);
+    let prevW = el.clientWidth;
+    let prevH = el.clientHeight;
     const ro = new ResizeObserver(() => {
-      setContainer({ w: el.clientWidth, h: el.clientHeight });
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w === prevW && h === prevH) return;
+      prevW = w;
+      prevH = h;
+      setContainer({ w, h });
+      // On window resize, re-fit + re-center to the new viewport — but only if
+      // the user hasn't set a custom zoom (then their view is preserved). The
+      // 0 sentinel re-arms the first-load fit and centering effects below.
+      if (!useEditor.getState().userZoomed) setDisplayScale(0);
     });
     ro.observe(el);
     setContainer({ w: el.clientWidth, h: el.clientHeight });
@@ -345,7 +356,7 @@ export function EditorStage({ src }: Props) {
       ro.disconnect();
       setScrollContainer(null);
     };
-  }, []);
+  }, [setDisplayScale]);
 
   // Cursor-anchored zoom: keep the image-coord point under the cursor pinned.
   const zoomAtClient = useRef<(factor: number, cx: number, cy: number) => void>(
