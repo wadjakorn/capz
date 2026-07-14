@@ -116,7 +116,14 @@ export type MagnifyAnnotation = Base & {
   shape: MagnifyShape;
   /** Border + connector color. */
   stroke: string;
+  /** Output loupe border width. */
   strokeWidth: number;
+  /** Source (zoom) area border width; the connector follows it too.
+   *  Absent = legacy default (0.6 × strokeWidth). */
+  sourceStrokeWidth?: number;
+  /** Whether the source border tracks the output border (0.6× ratio) as one
+   *  "Border" control. Absent = linked. Set false for independent widths. */
+  borderLinked?: boolean;
   /** Source-area indicator opacity 0..1 (0 hides it for a clean capture).
    *  Absent = default (visible). */
   areaOpacity?: number;

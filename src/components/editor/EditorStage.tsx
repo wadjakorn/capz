@@ -135,6 +135,8 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
         magnify: {
           strokeColor: a.stroke,
           strokeWidth: a.strokeWidth,
+          sourceStrokeWidth: a.sourceStrokeWidth,
+          borderLinked: a.borderLinked,
           shape: a.shape,
           zoom: a.zoom,
           areaOpacity: a.areaOpacity,
@@ -1075,6 +1077,8 @@ export function EditorStage({ src }: Props) {
         shape: toolsCfg.magnify.shape,
         stroke: toolsCfg.magnify.strokeColor,
         strokeWidth: toolsCfg.magnify.strokeWidth,
+        sourceStrokeWidth: toolsCfg.magnify.sourceStrokeWidth,
+        borderLinked: toolsCfg.magnify.borderLinked,
         areaOpacity: toolsCfg.magnify.areaOpacity,
         linkDash: toolsCfg.magnify.linkDash,
       };
@@ -1290,6 +1294,7 @@ export function EditorStage({ src }: Props) {
                 cropOffX: cropBase.x,
                 cropOffY: cropBase.y,
                 selected: selectedId === a.id,
+                interactive: tool === "select",
                 scale,
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
@@ -1432,7 +1437,7 @@ export function EditorStage({ src }: Props) {
                 width={Math.abs(draft.w)}
                 height={Math.abs(draft.h)}
                 stroke={toolsCfg.magnify.strokeColor}
-                strokeWidth={toolsCfg.magnify.strokeWidth}
+                strokeWidth={toolsCfg.magnify.sourceStrokeWidth}
                 dash={[6, 4]}
                 listening={false}
                 sceneFunc={(c, shape) => {
@@ -1738,6 +1743,9 @@ type ShapeCtx = {
   cropOffY: number;
   /** Whether this annotation is the selected one (drives inline arrow handles). */
   selected: boolean;
+  /** True only when the Select tool is active. Magnify gates its drag/select
+   *  hit areas on this so other tools can draw over the zoom/output regions. */
+  interactive: boolean;
   /** Current stage scale, so on-canvas handles keep a constant screen size. */
   scale: number;
   onSelect: () => void;
@@ -2210,7 +2218,10 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
   const isRect = g.shape === "rect";
   const hr = Math.max(4, 6 / ctx.scale);
   const hsw = 1.5 / ctx.scale;
-  const bw = Math.max(1, a.strokeWidth * 0.6);
+  // Source-area border (and the connector) width — independent of the output
+  // loupe border. Legacy annotations without the field fall back to the old
+  // derived 0.6× value so they render identically.
+  const bw = Math.max(1, a.sourceStrokeWidth ?? a.strokeWidth * 0.6);
   const linkDashed = a.linkDash ?? true;
   const areaFill = a.areaOpacity ?? 0.15;
 
@@ -2273,7 +2284,8 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         ref={sourceRef}
         x={g.sx}
         y={g.sy}
-        draggable
+        draggable={ctx.interactive}
+        listening={ctx.interactive}
         {...hoverHandlers(ctx)}
         onMouseDown={(e) => {
           e.cancelBubble = true;
@@ -2309,7 +2321,8 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
       <Group
         x={g.x}
         y={g.y}
-        draggable
+        draggable={ctx.interactive}
+        listening={ctx.interactive}
         {...hoverHandlers(ctx)}
         onMouseDown={(e) => {
           e.cancelBubble = true;
@@ -2349,7 +2362,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         })}
       </Group>
       {/* zoom handle (output magnification) */}
-      {ctx.selected && (
+      {ctx.selected && ctx.interactive && (
         <Circle
           x={g.x + outW}
           y={g.y}

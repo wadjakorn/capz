@@ -42,6 +42,8 @@ import {
   ScanText,
   Loader2,
   Monitor,
+  Link2,
+  Link2Off,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
@@ -278,6 +280,10 @@ export function Toolbar({
   let sizeCtx: NumCtx | null = null;
   let cornerCtx: NumCtx | null = null;
   let penLevelCtx: NumCtx | null = null;
+  let magnifyLinkCtx: ToggleCtx | null = null;
+  // When borders are linked, the source width tracks the output at this ratio,
+  // preserving the loupe's default proportions from a single "Border" control.
+  const srcFromOut = (out: number) => Math.max(1, Math.round(out * 0.6));
   let rectShapeCtx: RectShapeCtx | null = null;
   let penModeCtx: PenModeCtx | null = null;
   let magnifyShapeCtx: MagnifyShapeCtx | null = null;
@@ -510,6 +516,50 @@ export function Toolbar({
           updateAnnotation(mSel.id, { areaOpacity: v / 100 });
           if (remember) patchLastUsed({ magnify: { areaOpacity: v / 100 } });
           else void updateSettings("tools", { magnify: { areaOpacity: v / 100 } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      // Border width: one "Border" control when linked (source tracks output at
+      // 0.6×), or independent "Out"/"Src" sliders when unlinked.
+      const mLinked = mSel.borderLinked ?? true;
+      cornerCtx = {
+        label: mLinked ? "Border" : "Out",
+        value: mSel.strokeWidth,
+        min: 1,
+        max: 20,
+        step: 1,
+        onChange: (v) => {
+          const patch = mLinked
+            ? { strokeWidth: v, sourceStrokeWidth: srcFromOut(v) }
+            : { strokeWidth: v };
+          updateAnnotation(mSel.id, patch);
+          if (remember) patchLastUsed({ magnify: patch });
+          else void updateSettings("tools", { magnify: patch } as Partial<AppConfig["tools"]>);
+        },
+      };
+      if (!mLinked) {
+        penLevelCtx = {
+          label: "Src",
+          value: mSel.sourceStrokeWidth ?? srcFromOut(mSel.strokeWidth),
+          min: 1,
+          max: 20,
+          step: 1,
+          onChange: (v) => {
+            updateAnnotation(mSel.id, { sourceStrokeWidth: v });
+            if (remember) patchLastUsed({ magnify: { sourceStrokeWidth: v } });
+            else void updateSettings("tools", { magnify: { sourceStrokeWidth: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
+      magnifyLinkCtx = {
+        value: mLinked,
+        onChange: (next) => {
+          // Re-linking snaps the source back to the proportional width.
+          const patch = next
+            ? { borderLinked: true, sourceStrokeWidth: srcFromOut(mSel.strokeWidth) }
+            : { borderLinked: false };
+          updateAnnotation(mSel.id, patch);
+          if (remember) patchLastUsed({ magnify: patch });
+          else void updateSettings("tools", { magnify: patch } as Partial<AppConfig["tools"]>);
         },
       };
       arrowDashCtx = {
@@ -862,6 +912,44 @@ export function Toolbar({
       onChange: (v) => {
         if (remember) patchLastUsed({ magnify: { areaOpacity: v / 100 } });
         else void updateSettings("tools", { magnify: { areaOpacity: v / 100 } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    const mLinked = toolsCfg.magnify.borderLinked;
+    cornerCtx = {
+      label: mLinked ? "Border" : "Out",
+      value: toolsCfg.magnify.strokeWidth,
+      min: 1,
+      max: 20,
+      step: 1,
+      onChange: (v) => {
+        const patch = mLinked
+          ? { strokeWidth: v, sourceStrokeWidth: srcFromOut(v) }
+          : { strokeWidth: v };
+        if (remember) patchLastUsed({ magnify: patch });
+        else void updateSettings("tools", { magnify: patch } as Partial<AppConfig["tools"]>);
+      },
+    };
+    if (!mLinked) {
+      penLevelCtx = {
+        label: "Src",
+        value: toolsCfg.magnify.sourceStrokeWidth,
+        min: 1,
+        max: 20,
+        step: 1,
+        onChange: (v) => {
+          if (remember) patchLastUsed({ magnify: { sourceStrokeWidth: v } });
+          else void updateSettings("tools", { magnify: { sourceStrokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+    }
+    magnifyLinkCtx = {
+      value: mLinked,
+      onChange: (next) => {
+        const patch = next
+          ? { borderLinked: true, sourceStrokeWidth: srcFromOut(toolsCfg.magnify.strokeWidth) }
+          : { borderLinked: false };
+        if (remember) patchLastUsed({ magnify: patch });
+        else void updateSettings("tools", { magnify: patch } as Partial<AppConfig["tools"]>);
       },
     };
     arrowDashCtx = {
@@ -1673,6 +1761,30 @@ export function Toolbar({
           <span className="w-7 text-right tabular-nums">{Math.round(penLevelCtx.value)}</span>
         </label>
       )}
+      {magnifyLinkCtx && (() => {
+        const mlc = magnifyLinkCtx;
+        return (
+          <button
+            type="button"
+            onClick={() => mlc.onChange(!mlc.value)}
+            title={mlc.value ? "Borders linked — click to set separately" : "Borders separate — click to link"}
+            aria-pressed={mlc.value}
+            aria-label="Link border widths"
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded transition-colors",
+              mlc.value
+                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+            ].join(" ")}
+          >
+            {mlc.value ? (
+              <Link2 className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Link2Off className="h-3.5 w-3.5" aria-hidden />
+            )}
+          </button>
+        );
+      })()}
       {sizeCtx && (
         <>
           <label

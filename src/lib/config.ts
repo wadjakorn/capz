@@ -108,6 +108,8 @@ export type AppConfig = {
     magnify?: {
       strokeColor?: string;
       strokeWidth?: number;
+      sourceStrokeWidth?: number;
+      borderLinked?: boolean;
       shape?: MagnifyShape;
       zoom?: number;
       areaOpacity?: number;
@@ -168,6 +170,8 @@ export type AppConfig = {
     magnify: {
       strokeColor: string;
       strokeWidth: number;
+      sourceStrokeWidth: number;
+      borderLinked: boolean;
       shape: MagnifyShape;
       zoom: number;
       areaOpacity: number;
@@ -274,6 +278,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     magnify: {
       strokeColor: "#facc15",
       strokeWidth: 3,
+      sourceStrokeWidth: 2,
+      borderLinked: true,
       shape: "circle",
       zoom: 2,
       areaOpacity: 0.15,
@@ -490,6 +496,8 @@ function vTools(
     magnify: vsec("tools.magnify", r.magnify, def.magnify, {
       strokeColor: isStr,
       strokeWidth: isNum,
+      sourceStrokeWidth: isNum,
+      borderLinked: isBool,
       shape: inSet("circle", "rect"),
       zoom: isNum,
       areaOpacity: isNum,
@@ -704,6 +712,8 @@ export type EffectiveTools = {
   magnify: {
     strokeColor: string;
     strokeWidth: number;
+    sourceStrokeWidth: number;
+    borderLinked: boolean;
     shape: MagnifyShape;
     zoom: number;
     areaOpacity: number;
@@ -753,6 +763,9 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
     magnify: {
       strokeColor: lu?.magnify?.strokeColor ?? t.magnify.strokeColor,
       strokeWidth: lu?.magnify?.strokeWidth ?? t.magnify.strokeWidth,
+      sourceStrokeWidth:
+        lu?.magnify?.sourceStrokeWidth ?? t.magnify.sourceStrokeWidth,
+      borderLinked: lu?.magnify?.borderLinked ?? t.magnify.borderLinked,
       shape: lu?.magnify?.shape ?? t.magnify.shape,
       zoom: lu?.magnify?.zoom ?? t.magnify.zoom,
       areaOpacity: lu?.magnify?.areaOpacity ?? t.magnify.areaOpacity,
