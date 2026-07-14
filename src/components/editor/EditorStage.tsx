@@ -639,9 +639,7 @@ export function EditorStage({ src }: Props) {
       const node = nodeRefs.current.get(a.id);
       // Magnify registers only its source group, so its node rect misses the
       // output loupe — use the annotation AABB, which unions source + output.
-      // Blur is a Group whose getClientRect ignores its clip, so its composited
-      // below-image children would inflate it — use its exact rect AABB instead.
-      if (node && a.type !== "magnify" && a.type !== "blur") {
+      if (node && a.type !== "magnify") {
         const r = node.getClientRect({
           relativeTo: node.getLayer() ?? undefined,
           skipShadow: true,
@@ -2606,61 +2604,84 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
 }
 
 function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
-  // The blur is a cached, blurred Group holding a crop of the base image PLUS a
-  // copy of every image annotation stacked below it that the blur overlaps — so
+  // A single blurred KonvaImage (selectable/draggable/cheap to cache). Its
+  // source is an offscreen canvas compositing the base-image region under the
+  // rect PLUS any image annotation stacked below and overlapping it — so
   // blurring over an added image blurs that image's pixels, not the base behind
-  // it. Sampling only the base bitmap (the old single-KonvaImage approach) would
-  // reveal unrelated base content over an added image.
-  const ref = useRef<Konva.Group>(null);
+  // it. Compositing into one bitmap (vs. a clipped Group of live nodes) keeps
+  // the node hit-testable and avoids caching a heavy container every change.
+  const ref = useRef<Konva.Image>(null);
   const rot = a.rotation ?? 0;
   const below = ctx.imagesBelow ?? [];
-  // Express a canvas point in the group's local (un-rotated) frame so below
-  // images land correctly even when the blur rect itself is rotated.
-  const gr = (-rot * Math.PI) / 180;
-  const cos = Math.cos(gr);
-  const sin = Math.sin(gr);
-  const toLocal = (px: number, py: number) => {
-    const dx = px - a.x;
-    const dy = py - a.y;
-    return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
-  };
+  const bgImage = ctx.bgImage;
+  const cropOffX = ctx.cropOffX;
+  const cropOffY = ctx.cropOffY;
+  const w = Math.max(1, Math.round(a.w));
+  const h = Math.max(1, Math.round(a.h));
+  // Stable dependency signature over everything that affects the composite.
+  const belowSig = below
+    .map((b) => `${b.ann.id}:${b.ann.x},${b.ann.y},${b.ann.w},${b.ann.h},${b.ann.rotation ?? 0}:${!!b.el}`)
+    .join("|");
+
+  // Build the composited source bitmap in the blur's un-rotated local frame
+  // (origin at the rect's top-left); the KonvaImage applies the rect rotation.
+  const composite = useMemo(() => {
+    if (!bgImage) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const g = canvas.getContext("2d");
+    if (!g) return null;
+    // Base screenshot region under the rect.
+    g.drawImage(bgImage, a.x + cropOffX, a.y + cropOffY, w, h, 0, 0, w, h);
+    // Overlay images beneath the blur, drawn exactly as on the main canvas.
+    const gr = (-rot * Math.PI) / 180;
+    const cos = Math.cos(gr);
+    const sin = Math.sin(gr);
+    for (const b of below) {
+      if (!b.el) continue;
+      const dx = b.ann.x - a.x;
+      const dy = b.ann.y - a.y;
+      const lx = dx * cos - dy * sin;
+      const ly = dx * sin + dy * cos;
+      g.save();
+      g.translate(lx, ly);
+      g.rotate((((b.ann.rotation ?? 0) - rot) * Math.PI) / 180);
+      const c = b.ann.crop;
+      if (c) {
+        g.drawImage(b.el, c.x, c.y, c.w, c.h, 0, 0, b.ann.w, b.ann.h);
+      } else {
+        g.drawImage(b.el, 0, 0, b.ann.w, b.ann.h);
+      }
+      g.restore();
+    }
+    return canvas;
+    // belowSig captures the below-image geometry/bitmap set; `below` is read
+    // inside but is safe to omit since belowSig changes whenever it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bgImage, a.x, a.y, w, h, rot, cropOffX, cropOffY, belowSig]);
+
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
-  // Re-cache whenever the sampled content changes: blur geometry, the base
-  // image, or any below image's geometry/bitmap.
-  const belowSig = below
-    .map((b) => `${b.ann.id}:${b.ann.x},${b.ann.y},${b.ann.w},${b.ann.h},${b.ann.rotation ?? 0}`)
-    .join("|");
   useEffect(() => {
     const node = ref.current;
-    if (!node || !ctx.bgImage) return;
+    if (!node || !composite) return;
     node.cache();
     node.getLayer()?.batchDraw();
-  }, [
-    ctx.bgImage,
-    a.x,
-    a.y,
-    a.w,
-    a.h,
-    a.blurRadius,
-    rot,
-    ctx.cropOffX,
-    ctx.cropOffY,
-    belowSig,
-  ]);
-  if (!ctx.bgImage) return null;
+  }, [composite, a.blurRadius]);
+
+  if (!composite) return null;
   return (
-    <Group
+    <KonvaImage
       ref={ref}
+      image={composite}
       x={a.x}
       y={a.y}
       rotation={rot}
-      clipX={0}
-      clipY={0}
-      clipWidth={a.w}
-      clipHeight={a.h}
+      width={a.w}
+      height={a.h}
       filters={[Konva.Filters.Blur]}
       blurRadius={a.blurRadius}
       draggable
@@ -2697,45 +2718,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
           rotation: node.rotation(),
         });
       }}
-    >
-      {/* Base screenshot region under the blur rect. */}
-      <KonvaImage
-        image={ctx.bgImage}
-        x={0}
-        y={0}
-        width={a.w}
-        height={a.h}
-        crop={{ x: a.x + ctx.cropOffX, y: a.y + ctx.cropOffY, width: a.w, height: a.h }}
-        listening={false}
-      />
-      {/* Overlay images beneath this blur, drawn exactly as on the main canvas
-          (own bitmap, own crop) so the composited/blurred result matches. */}
-      {below.map((b) => {
-        const lp = toLocal(b.ann.x, b.ann.y);
-        return (
-          <KonvaImage
-            key={b.ann.id}
-            image={b.el}
-            x={lp.x}
-            y={lp.y}
-            width={b.ann.w}
-            height={b.ann.h}
-            rotation={(b.ann.rotation ?? 0) - rot}
-            crop={
-              b.ann.crop
-                ? {
-                    x: b.ann.crop.x,
-                    y: b.ann.crop.y,
-                    width: b.ann.crop.w,
-                    height: b.ann.crop.h,
-                  }
-                : undefined
-            }
-            listening={false}
-          />
-        );
-      })}
-    </Group>
+    />
   );
 }
 
