@@ -2929,7 +2929,10 @@ function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
       height={a.h}
       crop={crop}
       rotation={a.rotation ?? 0}
-      draggable
+      // Gate hit-testing on the Select tool (like MagnifyShape) so a large
+      // overlay image doesn't swallow clicks — other tools draw over it.
+      draggable={ctx.interactive}
+      listening={ctx.interactive}
       {...hoverHandlers(ctx)}
       onMouseDown={(e) => {
         e.cancelBubble = true;
