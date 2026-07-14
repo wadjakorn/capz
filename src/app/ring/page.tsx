@@ -158,15 +158,17 @@ export default function CommandRingPage() {
     >
       {ready && (
         <svg width={size.w} height={size.h} className="absolute inset-0">
-          {/* Floating dark backdrop disc */}
+          {/* Floating backdrop disc — fully opaque (no see-through to the
+              desktop). The window outside this disc stays transparent so the
+              ring reads as a floating circle. */}
           <circle
             cx={cx}
             cy={cy}
             r={rOuter + 12}
-            fill="rgba(20,20,25,0.72)"
-            stroke="rgba(255,255,255,0.12)"
+            fill="#17171c"
+            stroke="rgba(255,255,255,0.14)"
             strokeWidth={1}
-            style={{ filter: "drop-shadow(0 10px 30px rgba(0,0,0,0.45))" }}
+            style={{ filter: "drop-shadow(0 10px 30px rgba(0,0,0,0.55))" }}
           />
 
           {/* Hovered wedge highlight (accent tokens, as literals — CSS vars do
@@ -174,7 +176,7 @@ export default function CommandRingPage() {
           {hover && (
             <path
               d={wedgePath(cx, cy, rInner, rOuter, (RING_ANGLE[hover] * 180) / Math.PI)}
-              fill="rgba(109,124,255,0.16)"
+              fill="rgba(109,124,255,0.30)"
               stroke="#6d7cff"
               strokeWidth={1.5}
             />
