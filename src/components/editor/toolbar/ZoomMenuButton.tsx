@@ -1,15 +1,25 @@
 "use client";
 
 import { ChevronDown, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import { zoomAtViewportCenter, zoomToFit, zoomTo100, setZoom } from "@/lib/zoom";
+import {
+  zoomAtViewportCenter,
+  zoomToFit,
+  zoomTo100,
+  setZoom,
+  scaleToSlider,
+  sliderToScale,
+  SLIDER_TICK_100,
+} from "@/lib/zoom";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ToolButton } from "./ToolButton";
+
+// Shared 32px hit target, matching every other toolbar button.
+const HIT =
+  "flex h-8 items-center justify-center rounded-lg border border-transparent text-[var(--fg-2)] transition-all hover:bg-[var(--surface-raised)] hover:text-[var(--fg)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--fg-2)]";
 
 export function ZoomMenuButton({
   displayScale,
@@ -19,18 +29,26 @@ export function ZoomMenuButton({
   disabled?: boolean;
 }) {
   const pct = displayScale > 0 ? Math.round(displayScale * 100) : null;
+  const sliderValue = scaleToSlider(displayScale > 0 ? displayScale : 1);
 
   return (
-    <div className="inline-flex items-stretch overflow-hidden rounded-lg">
+    <div className="inline-flex items-center gap-1">
+      <ToolButton
+        icon={Maximize2}
+        label="Fit to window"
+        hint="⌘0"
+        disabled={disabled}
+        onClick={() => zoomToFit()}
+      />
       <button
         type="button"
         onClick={() => zoomTo100()}
         disabled={disabled}
         title="Zoom to 100% (⌘1)"
         aria-label="Zoom to 100%"
-        className="min-w-[44px] px-2 py-1 text-xs tabular-nums text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+        className={`${HIT} w-8 text-[11px] font-semibold tabular-nums`}
       >
-        {pct !== null ? `${pct}%` : "—"}
+        1:1
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -38,61 +56,59 @@ export function ZoomMenuButton({
             <button
               type="button"
               disabled={disabled}
-              title="Zoom options"
-              aria-label="Zoom options"
-              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+              title="Set zoom"
+              aria-label="Set zoom"
+              className={`${HIT} gap-1 px-2 text-xs tabular-nums`}
             >
-              <ChevronDown className="h-3 w-3" aria-hidden />
+              {pct !== null ? `${pct}%` : "—"}
+              <ChevronDown className="h-3 w-3 opacity-60" aria-hidden />
             </button>
           }
         />
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => zoomAtViewportCenter(1 / 1.2)}>
-            <ZoomOut aria-hidden />
-            <span>Zoom out</span>
-            <DropdownMenuShortcut>⌘−</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomAtViewportCenter(1.2)}>
-            <ZoomIn aria-hidden />
-            <span>Zoom in</span>
-            <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => zoomToFit()}>
-            <Maximize2 aria-hidden />
-            <span>Fit to window</span>
-            <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => zoomTo100()}>
-            <span className="h-3.5 w-3.5 text-center text-[10px] font-semibold leading-[14px]">1</span>
-            <span>Zoom to 100%</span>
-            <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <div className="px-2 py-1.5 text-[10px] text-muted-foreground">Set zoom</div>
-          <div className="px-2 pb-1.5">
-            <input
-              type="number"
-              defaultValue={pct ?? 100}
-              min={10}
-              max={1600}
-              step={10}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const v = parseInt((e.target as HTMLInputElement).value, 10);
-                  if (Number.isFinite(v) && v > 0) {
-                    setZoom(v / 100);
-                  }
-                }
-              }}
-              onBlur={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (Number.isFinite(v) && v > 0) {
-                  setZoom(v / 100);
-                }
-              }}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-foreground outline-none focus:border-[var(--accent)]"
-            />
+        <DropdownMenuContent align="end" className="w-56 p-2">
+          <div className="mb-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => zoomAtViewportCenter(1 / 1.2)}
+              title="Zoom out (⌘−)"
+              aria-label="Zoom out"
+              className={`${HIT} w-8 shrink-0`}
+            >
+              <ZoomOut className="h-4 w-4" aria-hidden />
+            </button>
+
+            {/* Log-scaled zoom slider with a 100% landmark tick. */}
+            <div className="relative flex-1">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 h-2 w-px -translate-y-1/2 bg-[var(--fg-2)]/40"
+                style={{ left: `${SLIDER_TICK_100 * 100}%` }}
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.001}
+                value={sliderValue}
+                disabled={disabled}
+                aria-label="Zoom level"
+                onChange={(e) => setZoom(sliderToScale(Number(e.target.value)))}
+                className="relative w-full accent-[var(--accent)]"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => zoomAtViewportCenter(1.2)}
+              title="Zoom in (⌘+)"
+              aria-label="Zoom in"
+              className={`${HIT} w-8 shrink-0`}
+            >
+              <ZoomIn className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+          <div className="px-1 text-center text-[10px] tabular-nums text-muted-foreground">
+            {pct !== null ? `${pct}%` : "—"}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
