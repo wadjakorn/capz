@@ -194,6 +194,11 @@ export function Toolbar({
   const reorderAnnotation = useEditor((s) => s.reorder);
   const addImageMode = useEditor((s) => s.addImageMode);
   const setAddImageMode = useEditor((s) => s.setAddImageMode);
+  // Add-image mode only makes sense with a base image; clear it when the
+  // workspace empties so the mode can't stay stuck on after a clear/close.
+  useEffect(() => {
+    if (!hasImage && addImageMode) setAddImageMode(false);
+  }, [hasImage, addImageMode, setAddImageMode]);
   const pinsCfg = useSettings((s) => s.config.pins);
   const fullConfig = useSettings((s) => s.config);
   const toolsCfg = effectiveTools(fullConfig);
@@ -1466,11 +1471,14 @@ export function Toolbar({
         <ToolButton
           icon={ImagePlus}
           label={
-            addImageMode
-              ? "Add-image mode on — paste/drop layers images"
-              : "Add-image mode — layer images instead of replacing"
+            !hasImage
+              ? "Add-image mode — load a base image first"
+              : addImageMode
+                ? "Add-image mode on — paste/drop layers images"
+                : "Add-image mode — layer images instead of replacing"
           }
           pressed={addImageMode}
+          disabled={!hasImage}
           onClick={() => setAddImageMode(!addImageMode)}
         />
         {addImageMode && (
