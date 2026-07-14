@@ -2,8 +2,35 @@ import { clampZoom, useEditor } from "@/stores/editor";
 import {
   getScrollContainer,
   getStage,
+  getStageExportBox,
   getStageImageSize,
 } from "@/lib/stageBridge";
+
+/**
+ * Zoom-slider range. Narrower than the internal clamp (ZOOM_MIN..ZOOM_MAX) —
+ * the slider covers the practical 10%..1600% band; smaller/larger zooms are
+ * still reachable via +/- and pin the thumb to an end.
+ */
+export const SLIDER_SCALE_MIN = 0.1;
+export const SLIDER_SCALE_MAX = 16;
+const LN_MIN = Math.log(SLIDER_SCALE_MIN);
+const LN_MAX = Math.log(SLIDER_SCALE_MAX);
+
+const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
+
+/** Map a display scale to a slider position in [0,1] on a log axis. */
+export function scaleToSlider(scale: number): number {
+  const s = Math.min(SLIDER_SCALE_MAX, Math.max(SLIDER_SCALE_MIN, scale));
+  return clamp01((Math.log(s) - LN_MIN) / (LN_MAX - LN_MIN));
+}
+
+/** Inverse of {@link scaleToSlider}: slider position in [0,1] → display scale. */
+export function sliderToScale(t: number): number {
+  return Math.exp(LN_MIN + clamp01(t) * (LN_MAX - LN_MIN));
+}
+
+/** Track position (0..1) of the 100% landmark tick. */
+export const SLIDER_TICK_100 = scaleToSlider(1);
 
 /**
  * Zoom around a screen-space anchor (clientX/clientY in viewport coords). After
@@ -51,8 +78,13 @@ function recenterScroll() {
 
 export function zoomToFit() {
   const el = getScrollContainer();
-  const size = getStageImageSize();
-  if (!el || !size) return;
+  if (!el) return;
+  // Fit the full rendered canvas — image plus any overflowing elements and the
+  // backdrop padding (the export box) — not just the raw image rect, so nothing
+  // that extends past the image edges gets clipped after a fit.
+  const box = getStageExportBox();
+  const size = box ? { w: box.w, h: box.h } : getStageImageSize();
+  if (!size) return;
   useEditor.getState().zoomFit({
     vw: el.clientWidth,
     vh: el.clientHeight,
