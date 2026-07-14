@@ -30,6 +30,7 @@ type HotkeyPatch = {
   captureFull?: string;
   captureArea?: string;
   captureWindow?: string;
+  captureScroll?: string;
   showEditor?: string;
 };
 
@@ -37,6 +38,7 @@ const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
   captureFull: "Capture full screen",
   captureArea: "Capture area",
   captureWindow: "Capture window",
+  captureScroll: "Scrolling capture",
   showEditor: "Show editor",
 };
 
@@ -234,6 +236,15 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   value={config.hotkeys.captureWindow}
                   onChange={(v) =>
                     applyHotkey(useSettings.getState, update, { captureWindow: v })
+                  }
+                />
+              </FieldRow>
+              <FieldRow label="Scrolling capture">
+                <HotkeyRecorder
+                  value={config.hotkeys.captureScroll}
+                  clearable
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { captureScroll: v })
                   }
                 />
               </FieldRow>

@@ -11,6 +11,9 @@ const DEFAULT_FULL: &str = "CmdOrCtrl+Alt+Shift+3";
 const DEFAULT_AREA: &str = "CmdOrCtrl+Alt+Shift+4";
 const DEFAULT_WINDOW: &str = "CmdOrCtrl+Alt+Shift+5";
 const DEFAULT_SHOW_EDITOR: &str = "CmdOrCtrl+Alt+Shift+0";
+// Scrolling capture ships UNBOUND by default — the user assigns a key in
+// Settings. Empty means "no shortcut registered".
+const DEFAULT_SCROLL: &str = "";
 
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -41,6 +44,7 @@ pub enum HotkeyAction {
     CaptureFull,
     CaptureArea,
     CaptureWindow,
+    CaptureScroll,
     ShowEditor,
 }
 
@@ -58,6 +62,7 @@ fn default_accel(action: HotkeyAction) -> &'static str {
         HotkeyAction::CaptureFull => DEFAULT_FULL,
         HotkeyAction::CaptureArea => DEFAULT_AREA,
         HotkeyAction::CaptureWindow => DEFAULT_WINDOW,
+        HotkeyAction::CaptureScroll => DEFAULT_SCROLL,
         HotkeyAction::ShowEditor => DEFAULT_SHOW_EDITOR,
     }
 }
@@ -73,14 +78,21 @@ pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (Str
     }
 }
 
-fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, String) {
-    let defaults = || {
-        (
-            DEFAULT_FULL.into(),
-            DEFAULT_AREA.into(),
-            DEFAULT_WINDOW.into(),
-            DEFAULT_SHOW_EDITOR.into(),
-        )
+struct Hotkeys {
+    full: String,
+    area: String,
+    window: String,
+    scroll: String,
+    show_editor: String,
+}
+
+fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
+    let defaults = || Hotkeys {
+        full: DEFAULT_FULL.into(),
+        area: DEFAULT_AREA.into(),
+        window: DEFAULT_WINDOW.into(),
+        scroll: DEFAULT_SCROLL.into(),
+        show_editor: DEFAULT_SHOW_EDITOR.into(),
     };
     let Ok(path) = config_store_path(app) else {
         return defaults();
@@ -90,27 +102,29 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> (String, String, String, Stri
         Err(_) => return defaults(),
     };
     let value = store.get(CONFIG_STORE_KEY);
-    let mut full = DEFAULT_FULL.to_string();
-    let mut area = DEFAULT_AREA.to_string();
-    let mut window = DEFAULT_WINDOW.to_string();
-    let mut show_editor = DEFAULT_SHOW_EDITOR.to_string();
+    let mut hk = defaults();
     if let Some(v) = value {
-        if let Some(hk) = v.get("hotkeys") {
-            if let Some(s) = hk.get("captureFull").and_then(|x| x.as_str()) {
-                full = s.to_string();
+        if let Some(map) = v.get("hotkeys") {
+            if let Some(s) = map.get("captureFull").and_then(|x| x.as_str()) {
+                hk.full = s.to_string();
             }
-            if let Some(s) = hk.get("captureArea").and_then(|x| x.as_str()) {
-                area = s.to_string();
+            if let Some(s) = map.get("captureArea").and_then(|x| x.as_str()) {
+                hk.area = s.to_string();
             }
-            if let Some(s) = hk.get("captureWindow").and_then(|x| x.as_str()) {
-                window = s.to_string();
+            if let Some(s) = map.get("captureWindow").and_then(|x| x.as_str()) {
+                hk.window = s.to_string();
             }
-            if let Some(s) = hk.get("showEditor").and_then(|x| x.as_str()) {
-                show_editor = s.to_string();
+            // May be absent (older config) or an empty string (explicitly
+            // unbound) — both leave scroll unregistered.
+            if let Some(s) = map.get("captureScroll").and_then(|x| x.as_str()) {
+                hk.scroll = s.to_string();
+            }
+            if let Some(s) = map.get("showEditor").and_then(|x| x.as_str()) {
+                hk.show_editor = s.to_string();
             }
         }
     }
-    (full, area, window, show_editor)
+    hk
 }
 
 fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
@@ -118,6 +132,7 @@ fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
         HotkeyAction::CaptureFull => emit_trigger(app, CaptureKind::Full),
         HotkeyAction::CaptureArea => emit_trigger(app, CaptureKind::Area),
         HotkeyAction::CaptureWindow => emit_trigger(app, CaptureKind::Window),
+        HotkeyAction::CaptureScroll => emit_trigger(app, CaptureKind::Scroll),
         HotkeyAction::ShowEditor => {
             log::info!("shortcut triggered: show_editor");
             if let Err(e) = windows::show_editor(app) {
@@ -143,23 +158,40 @@ fn register_one<R: Runtime>(
         .map_err(|e| e.to_string())
 }
 
-/// Register all four hotkeys independently. One failure never aborts the rest.
-/// Returns a per-action report; each status describes the requested value.
+/// Register every configured hotkey independently. One failure never aborts the
+/// rest, and an empty accelerator is skipped (unbound). Returns a per-action
+/// report; each status describes the requested value.
 pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
-    let (full, area, window, show_editor) = read_hotkeys(app);
+    let hk = read_hotkeys(app);
     let _ = app.global_shortcut().unregister_all();
     let win = cfg!(target_os = "windows");
 
     let items = [
-        (HotkeyAction::CaptureFull, full),
-        (HotkeyAction::CaptureArea, area),
-        (HotkeyAction::CaptureWindow, window),
-        (HotkeyAction::ShowEditor, show_editor),
+        (HotkeyAction::CaptureFull, hk.full),
+        (HotkeyAction::CaptureArea, hk.area),
+        (HotkeyAction::CaptureWindow, hk.window),
+        (HotkeyAction::CaptureScroll, hk.scroll),
+        (HotkeyAction::ShowEditor, hk.show_editor),
     ];
 
     let mut report = Vec::with_capacity(items.len());
     for (action, requested) in items {
-        let (effective, pre) = plan_one(action, &requested, win);
+        // An empty accelerator means "unbound" (scroll ships this way, and any
+        // action the user clears): register nothing, report it as Ok/unset.
+        let (effective, pre) = if requested.trim().is_empty() {
+            (String::new(), RegoStatus::Ok)
+        } else {
+            plan_one(action, &requested, win)
+        };
+        if effective.is_empty() {
+            report.push(RegoResult {
+                action,
+                requested,
+                effective,
+                status: pre,
+            });
+            continue;
+        }
         let status = match register_one(app, action, &effective) {
             Ok(()) => pre,
             Err(e) => {
@@ -278,5 +310,10 @@ mod tests {
         let (eff, st) = plan_one(HotkeyAction::CaptureWindow, "Alt+Tab", true);
         assert_eq!(eff, DEFAULT_WINDOW);
         assert_eq!(st, RegoStatus::Reserved);
+    }
+
+    #[test]
+    fn scroll_ships_unbound_by_default() {
+        assert_eq!(default_accel(HotkeyAction::CaptureScroll), "");
     }
 }
