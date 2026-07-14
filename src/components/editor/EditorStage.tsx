@@ -224,6 +224,7 @@ export function EditorStage({ src }: Props) {
   const select = useEditor((s) => s.select);
   const imageCrop = useEditor((s) => s.imageCrop);
   const applyCrop = useEditor((s) => s.applyCrop);
+  const applyImageCrop = useEditor((s) => s.applyImageCrop);
   const backdropOn = useEditor((s) => s.backdropOn);
 
   const settingsReady = useSettings((s) => s.ready);
@@ -479,7 +480,9 @@ export function EditorStage({ src }: Props) {
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-    if (!selectedId) {
+    // Crop mode owns the canvas: hide the normal box Transformer even though the
+    // selection is preserved (so per-object image crop knows its target).
+    if (!selectedId || tool === "crop") {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -497,12 +500,15 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(selectedId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [selectedId, annotations]);
+  }, [selectedId, annotations, tool]);
 
   useEffect(() => {
     const tr = hoverTrRef.current;
     if (!tr) return;
-    const showId = hoveredId && hoveredId !== selectedId ? hoveredId : null;
+    const showId =
+      tool !== "crop" && hoveredId && hoveredId !== selectedId
+        ? hoveredId
+        : null;
     if (!showId) {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
@@ -511,7 +517,7 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(showId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [hoveredId, selectedId, annotations]);
+  }, [hoveredId, selectedId, annotations, tool]);
 
   const srcW = image?.naturalWidth ?? 0;
   const srcH = image?.naturalHeight ?? 0;
@@ -522,16 +528,50 @@ export function EditorStage({ src }: Props) {
   const imgW = cropBase.w;
   const imgH = cropBase.h;
 
-  // Seed the crop selection to the full image when entering crop mode; drop it
-  // on exit (Cancel/Esc/tool switch). Re-clamp if the image dimensions change.
+  // When Crop is entered with a single (unrotated) image annotation selected,
+  // the crop targets THAT image's on-screen box instead of the base screenshot.
+  // A rotated image is blocked (below) since the overlay is axis-aligned.
+  const cropImage = useMemo(() => {
+    if (tool !== "crop" || !selectedId) return null;
+    const a = annotations.find((x) => x.id === selectedId);
+    return a && a.type === "image" && (a.rotation ?? 0) === 0 ? a : null;
+  }, [tool, selectedId, annotations]);
+
+  // Bounds the crop selection is confined to: the image box for per-object crop,
+  // else the whole displayed base image. All in canvas (image-display) coords.
+  const cropRegion = cropImage
+    ? { x: cropImage.x, y: cropImage.y, w: cropImage.w, h: cropImage.h }
+    : { x: 0, y: 0, w: imgW, h: imgH };
+  const rL = cropRegion.x;
+  const rT = cropRegion.y;
+  const rR = cropRegion.x + cropRegion.w;
+  const rB = cropRegion.y + cropRegion.h;
+
+  // Block per-object crop on a rotated image — revert to Select with a hint.
+  useEffect(() => {
+    if (tool !== "crop" || !selectedId) return;
+    const a = annotations.find((x) => x.id === selectedId);
+    if (a?.type === "image" && (a.rotation ?? 0) !== 0) {
+      toast.error("Reset the image's rotation to crop it");
+      setTool("select");
+    }
+  }, [tool, selectedId, annotations, setTool]);
+
+  // Seed the crop selection to the full target region when entering crop mode,
+  // and re-seed if the region changes (a different target, or the base image
+  // resized). The selection is frozen during crop — dragging the box updates
+  // cropSel but never the region primitives below — so this fires only on a
+  // genuine region change, never mid-drag. Dropped on exit (Cancel/Esc/switch).
   useEffect(() => {
     if (tool !== "crop") {
       setCropSel(null);
       return;
     }
-    if (imgW <= 0 || imgH <= 0) return;
-    setCropSel((cur) => (cur ? cur : { x: 0, y: 0, w: imgW, h: imgH }));
-  }, [tool, imgW, imgH]);
+    if (cropRegion.w <= 0 || cropRegion.h <= 0) return;
+    setCropSel({ x: rL, y: rT, w: cropRegion.w, h: cropRegion.h });
+    // Region primitives capture both base-image and per-object targets.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, rL, rT, cropRegion.w, cropRegion.h]);
 
   // Attach the dedicated crop Transformer to the crop box.
   useEffect(() => {
@@ -545,6 +585,32 @@ export function EditorStage({ src }: Props) {
   const applyCropNow = () => {
     if (!cropSel || cropSel.w < 8 || cropSel.h < 8) {
       setTool("select");
+      return;
+    }
+    if (cropImage) {
+      const el = imageEls.current.get(cropImage.id);
+      // `natural` seeds the source rect only for a first crop (the store uses
+      // the existing `crop` otherwise). Without the decoded bitmap AND without a
+      // prior crop we can't know the source size — using display dims would map
+      // 1:1 and store a wrong rect, so defer rather than guess.
+      if (!el && !cropImage.crop) {
+        toast.error("Image still loading — try again");
+        return;
+      }
+      const natural = el
+        ? { w: el.naturalWidth, h: el.naturalHeight }
+        : { w: cropImage.crop!.w, h: cropImage.crop!.h };
+      // cropSel is in canvas coords; shift to the image box's local frame.
+      applyImageCrop(
+        cropImage.id,
+        {
+          x: cropSel.x - cropImage.x,
+          y: cropSel.y - cropImage.y,
+          w: cropSel.w,
+          h: cropSel.h,
+        },
+        natural,
+      );
       return;
     }
     applyCrop(cropSel, { w: srcW, h: srcH });
@@ -565,9 +631,9 @@ export function EditorStage({ src }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // applyCropNow closes over cropSel/srcW/srcH; re-bind when they change.
+    // applyCropNow closes over cropSel/srcW/srcH/cropImage; re-bind on change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, cropSel, srcW, srcH]);
+  }, [tool, cropSel, srcW, srcH, cropImage]);
 
   // When useImage swaps to a new HTMLImageElement (next capture, paste, etc.),
   // reset displayScale to the 0 sentinel so the fit effect re-runs with the
@@ -1536,20 +1602,22 @@ export function EditorStage({ src }: Props) {
             })()}
             {tool === "crop" && cropSel && (
               <>
-                {/* Dim the area outside the crop selection (4 rects). */}
-                <Rect x={0} y={0} width={imgW} height={cropSel.y} fill="rgba(0,0,0,0.5)" />
+                {/* Dim the area inside the crop region but outside the selection
+                    (4 rects). Region = the image box for per-object crop, else
+                    the whole base image. */}
+                <Rect x={rL} y={rT} width={cropRegion.w} height={Math.max(0, cropSel.y - rT)} fill="rgba(0,0,0,0.5)" />
                 <Rect
-                  x={0}
+                  x={rL}
                   y={cropSel.y + cropSel.h}
-                  width={imgW}
-                  height={Math.max(0, imgH - cropSel.y - cropSel.h)}
+                  width={cropRegion.w}
+                  height={Math.max(0, rB - cropSel.y - cropSel.h)}
                   fill="rgba(0,0,0,0.5)"
                 />
-                <Rect x={0} y={cropSel.y} width={cropSel.x} height={cropSel.h} fill="rgba(0,0,0,0.5)" />
+                <Rect x={rL} y={cropSel.y} width={Math.max(0, cropSel.x - rL)} height={cropSel.h} fill="rgba(0,0,0,0.5)" />
                 <Rect
                   x={cropSel.x + cropSel.w}
                   y={cropSel.y}
-                  width={Math.max(0, imgW - cropSel.x - cropSel.w)}
+                  width={Math.max(0, rR - cropSel.x - cropSel.w)}
                   height={cropSel.h}
                   fill="rgba(0,0,0,0.5)"
                 />
@@ -1565,8 +1633,8 @@ export function EditorStage({ src }: Props) {
                   draggable
                   onDragMove={(e) => {
                     const n = e.target;
-                    const nx = Math.max(0, Math.min(n.x(), imgW - cropSel.w));
-                    const ny = Math.max(0, Math.min(n.y(), imgH - cropSel.h));
+                    const nx = Math.max(rL, Math.min(n.x(), rR - cropSel.w));
+                    const ny = Math.max(rT, Math.min(n.y(), rB - cropSel.h));
                     n.position({ x: nx, y: ny });
                     setCropSel({ ...cropSel, x: nx, y: ny });
                   }}
@@ -1577,10 +1645,10 @@ export function EditorStage({ src }: Props) {
                     const sy = n.scaleY();
                     n.scaleX(1);
                     n.scaleY(1);
-                    let x = Math.max(0, Math.min(n.x(), imgW - 8));
-                    let y = Math.max(0, Math.min(n.y(), imgH - 8));
-                    let w = Math.max(8, Math.min(n.width() * sx, imgW - x));
-                    let h = Math.max(8, Math.min(n.height() * sy, imgH - y));
+                    let x = Math.max(rL, Math.min(n.x(), rR - 8));
+                    let y = Math.max(rT, Math.min(n.y(), rB - 8));
+                    let w = Math.max(8, Math.min(n.width() * sx, rR - x));
+                    let h = Math.max(8, Math.min(n.height() * sy, rB - y));
                     x = Math.round(x);
                     y = Math.round(y);
                     w = Math.round(w);

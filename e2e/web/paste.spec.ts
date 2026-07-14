@@ -80,7 +80,10 @@ test("choosing a file via the picker mounts the stage", async ({ page }) => {
   await page.waitForLoadState("networkidle");
 
   const bytes = Buffer.from(PNG_B64, "base64");
-  await page.locator('input[type="file"]').setInputFiles({
+  // Target the labeled picker specifically — the page also has a second hidden
+  // file input for the "Import image" action, so a bare input[type=file]
+  // locator is ambiguous (strict-mode violation).
+  await page.getByLabel("Choose an image…").setInputFiles({
     name: "shot.png",
     mimeType: "image/png",
     buffer: bytes,

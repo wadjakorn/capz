@@ -357,6 +357,19 @@ type State = {
    * shifts annotations into the new origin, and pushes one undo step.
    */
   applyCrop: (sel: ImageCrop, src: { w: number; h: number }) => void;
+  /**
+   * Crop a single layered `ImageAnnotation` (not the base screenshot). `sel` is
+   * in the image's *displayed box* coordinates (origin at the box's top-left,
+   * 0..w × 0..h); `natural` is the source bitmap's native size, used to seed the
+   * base rect when the image has no crop yet. Maps the selection into source
+   * natural pixels, composes onto any existing `crop`, trims the box to the
+   * cropped region, and pushes one undo step. No-op for a non-image id.
+   */
+  applyImageCrop: (
+    id: string,
+    sel: ImageCrop,
+    natural: { w: number; h: number },
+  ) => void;
   undo: () => void;
   redo: () => void;
   setDisplayScale: (s: number) => void;
@@ -395,7 +408,12 @@ export const useEditor = create<State>((set, get) => ({
   guides: { x: [], y: [] },
 
   setTool: (t) =>
-    set({ tool: t, selectedId: t === "select" ? get().selectedId : null }),
+    // Crop keeps the current selection so per-object image crop knows its
+    // target; every other tool clears it (as before).
+    set({
+      tool: t,
+      selectedId: t === "select" || t === "crop" ? get().selectedId : null,
+    }),
   setStickerSelection: (sel) => set({ stickerSelection: sel }),
   setNextPinNumber: (n) => set({ nextPinNumber: n }),
   setHasImage: (v) => set({ hasImage: v }),
@@ -493,6 +511,45 @@ export const useEditor = create<State>((set, get) => ({
       // Re-fit + re-center for the new image dimensions (0 = fit sentinel).
       displayScale: 0,
       userZoomed: false,
+    });
+  },
+
+  applyImageCrop: (id, sel, natural) => {
+    const { annotations, nextPinNumber, past, imageCrop } = get();
+    const a = annotations.find((x) => x.id === id);
+    if (!a || a.type !== "image" || a.w <= 0 || a.h <= 0) return;
+    // Current visible source region (natural px). Absent crop = whole bitmap.
+    const base = a.crop ?? { x: 0, y: 0, w: natural.w, h: natural.h };
+    if (base.w <= 0 || base.h <= 0) return;
+    // Clamp the selection to the displayed box.
+    const lx = Math.max(0, Math.min(sel.x, a.w));
+    const ly = Math.max(0, Math.min(sel.y, a.h));
+    const lw = Math.max(1, Math.min(sel.w, a.w - lx));
+    const lh = Math.max(1, Math.min(sel.h, a.h - ly));
+    // Display px → source natural px (compose onto the existing crop).
+    const scaleX = base.w / a.w;
+    const scaleY = base.h / a.h;
+    const nextCrop = {
+      x: Math.round(base.x + lx * scaleX),
+      y: Math.round(base.y + ly * scaleY),
+      w: Math.max(1, Math.round(lw * scaleX)),
+      h: Math.max(1, Math.round(lh * scaleY)),
+    };
+    // Trim the box to the kept region; display scale/position stay put.
+    const patched: ImageAnnotation = {
+      ...a,
+      x: Math.round(a.x + lx),
+      y: Math.round(a.y + ly),
+      w: Math.round(lw),
+      h: Math.round(lh),
+      crop: nextCrop,
+    };
+    set({
+      annotations: annotations.map((x) => (x.id === id ? patched : x)),
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
+      selectedId: id,
+      tool: "select",
     });
   },
 
