@@ -557,17 +557,18 @@ export function EditorStage({ src }: Props) {
     }
   }, [tool, selectedId, annotations, setTool]);
 
-  // Seed the crop selection to the target region when entering crop mode; drop
-  // it on exit (Cancel/Esc/tool switch). Re-seed if the region changes.
+  // Seed the crop selection to the full target region when entering crop mode,
+  // and re-seed if the region changes (a different target, or the base image
+  // resized). The selection is frozen during crop — dragging the box updates
+  // cropSel but never the region primitives below — so this fires only on a
+  // genuine region change, never mid-drag. Dropped on exit (Cancel/Esc/switch).
   useEffect(() => {
     if (tool !== "crop") {
       setCropSel(null);
       return;
     }
     if (cropRegion.w <= 0 || cropRegion.h <= 0) return;
-    setCropSel((cur) =>
-      cur ? cur : { x: rL, y: rT, w: cropRegion.w, h: cropRegion.h },
-    );
+    setCropSel({ x: rL, y: rT, w: cropRegion.w, h: cropRegion.h });
     // Region primitives capture both base-image and per-object targets.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, rL, rT, cropRegion.w, cropRegion.h]);
@@ -588,12 +589,17 @@ export function EditorStage({ src }: Props) {
     }
     if (cropImage) {
       const el = imageEls.current.get(cropImage.id);
+      // `natural` seeds the source rect only for a first crop (the store uses
+      // the existing `crop` otherwise). Without the decoded bitmap AND without a
+      // prior crop we can't know the source size — using display dims would map
+      // 1:1 and store a wrong rect, so defer rather than guess.
+      if (!el && !cropImage.crop) {
+        toast.error("Image still loading — try again");
+        return;
+      }
       const natural = el
         ? { w: el.naturalWidth, h: el.naturalHeight }
-        : {
-            w: cropImage.crop?.w ?? cropImage.w,
-            h: cropImage.crop?.h ?? cropImage.h,
-          };
+        : { w: cropImage.crop!.w, h: cropImage.crop!.h };
       // cropSel is in canvas coords; shift to the image box's local frame.
       applyImageCrop(
         cropImage.id,
