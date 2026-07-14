@@ -149,6 +149,8 @@ pub fn run() {
             commands::editor::open_editor,
             commands::editor::paste_into_editor,
             commands::editor::read_clipboard_image_data_url,
+            commands::editor::import_image_file,
+            commands::editor::read_image_file_data_url,
             commands::editor::clear_editor_workspace,
             commands::editor::show_settings_command,
             commands::ocr::ocr_detect,

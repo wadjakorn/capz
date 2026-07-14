@@ -206,11 +206,21 @@ export default function PastePage() {
   const onPickFile = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file && file.type.startsWith("image/")) applyBlob(file);
+      // Route through acceptBlob so a pick honors Add-image mode (overlay vs.
+      // replace); with no base image yet it always replaces.
+      if (file && file.type.startsWith("image/")) acceptBlob(file);
       e.target.value = "";
     },
-    [applyBlob],
+    [acceptBlob],
   );
+
+  // Toolbar "Import image…" (web) opens this hidden picker via a custom event.
+  const importInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onImport = () => importInputRef.current?.click();
+    window.addEventListener("capz:web-import", onImport);
+    return () => window.removeEventListener("capz:web-import", onImport);
+  }, []);
 
   // Capture the screen in-browser (Screen Capture API) and load it into the
   // editor — no OS tool round-trip. A permission picker appears every time.
@@ -263,6 +273,13 @@ export default function PastePage() {
         </div>
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPickFile}
+      />
     </div>
   );
 }
