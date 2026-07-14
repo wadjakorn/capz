@@ -512,6 +512,31 @@ export function Toolbar({
           else void updateSettings("tools", { magnify: { areaOpacity: v / 100 } } as Partial<AppConfig["tools"]>);
         },
       };
+      // Two independent border widths: output loupe vs source (zoom) area.
+      cornerCtx = {
+        label: "Out",
+        value: mSel.strokeWidth,
+        min: 1,
+        max: 20,
+        step: 1,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { strokeWidth: v });
+          if (remember) patchLastUsed({ magnify: { strokeWidth: v } });
+          else void updateSettings("tools", { magnify: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
+      penLevelCtx = {
+        label: "Src",
+        value: mSel.sourceStrokeWidth ?? Math.max(1, Math.round(mSel.strokeWidth * 0.6)),
+        min: 1,
+        max: 20,
+        step: 1,
+        onChange: (v) => {
+          updateAnnotation(mSel.id, { sourceStrokeWidth: v });
+          if (remember) patchLastUsed({ magnify: { sourceStrokeWidth: v } });
+          else void updateSettings("tools", { magnify: { sourceStrokeWidth: v } } as Partial<AppConfig["tools"]>);
+        },
+      };
       arrowDashCtx = {
         value: mSel.linkDash ?? toolsCfg.magnify.linkDash,
         onChange: (v) => {
@@ -862,6 +887,28 @@ export function Toolbar({
       onChange: (v) => {
         if (remember) patchLastUsed({ magnify: { areaOpacity: v / 100 } });
         else void updateSettings("tools", { magnify: { areaOpacity: v / 100 } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    cornerCtx = {
+      label: "Out",
+      value: toolsCfg.magnify.strokeWidth,
+      min: 1,
+      max: 20,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { strokeWidth: v } });
+        else void updateSettings("tools", { magnify: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
+      },
+    };
+    penLevelCtx = {
+      label: "Src",
+      value: toolsCfg.magnify.sourceStrokeWidth,
+      min: 1,
+      max: 20,
+      step: 1,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ magnify: { sourceStrokeWidth: v } });
+        else void updateSettings("tools", { magnify: { sourceStrokeWidth: v } } as Partial<AppConfig["tools"]>);
       },
     };
     arrowDashCtx = {
