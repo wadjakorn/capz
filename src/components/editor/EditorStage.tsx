@@ -611,6 +611,17 @@ export function EditorStage({ src }: Props) {
   // Stable identity so it can sit in child effect deps without re-firing.
   const [boundsTick, setBoundsTick] = useState(0);
   const bumpBounds = useCallback(() => setBoundsTick((t) => t + 1), []);
+  // Stable identity: ImageShape registers its bitmap in an effect keyed on this
+  // callback, so an inline (per-render) function would re-fire the effect every
+  // render → bumpBounds → re-render → infinite loop (UI freeze on add/paste).
+  const registerImage = useCallback(
+    (id: string, el: HTMLImageElement | null) => {
+      if (el) imageEls.current.set(id, el);
+      else imageEls.current.delete(id);
+      bumpBounds();
+    },
+    [bumpBounds],
+  );
   useEffect(() => {
     if (!(imgW > 0 && imgH > 0)) {
       setContentBox((prev) =>
@@ -1338,11 +1349,7 @@ export function EditorStage({ src }: Props) {
                         return el ? [{ ann: x, el }] : [];
                       })
                     : undefined,
-                registerImage: (id, el) => {
-                  if (el) imageEls.current.set(id, el);
-                  else imageEls.current.delete(id);
-                  bumpBounds();
-                },
+                registerImage,
                 onSelect: () => select(a.id),
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
