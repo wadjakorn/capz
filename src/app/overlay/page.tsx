@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "@/stores/settings";
+import { ensureAutoScrollPermission } from "@/lib/accessibility";
 import {
   centeredDefaultRect,
   clampRect,
@@ -159,7 +160,7 @@ function AreaMode({
   }, [monitorId]);
 
   const confirmRegion = useCallback(
-    async (r: Rect) => {
+    async (r: Rect, auto = false) => {
       setBusy(true);
       // Persist as monitor-local CSS px so the next capture restores it here.
       try {
@@ -195,7 +196,7 @@ function AreaMode({
           // Rust hides+closes the overlays, grabs the first frame, opens the
           // HUD, and starts sampling. This window is torn down as part of that,
           // so the invoke may resolve just as our JS context goes away.
-          await invoke("scroll_capture_start_command", phys);
+          await invoke("scroll_capture_start_command", { ...phys, auto });
           console.info("scroll_capture_start_command started");
         } else {
           const path = await invoke<string>("capture_region_command", phys);
@@ -208,6 +209,19 @@ function AreaMode({
     },
     [monitorId, scroll],
   );
+
+  // Start scroll capture directly in auto mode from the arming bar. Runs the
+  // macOS Accessibility preflight first; if the grant is missing it has opened
+  // System Settings — keep the overlay up (region preserved) so the user can
+  // grant it and click Auto-scroll again.
+  const startAuto = useCallback(async () => {
+    if (busy) return;
+    const r = rectRef.current;
+    if (!r || r.w < 4 || r.h < 4) return;
+    const ok = await ensureAutoScrollPermission();
+    if (!ok) return;
+    void confirmRegion(r, true);
+  }, [busy, confirmRegion]);
 
   // Enter confirms; arrows nudge/resize the template.
   useEffect(() => {
@@ -337,6 +351,9 @@ function AreaMode({
   };
 
   const onDoubleClick = () => {
+    // Scroll mode has no confirm gesture (CP-0013) — commit only via the arming
+    // bar buttons / Enter. Single-shot area mode keeps double-click-to-capture.
+    if (scroll) return;
     const r = rectRef.current;
     if (!busy && r && r.w >= 4 && r.h >= 4) void confirmRegion(r);
   };
@@ -363,7 +380,22 @@ function AreaMode({
     >
       {rect ? (
         // Instructions ride along with the rect (see TemplateRect's action pill).
-        <TemplateRect rect={rect} dispH={dispH} confirmLabel={scroll ? "Start" : "Capture"} />
+        <TemplateRect
+          rect={rect}
+          dispH={dispH}
+          confirmLabel={scroll ? "Start" : "Capture"}
+          scrollActions={
+            scroll
+              ? {
+                  onStartManual: () => {
+                    const r = rectRef.current;
+                    if (!busy && r && r.w >= 4 && r.h >= 4) void confirmRegion(r);
+                  },
+                  onAutoScroll: () => void startAuto(),
+                }
+              : undefined
+          }
+        />
       ) : (
         // No selection on this display yet → a single centered prompt to draw.
         <div
@@ -401,10 +433,12 @@ function TemplateRect({
   rect,
   dispH,
   confirmLabel = "Capture",
+  scrollActions,
 }: {
   rect: Rect;
   dispH: number;
   confirmLabel?: string;
+  scrollActions?: { onStartManual: () => void; onAutoScroll: () => void };
 }) {
   // Eight resize handles: corners + edge midpoints.
   const handles: Array<{ t: DragTarget; left: number; top: number }> = [
@@ -445,25 +479,62 @@ function TemplateRect({
         >
           {Math.round(rect.w)} × {Math.round(rect.h)}
         </div>
-        <div
-          className="absolute left-0 flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium text-white/85"
-          style={{
-            ...(actionsBelow ? { top: "calc(100% + 6px)" } : { bottom: 6, left: 6 }),
-            background: "var(--surface-overlay)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
-          }}
-        >
-          <span className="flex items-center gap-1">
-            <span style={KEYCAP}>↵</span>
-            {confirmLabel}
-          </span>
-          <span className="opacity-40">·</span>
-          <span className="flex items-center gap-1">
-            <span style={KEYCAP}>esc</span>
-            Cancel
-          </span>
-        </div>
+        {scrollActions ? (
+          <div
+            className="absolute left-0 flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1"
+            style={{
+              ...(actionsBelow ? { top: "calc(100% + 6px)" } : { bottom: 6, left: 6 }),
+              background: "var(--surface-overlay)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
+              pointerEvents: "auto",
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={scrollActions.onStartManual}
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white"
+              style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
+            >
+              Start manual capture
+            </button>
+            <button
+              type="button"
+              onClick={scrollActions.onAutoScroll}
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90"
+              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+              title="Let capz scroll the page automatically to the bottom"
+            >
+              Auto-scroll
+            </button>
+            <span className="flex items-center gap-1 pl-1 text-[11px] text-white/70">
+              <span style={KEYCAP}>esc</span>
+              Cancel
+            </span>
+          </div>
+        ) : (
+          <div
+            className="absolute left-0 flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium text-white/85"
+            style={{
+              ...(actionsBelow ? { top: "calc(100% + 6px)" } : { bottom: 6, left: 6 }),
+              background: "var(--surface-overlay)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
+            }}
+          >
+            <span className="flex items-center gap-1">
+              <span style={KEYCAP}>↵</span>
+              {confirmLabel}
+            </span>
+            <span className="opacity-40">·</span>
+            <span className="flex items-center gap-1">
+              <span style={KEYCAP}>esc</span>
+              Cancel
+            </span>
+          </div>
+        )}
       </div>
       {handles.map((h) => (
         <div
