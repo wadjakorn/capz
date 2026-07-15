@@ -43,7 +43,10 @@ export default function ScrollHudPage() {
   const [finishing, setFinishing] = useState(false);
   // Local mirror of the backend's auto state — set optimistically on click and
   // reconciled from each progress tick (so a backend fallback flips us back).
-  const [auto, setAuto] = useState(false);
+  const [auto, setAuto] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("auto") === "1";
+  });
   // Transient status line; cleared a few seconds after it last changed.
   const [note, setNote] = useState<string | null>(null);
   const noteTimer = useRef<number | null>(null);

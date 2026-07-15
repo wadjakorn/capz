@@ -157,8 +157,8 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     let (tx, rx) = std::sync::mpsc::channel();
     let app_main = app.clone();
     app.run_on_main_thread(move || {
-        let res =
-            windows::show_scroll_hud(&app_main, monitor_id, x, y, w, h).map_err(|e| e.to_string());
+        let res = windows::show_scroll_hud(&app_main, monitor_id, x, y, w, h, auto.unwrap_or(false))
+            .map_err(|e| e.to_string());
         // The region outline is a non-critical visual aid; only bother once the
         // HUD (the actual control) is up — otherwise an aborting capture would
         // spawn and immediately tear down a full transparent window. If it fails
