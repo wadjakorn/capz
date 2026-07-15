@@ -88,6 +88,7 @@ export type AppConfig = {
     stickerEmoji?: string;
     region?: { monitorId: number; x: number; y: number; w: number; h: number };
     lastCaptureKind?: "full" | "area" | "window";
+    lastExportAction?: "copy" | "file" | "both";
     rect?: {
       strokeColor?: string;
       strokeWidth?: number;
@@ -550,6 +551,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   if (isStr(o.stickerEmoji)) out.stickerEmoji = o.stickerEmoji as string;
   if (inSet("full", "area", "window")(o.lastCaptureKind))
     out.lastCaptureKind = o.lastCaptureKind as "full" | "area" | "window";
+  if (inSet("copy", "file", "both")(o.lastExportAction))
+    out.lastExportAction = o.lastExportAction as "copy" | "file" | "both";
   const reg = o.region;
   if (reg && typeof reg === "object") {
     const rr = reg as Record<string, unknown>;

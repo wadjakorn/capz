@@ -29,9 +29,6 @@ import {
   ArrowRight,
   Undo2,
   Redo2,
-  Copy as CopyIcon,
-  Save,
-  SaveAll,
   Trash2,
   Bold,
   Italic,
@@ -74,6 +71,8 @@ import { ToolButton } from "./toolbar/ToolButton";
 import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
+import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButton";
+import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { isTauriRuntime } from "@/lib/platform";
@@ -108,15 +107,9 @@ const TOOLS: ToolDef[] = [
   { id: "highlighter", label: "Highlighter", hint: "H", icon: Highlighter },
   { id: "magnify", label: "Magnify", hint: "M", icon: Search },
   { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
-  { id: "pin", label: "Pin", hint: "P", icon: MapPin },
+  { id: "pin", label: "Pin", hint: "P", icon: NumberedPinIcon as LucideIcon },
   { id: "crop", label: "Crop", hint: "C", icon: Crop },
 ];
-
-const EXPORT_ICONS: Record<"copy" | "file" | "both", LucideIcon> = {
-  copy: CopyIcon,
-  file: Save,
-  both: SaveAll,
-};
 
 const FONT_FAMILIES: { label: string; value: string }[] = [
   { label: "Sans", value: "system-ui, sans-serif" },
@@ -1185,7 +1178,6 @@ export function Toolbar({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  type ExportAction = "copy" | "file" | "both";
   const doExport = async (action: ExportAction) => {
     const stage = getStage();
     if (!stage || exporting) return;
@@ -1237,6 +1229,16 @@ export function Toolbar({
 
   const lastCaptureKind: CaptureKind =
     fullConfig.lastUsed?.lastCaptureKind ?? "full";
+
+  // Output split button: default primary is Copy (the most common single action
+  // for a screenshot), then remembers whatever was last used.
+  const lastExportAction: ExportAction =
+    fullConfig.lastUsed?.lastExportAction ?? "copy";
+
+  const runExport = (action: ExportAction) => {
+    patchLastUsed({ lastExportAction: action });
+    void doExport(action);
+  };
 
   const triggerCapture = (kind: CaptureKind) => {
     patchLastUsed({ lastCaptureKind: kind });
@@ -1343,23 +1345,6 @@ export function Toolbar({
     tool === "sticker"
   );
 
-  const renderExportButton = (action: ExportAction, label: string, hint: string) => {
-    const Icon = EXPORT_ICONS[action];
-    return (
-      <button
-        key={action}
-        type="button"
-        onClick={() => void doExport(action)}
-        disabled={exporting}
-        title={hint}
-        aria-label={label}
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-[var(--fg-2)] transition-all hover:bg-[var(--surface-raised)] hover:text-[var(--fg)] disabled:opacity-50 disabled:hover:bg-transparent"
-      >
-        <Icon className="h-4 w-4" aria-hidden />
-      </button>
-    );
-  };
-
   const Divider = () => <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />;
 
   // Stacking-order (z-index) controls, shown for any selected annotation. The
@@ -1397,9 +1382,11 @@ export function Toolbar({
       <div className="flex items-center gap-1">
         {/* Output group */}
         <div className="flex items-center gap-1">
-          {renderExportButton("copy", "Copy", "Copy to clipboard (⌘C / Ctrl+C)")}
-          {renderExportButton("file", "Save", "Save to file")}
-          {renderExportButton("both", "Save & Copy", "Save to file and copy to clipboard")}
+          <ExportSplitButton
+            lastAction={lastExportAction}
+            onExport={runExport}
+            disabled={exporting}
+          />
         </div>
         <Divider />
         {/* Capture split (desktop only — browsers cannot trigger captures) */}
