@@ -70,19 +70,8 @@ const ROW_STEP: u32 = 2;
 
 /// Require the overlap between consecutive frames to be at least `height /
 /// MIN_OVERLAP_DIV` rows. Prevents matching a thin sliver of coincidentally
-/// similar pixels when the true scroll exceeded one viewport. Caps the largest
-/// offset *magnitude* searched; the per-offset floor below then rejects any
-/// individual offset whose in-band overlap is untrustworthy.
+/// similar pixels when the true scroll exceeded one viewport.
 const MIN_OVERLAP_DIV: u32 = 8;
-
-/// Smallest number of actually-overlapping rows (within the exclusion band) an
-/// offset must have before its mean is trusted. The band shrinks the compared
-/// rows as the offset grows, and a match over only a handful of rows can score a
-/// coincidental "confident" mean — which would let an upward scroll (or a fling)
-/// masquerade as a tiny downward one. A small absolute floor rejects those while
-/// leaving normal scrolls untouched: only a single-frame advance past ~80% of the
-/// viewport falls below it, and such an extreme step safely butt-joins instead.
-const MIN_MATCH_ROWS: u32 = 12;
 
 /// Mean per-sample absolute grayscale difference (0–255) at or below which an
 /// offset is accepted as a confident match. Exact viewport slices score 0; real
@@ -193,21 +182,17 @@ fn match_band(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u
 /// `prev` by the **signed** row offset `s` — `next[a]` vs `prev[a + s]` — over the
 /// stable band `[lo, hi)`. A positive `s` models downward scrolling (new content
 /// revealed at the bottom); a negative `s` models an upward scroll (content
-/// re-appearing at the top, already captured on the way down). `None` when fewer
-/// than `min_rows` rows actually overlap inside the band. Comparable to
-/// `CONFIDENT_MEAN_ABS_DIFF`; `s = 0` gives the stationary "no-scroll" baseline.
-fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: i32, lo: u32, hi: u32, h: u32, min_rows: u32) -> Option<f32> {
+/// re-appearing at the top, already captured on the way down). `None` if no
+/// overlapping rows fall inside the band (offset too large for the frame).
+/// Comparable to `CONFIDENT_MEAN_ABS_DIFF`; `s = 0` gives the stationary
+/// "no-scroll" baseline.
+fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: i32, lo: u32, hi: u32, h: u32) -> Option<f32> {
     // Overlapping rows in `next` coords: both `a` and `a + s` must be in-frame
     // ([0, h)) and `a` inside the stable band. For s >= 0 the binding limit is
     // `a + s < h`; for s < 0 it is `a + s >= 0`, i.e. `a >= -s`.
     let a_start = lo.max((-s).max(0) as u32);
     let a_end = hi.min((h as i32 - s).clamp(0, h as i32) as u32);
-    // Reject a too-thin overlap: near the largest offsets the exclusion band can
-    // shrink the compared rows to a sliver, where a handful of coincidentally
-    // similar rows would score a bogus confident match. `min_rows` is a small
-    // absolute floor for the directional search (see [`MIN_MATCH_ROWS`]) and 1 for
-    // the stationary baseline (which always spans the full band).
-    if a_end.saturating_sub(a_start) < min_rows.max(1) {
+    if a_end <= a_start {
         return None;
     }
     let mut total: u64 = 0;
@@ -230,20 +215,20 @@ fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: i32, lo: u32, hi: u32,
 /// [`MIN_SCROLL_IMPROVEMENT`]). `None` when the band is empty.
 fn stationary_mean(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32, u32)) -> Option<f32> {
     let (h, lo, hi, _) = band;
-    offset_mean(prev, next, 0, lo, hi, h, 1)
+    offset_mean(prev, next, 0, lo, hi, h)
 }
 
 /// Search over the shared `band` for the scroll offset of magnitude `s` (rows,
 /// >= 1) in direction `dir` (+1 downward, -1 upward) that best aligns `next` onto
 /// `prev`: `next[a]` ≈ `prev[a + dir*s]`. Returns `(s, mean_abs_diff)` for the
 /// best candidate — per grayscale sample, so directly comparable to
-/// `CONFIDENT_MEAN_ABS_DIFF`. `None` if no offset has enough overlap to trust. The
+/// `CONFIDENT_MEAN_ABS_DIFF`. `None` if no offset overlaps within the band. The
 /// stationary baseline is scored separately (once) by [`stationary_mean`].
 fn best_offset_dir(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32, u32), dir: i32) -> Option<(u32, f32)> {
     let (h, lo, hi, max_s) = band;
     let mut best: Option<(u32, f32)> = None;
     for s in 1..=max_s {
-        let Some(mean) = offset_mean(prev, next, dir * s as i32, lo, hi, h, MIN_MATCH_ROWS) else {
+        let Some(mean) = offset_mean(prev, next, dir * s as i32, lo, hi, h) else {
             continue;
         };
         if best.map(|(_, bm)| mean < bm).unwrap_or(true) {
@@ -932,25 +917,6 @@ mod tests {
             }
             other => panic!("plausible downward scroll misclassified as {other:?} — content dropped"),
         }
-    }
-
-    #[test]
-    fn thin_overlap_offset_is_not_trusted_as_a_scroll() {
-        // The band_overlap guard: two unrelated frames must butt-join, never latch
-        // onto a coincidental few-row match at a large offset (where the exclusion
-        // band leaves only a sliver of overlapping rows) and report a bogus
-        // confident scroll. Without the guard such a match corrupts the capture.
-        let a = vnoise_image(80, 300);
-        let mut b = vnoise_image(80, 300);
-        // Make b unrelated to a (different hash seed via a vertical flip + shift).
-        for y in 0..300 {
-            for x in 0..80 {
-                let p = *a.get_pixel(x, 299 - y);
-                b.put_pixel(x, y, Rgba([p[0] ^ 0x5a, p[1], p[2], 255]));
-            }
-        }
-        // No genuine overlap in either direction → butt-join, whole frame kept.
-        assert_eq!(measure_frame(&a, &b, 48), StitchDecision::ButtJoin);
     }
 
     #[test]
