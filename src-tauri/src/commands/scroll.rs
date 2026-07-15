@@ -559,6 +559,15 @@ fn stitch_frame(s: &mut ScrollSession, frame: image::RgbaImage) -> stitch::Stitc
         // (matters only when the footer exceeds the default band).
         decision = stitch::measure_frame(&s.prev, &frame, EXCLUDE_BAND.max(f));
     }
+    // Up-scroll recognition is a MANUAL-only affordance. Auto-scroll only ever
+    // steps down, so a `ScrollUp` there could only come from page reflow shifting
+    // content up net of the step; treating it as an ignored no-progress frame would
+    // feed the no-progress streak and risk a premature "bottom reached" that
+    // truncates the capture (CP-0008 review). Fall back to the original butt-join,
+    // which appends the frame (content preserved) and keeps auto-scroll advancing.
+    if s.auto && matches!(decision, stitch::StitchDecision::ScrollUp) {
+        decision = stitch::StitchDecision::ButtJoin;
+    }
     let footer = s.footer.unwrap_or(0);
     let out = stitch::apply_frame(&mut s.acc, &frame, decision, footer);
     if !out.duplicate {
@@ -782,6 +791,87 @@ mod tests {
         assert!(out.duplicate, "unchanged finish frame must dedup");
         assert_eq!(out.appended, 0);
         assert_eq!(s.acc.height(), before, "no-op finish grab must not grow acc");
+    }
+
+    /// CP-0008: an upward scroll mid-capture (the user scrolls back up) must be
+    /// ignored at the session level — it grows neither the accumulator nor the
+    /// seam-warning count, and leaves `prev` at the bottom-most position so a
+    /// resumed downward scroll appends cleanly with no duplicated band.
+    #[test]
+    fn upward_frame_does_not_grow_acc_or_warn() {
+        // Per-pixel hashed noise (high 2D entropy, aperiodic) so up-vs-down is
+        // unambiguous: any misaligned overlap scores high, only the true offset
+        // scores ~0. Plain content (no fixed chrome band) means an upward frame has
+        // no plausible downward reading, which is what the stitcher requires before
+        // it will ignore a frame as an upward re-show (a plausible-or-better
+        // downward reading is always appended, never dropped — CP-0008 review).
+        // Row-constant content would collide (only 256 row values) and let a thin
+        // coincidental downward overlap masquerade as a real scroll.
+        let (w, vh) = (120u32, 900u32 / 3);
+        let mut page = RgbaImage::new(w, 900);
+        for y in 0..900u32 {
+            for x in 0..w {
+                let mut v = (y.wrapping_mul(131) ^ x.wrapping_mul(2_654_435_761)).wrapping_add(1);
+                v ^= v >> 15;
+                v = v.wrapping_mul(2_246_822_519);
+                v ^= v >> 13;
+                page.put_pixel(x, y, Rgba([(v & 0xff) as u8, (v >> 8 & 0xff) as u8, (v >> 16 & 0xff) as u8, 255]));
+            }
+        }
+        let frame_at = |o: u32| image::imageops::crop_imm(&page, 0, o, w, vh).to_image();
+
+        let mut s = new_session(frame_at(0));
+        stitch_frame(&mut s, frame_at(90)); // down
+        stitch_frame(&mut s, frame_at(180)); // down
+        let after_down = s.acc.height();
+        assert_eq!(s.warnings, 0, "clean downward scroll must not warn");
+
+        // Scroll back up to an already-captured position.
+        let up = stitch_frame(&mut s, frame_at(90));
+        assert!(up.duplicate, "upward frame must be ignored");
+        assert_eq!(up.appended, 0);
+        assert_eq!(s.warnings, 0, "upward frame must not increment the seam count");
+        assert_eq!(s.acc.height(), after_down, "upward frame must not grow the capture");
+
+        // Resume downward past the previous bottom — appends only the new rows.
+        let resume = stitch_frame(&mut s, frame_at(270));
+        assert!(!resume.duplicate, "resumed downward scroll must append");
+        assert_eq!(resume.appended, 90, "must append only the newly-revealed rows");
+        assert_eq!(s.warnings, 0, "resumed clean scroll must still not warn");
+        assert_eq!(s.acc.height(), after_down + 90);
+    }
+
+    /// CP-0008 review (Finding 3): up-scroll recognition is manual-only. During
+    /// auto-scroll a frame that would classify as ScrollUp (page reflow shifting
+    /// content up net of the step) must fall back to butt-join — appended, not a
+    /// no-progress duplicate — so it never feeds the streak toward a premature
+    /// "bottom reached" that truncates the capture.
+    #[test]
+    fn auto_scroll_does_not_treat_upward_frame_as_no_progress() {
+        let w = 120u32;
+        let vh = 300u32;
+        let mut page = RgbaImage::new(w, 900);
+        for y in 0..900u32 {
+            for x in 0..w {
+                let mut v = (y.wrapping_mul(131) ^ x.wrapping_mul(2_654_435_761)).wrapping_add(1);
+                v ^= v >> 15;
+                v = v.wrapping_mul(2_246_822_519);
+                v ^= v >> 13;
+                page.put_pixel(x, y, Rgba([(v & 0xff) as u8, (v >> 8 & 0xff) as u8, (v >> 16 & 0xff) as u8, 255]));
+            }
+        }
+        let frame_at = |o: u32| image::imageops::crop_imm(&page, 0, o, w, vh).to_image();
+
+        let mut s = new_session(frame_at(0));
+        s.auto = true;
+        stitch_frame(&mut s, frame_at(90));
+        stitch_frame(&mut s, frame_at(180));
+
+        // A frame that WOULD be ScrollUp in manual mode. In auto it butt-joins:
+        // appended (content preserved), not a no-progress duplicate.
+        let up = stitch_frame(&mut s, frame_at(90));
+        assert!(!up.duplicate, "auto-scroll must not treat an upward frame as no-progress");
+        assert!(up.appended > 0, "auto-scroll butt-joins the frame (content preserved)");
     }
 
     #[test]
