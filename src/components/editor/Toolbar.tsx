@@ -1331,19 +1331,23 @@ export function Toolbar({
     [overflowTools, tool, setTool],
   );
 
-  const hasContext = !!(
-    colorCtx ||
-    widthCtx ||
-    sizeCtx ||
-    textStyleCtx ||
-    pinLabelCtx ||
-    // Any selected annotation gets the option bar so the reorder (z-order)
-    // controls are always available — even for types with no other options
-    // (e.g. a layered image).
-    selected ||
-    tool === "pin" ||
-    tool === "sticker"
-  );
+  const hasContext =
+    // Crop owns the sidebar via EditorStage's own portal; don't also fill it
+    // from here (a selected image would otherwise stack z-order controls).
+    tool !== "crop" &&
+    !!(
+      colorCtx ||
+      widthCtx ||
+      sizeCtx ||
+      textStyleCtx ||
+      pinLabelCtx ||
+      // Any selected annotation gets the option bar so the reorder (z-order)
+      // controls are always available — even for types with no other options
+      // (e.g. a layered image).
+      selected ||
+      tool === "pin" ||
+      tool === "sticker"
+    );
 
   const Divider = () => <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />;
 
