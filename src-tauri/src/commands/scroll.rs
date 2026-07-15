@@ -68,6 +68,48 @@ fn auto_outcome(streak: u32, auto_progressed: bool) -> AutoOutcome {
     }
 }
 
+/// Smallest and largest wheel-notch count a single Windows auto-scroll step may
+/// request. The floor is one notch (never post zero — that moves nothing and
+/// would stall bottom detection); the ceiling caps how far a "too small" step
+/// can ramp up before it risks overshooting the stitcher's overlap window.
+const AUTO_CLICKS_MIN: i32 = 1;
+const AUTO_CLICKS_MAX: i32 = 4;
+
+/// Advance fractions (of the viewport) that bound a healthy per-step scroll.
+/// Below [`AUTO_ADVANCE_LOW`] the step barely moved — push harder next time.
+/// Above [`AUTO_ADVANCE_HIGH`] it's nearing the point where the stitcher can no
+/// longer find overlap (it searches up to ~7/8 of a viewport) — back off. macOS
+/// aims for 0.6 of a viewport, so this band brackets that same sweet spot.
+const AUTO_ADVANCE_LOW: f32 = 0.25;
+const AUTO_ADVANCE_HIGH: f32 = 0.70;
+
+/// Adaptive Windows wheel-click controller (CP-0014). Given the count used for
+/// the step that just ran, how many rows it actually advanced (`appended`; 0 on
+/// a duplicate/no-move), whether that append was a low-confidence butt-join (no
+/// detectable overlap — content was skipped), and the viewport height, return
+/// the notch count for the **next** step.
+///
+/// A fixed count overshoots on targets that map each notch to a large jump, so
+/// we steer toward a sub-viewport advance: shrink after an overshoot (butt-join
+/// or advance past [`AUTO_ADVANCE_HIGH`]), grow when a step is too small to make
+/// real progress (below [`AUTO_ADVANCE_LOW`], including a no-move duplicate),
+/// hold in the healthy band. Pure so the policy is unit-tested (see tests).
+///
+/// Only consulted on Windows; macOS ignores the click count (exact pixel step).
+fn next_auto_clicks(current: i32, appended: u32, low_confidence: bool, viewport_h: u32) -> i32 {
+    let frac = appended as f32 / viewport_h.max(1) as f32;
+    if low_confidence || frac > AUTO_ADVANCE_HIGH {
+        // Overshot (or skipped content) — take a smaller bite next time.
+        (current - 1).max(AUTO_CLICKS_MIN)
+    } else if frac < AUTO_ADVANCE_LOW {
+        // Barely moved (or a target that eats a single notch) — push harder so a
+        // long page isn't captured one hairline at a time.
+        (current + 1).min(AUTO_CLICKS_MAX)
+    } else {
+        current
+    }
+}
+
 /// Live progress pushed to the HUD after each sample.
 #[derive(Clone, serde::Serialize)]
 struct ScrollProgress {
@@ -214,12 +256,13 @@ fn emit_progress<R: Runtime>(app: &AppHandle<R>, progress: ScrollProgress) {
 fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         loop {
-            // Snapshot the region + whether we're auto-driving this tick.
-            let (region, auto) = {
+            // Snapshot the region + whether we're auto-driving this tick + the
+            // adapted per-step wheel-click count (Windows; ignored on macOS).
+            let (region, auto, clicks) = {
                 let st = app.state::<AppState>();
                 let g = st.scroll.lock().expect("scroll mutex poisoned");
                 match g.as_ref() {
-                    Some(s) => ((s.monitor_id, s.x, s.y, s.w, s.h), s.auto),
+                    Some(s) => ((s.monitor_id, s.x, s.y, s.w, s.h), s.auto, s.auto_clicks),
                     None => break,
                 }
             };
@@ -230,7 +273,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 // can't be posted (no Accessibility grant on macOS, unsupported
                 // platform, injection failure) fall back to manual: clear `auto`,
                 // tell the HUD, keep sampling so the user can finish by hand.
-                if let Err(e) = synthetic_scroll::scroll_step(mid, x, y, w, h) {
+                if let Err(e) = synthetic_scroll::scroll_step(mid, x, y, w, h, clicks) {
                     log::warn!("auto-scroll step: {e}");
                     let st = app.state::<AppState>();
                     let mut g = st.scroll.lock().expect("scroll mutex poisoned");
@@ -281,6 +324,12 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 let mut note: Option<String> = None;
                 let mut bottomed = false;
                 if s.auto {
+                    // Adapt the Windows wheel-click count from what this step
+                    // actually advanced, so the next step lands inside the
+                    // stitcher's overlap window (CP-0014). No-op on macOS, which
+                    // ignores the count and steps an exact pixel fraction.
+                    s.auto_clicks =
+                        next_auto_clicks(s.auto_clicks, out.appended, out.low_confidence, s.h);
                     if progressed {
                         s.dup_streak = 0;
                         // Record that auto-scroll (not an earlier manual scroll)
@@ -530,7 +579,10 @@ pub fn scroll_capture_cancel_command<R: Runtime>(app: AppHandle<R>) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{auto_outcome, finalize_capture, stitch_frame, AutoOutcome, AUTO_NO_PROGRESS_STREAK};
+    use super::{
+        auto_outcome, finalize_capture, next_auto_clicks, stitch_frame, AutoOutcome,
+        AUTO_CLICKS_MAX, AUTO_CLICKS_MIN, AUTO_NO_PROGRESS_STREAK,
+    };
     use crate::state::ScrollSession;
     use image::{Rgba, RgbaImage};
 
@@ -597,6 +649,7 @@ mod tests {
             auto: false,
             dup_streak: 0,
             auto_progressed: false,
+            auto_clicks: 1,
             footer: None,
         }
     }
@@ -743,5 +796,52 @@ mod tests {
             auto_outcome(AUTO_NO_PROGRESS_STREAK + 2, false),
             AutoOutcome::Fallback
         );
+    }
+
+    // ---- next_auto_clicks (CP-0014 Windows step-size controller) ----
+
+    #[test]
+    fn overshoot_shrinks_the_click_count() {
+        let vp = 1000u32;
+        // A butt-join (no detectable overlap) means content was skipped — always
+        // back off regardless of how many rows were "appended".
+        assert_eq!(next_auto_clicks(3, vp, true, vp), 2);
+        // An advance past the high-water fraction (0.70) also backs off, even
+        // when the seam was confident.
+        assert_eq!(next_auto_clicks(3, 800, false, vp), 2);
+    }
+
+    #[test]
+    fn tiny_or_stalled_step_grows_the_click_count() {
+        let vp = 1000u32;
+        // Barely moved (< 0.25 viewport) — push harder.
+        assert_eq!(next_auto_clicks(1, 100, false, vp), 2);
+        // A no-move duplicate (0 rows) counts as too small: a target that eats a
+        // single notch must be pushed past, not left stalling forever.
+        assert_eq!(next_auto_clicks(1, 0, false, vp), 2);
+    }
+
+    #[test]
+    fn healthy_advance_holds_the_click_count() {
+        let vp = 1000u32;
+        // Inside the [0.25, 0.70] sweet spot: leave it be.
+        assert_eq!(next_auto_clicks(2, 300, false, vp), 2);
+        assert_eq!(next_auto_clicks(2, 600, false, vp), 2);
+    }
+
+    #[test]
+    fn click_count_stays_within_bounds() {
+        let vp = 1000u32;
+        // Already at the floor: an overshoot can't push it below MIN.
+        assert_eq!(next_auto_clicks(AUTO_CLICKS_MIN, vp, true, vp), AUTO_CLICKS_MIN);
+        // Already at the ceiling: a tiny step can't push it above MAX.
+        assert_eq!(next_auto_clicks(AUTO_CLICKS_MAX, 0, false, vp), AUTO_CLICKS_MAX);
+    }
+
+    #[test]
+    fn zero_viewport_is_safe() {
+        // Degenerate viewport must not divide by zero; a 0-row append reads as
+        // "too small" and grows within bounds.
+        assert_eq!(next_auto_clicks(1, 0, false, 0), 2);
     }
 }

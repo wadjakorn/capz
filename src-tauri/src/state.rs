@@ -40,6 +40,13 @@ pub struct ScrollSession {
     /// would misread those as auto progress and finish a truncated capture when
     /// the target actually ignores synthetic scroll. Reset each time auto starts.
     pub auto_progressed: bool,
+    /// Requested wheel-notch count for the **next** Windows auto-scroll step.
+    /// Adapted after each step by `commands::scroll::next_auto_clicks` to keep
+    /// the per-step advance well under one viewport (a fixed count overshoots on
+    /// targets that map each notch to a large jump — CP-0014). Starts small and
+    /// only grows if steps are too small to progress. Unused on macOS, which
+    /// scrolls an exact pixel fraction and needs no feedback.
+    pub auto_clicks: i32,
     /// Height (physical px) of the fixed bottom band (window chrome / scrollbar /
     /// bottom border) that never scrolls, locked on the first genuine scroll.
     /// Excluded from every stitch so it is never welded into a seam. `None` until
@@ -74,6 +81,10 @@ impl ScrollSession {
             auto,
             dup_streak: 0,
             auto_progressed: false,
+            // Start at one notch: the smallest, safest advance. The Windows
+            // sampler ramps up only if a step proves too small to progress
+            // (`next_auto_clicks`), so a first step can't overshoot the stitcher.
+            auto_clicks: 1,
             footer: None,
         }
     }
