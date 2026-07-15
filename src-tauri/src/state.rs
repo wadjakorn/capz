@@ -47,6 +47,38 @@ pub struct ScrollSession {
     pub footer: Option<u32>,
 }
 
+impl ScrollSession {
+    /// Construct a fresh capture session for a starting `first` frame over the
+    /// given physical-pixel region. `auto` seeds whether the sampler drives the
+    /// scroll from its first tick (true = start in auto-scroll, false = manual).
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        monitor_id: u32,
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+        first: RgbaImage,
+        auto: bool,
+    ) -> Self {
+        ScrollSession {
+            monitor_id,
+            x,
+            y,
+            w,
+            h,
+            acc: first.clone(),
+            prev: first,
+            frames: 1,
+            warnings: 0,
+            auto,
+            dup_streak: 0,
+            auto_progressed: false,
+            footer: None,
+        }
+    }
+}
+
 /// App-wide runtime state.
 ///
 /// `active_temp_path` is the currently-loaded editor image. Set on every load

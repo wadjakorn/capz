@@ -111,6 +111,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
     y: i32,
     w: u32,
     h: u32,
+    auto: Option<bool>,
 ) -> Result<(), String> {
     // Fast-fail if a session is already running, so we don't hide overlays and
     // grab a throwaway frame for nothing. This is only a best-effort check — the
@@ -144,21 +145,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
         if guard.is_some() {
             return Err("scroll capture already in progress".into());
         }
-        *guard = Some(ScrollSession {
-            monitor_id,
-            x,
-            y,
-            w,
-            h,
-            acc: first.clone(),
-            prev: first,
-            frames: 1,
-            warnings: 0,
-            auto: false,
-            dup_streak: 0,
-            auto_progressed: false,
-            footer: None,
-        });
+        *guard = Some(ScrollSession::new(monitor_id, x, y, w, h, first, auto.unwrap_or(false)));
     }
 
     // Destroy the full-screen selection overlays; show the compact HUD instead.
@@ -559,6 +546,20 @@ mod tests {
             }
         }
         img
+    }
+
+    #[test]
+    fn new_session_seeds_auto_flag() {
+        let first = tall_page(80, 120);
+        let manual = ScrollSession::new(0, 0, 0, 80, 120, first.clone(), false);
+        assert!(!manual.auto, "manual start must not be auto");
+        assert_eq!(manual.frames, 1);
+        assert_eq!(manual.acc.height(), 120);
+        assert!(!manual.auto_progressed);
+
+        let auto = ScrollSession::new(0, 0, 0, 80, 120, first, true);
+        assert!(auto.auto, "auto start must seed auto = true");
+        assert!(!auto.auto_progressed, "auto starts with no progress yet");
     }
 
     /// A capture frame at scroll offset `o`: the page content region [o, o+content)
