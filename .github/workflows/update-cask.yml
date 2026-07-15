@@ -1,8 +1,9 @@
 name: Update Homebrew Cask
 
-# Fires after a GitHub Release is published (not draft). Computes SHA256s
-# of the two macOS .dmg assets and pushes a bumped Casks/capz.rb to the
-# wadjakorn/homebrew-capz tap on its main branch.
+# Fires after a GitHub Release is published (not draft). Renders the cask from
+# packaging/homebrew-cask/capz.rb (the source of truth — it carries the
+# quarantine-stripping postflight), fills in version + SHA256 of the two macOS
+# .dmg assets, and pushes Casks/capz.rb to the wadjakorn/homebrew-capz tap.
 #
 # Requires repo secret HOMEBREW_TAP_TOKEN: a fine-grained PAT with
 # Contents: write on wadjakorn/homebrew-capz.
@@ -20,6 +21,9 @@ jobs:
   update-cask:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout capz (cask template source of truth)
+        uses: actions/checkout@v4
+
       - name: Resolve tag
         id: tag
         run: |
@@ -54,23 +58,32 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
-      - name: Patch cask
+      - name: Render cask from template
         env:
           VERSION: ${{ steps.tag.outputs.version }}
           ARM:     ${{ steps.sha.outputs.arm }}
           INTEL:   ${{ steps.sha.outputs.intel }}
         run: |
-          F=tap/Casks/capz.rb
+          mkdir -p tap/Casks
           python3 - <<'PY'
           import os, re
-          path = "tap/Casks/capz.rb"
-          s = open(path).read()
-          s = re.sub(r'version "[^"]+"', f'version "{os.environ["VERSION"]}"', s, count=1)
-          s = re.sub(r'(sha256 arm:\s*)"[0-9a-f]+"', rf'\1"{os.environ["ARM"]}"', s)
-          s = re.sub(r'(intel:\s*)"[0-9a-f]+"', rf'\1"{os.environ["INTEL"]}"', s)
-          open(path, "w").write(s)
+          s = open("packaging/homebrew-cask/capz.rb").read()
+          s = re.sub(r'version "[^"]*"',
+                     'version "%s"' % os.environ["VERSION"], s, count=1)
+          # Rewrite the arm+intel sha256 stanza together so the `intel: "x64"`
+          # on the `arch` line is never matched by accident, and so the
+          # uppercase REPLACE_WITH_* placeholders (which a [0-9a-f]+ pattern
+          # cannot match) are always substituted.
+          s, n = re.subn(
+              r'sha256 arm:\s*"[^"]*",\s*intel:\s*"[^"]*"',
+              'sha256 arm:   "%s",\n         intel: "%s"'
+              % (os.environ["ARM"], os.environ["INTEL"]),
+              s, count=1)
+          if n != 1:
+              raise SystemExit("sha256 stanza not found in template — aborting")
+          open("tap/Casks/capz.rb", "w").write(s)
+          print(s)
           PY
-          cat "$F"
 
       - name: Commit and push
         run: |
