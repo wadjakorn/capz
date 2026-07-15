@@ -213,20 +213,27 @@ export default function ScrollHudPage() {
             >
               Cancel
             </button>
+            {/* Auto-scroll is chosen once at the overlay arming bar and is not
+                switchable mid-capture, so this button is disabled throughout the
+                HUD: greyed while manual scrolls (start auto from the arming bar
+                instead) and greyed while auto runs. */}
             <button
               type="button"
               onClick={startAuto}
-              disabled={busy || auto}
+              disabled
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-40"
               style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-              title="Let capz scroll the page automatically to the bottom"
+              title="Start auto-scroll from the selection bar before capture begins"
             >
               Auto-scroll
             </button>
+            {/* During auto the backend drives the pointer, so a mouse click on
+                Capture is unreliable — disable it and commit via Enter / a click
+                anywhere on the pill / Esc-to-cancel instead. */}
             <button
               type="button"
               onClick={finish}
-              disabled={busy}
+              disabled={busy || auto}
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
             >
