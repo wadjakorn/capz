@@ -273,9 +273,13 @@ export default function PastePage() {
             )}
           </div>
         </div>
-        {/* Contextual tool-options panel docks here (right side); see the
-            editor page for the reflow rationale. */}
-        <div id="tool-options-slot" className="flex-none" aria-hidden />
+        {/* Tool-options panel — always docked on the right; empty until the
+            Toolbar portals contextual controls into it. See the editor page. */}
+        <aside
+          id="tool-options-slot"
+          aria-label="Tool options"
+          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
+        />
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
       <input

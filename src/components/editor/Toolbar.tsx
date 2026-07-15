@@ -1522,7 +1522,7 @@ export function Toolbar({
         )}
       </div>
       {hasContext && portalTarget && createPortal((
-      <div className="pointer-events-auto flex h-full w-60 flex-col items-stretch gap-2.5 overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3">
+      <div className="flex flex-col items-stretch gap-2.5">
       {colorCtx && (
         <>
           <label

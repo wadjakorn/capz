@@ -355,10 +355,14 @@ export default function EditorPage() {
             {file ? <EditorStage src={src} /> : <EmptyState />}
           </div>
         </div>
-        {/* Contextual tool-options panel docks here (right side). The Toolbar
-            portals into it only when a tool/selection has options, so this
-            column is 0-width and the canvas reclaims the space otherwise. */}
-        <div id="tool-options-slot" className="flex-none" aria-hidden />
+        {/* Tool-options panel — always docked on the right. The Toolbar portals
+            contextual controls into it when a tool/selection has options;
+            otherwise it stays empty, reserving the column for future content. */}
+        <aside
+          id="tool-options-slot"
+          aria-label="Tool options"
+          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
+        />
         {view === "settings" && (
           <div className="absolute inset-0 overflow-auto">
             <SettingsView onOpenInertRecovery={openRecovery} />
