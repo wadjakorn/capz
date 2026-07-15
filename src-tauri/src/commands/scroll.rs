@@ -322,11 +322,11 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
             };
 
             emit_progress(&app, progress);
-            if let Some(acc) = finish_acc {
+            if let Some((acc, footer_handled)) = finish_acc {
                 // Spinner (emitted above with finishing=true) first, then the
                 // slow encode + open — the session is already out, so there's no
                 // double-finish race with the manual Capture button.
-                if let Err(e) = finish_open(&app, acc).await {
+                if let Err(e) = finish_open(&app, acc, footer_handled).await {
                     log::warn!("auto-scroll finish: {e}");
                 }
                 break;
@@ -373,15 +373,26 @@ pub fn scroll_capture_auto_stop_command<R: Runtime>(app: AppHandle<R>) -> Result
 /// bottom-reached auto-finish.
 ///
 /// The fixed window footer is now excluded during stitching (see the sampler),
-/// so nothing to trim there. As a conservative safety net we still drop any
-/// residual duplicated trailing band; it is a no-op on a clean stitch.
+/// so nothing to trim there.
+///
+/// `footer_handled` gates the legacy duplicate-trim. When a footer was
+/// established, the fixed bottom band was excluded from every seam and
+/// re-attached exactly once by `finalize_capture`, so the tail already ends
+/// cleanly at the window edge — running `trim_trailing_duplicate` on top of that
+/// only risks eating real bottom rows that happen to resemble the rows above
+/// them (observed: the very bottom of short captures cut off). So the trim runs
+/// ONLY on the older path where no footer was ever detected (the artifact it was
+/// written for can still occur there).
 async fn finish_open<R: Runtime>(
     app: &AppHandle<R>,
     mut acc: image::RgbaImage,
+    footer_handled: bool,
 ) -> Result<String, String> {
-    let dup = stitch::trim_trailing_duplicate(&mut acc);
-    if dup > 0 {
-        log::info!("scroll: trimmed {dup} duplicated trailing rows");
+    if !footer_handled {
+        let dup = stitch::trim_trailing_duplicate(&mut acc);
+        if dup > 0 {
+            log::info!("scroll: trimmed {dup} duplicated trailing rows");
+        }
     }
     // The region outline is only a live-capture aid — drop it as soon as we
     // commit, before the (potentially slow) encode.
@@ -442,7 +453,8 @@ pub async fn scroll_capture_finish_command<R: Runtime>(app: AppHandle<R>) -> Res
         Ok(Err(e)) => log::warn!("scroll finish final grab: {e}"),
         Err(e) => log::warn!("scroll finish final grab join: {e}"),
     }
-    finish_open(&app, finalize_capture(session)).await
+    let (acc, footer_handled) = finalize_capture(session);
+    finish_open(&app, acc, footer_handled).await
 }
 
 /// Measure + apply one freshly captured `frame` onto the session accumulator,
@@ -502,12 +514,18 @@ fn stitch_frame(s: &mut ScrollSession, frame: image::RgbaImage) -> stitch::Stitc
 /// window bottom edge (excluded from every seam during stitching) once at the
 /// very bottom, so the capture ends at the natural window edge instead of a hard
 /// mid-content cut. No-op when no footer was detected.
-fn finalize_capture(session: ScrollSession) -> image::RgbaImage {
+///
+/// Returns `(image, footer_handled)`. `footer_handled` is true when a fixed
+/// footer was established (the normal case): the bottom band was excluded from
+/// every seam and re-attached exactly once here, so the tail is already clean and
+/// the legacy duplicate-trim in `finish_open` must be skipped — see there.
+fn finalize_capture(session: ScrollSession) -> (image::RgbaImage, bool) {
+    let footer_handled = session.footer.is_some();
     let mut acc = session.acc;
     if let Some(footer) = session.footer {
         stitch::append_footer_band(&mut acc, &session.prev, footer);
     }
-    acc
+    (acc, footer_handled)
 }
 
 /// Cancel the capture: stop sampling, discard everything, write no temp file.
@@ -599,7 +617,7 @@ mod tests {
         for &o in &sampled[1..] {
             stitch_frame(&mut without, frame_at(o));
         }
-        let img_without = finalize_capture(without);
+        let (img_without, _) = finalize_capture(without);
 
         // With the finish grab: the same samples, then one fresh frame at the true
         // bottom (what `scroll_capture_finish_command` now captures on finish).
@@ -608,7 +626,8 @@ mod tests {
             stitch_frame(&mut with, frame_at(o));
         }
         stitch_frame(&mut with, frame_at(bottom_o));
-        let img_with = finalize_capture(with);
+        let (img_with, footer_handled) = finalize_capture(with);
+        assert!(footer_handled, "a real scroll must establish the footer");
 
         // The finish grab adds the missing rows, ending at a taller image.
         assert!(
@@ -637,6 +656,35 @@ mod tests {
             img_without.height() - chrome - 1 < recovered,
             "truncated capture unexpectedly already contained the bottom"
         );
+    }
+
+    /// The residual bottom cut: after `finalize_capture` re-attaches the footer
+    /// band, the tail is provably the final frame's true bottom. The legacy
+    /// `trim_trailing_duplicate` in `finish_open` is the only thing that runs
+    /// after — and on content whose bottom band structurally resembles the rows
+    /// above (a table/list/repeated UI, common on short pages) it eats real
+    /// bottom rows. This proves the hazard, so the fix gates that trim off
+    /// whenever a footer was handled (`finalize_capture` reports it).
+    #[test]
+    fn dup_trim_would_eat_a_structured_near_duplicate_bottom() {
+        // A short capture whose last band closely repeats the band above it.
+        let (w, band) = (120u32, 60u32);
+        let mut acc = tall_page(w, 240);
+        // Overwrite the bottom `band` rows with a near-copy of the `band` above.
+        for i in 0..band {
+            for x in 0..w {
+                let src = *acc.get_pixel(x, 240 - 2 * band + i);
+                acc.put_pixel(x, 240 - band + i, src);
+            }
+        }
+        let before = acc.height();
+        // The un-gated legacy trim removes the bottom band — i.e., cuts content.
+        let cut = crate::services::stitch::trim_trailing_duplicate(&mut acc);
+        assert!(cut > 0, "trim is expected to eat this structured bottom band");
+        assert!(acc.height() < before, "…which shortens the capture");
+        // Our fix: when a footer was handled we skip that trim entirely, so a
+        // finished capture keeps its full re-attached bottom. (Gate lives in
+        // `finish_open`; `finalize_capture` reports `footer_handled`.)
     }
 
     /// A fresh finish frame identical to the last sample (user paused at the
