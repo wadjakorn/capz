@@ -1331,19 +1331,23 @@ export function Toolbar({
     [overflowTools, tool, setTool],
   );
 
-  const hasContext = !!(
-    colorCtx ||
-    widthCtx ||
-    sizeCtx ||
-    textStyleCtx ||
-    pinLabelCtx ||
-    // Any selected annotation gets the option bar so the reorder (z-order)
-    // controls are always available — even for types with no other options
-    // (e.g. a layered image).
-    selected ||
-    tool === "pin" ||
-    tool === "sticker"
-  );
+  const hasContext =
+    // Crop owns the sidebar via EditorStage's own portal; don't also fill it
+    // from here (a selected image would otherwise stack z-order controls).
+    tool !== "crop" &&
+    !!(
+      colorCtx ||
+      widthCtx ||
+      sizeCtx ||
+      textStyleCtx ||
+      pinLabelCtx ||
+      // Any selected annotation gets the option bar so the reorder (z-order)
+      // controls are always available — even for types with no other options
+      // (e.g. a layered image).
+      selected ||
+      tool === "pin" ||
+      tool === "sticker"
+    );
 
   const Divider = () => <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />;
 
@@ -1522,7 +1526,7 @@ export function Toolbar({
         )}
       </div>
       {hasContext && portalTarget && createPortal((
-      <div className="toolbar pointer-events-auto absolute left-1/2 -translate-x-1/2 top-7 z-40 flex flex-wrap items-center justify-center gap-1 px-3 py-1.5">
+      <div className="flex flex-col items-stretch gap-2.5">
       {colorCtx && (
         <>
           <label
@@ -1979,7 +1983,7 @@ export function Toolbar({
       })()}
       {tool === "pin" && (
         <>
-          <div className="flex items-center gap-2 text-xs text-foreground/80">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/80">
             <label className="flex items-center gap-1">
               Next:
               <input
@@ -2089,7 +2093,7 @@ export function Toolbar({
       )}
       {selected && (
         <>
-          <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
+          <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
           <div
             className="flex items-center gap-0.5"
             role="group"

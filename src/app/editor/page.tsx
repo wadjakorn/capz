@@ -340,24 +340,29 @@ export default function EditorPage() {
         <Toolbar onOpenSettings={() => setView("settings")} />
       )}
       <main
-        className="relative min-h-0 flex-1 overflow-hidden"
+        className="relative flex min-h-0 flex-1 overflow-hidden"
         style={view === "editor" ? { backgroundColor: "var(--bg-canvas)" } : undefined}
       >
-        <div
-          id="tool-options-slot"
-          className="pointer-events-none absolute inset-x-0 top-0 z-40"
-          aria-hidden
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            visibility: view === "editor" ? "visible" : "hidden",
-            pointerEvents: view === "editor" ? "auto" : "none",
-          }}
-          aria-hidden={view !== "editor"}
-        >
-          {file ? <EditorStage src={src} /> : <EmptyState />}
+        <div className="relative min-w-0 flex-1">
+          <div
+            className="absolute inset-0"
+            style={{
+              visibility: view === "editor" ? "visible" : "hidden",
+              pointerEvents: view === "editor" ? "auto" : "none",
+            }}
+            aria-hidden={view !== "editor"}
+          >
+            {file ? <EditorStage src={src} /> : <EmptyState />}
+          </div>
         </div>
+        {/* Tool-options panel — always docked on the right. The Toolbar portals
+            contextual controls into it when a tool/selection has options;
+            otherwise it stays empty, reserving the column for future content. */}
+        <aside
+          id="tool-options-slot"
+          aria-label="Tool options"
+          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
+        />
         {view === "settings" && (
           <div className="absolute inset-0 overflow-auto">
             <SettingsView onOpenInertRecovery={openRecovery} />

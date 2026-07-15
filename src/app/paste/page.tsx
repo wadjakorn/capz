@@ -256,26 +256,30 @@ export default function PastePage() {
         onWebClear={clearImage}
       />
       <main
-        className="relative min-h-0 flex-1 overflow-hidden"
+        className="relative flex min-h-0 flex-1 overflow-hidden"
         style={{ backgroundColor: "var(--bg-canvas)" }}
       >
-        <div
-          id="tool-options-slot"
-          className="pointer-events-none absolute inset-x-0 top-0 z-40"
-          aria-hidden
-        />
-        <div className="absolute inset-0">
-          {src ? (
-            <EditorStage src={src} />
-          ) : (
-            <WebEmptyState
-              onPickFile={onPickFile}
-              onCapture={onCapture}
-              capturing={capturing}
-              canCapture={canCapture}
-            />
-          )}
+        <div className="relative min-w-0 flex-1">
+          <div className="absolute inset-0">
+            {src ? (
+              <EditorStage src={src} />
+            ) : (
+              <WebEmptyState
+                onPickFile={onPickFile}
+                onCapture={onCapture}
+                capturing={capturing}
+                canCapture={canCapture}
+              />
+            )}
+          </div>
         </div>
+        {/* Tool-options panel — always docked on the right; empty until the
+            Toolbar portals contextual controls into it. See the editor page. */}
+        <aside
+          id="tool-options-slot"
+          aria-label="Tool options"
+          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
+        />
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
       <input

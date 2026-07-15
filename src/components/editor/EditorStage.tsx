@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Stage,
   Layer,
@@ -61,6 +62,7 @@ import {
 } from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
+import { uid } from "@/lib/uid";
 
 const SNAP_SCREEN_PX = 6;
 
@@ -82,10 +84,6 @@ type TextEditor = {
   value: string;
   id?: string;
 };
-
-function uid() {
-  return crypto.randomUUID();
-}
 
 function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
   switch (a.type) {
@@ -203,6 +201,11 @@ export function EditorStage({ src }: Props) {
   );
   // Live crop selection (in displayed-image coords) while the crop tool is active.
   const [cropSel, setCropSel] = useState<ImageCrop | null>(null);
+  // The right-side tool-options panel; crop controls portal into it.
+  const [optionsSlot, setOptionsSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setOptionsSlot(document.getElementById("tool-options-slot"));
+  }, []);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -1830,19 +1833,15 @@ export function EditorStage({ src }: Props) {
         </div>
       </>
     )}
-    {tool === "crop" && image && (
-      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-50 flex justify-center">
-        <div className="surface pointer-events-auto flex items-center gap-2 rounded-xl p-1.5 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]">
-          <span className="px-2 text-foreground/60">
-            {cropSel ? `${Math.round(cropSel.w)}×${Math.round(cropSel.h)}` : "Crop"}
-          </span>
-          <button
-            type="button"
-            onClick={() => setTool("select")}
-            className="rounded-lg px-3 py-1.5 text-foreground/90 transition-colors hover:bg-[var(--surface-raised)]"
-          >
-            Cancel
-          </button>
+    {tool === "crop" && image && optionsSlot &&
+      createPortal(
+        <div className="flex flex-col items-stretch gap-2.5 text-sm">
+          <div className="flex items-center justify-between text-xs text-foreground/60">
+            <span>Crop</span>
+            <span className="tabular-nums text-foreground/80">
+              {cropSel ? `${Math.round(cropSel.w)}×${Math.round(cropSel.h)}` : "—"}
+            </span>
+          </div>
           <button
             type="button"
             onClick={applyCropNow}
@@ -1850,9 +1849,16 @@ export function EditorStage({ src }: Props) {
           >
             Apply crop
           </button>
-        </div>
-      </div>
-    )}
+          <button
+            type="button"
+            onClick={() => setTool("select")}
+            className="rounded-lg px-3 py-1.5 text-foreground/90 transition-colors hover:bg-[var(--surface-raised)]"
+          >
+            Cancel
+          </button>
+        </div>,
+        optionsSlot,
+      )}
     </div>
   );
 }
