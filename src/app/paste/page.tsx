@@ -256,26 +256,26 @@ export default function PastePage() {
         onWebClear={clearImage}
       />
       <main
-        className="relative min-h-0 flex-1 overflow-hidden"
+        className="relative flex min-h-0 flex-1 overflow-hidden"
         style={{ backgroundColor: "var(--bg-canvas)" }}
       >
-        <div
-          id="tool-options-slot"
-          className="pointer-events-none absolute inset-x-0 top-0 z-40"
-          aria-hidden
-        />
-        <div className="absolute inset-0">
-          {src ? (
-            <EditorStage src={src} />
-          ) : (
-            <WebEmptyState
-              onPickFile={onPickFile}
-              onCapture={onCapture}
-              capturing={capturing}
-              canCapture={canCapture}
-            />
-          )}
+        <div className="relative min-w-0 flex-1">
+          <div className="absolute inset-0">
+            {src ? (
+              <EditorStage src={src} />
+            ) : (
+              <WebEmptyState
+                onPickFile={onPickFile}
+                onCapture={onCapture}
+                capturing={capturing}
+                canCapture={canCapture}
+              />
+            )}
+          </div>
         </div>
+        {/* Contextual tool-options panel docks here (right side); see the
+            editor page for the reflow rationale. */}
+        <div id="tool-options-slot" className="flex-none" aria-hidden />
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
       <input

@@ -1522,7 +1522,7 @@ export function Toolbar({
         )}
       </div>
       {hasContext && portalTarget && createPortal((
-      <div className="toolbar pointer-events-auto absolute left-1/2 -translate-x-1/2 top-7 z-40 flex flex-wrap items-center justify-center gap-1 px-3 py-1.5">
+      <div className="pointer-events-auto flex h-full w-60 flex-col items-stretch gap-2.5 overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3">
       {colorCtx && (
         <>
           <label
@@ -1979,7 +1979,7 @@ export function Toolbar({
       })()}
       {tool === "pin" && (
         <>
-          <div className="flex items-center gap-2 text-xs text-foreground/80">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/80">
             <label className="flex items-center gap-1">
               Next:
               <input
@@ -2089,7 +2089,7 @@ export function Toolbar({
       )}
       {selected && (
         <>
-          <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
+          <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
           <div
             className="flex items-center gap-0.5"
             role="group"
