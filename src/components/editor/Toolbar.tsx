@@ -44,7 +44,6 @@ import {
   Monitor,
   Link2,
   Link2Off,
-  ImagePlus,
   ImageDown,
   BringToFront,
   SendToBack,
@@ -193,14 +192,6 @@ export function Toolbar({
   const selectedId = useEditor((s) => s.selectedId);
   const updateAnnotation = useEditor((s) => s.update);
   const reorderAnnotation = useEditor((s) => s.reorder);
-  const addImageMode = useEditor((s) => s.addImageMode);
-  const setAddImageMode = useEditor((s) => s.setAddImageMode);
-  // Add-image mode only makes sense with a base image and while in the Select
-  // tool: clear it when the workspace empties, or when the user activates any
-  // other (drawing) tool — picking a tool means they're no longer adding images.
-  useEffect(() => {
-    if (addImageMode && (!hasImage || tool !== "select")) setAddImageMode(false);
-  }, [hasImage, tool, addImageMode, setAddImageMode]);
   const pinsCfg = useSettings((s) => s.config.pins);
   const fullConfig = useSettings((s) => s.config);
   const toolsCfg = effectiveTools(fullConfig);
@@ -1285,30 +1276,10 @@ export function Toolbar({
     })();
   };
 
-  // On-demand "add clipboard image as an overlay" (used by the Add-image mode's
-  // paste affordance). Desktop reads the clipboard directly; web routes through
-  // the /paste page's clipboard reader, which honors the add-vs-replace mode.
-  const addImageFromClipboard = () => {
-    void (async () => {
-      if (!isTauriRuntime()) {
-        window.dispatchEvent(new CustomEvent("capz:web-paste"));
-        return;
-      }
-      try {
-        const { invoke } = await import("@tauri-apps/api/core");
-        const dataUrl = await invoke<string>("read_clipboard_image_data_url");
-        const { addOverlayImage } = await import("@/lib/addImage");
-        const id = await addOverlayImage(dataUrl);
-        if (!id) toast.error("Couldn't add clipboard image");
-      } catch {
-        toast.error("Clipboard has no image");
-      }
-    })();
-  };
-
-  // Import an image file from disk, honoring Add-image mode (add overlay vs.
-  // replace). Desktop opens a native file dialog; web dispatches to the /paste
-  // page's hidden file input, which routes through the same add-vs-replace path.
+  // Import an image file from disk. On an empty canvas it becomes the base
+  // image; on a non-empty canvas it lands as a layered overlay object (the
+  // decision lives in importImagePathDesktop / the /paste router). Desktop opens
+  // a native file dialog; web dispatches to the /paste page's hidden file input.
   const importImageFile = () => {
     void (async () => {
       if (!isTauriRuntime()) {
@@ -1497,47 +1468,18 @@ export function Toolbar({
         />
         <Divider />
         {/* Import an image file (native picker on desktop, file input on web).
-            Honors Add-image mode: overlay object when on, replace when off.
-            Enabled even with no base image so it can load the first one. */}
+            First image on an empty canvas becomes the base; a further image
+            lands as a movable overlay on top. Enabled even with no base image
+            so it can load the first one. */}
         <ToolButton
           icon={ImageDown}
           label={
-            addImageMode
-              ? "Import image file as overlay"
-              : "Import image file (replaces workspace)"
+            hasImage
+              ? "Add image file as overlay"
+              : "Open image file"
           }
           onClick={importImageFile}
         />
-        {/* Add-image mode: paste/drop/pick layers images as movable overlay
-            objects instead of replacing the workspace. When on, a paste button
-            adds the clipboard image on demand. */}
-        <ToolButton
-          icon={ImagePlus}
-          label={
-            !hasImage
-              ? "Add-image mode — load a base image first"
-              : addImageMode
-                ? "Add-image mode on — paste/drop layers images"
-                : "Add-image mode — layer images instead of replacing"
-          }
-          pressed={addImageMode}
-          disabled={!hasImage}
-          onClick={() => {
-            const next = !addImageMode;
-            setAddImageMode(next);
-            // Enabling drops into Select so add-image works and isn't instantly
-            // cleared by the tool-switch guard above.
-            if (next) setTool("select");
-          }}
-        />
-        {addImageMode && (
-          <ToolButton
-            icon={CopyIcon}
-            label={hasImage ? "Paste clipboard image as overlay" : "Load a base image first"}
-            disabled={!hasImage}
-            onClick={addImageFromClipboard}
-          />
-        )}
         <Divider />
         {/* Padded gradient/solid backdrop behind the capture. Divider travels
             with the control so an imageless toolbar doesn't show a double rule. */}
