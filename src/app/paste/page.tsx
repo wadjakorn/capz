@@ -209,7 +209,7 @@ export default function PastePage() {
       // Route through acceptBlob so a pick follows the base-vs-overlay rule
       // (first image is the base, later ones layer on top). The picker's
       // accept="image/*" pre-filters, but a drag into the dialog or an OS that
-      // ignores the hint can still yield a non-image — reject it with an alert.
+      // ignores the hint can still yield a non-image — reject it with a toast.
       if (file) {
         if (file.type.startsWith("image/")) acceptBlob(file);
         else toast.error("Not an image");
