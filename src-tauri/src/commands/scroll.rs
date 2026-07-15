@@ -85,21 +85,31 @@ const AUTO_ADVANCE_HIGH: f32 = 0.70;
 
 /// Adaptive Windows wheel-click controller (CP-0014). Given the count used for
 /// the step that just ran, how many rows it actually advanced (`appended`; 0 on
-/// a duplicate/no-move), whether that append was a low-confidence butt-join (no
-/// detectable overlap — content was skipped), and the viewport height, return
-/// the notch count for the **next** step.
+/// a duplicate/no-move) and the viewport height, return the notch count for the
+/// **next** step.
 ///
 /// A fixed count overshoots on targets that map each notch to a large jump, so
-/// we steer toward a sub-viewport advance: shrink after an overshoot (butt-join
-/// or advance past [`AUTO_ADVANCE_HIGH`]), grow when a step is too small to make
-/// real progress (below [`AUTO_ADVANCE_LOW`], including a no-move duplicate),
-/// hold in the healthy band. Pure so the policy is unit-tested (see tests).
+/// we steer toward a sub-viewport advance judged purely by the fraction advanced:
+/// - **Shrink** above [`AUTO_ADVANCE_HIGH`]. A butt-join (no overlap found —
+///   content was skipped) always lands here: it appends nearly the whole frame
+///   (the fixed footer is clamped to ≤ ¼ of the frame, so the append is ≥ ¾ of a
+///   viewport), as does a genuine confident scroll that jumped too far.
+/// - **Grow** below [`AUTO_ADVANCE_LOW`] — the step barely moved (or a no-move
+///   duplicate), so a long page isn't captured one hairline at a time.
+/// - **Hold** in the healthy band.
+///
+/// Crucially, low seam *confidence* is NOT treated as an overshoot: a plausible
+/// (noisy / fractional-DPI) overlap still aligned correctly and appended only the
+/// real new rows, so it's judged by its advance like any other — otherwise a
+/// small-but-valid noisy step would be stuck at one notch and crawl. Pure so the
+/// policy is unit-tested (see tests).
 ///
 /// Only consulted on Windows; macOS ignores the click count (exact pixel step).
-fn next_auto_clicks(current: i32, appended: u32, low_confidence: bool, viewport_h: u32) -> i32 {
+fn next_auto_clicks(current: i32, appended: u32, viewport_h: u32) -> i32 {
     let frac = appended as f32 / viewport_h.max(1) as f32;
-    if low_confidence || frac > AUTO_ADVANCE_HIGH {
-        // Overshot (or skipped content) — take a smaller bite next time.
+    if frac > AUTO_ADVANCE_HIGH {
+        // Overshot (butt-join or a jump past the stitcher's overlap window) —
+        // take a smaller bite next time.
         (current - 1).max(AUTO_CLICKS_MIN)
     } else if frac < AUTO_ADVANCE_LOW {
         // Barely moved (or a target that eats a single notch) — push harder so a
@@ -328,8 +338,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                     // actually advanced, so the next step lands inside the
                     // stitcher's overlap window (CP-0014). No-op on macOS, which
                     // ignores the count and steps an exact pixel fraction.
-                    s.auto_clicks =
-                        next_auto_clicks(s.auto_clicks, out.appended, out.low_confidence, s.h);
+                    s.auto_clicks = next_auto_clicks(s.auto_clicks, out.appended, s.h);
                     if progressed {
                         s.dup_streak = 0;
                         // Record that auto-scroll (not an earlier manual scroll)
@@ -803,45 +812,58 @@ mod tests {
     #[test]
     fn overshoot_shrinks_the_click_count() {
         let vp = 1000u32;
-        // A butt-join (no detectable overlap) means content was skipped — always
-        // back off regardless of how many rows were "appended".
-        assert_eq!(next_auto_clicks(3, vp, true, vp), 2);
-        // An advance past the high-water fraction (0.70) also backs off, even
-        // when the seam was confident.
-        assert_eq!(next_auto_clicks(3, 800, false, vp), 2);
+        // A butt-join appends nearly the whole frame (footer clamped to ≤ ¼) —
+        // frac ≥ 0.75, past the high-water mark, so back off.
+        assert_eq!(next_auto_clicks(3, vp, vp), 2);
+        // A confident scroll that jumped past 0.70 of a viewport also backs off.
+        assert_eq!(next_auto_clicks(3, 800, vp), 2);
     }
 
     #[test]
     fn tiny_or_stalled_step_grows_the_click_count() {
         let vp = 1000u32;
         // Barely moved (< 0.25 viewport) — push harder.
-        assert_eq!(next_auto_clicks(1, 100, false, vp), 2);
+        assert_eq!(next_auto_clicks(1, 100, vp), 2);
         // A no-move duplicate (0 rows) counts as too small: a target that eats a
         // single notch must be pushed past, not left stalling forever.
-        assert_eq!(next_auto_clicks(1, 0, false, vp), 2);
+        assert_eq!(next_auto_clicks(1, 0, vp), 2);
+    }
+
+    /// Regression (codex review): a *plausible* low-confidence seam still aligned
+    /// correctly and appended only the real new rows — it must be judged by its
+    /// advance, not treated as an overshoot. A small such step (frac < 0.25) must
+    /// GROW the click count, otherwise a noisy / fractional-DPI Windows target
+    /// gets stuck at one notch and auto-scroll crawls or falls back.
+    #[test]
+    fn small_plausible_seam_grows_not_shrinks() {
+        let vp = 1000u32;
+        // 120 rows revealed on a plausible (low-confidence) overlap: frac 0.12.
+        // Confidence is not an input any more — only the advance matters.
+        assert_eq!(next_auto_clicks(1, 120, vp), 2);
+        assert_eq!(next_auto_clicks(2, 120, vp), 3);
     }
 
     #[test]
     fn healthy_advance_holds_the_click_count() {
         let vp = 1000u32;
         // Inside the [0.25, 0.70] sweet spot: leave it be.
-        assert_eq!(next_auto_clicks(2, 300, false, vp), 2);
-        assert_eq!(next_auto_clicks(2, 600, false, vp), 2);
+        assert_eq!(next_auto_clicks(2, 300, vp), 2);
+        assert_eq!(next_auto_clicks(2, 600, vp), 2);
     }
 
     #[test]
     fn click_count_stays_within_bounds() {
         let vp = 1000u32;
         // Already at the floor: an overshoot can't push it below MIN.
-        assert_eq!(next_auto_clicks(AUTO_CLICKS_MIN, vp, true, vp), AUTO_CLICKS_MIN);
+        assert_eq!(next_auto_clicks(AUTO_CLICKS_MIN, vp, vp), AUTO_CLICKS_MIN);
         // Already at the ceiling: a tiny step can't push it above MAX.
-        assert_eq!(next_auto_clicks(AUTO_CLICKS_MAX, 0, false, vp), AUTO_CLICKS_MAX);
+        assert_eq!(next_auto_clicks(AUTO_CLICKS_MAX, 0, vp), AUTO_CLICKS_MAX);
     }
 
     #[test]
     fn zero_viewport_is_safe() {
         // Degenerate viewport must not divide by zero; a 0-row append reads as
         // "too small" and grows within bounds.
-        assert_eq!(next_auto_clicks(1, 0, false, 0), 2);
+        assert_eq!(next_auto_clicks(1, 0, 0), 2);
     }
 }
