@@ -46,8 +46,10 @@ const AUTO_MIN_PROGRESS_ROWS: u32 = 8;
 const AUTO_NO_PROGRESS_STREAK: u32 = 3;
 
 /// What the sampler should do after an auto-scroll step, given the running
-/// no-progress `streak` and whether auto-scroll has advanced at all this session
-/// (`auto_progressed`). Pure so the decision is unit-tested (see tests below).
+/// no-progress `streak`, whether auto-scroll has advanced at all this session
+/// (`auto_progressed`), and whether the Windows step-size ramp has been exhausted
+/// (`ramp_exhausted` — a max-size step was already posted; see
+/// [`next_auto_clicks`]). Pure so the decision is unit-tested (see tests below).
 #[derive(Debug, PartialEq, Eq)]
 enum AutoOutcome {
     /// Keep auto-scrolling.
@@ -58,11 +60,18 @@ enum AutoOutcome {
     Fallback,
 }
 
-fn auto_outcome(streak: u32, auto_progressed: bool) -> AutoOutcome {
+fn auto_outcome(streak: u32, auto_progressed: bool, ramp_exhausted: bool) -> AutoOutcome {
     if streak < AUTO_NO_PROGRESS_STREAK {
         AutoOutcome::Continue
     } else if auto_progressed {
         AutoOutcome::Bottomed
+    } else if !ramp_exhausted {
+        // Never moved yet, but we haven't tried the largest step. Keep going so
+        // the ramp actually posts its max notch count before we conclude the
+        // target ignores synthetic scroll (CP-0014 review) — otherwise a target
+        // that only moves at a bigger step is wrongly abandoned. Bottom detection
+        // (the `auto_progressed` arm above) is unaffected.
+        AutoOutcome::Continue
     } else {
         AutoOutcome::Fallback
     }
@@ -334,6 +343,10 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 let mut note: Option<String> = None;
                 let mut bottomed = false;
                 if s.auto {
+                    // The count that *this* step actually posted (before we adapt
+                    // it below). Once a max-size step has been posted with no
+                    // progress, the ramp is exhausted and fallback may fire.
+                    let ramp_exhausted = s.auto_clicks >= AUTO_CLICKS_MAX;
                     // Adapt the Windows wheel-click count from what this step
                     // actually advanced, so the next step lands inside the
                     // stitcher's overlap window (CP-0014). No-op on macOS, which
@@ -348,7 +361,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                     } else {
                         s.dup_streak += 1;
                     }
-                    match auto_outcome(s.dup_streak, s.auto_progressed) {
+                    match auto_outcome(s.dup_streak, s.auto_progressed, ramp_exhausted) {
                         AutoOutcome::Continue => {}
                         AutoOutcome::Bottomed => bottomed = true,
                         AutoOutcome::Fallback => {
@@ -396,6 +409,9 @@ pub fn scroll_capture_auto_start_command<R: Runtime>(app: AppHandle<R>) -> Resul
     // before this point from being counted as auto-scroll progress (which would
     // let an ignored-scroll target be mistaken for "bottom reached").
     s.auto_progressed = false;
+    // Start the Windows step-size ramp from the smallest bite again, so a new
+    // auto run can't inherit a large count from a previous one and overshoot.
+    s.auto_clicks = 1;
     Ok(())
 }
 
@@ -770,39 +786,51 @@ mod tests {
 
     #[test]
     fn keeps_scrolling_below_the_streak_threshold() {
-        assert_eq!(auto_outcome(0, false), AutoOutcome::Continue);
-        assert_eq!(auto_outcome(0, true), AutoOutcome::Continue);
+        // Below the streak the ramp state is irrelevant — always Continue.
+        assert_eq!(auto_outcome(0, false, false), AutoOutcome::Continue);
+        assert_eq!(auto_outcome(0, false, true), AutoOutcome::Continue);
+        assert_eq!(auto_outcome(0, true, true), AutoOutcome::Continue);
         assert_eq!(
-            auto_outcome(AUTO_NO_PROGRESS_STREAK - 1, true),
+            auto_outcome(AUTO_NO_PROGRESS_STREAK - 1, true, true),
             AutoOutcome::Continue
         );
     }
 
     #[test]
     fn bottoms_out_only_after_auto_scroll_advanced() {
+        // Bottom detection fires on a stalled streak once auto progressed,
+        // regardless of the ramp state (the step size doesn't matter at the end).
         assert_eq!(
-            auto_outcome(AUTO_NO_PROGRESS_STREAK, true),
+            auto_outcome(AUTO_NO_PROGRESS_STREAK, true, false),
             AutoOutcome::Bottomed
         );
         assert_eq!(
-            auto_outcome(AUTO_NO_PROGRESS_STREAK + 5, true),
+            auto_outcome(AUTO_NO_PROGRESS_STREAK + 5, true, true),
             AutoOutcome::Bottomed
         );
     }
 
     #[test]
-    fn falls_back_when_auto_scroll_never_moved_even_after_manual_frames() {
+    fn falls_back_only_once_the_ramp_is_exhausted() {
         // The regression this guards: the user scrolled manually first (so the
         // session already has several frames), then enabled auto-scroll on a
         // target that ignores synthetic wheel. `auto_progressed` is false, so a
         // stalled streak must hand back to manual — NOT declare "bottom reached"
-        // and finish a truncated capture.
+        // and finish a truncated capture. But only *after* the step-size ramp has
+        // posted its max notch count (CP-0014 review): a stalled streak while the
+        // ramp still has a bigger step to try must keep going, so a target that
+        // only moves at a larger step isn't abandoned prematurely.
         assert_eq!(
-            auto_outcome(AUTO_NO_PROGRESS_STREAK, false),
+            auto_outcome(AUTO_NO_PROGRESS_STREAK, false, false),
+            AutoOutcome::Continue,
+            "must keep ramping the step size before giving up"
+        );
+        assert_eq!(
+            auto_outcome(AUTO_NO_PROGRESS_STREAK, false, true),
             AutoOutcome::Fallback
         );
         assert_eq!(
-            auto_outcome(AUTO_NO_PROGRESS_STREAK + 2, false),
+            auto_outcome(AUTO_NO_PROGRESS_STREAK + 2, false, true),
             AutoOutcome::Fallback
         );
     }
