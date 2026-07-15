@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -29,9 +29,6 @@ import {
   ArrowRight,
   Undo2,
   Redo2,
-  Copy as CopyIcon,
-  Save,
-  SaveAll,
   Trash2,
   Bold,
   Italic,
@@ -74,11 +71,17 @@ import { ToolButton } from "./toolbar/ToolButton";
 import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
+import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButton";
+import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { isTauriRuntime } from "@/lib/platform";
 
-type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
+/** Tools carry a `group` so the palette can render meaning-based clusters
+ * (separated by a divider) instead of one flat row. Grouping is by intent, not
+ * appearance: blur (redact/hide) stays apart from highlighter (emphasize). */
+type ToolGroup = "select" | "draw" | "redact" | "emphasis" | "content";
+type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon; group: ToolGroup };
 
 /** Dashed horizontal line — no lucide equivalent, so a tiny inline SVG. */
 function DashLineIcon({ className }: { className?: string }) {
@@ -99,24 +102,22 @@ function DashLineIcon({ className }: { className?: string }) {
 }
 
 const TOOLS: ToolDef[] = [
-  { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
-  { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight },
-  { id: "rect", label: "Shapes", hint: "R", icon: ShapesIcon },
-  { id: "text", label: "Text", hint: "T", icon: Type },
-  { id: "blur", label: "Blur", hint: "B", icon: Droplet },
-  { id: "pen", label: "Pen", hint: "D", icon: Pencil },
-  { id: "highlighter", label: "Highlighter", hint: "H", icon: Highlighter },
-  { id: "magnify", label: "Magnify", hint: "M", icon: Search },
-  { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
-  { id: "pin", label: "Pin", hint: "P", icon: MapPin },
-  { id: "crop", label: "Crop", hint: "C", icon: Crop },
+  { id: "select", label: "Select", hint: "V", icon: MousePointer2, group: "select" },
+  // draw: vector tools
+  { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight, group: "draw" },
+  { id: "rect", label: "Shapes", hint: "R", icon: ShapesIcon, group: "draw" },
+  { id: "pen", label: "Pen", hint: "D", icon: Pencil, group: "draw" },
+  // redact: blur stands alone — it hides, it does not emphasize
+  { id: "blur", label: "Blur", hint: "B", icon: Droplet, group: "redact" },
+  // emphasis: draw the eye to something
+  { id: "highlighter", label: "Highlighter", hint: "H", icon: Highlighter, group: "emphasis" },
+  { id: "magnify", label: "Magnify", hint: "M", icon: Search, group: "emphasis" },
+  // content & frame
+  { id: "text", label: "Text", hint: "T", icon: Type, group: "content" },
+  { id: "sticker", label: "Sticker", hint: "S", icon: Smile, group: "content" },
+  { id: "pin", label: "Pin", hint: "P", icon: NumberedPinIcon as LucideIcon, group: "content" },
+  { id: "crop", label: "Crop", hint: "C", icon: Crop, group: "content" },
 ];
-
-const EXPORT_ICONS: Record<"copy" | "file" | "both", LucideIcon> = {
-  copy: CopyIcon,
-  file: Save,
-  both: SaveAll,
-};
 
 const FONT_FAMILIES: { label: string; value: string }[] = [
   { label: "Sans", value: "system-ui, sans-serif" },
@@ -1185,7 +1186,6 @@ export function Toolbar({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  type ExportAction = "copy" | "file" | "both";
   const doExport = async (action: ExportAction) => {
     const stage = getStage();
     if (!stage || exporting) return;
@@ -1237,6 +1237,16 @@ export function Toolbar({
 
   const lastCaptureKind: CaptureKind =
     fullConfig.lastUsed?.lastCaptureKind ?? "full";
+
+  // Output split button: default primary is Copy (the most common single action
+  // for a screenshot), then remembers whatever was last used.
+  const lastExportAction: ExportAction =
+    fullConfig.lastUsed?.lastExportAction ?? "copy";
+
+  const runExport = (action: ExportAction) => {
+    patchLastUsed({ lastExportAction: action });
+    void doExport(action);
+  };
 
   const triggerCapture = (kind: CaptureKind) => {
     patchLastUsed({ lastCaptureKind: kind });
@@ -1312,7 +1322,9 @@ export function Toolbar({
   const { visible: visibleTools, overflow: overflowTools } = useOverflowSlots(
     TOOLS,
     paletteRef,
-    0,
+    // Reserve headroom for the up-to-4 cluster dividers so they don't push the
+    // last tool past the palette edge (the slot math counts tools, not dividers).
+    48,
     36,
     activeToolIndex >= 0 ? activeToolIndex : undefined,
   );
@@ -1342,23 +1354,6 @@ export function Toolbar({
     tool === "pin" ||
     tool === "sticker"
   );
-
-  const renderExportButton = (action: ExportAction, label: string, hint: string) => {
-    const Icon = EXPORT_ICONS[action];
-    return (
-      <button
-        key={action}
-        type="button"
-        onClick={() => void doExport(action)}
-        disabled={exporting}
-        title={hint}
-        aria-label={label}
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-[var(--fg-2)] transition-all hover:bg-[var(--surface-raised)] hover:text-[var(--fg)] disabled:opacity-50 disabled:hover:bg-transparent"
-      >
-        <Icon className="h-4 w-4" aria-hidden />
-      </button>
-    );
-  };
 
   const Divider = () => <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />;
 
@@ -1397,9 +1392,11 @@ export function Toolbar({
       <div className="flex items-center gap-1">
         {/* Output group */}
         <div className="flex items-center gap-1">
-          {renderExportButton("copy", "Copy", "Copy to clipboard (⌘C / Ctrl+C)")}
-          {renderExportButton("file", "Save", "Save to file")}
-          {renderExportButton("both", "Save & Copy", "Save to file and copy to clipboard")}
+          <ExportSplitButton
+            lastAction={lastExportAction}
+            onExport={runExport}
+            disabled={exporting}
+          />
         </div>
         <Divider />
         {/* Capture split (desktop only — browsers cannot trigger captures) */}
@@ -1513,16 +1510,24 @@ export function Toolbar({
         )}
         {/* Tool palette with responsive overflow */}
         <div ref={paletteRef} className="flex min-w-0 flex-1 items-center gap-1">
-          {visibleTools.map((t) => (
-            <ToolButton
-              key={t.id}
-              icon={t.icon}
-              label={t.label}
-              hint={t.hint}
-              active={tool === t.id}
-              onClick={() => setTool(t.id)}
-            />
-          ))}
+          {visibleTools.map((t, i) => {
+            // Divider whenever the cluster changes between two visible tools —
+            // reads as an intentional group boundary, and only appears between
+            // tools that actually survived the overflow cut.
+            const startsCluster = i > 0 && visibleTools[i - 1].group !== t.group;
+            return (
+              <Fragment key={t.id}>
+                {startsCluster && <Divider />}
+                <ToolButton
+                  icon={t.icon}
+                  label={t.label}
+                  hint={t.hint}
+                  active={tool === t.id}
+                  onClick={() => setTool(t.id)}
+                />
+              </Fragment>
+            );
+          })}
           <OverflowMenu items={overflowItems} />
         </div>
         {/* Settings — far right (desktop only) */}
