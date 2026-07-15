@@ -792,8 +792,12 @@ mod tests {
     fn upward_frame_does_not_grow_acc_or_warn() {
         // Aperiodic page (each row a distinct hashed gray) so up-vs-down is
         // unambiguous — the mod-256-periodic `tall_page` would alias a downward
-        // offset onto the upward one (see the stitch.rs counterpart).
-        let (w, content, chrome) = (120u32, 300u32, 24u32);
+        // offset onto the upward one (see the stitch.rs counterpart). Plain
+        // content (no fixed chrome band): an upward frame then has NO downward
+        // reading at all, which is what the stitcher requires before it will
+        // ignore a frame as an upward re-show (a plausible downward reading is
+        // always appended, never dropped — CP-0008 review).
+        let (w, vh) = (120u32, 300u32);
         let mut page = RgbaImage::new(w, 900);
         for y in 0..900u32 {
             let mut v = y.wrapping_add(1).wrapping_mul(2_654_435_761);
@@ -805,7 +809,7 @@ mod tests {
                 page.put_pixel(x, y, Rgba([g, g, g, 255]));
             }
         }
-        let frame_at = |o: u32| framed(&page, o, content, chrome);
+        let frame_at = |o: u32| image::imageops::crop_imm(&page, 0, o, w, vh).to_image();
 
         let mut s = new_session(frame_at(0));
         stitch_frame(&mut s, frame_at(90)); // down
