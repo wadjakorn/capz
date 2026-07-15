@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { ensureAutoScrollPermission } from "@/lib/accessibility";
 
 type Progress = {
   frames: number;
@@ -15,9 +16,6 @@ type Progress = {
   /** Transient status line (e.g. auto-scroll fell back to manual). */
   note: string | null;
 };
-
-const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 
 /**
  * Compact always-on-top control for an in-flight scrolling capture. The Rust
@@ -45,6 +43,9 @@ export default function ScrollHudPage() {
   const [finishing, setFinishing] = useState(false);
   // Local mirror of the backend's auto state — set optimistically on click and
   // reconciled from each progress tick (so a backend fallback flips us back).
+  // Starts false to match the static prerender (window is undefined at build
+  // time); a mount effect below flips it from the `?auto=1` window param so a
+  // direct-auto launch locks the HUD immediately without a hydration mismatch.
   const [auto, setAuto] = useState(false);
   // Transient status line; cleared a few seconds after it last changed.
   const [note, setNote] = useState<string | null>(null);
@@ -53,6 +54,14 @@ export default function ScrollHudPage() {
   // (e.g. a button's onClick plus the pill's bubble handler, or Enter+click).
   // The `busy`/`finishing` state flags update async and don't protect that.
   const committing = useRef(false);
+
+  // Seed auto from the launch param after mount (not in the useState initializer,
+  // which would diverge from the static prerender and throw a hydration error).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("auto") === "1") {
+      setAuto(true);
+    }
+  }, []);
 
   useEffect(() => {
     const prevBody = document.body.style.background;
@@ -114,24 +123,12 @@ export default function ScrollHudPage() {
   const startAuto = useCallback(async () => {
     if (busy || finishing) return;
     setNote(null);
-    // Posting synthetic wheel events on macOS needs the Accessibility grant.
-    // Wire the request into the permission flow at the point of use: if it's
-    // missing, prompt + open System Settings and tell the user to retry, rather
-    // than silently doing nothing (the events would be dropped).
-    if (IS_MAC) {
-      try {
-        const ok = await invoke<boolean>("has_accessibility_permission");
-        if (!ok) {
-          await invoke("request_accessibility_permission").catch(() => {});
-          await invoke("open_system_settings_accessibility").catch(() => {});
-          setNote("Enable Accessibility for capz, then press Auto-scroll again");
-          if (noteTimer.current) window.clearTimeout(noteTimer.current);
-          noteTimer.current = window.setTimeout(() => setNote(null), 6000);
-          return;
-        }
-      } catch (e) {
-        console.warn("accessibility preflight failed", e);
-      }
+    const ok = await ensureAutoScrollPermission();
+    if (!ok) {
+      setNote("Enable Accessibility for capz, then press Auto-scroll again");
+      if (noteTimer.current) window.clearTimeout(noteTimer.current);
+      noteTimer.current = window.setTimeout(() => setNote(null), 6000);
+      return;
     }
     setAuto(true);
     invoke("scroll_capture_auto_start_command").catch((e) => {
@@ -147,16 +144,15 @@ export default function ScrollHudPage() {
         finish();
       } else if (e.key === "Escape") {
         e.preventDefault();
-        // While auto-scrolling capz drives the target's scroll, so the user
-        // can't reliably aim the mouse — make ESC (like Enter/any click) stop
-        // and commit rather than discard. In manual mode ESC still cancels.
-        if (auto) finish();
-        else cancel();
+        // Esc always cancels (discards), in both manual and auto (CP-0013). In
+        // auto every button is disabled, so Esc is the dedicated cancel path;
+        // Enter / a single click still stop-and-capture.
+        cancel();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [finish, cancel, auto]);
+  }, [finish, cancel]);
 
   // During auto-scroll any click on the pill commits (see ESC note above).
   const onPillClick = useCallback(() => {
@@ -209,40 +205,43 @@ export default function ScrollHudPage() {
                   <>
                     {/* Down-only: the stitcher models downward scroll; scrolling back up
                         duplicates content (see services/stitch.rs). */}
-                    {auto ? "Auto-scrolling · Enter/Esc/click to capture" : "Scroll down"} · {progress.height}px ·{" "}
+                    {auto ? "Auto-scrolling · Enter/click capture · Esc cancel" : "Scroll down"} · {progress.height}px ·{" "}
                     {progress.frames} frame{progress.frames === 1 ? "" : "s"}
                     {progress.warnings > 0 ? " · ⚠ seams" : ""}
                   </>
                 )}
               </span>
             </div>
-            {auto ? null : (
-              <>
-                <button
-                  type="button"
-                  onClick={cancel}
-                  disabled={busy}
-                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
-                  style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={startAuto}
-                  disabled={busy}
-                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-50"
-                  style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-                  title="Let capz scroll the page automatically to the bottom"
-                >
-                  Auto-scroll
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={busy || auto}
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+            >
+              Cancel
+            </button>
+            {/* Auto-scroll is chosen once at the overlay arming bar and is not
+                switchable mid-capture, so this button is disabled throughout the
+                HUD: greyed while manual scrolls (start auto from the arming bar
+                instead) and greyed while auto runs. */}
+            <button
+              type="button"
+              onClick={startAuto}
+              disabled
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+              title="Start auto-scroll from the selection bar before capture begins"
+            >
+              Auto-scroll
+            </button>
+            {/* During auto the backend drives the pointer, so a mouse click on
+                Capture is unreliable — disable it and commit via Enter / a click
+                anywhere on the pill / Esc-to-cancel instead. */}
             <button
               type="button"
               onClick={finish}
-              disabled={busy}
+              disabled={busy || auto}
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
             >

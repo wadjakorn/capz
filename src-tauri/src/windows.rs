@@ -845,6 +845,7 @@ pub fn show_scroll_hud<R: Runtime>(
     y: i32,
     w: u32,
     h: u32,
+    auto: bool,
 ) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window(SCROLL_HUD_LABEL) {
         let _ = win.show();
@@ -864,7 +865,11 @@ pub fn show_scroll_hud<R: Runtime>(
     let win = WebviewWindowBuilder::new(
         app,
         SCROLL_HUD_LABEL,
-        WebviewUrl::App("scroll-hud/".into()),
+        WebviewUrl::App(if auto {
+            "scroll-hud/?auto=1".into()
+        } else {
+            "scroll-hud/".into()
+        }),
     )
     .title("capz — Scrolling capture")
     .transparent(true)
