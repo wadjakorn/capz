@@ -43,10 +43,10 @@ export default function ScrollHudPage() {
   const [finishing, setFinishing] = useState(false);
   // Local mirror of the backend's auto state — set optimistically on click and
   // reconciled from each progress tick (so a backend fallback flips us back).
-  const [auto, setAuto] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).get("auto") === "1";
-  });
+  // Starts false to match the static prerender (window is undefined at build
+  // time); a mount effect below flips it from the `?auto=1` window param so a
+  // direct-auto launch locks the HUD immediately without a hydration mismatch.
+  const [auto, setAuto] = useState(false);
   // Transient status line; cleared a few seconds after it last changed.
   const [note, setNote] = useState<string | null>(null);
   const noteTimer = useRef<number | null>(null);
@@ -54,6 +54,14 @@ export default function ScrollHudPage() {
   // (e.g. a button's onClick plus the pill's bubble handler, or Enter+click).
   // The `busy`/`finishing` state flags update async and don't protect that.
   const committing = useRef(false);
+
+  // Seed auto from the launch param after mount (not in the useState initializer,
+  // which would diverge from the static prerender and throw a hydration error).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("auto") === "1") {
+      setAuto(true);
+    }
+  }, []);
 
   useEffect(() => {
     const prevBody = document.body.style.background;
