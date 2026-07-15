@@ -784,6 +784,50 @@ mod tests {
         assert_eq!(s.acc.height(), before, "no-op finish grab must not grow acc");
     }
 
+    /// CP-0008: an upward scroll mid-capture (the user scrolls back up) must be
+    /// ignored at the session level — it grows neither the accumulator nor the
+    /// seam-warning count, and leaves `prev` at the bottom-most position so a
+    /// resumed downward scroll appends cleanly with no duplicated band.
+    #[test]
+    fn upward_frame_does_not_grow_acc_or_warn() {
+        // Aperiodic page (each row a distinct hashed gray) so up-vs-down is
+        // unambiguous — the mod-256-periodic `tall_page` would alias a downward
+        // offset onto the upward one (see the stitch.rs counterpart).
+        let (w, content, chrome) = (120u32, 300u32, 24u32);
+        let mut page = RgbaImage::new(w, 900);
+        for y in 0..900u32 {
+            let mut v = y.wrapping_add(1).wrapping_mul(2_654_435_761);
+            v ^= v >> 15;
+            v = v.wrapping_mul(2_246_822_519);
+            v ^= v >> 13;
+            let g = (v & 0xff) as u8;
+            for x in 0..w {
+                page.put_pixel(x, y, Rgba([g, g, g, 255]));
+            }
+        }
+        let frame_at = |o: u32| framed(&page, o, content, chrome);
+
+        let mut s = new_session(frame_at(0));
+        stitch_frame(&mut s, frame_at(90)); // down
+        stitch_frame(&mut s, frame_at(180)); // down
+        let after_down = s.acc.height();
+        assert_eq!(s.warnings, 0, "clean downward scroll must not warn");
+
+        // Scroll back up to an already-captured position.
+        let up = stitch_frame(&mut s, frame_at(90));
+        assert!(up.duplicate, "upward frame must be ignored");
+        assert_eq!(up.appended, 0);
+        assert_eq!(s.warnings, 0, "upward frame must not increment the seam count");
+        assert_eq!(s.acc.height(), after_down, "upward frame must not grow the capture");
+
+        // Resume downward past the previous bottom — appends only the new rows.
+        let resume = stitch_frame(&mut s, frame_at(270));
+        assert!(!resume.duplicate, "resumed downward scroll must append");
+        assert_eq!(resume.appended, 90, "must append only the newly-revealed rows");
+        assert_eq!(s.warnings, 0, "resumed clean scroll must still not warn");
+        assert_eq!(s.acc.height(), after_down + 90);
+    }
+
     #[test]
     fn keeps_scrolling_below_the_streak_threshold() {
         // Below the streak the ramp state is irrelevant — always Continue.

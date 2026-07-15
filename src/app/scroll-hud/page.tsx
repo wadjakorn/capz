@@ -203,8 +203,9 @@ export default function ScrollHudPage() {
                   <span className="text-amber-300">{note}</span>
                 ) : (
                   <>
-                    {/* Down-only: the stitcher models downward scroll; scrolling back up
-                        duplicates content (see services/stitch.rs). */}
+                    {/* Down to capture; only downward content is appended. Scrolling
+                        back up is tolerated — the stitcher recognizes and ignores
+                        upward frames, so no duplicated band (see services/stitch.rs). */}
                     {auto ? "Auto-scrolling · Enter/click capture · Esc cancel" : "Scroll down"} · {progress.height}px ·{" "}
                     {progress.frames} frame{progress.frames === 1 ? "" : "s"}
                     {progress.warnings > 0 ? " · ⚠ seams" : ""}
