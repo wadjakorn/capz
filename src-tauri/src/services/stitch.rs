@@ -16,9 +16,20 @@
 //! recognizes such a frame via [`best_up_offset`] (a confident *negative* offset)
 //! and ignores it — appending nothing and keeping `prev` at the bottom-most
 //! position — so a down → up → down excursion produces no duplicated band and no
-//! spurious seam warning. What remains out of scope for v1 is *prepending* content
-//! revealed by scrolling above the capture's start point; an upward frame is
-//! dropped, not stitched onto the top.
+//! spurious seam warning. To avoid ever dropping genuinely-new content, the
+//! upward branch is reached **only** when a (weak) downward overlap exists but no
+//! gate accepted it; a frame with no downward overlap at all (a fling to new
+//! content) is butt-joined and appended, never treated as an upward re-show.
+//!
+//! What remains out of scope for v1: *prepending* content revealed by scrolling
+//! above the capture's start point (an upward frame is dropped, not stitched onto
+//! the top); and **near-exactly-periodic content wider than the viewport**, where
+//! a fast downward fling of ~one period is indistinguishable from an upward scroll
+//! from a single frame pair — the fling's re-aliased upward match can be trusted
+//! and that band dropped. This is the same fundamental ambiguity that makes any
+//! offset on exactly-periodic content unresolvable; the short sample interval
+//! (which keeps real scroll steps well under a viewport) makes it unlikely in
+//! practice.
 //!
 //! Robustness choices (see the ticket "Scrolling capture (long page)"):
 //! - **Top/bottom band exclusion**: a fixed toolbar/header pinned to the top (or
@@ -59,8 +70,19 @@ const ROW_STEP: u32 = 2;
 
 /// Require the overlap between consecutive frames to be at least `height /
 /// MIN_OVERLAP_DIV` rows. Prevents matching a thin sliver of coincidentally
-/// similar pixels when the true scroll exceeded one viewport.
+/// similar pixels when the true scroll exceeded one viewport. Caps the largest
+/// offset *magnitude* searched; the per-offset floor below then rejects any
+/// individual offset whose in-band overlap is untrustworthy.
 const MIN_OVERLAP_DIV: u32 = 8;
+
+/// Smallest number of actually-overlapping rows (within the exclusion band) an
+/// offset must have before its mean is trusted. The band shrinks the compared
+/// rows as the offset grows, and a match over only a handful of rows can score a
+/// coincidental "confident" mean — which would let an upward scroll (or a fling)
+/// masquerade as a tiny downward one. A small absolute floor rejects those while
+/// leaving normal scrolls untouched: only a single-frame advance past ~80% of the
+/// viewport falls below it, and such an extreme step safely butt-joins instead.
+const MIN_MATCH_ROWS: u32 = 12;
 
 /// Mean per-sample absolute grayscale difference (0–255) at or below which an
 /// offset is accepted as a confident match. Exact viewport slices score 0; real
@@ -143,21 +165,49 @@ fn row_abs_diff(a: &[u8], b: &[u8]) -> u32 {
         .sum()
 }
 
+/// The row band and offset range over which two frames are compared: `(h, lo,
+/// hi, max_s)` — the shared frame height, the stable middle `[lo, hi)` with the
+/// top/bottom `exclude` rows dropped, and the largest offset magnitude that still
+/// leaves `height / MIN_OVERLAP_DIV` overlapping rows. `None` when the frames are
+/// too short to compare (no valid offset exists). Computed **once** per frame in
+/// [`measure_frame`] and shared by the stationary baseline and both directional
+/// searches so they all score over exactly the same band.
+fn match_band(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, u32, u32, u32)> {
+    let h = prev.height.min(next.height);
+    if h == 0 {
+        return None;
+    }
+    let min_overlap = (h / MIN_OVERLAP_DIV).max(1);
+    // Largest offset that still leaves `min_overlap` overlapping rows.
+    let max_s = h.saturating_sub(min_overlap);
+    if max_s < 1 {
+        return None;
+    }
+    // Compare over the frame's stable middle: rows [exclude, h - exclude).
+    let lo = exclude.min(h);
+    let hi = h.saturating_sub(exclude).max(lo);
+    Some((h, lo, hi, max_s))
+}
+
 /// Mean per-sample absolute grayscale difference when `next` is shifted against
-/// `prev` by the **signed** row offset `s` — `next[a]` vs `prev[a + s]` — over
-/// the stable band `[lo, hi)`. A positive `s` models downward scrolling (new
-/// content revealed at the bottom); a negative `s` models an upward scroll
-/// (content re-appearing at the top, already captured on the way down). `None` if
-/// no overlapping rows fall inside the band (offset too large for the frame).
-/// Comparable to `CONFIDENT_MEAN_ABS_DIFF`; `s = 0` gives the stationary
-/// "no-scroll" baseline.
-fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: i32, lo: u32, hi: u32, h: u32) -> Option<f32> {
+/// `prev` by the **signed** row offset `s` — `next[a]` vs `prev[a + s]` — over the
+/// stable band `[lo, hi)`. A positive `s` models downward scrolling (new content
+/// revealed at the bottom); a negative `s` models an upward scroll (content
+/// re-appearing at the top, already captured on the way down). `None` when fewer
+/// than `min_rows` rows actually overlap inside the band. Comparable to
+/// `CONFIDENT_MEAN_ABS_DIFF`; `s = 0` gives the stationary "no-scroll" baseline.
+fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: i32, lo: u32, hi: u32, h: u32, min_rows: u32) -> Option<f32> {
     // Overlapping rows in `next` coords: both `a` and `a + s` must be in-frame
     // ([0, h)) and `a` inside the stable band. For s >= 0 the binding limit is
     // `a + s < h`; for s < 0 it is `a + s >= 0`, i.e. `a >= -s`.
     let a_start = lo.max((-s).max(0) as u32);
     let a_end = hi.min((h as i32 - s).clamp(0, h as i32) as u32);
-    if a_end <= a_start {
+    // Reject a too-thin overlap: near the largest offsets the exclusion band can
+    // shrink the compared rows to a sliver, where a handful of coincidentally
+    // similar rows would score a bogus confident match. `min_rows` is a small
+    // absolute floor for the directional search (see [`MIN_MATCH_ROWS`]) and 1 for
+    // the stationary baseline (which always spans the full band).
+    if a_end.saturating_sub(a_start) < min_rows.max(1) {
         return None;
     }
     let mut total: u64 = 0;
@@ -174,69 +224,26 @@ fn offset_mean(prev: &Fingerprint, next: &Fingerprint, s: i32, lo: u32, hi: u32,
     Some(total as f32 / (count as f32 * ROW_SAMPLES as f32))
 }
 
-/// The row band and offset range over which two frames are compared: `(h, lo,
-/// hi, max_s)` — the shared frame height, the stable middle `[lo, hi)` with the
-/// top/bottom `exclude` rows dropped, and the largest offset magnitude that still
-/// leaves `height / MIN_OVERLAP_DIV` overlapping rows. `None` when the frames are
-/// too short to compare (no valid offset exists). Shared by the stationary
-/// baseline and both directional searches so they all score over the same band.
-fn match_band(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, u32, u32, u32, u32)> {
-    let h = prev.height.min(next.height);
-    if h == 0 {
-        return None;
-    }
-    let min_overlap = (h / MIN_OVERLAP_DIV).max(1);
-    // Largest offset that still leaves `min_overlap` overlapping rows.
-    let max_s = h.saturating_sub(min_overlap);
-    if max_s < 1 {
-        return None;
-    }
-    // Compare over the frame's stable middle: rows [exclude, h - exclude).
-    let lo = exclude.min(h);
-    let hi = h.saturating_sub(exclude).max(lo);
-    Some((h, lo, hi, max_s, min_overlap))
+/// Stationary (`s = 0`) alignment score over the shared `band`: how well the
+/// frames align with no scroll at all. The caller subtracts a candidate offset's
+/// mean from this baseline to tell a genuine scroll from a paused frame (see
+/// [`MIN_SCROLL_IMPROVEMENT`]). `None` when the band is empty.
+fn stationary_mean(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32, u32)) -> Option<f32> {
+    let (h, lo, hi, _) = band;
+    offset_mean(prev, next, 0, lo, hi, h, 1)
 }
 
-/// Stationary (`s = 0`) alignment score: how well the frames align with no scroll
-/// at all, over the shared [`match_band`]. The caller subtracts a candidate
-/// offset's mean from this baseline to tell a genuine scroll from a paused frame
-/// (see [`MIN_SCROLL_IMPROVEMENT`]). `None` when the frames are too short.
-fn stationary_mean(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<f32> {
-    let (h, lo, hi, _, _) = match_band(prev, next, exclude)?;
-    offset_mean(prev, next, 0, lo, hi, h)
-}
-
-/// Rows of `next` that actually overlap `prev` inside the band `[lo, hi)` at the
-/// signed offset `s` (both `a` and `a + s` in-frame). The offset search rejects
-/// candidates whose overlap is thinner than `min_overlap`: near the largest
-/// offsets the exclusion band can shrink the compared rows to a sliver, where a
-/// handful of coincidentally-similar rows would otherwise score a bogus confident
-/// match and let a fling (or an upward scroll) masquerade as a tiny downward one.
-fn band_overlap(s: i32, lo: u32, hi: u32, h: u32) -> u32 {
-    let a_start = lo.max((-s).max(0) as u32);
-    let a_end = hi.min((h as i32 - s).clamp(0, h as i32) as u32);
-    a_end.saturating_sub(a_start)
-}
-
-/// Search for the scroll offset of magnitude `s` (rows, >= 1) in direction `dir`
-/// (+1 downward, -1 upward) that best aligns `next` onto `prev`: `next[a]` ≈
-/// `prev[a + dir*s]`. Returns `(s, mean_abs_diff)` for the best candidate — per
-/// grayscale sample, so directly comparable to `CONFIDENT_MEAN_ABS_DIFF`. `None`
-/// if no valid offset exists (frame too short, or the exclusion band leaves
-/// nothing to compare). The stationary baseline is computed separately by
-/// [`stationary_mean`] so it is scored only once per frame.
-fn best_offset_dir(prev: &Fingerprint, next: &Fingerprint, exclude: u32, dir: i32) -> Option<(u32, f32)> {
-    let (h, lo, hi, max_s, min_overlap) = match_band(prev, next, exclude)?;
+/// Search over the shared `band` for the scroll offset of magnitude `s` (rows,
+/// >= 1) in direction `dir` (+1 downward, -1 upward) that best aligns `next` onto
+/// `prev`: `next[a]` ≈ `prev[a + dir*s]`. Returns `(s, mean_abs_diff)` for the
+/// best candidate — per grayscale sample, so directly comparable to
+/// `CONFIDENT_MEAN_ABS_DIFF`. `None` if no offset has enough overlap to trust. The
+/// stationary baseline is scored separately (once) by [`stationary_mean`].
+fn best_offset_dir(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32, u32), dir: i32) -> Option<(u32, f32)> {
+    let (h, lo, hi, max_s) = band;
     let mut best: Option<(u32, f32)> = None;
     for s in 1..=max_s {
-        let sig = dir * s as i32;
-        // Skip offsets whose in-band overlap is too thin to trust (see
-        // [`band_overlap`]) — otherwise a coincidental few-row match near max_s
-        // registers as a bogus confident scroll.
-        if band_overlap(sig, lo, hi, h) < min_overlap {
-            continue;
-        }
-        let Some(mean) = offset_mean(prev, next, sig, lo, hi, h) else {
+        let Some(mean) = offset_mean(prev, next, dir * s as i32, lo, hi, h, MIN_MATCH_ROWS) else {
             continue;
         };
         if best.map(|(_, bm)| mean < bm).unwrap_or(true) {
@@ -248,17 +255,17 @@ fn best_offset_dir(prev: &Fingerprint, next: &Fingerprint, exclude: u32, dir: i3
 
 /// Best **downward** scroll offset — content revealed at the bottom. This is the
 /// alignment the stitcher actually appends. See [`best_offset_dir`].
-fn best_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, f32)> {
-    best_offset_dir(prev, next, exclude, 1)
+fn best_offset(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32, u32)) -> Option<(u32, f32)> {
+    best_offset_dir(prev, next, band, 1)
 }
 
 /// Best **upward** scroll offset. A confident match here means the user scrolled
 /// back up and the frame is re-showing rows already captured on the way down.
-/// Used only to recognize such frames — when no downward reading exists — so
+/// Used only to recognize such frames — when the downward reading is weak — so
 /// [`measure_frame`] can ignore them instead of butt-joining and duplicating
 /// their content. See the module doc.
-fn best_up_offset(prev: &Fingerprint, next: &Fingerprint, exclude: u32) -> Option<(u32, f32)> {
-    best_offset_dir(prev, next, exclude, -1)
+fn best_up_offset(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32, u32)) -> Option<(u32, f32)> {
+    best_offset_dir(prev, next, band, -1)
 }
 
 /// Mean per-sample grayscale difference at or below which a bottom row is
@@ -503,12 +510,16 @@ pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> Stitch
     let prev_fp = Fingerprint::new(prev);
     let next_fp = Fingerprint::new(next);
 
-    // Stationary baseline, scored once over the shared band. `None` → frames too
-    // short to align at all; nothing to stitch onto, so butt-join the frame whole.
-    let Some(zero_mean) = stationary_mean(&prev_fp, &next_fp, exclude) else {
+    // Band + stationary baseline, each computed once and shared by both directional
+    // searches. `None` → frames too short to align at all; nothing to stitch onto,
+    // so butt-join the frame whole.
+    let Some(band) = match_band(&prev_fp, &next_fp, exclude) else {
         return StitchDecision::ButtJoin;
     };
-    let down = best_offset(&prev_fp, &next_fp, exclude);
+    let Some(zero_mean) = stationary_mean(&prev_fp, &next_fp, band) else {
+        return StitchDecision::ButtJoin;
+    };
+    let down = best_offset(&prev_fp, &next_fp, band);
 
     match down {
         // Genuine downward scroll: confident overlap that also beats the
@@ -526,21 +537,19 @@ pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> Stitch
         // is deliberate: on repetitive/self-similar content (tables, lists, logs,
         // code) a genuine downward scroll's true offset also aliases as an upward
         // one, so preferring downward here prevents silently dropping newly-scrolled
-        // rows (CP-0008 review). The upward check below only runs when there is no
-        // downward reading at all.
+        // rows (CP-0008 review).
         Some((s, mean)) if mean <= PLAUSIBLE_MEAN_ABS_DIFF && zero_mean - mean >= MIN_SCROLL_IMPROVEMENT => {
             StitchDecision::Scroll { s, low_confidence: true }
         }
-        // No downward interpretation. Before butt-joining the whole frame (which
-        // would duplicate a viewport of content and flag a spurious seam), check
-        // whether the user scrolled back *up*: a *confident* negative offset means
-        // these exact rows were already captured on the way down (CP-0008). We
-        // require the confident tier — not merely plausible — so a genuine fling to
-        // brand-new content (no overlap either direction) or a weak coincidental
-        // upward alias is butt-joined and appended, never dropped. When it is a
-        // real upward re-show, ignore the frame: append nothing and keep `prev` at
-        // the bottom-most position so a resumed downward scroll stitches on cleanly.
-        _ => match best_up_offset(&prev_fp, &next_fp, exclude) {
+        // A weak downward offset exists (the frames DO overlap, just not in a
+        // down-consistent way) but neither gate accepted it. This is where an
+        // upward scroll lands: the user scrolled back up, so the frame re-shows
+        // rows already captured on the way down. Recognize it via a *confident*
+        // negative offset and ignore the frame — append nothing, keep `prev` at the
+        // bottom-most position — so a resumed downward scroll stitches on cleanly
+        // with no duplicated band (CP-0008). Requiring the confident tier keeps a
+        // weak coincidental upward alias from ever dropping a frame.
+        Some(_) => match best_up_offset(&prev_fp, &next_fp, band) {
             Some((_, up_mean))
                 if up_mean <= CONFIDENT_MEAN_ABS_DIFF
                     && zero_mean - up_mean >= MIN_SCROLL_IMPROVEMENT =>
@@ -549,6 +558,11 @@ pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> Stitch
             }
             _ => StitchDecision::ButtJoin,
         },
+        // No overlapping downward offset at all — a fling to brand-new content
+        // (past the searchable window). Butt-join and append the whole frame so
+        // the content is preserved; never treat this as an upward re-show, which
+        // would silently drop a screenful on near-periodic pages (CP-0008 review).
+        None => StitchDecision::ButtJoin,
     }
 }
 
@@ -567,13 +581,10 @@ pub fn apply_frame(
     match decision {
         // Paused frame, or an upward scroll re-showing already-captured rows:
         // append nothing. Reported as `duplicate` so the sampler keeps `prev` at
-        // the bottom-most position and counts no progress / no seam warning.
-        //
-        // Only manual scrolling produces `ScrollUp`: it requires no plausible
-        // downward reading *and* a confident upward match, which auto-scroll (which
-        // only ever steps down) cannot produce — a down step can't both overshoot
-        // past the overlap window and re-show content from above — so it never
-        // perturbs auto-scroll's no-progress/bottom-detection streak.
+        // the bottom-most position and counts no progress / no seam warning. The
+        // scrolling sampler maps `ScrollUp` to `ButtJoin` while auto-scrolling (see
+        // `commands::scroll::stitch_frame`), so this no-append `ScrollUp` outcome is
+        // reached only for manual captures and never perturbs bottom detection.
         StitchDecision::Duplicate | StitchDecision::ScrollUp => StitchOutcome {
             appended: 0,
             duplicate: true,
@@ -940,6 +951,24 @@ mod tests {
         }
         // No genuine overlap in either direction → butt-join, whole frame kept.
         assert_eq!(measure_frame(&a, &b, 48), StitchDecision::ButtJoin);
+    }
+
+    #[test]
+    fn fling_to_new_content_butt_joins_never_drops() {
+        // CP-0008 review (content-loss guard): a downward fling that jumps to
+        // brand-new content past the searchable overlap window has no downward
+        // reading. It must butt-join and APPEND the whole frame (content
+        // preserved), never be mistaken for an upward re-show and dropped. Here
+        // `next` sits fully below `prev` with no shared rows (aperiodic content, so
+        // no coincidental alias in either direction).
+        let full = vnoise_image(100, 1200);
+        let prev = viewport(&full, 0, 200);
+        let next = viewport(&full, 600, 200); // 3 viewports down — no overlap with prev
+        let mut acc = prev.clone();
+        let out = append_frame(&mut acc, &prev, &next, 0);
+        assert!(!out.duplicate, "a fling to new content must never be dropped");
+        assert_eq!(out.appended, 200, "the whole new frame must be appended");
+        assert_eq!(acc.height(), 400);
     }
 
     #[test]
