@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { ensureAutoScrollPermission } from "@/lib/accessibility";
 
 type Progress = {
   frames: number;
@@ -15,9 +16,6 @@ type Progress = {
   /** Transient status line (e.g. auto-scroll fell back to manual). */
   note: string | null;
 };
-
-const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 
 /**
  * Compact always-on-top control for an in-flight scrolling capture. The Rust
@@ -114,24 +112,12 @@ export default function ScrollHudPage() {
   const startAuto = useCallback(async () => {
     if (busy || finishing) return;
     setNote(null);
-    // Posting synthetic wheel events on macOS needs the Accessibility grant.
-    // Wire the request into the permission flow at the point of use: if it's
-    // missing, prompt + open System Settings and tell the user to retry, rather
-    // than silently doing nothing (the events would be dropped).
-    if (IS_MAC) {
-      try {
-        const ok = await invoke<boolean>("has_accessibility_permission");
-        if (!ok) {
-          await invoke("request_accessibility_permission").catch(() => {});
-          await invoke("open_system_settings_accessibility").catch(() => {});
-          setNote("Enable Accessibility for capz, then press Auto-scroll again");
-          if (noteTimer.current) window.clearTimeout(noteTimer.current);
-          noteTimer.current = window.setTimeout(() => setNote(null), 6000);
-          return;
-        }
-      } catch (e) {
-        console.warn("accessibility preflight failed", e);
-      }
+    const ok = await ensureAutoScrollPermission();
+    if (!ok) {
+      setNote("Enable Accessibility for capz, then press Auto-scroll again");
+      if (noteTimer.current) window.clearTimeout(noteTimer.current);
+      noteTimer.current = window.setTimeout(() => setNote(null), 6000);
+      return;
     }
     setAuto(true);
     invoke("scroll_capture_auto_start_command").catch((e) => {
@@ -147,16 +133,15 @@ export default function ScrollHudPage() {
         finish();
       } else if (e.key === "Escape") {
         e.preventDefault();
-        // While auto-scrolling capz drives the target's scroll, so the user
-        // can't reliably aim the mouse — make ESC (like Enter/any click) stop
-        // and commit rather than discard. In manual mode ESC still cancels.
-        if (auto) finish();
-        else cancel();
+        // Esc always cancels (discards), in both manual and auto (CP-0013). In
+        // auto every button is disabled, so Esc is the dedicated cancel path;
+        // Enter / a single click still stop-and-capture.
+        cancel();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [finish, cancel, auto]);
+  }, [finish, cancel]);
 
   // During auto-scroll any click on the pill commits (see ESC note above).
   const onPillClick = useCallback(() => {
@@ -209,36 +194,32 @@ export default function ScrollHudPage() {
                   <>
                     {/* Down-only: the stitcher models downward scroll; scrolling back up
                         duplicates content (see services/stitch.rs). */}
-                    {auto ? "Auto-scrolling · Enter/Esc/click to capture" : "Scroll down"} · {progress.height}px ·{" "}
+                    {auto ? "Auto-scrolling · Enter/click capture · Esc cancel" : "Scroll down"} · {progress.height}px ·{" "}
                     {progress.frames} frame{progress.frames === 1 ? "" : "s"}
                     {progress.warnings > 0 ? " · ⚠ seams" : ""}
                   </>
                 )}
               </span>
             </div>
-            {auto ? null : (
-              <>
-                <button
-                  type="button"
-                  onClick={cancel}
-                  disabled={busy}
-                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-50"
-                  style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={startAuto}
-                  disabled={busy}
-                  className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-50"
-                  style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-                  title="Let capz scroll the page automatically to the bottom"
-                >
-                  Auto-scroll
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={busy || auto}
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={startAuto}
+              disabled={busy || auto}
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+              title="Let capz scroll the page automatically to the bottom"
+            >
+              Auto-scroll
+            </button>
             <button
               type="button"
               onClick={finish}
