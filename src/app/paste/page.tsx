@@ -68,13 +68,13 @@ export default function PastePage() {
     [resetEditor, setHasImage],
   );
 
-  // Add-vs-replace router: in "Add image" mode a paste/drop/pick layers the
-  // image as an overlay object (converted to a persistent data URL); otherwise
-  // it replaces the workspace like before. With no base image yet, always
-  // replace so the first image becomes the base.
+  // Base-vs-overlay router: an empty canvas takes the image as the base
+  // (replace); once a base image exists, every further paste/drop/pick lands as
+  // a movable overlay object (converted to a persistent data URL). To start
+  // fresh, clear the canvas first.
   const acceptBlob = useCallback(
     (blob: Blob) => {
-      if (!useEditor.getState().addImageMode || !srcRef.current) {
+      if (!srcRef.current) {
         applyBlob(blob);
         return;
       }
@@ -206,9 +206,14 @@ export default function PastePage() {
   const onPickFile = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      // Route through acceptBlob so a pick honors Add-image mode (overlay vs.
-      // replace); with no base image yet it always replaces.
-      if (file && file.type.startsWith("image/")) acceptBlob(file);
+      // Route through acceptBlob so a pick follows the base-vs-overlay rule
+      // (first image is the base, later ones layer on top). The picker's
+      // accept="image/*" pre-filters, but a drag into the dialog or an OS that
+      // ignores the hint can still yield a non-image — reject it with an alert.
+      if (file) {
+        if (file.type.startsWith("image/")) acceptBlob(file);
+        else toast.error("Not an image");
+      }
       e.target.value = "";
     },
     [acceptBlob],

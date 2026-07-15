@@ -1277,21 +1277,22 @@ export function EditorStage({ src }: Props) {
   async function ctxPaste() {
     setCtxMenu(null);
     if (!isTauriRuntime()) {
-      // Web build: the /paste page owns image loading — hand off to it. It reads
-      // the add-vs-replace decision from the store itself.
+      // Web build: the /paste page owns image loading — hand off to it. It makes
+      // the base-vs-overlay decision from the store itself.
       window.dispatchEvent(new CustomEvent("capz:web-paste"));
       return;
     }
-    const addMode = useEditor.getState().addImageMode;
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      if (addMode) {
-        // Add-image mode: overlay the clipboard image instead of replacing.
+      if (useEditor.getState().hasImage) {
+        // Canvas has a base image: overlay the clipboard image instead of
+        // replacing it.
         const dataUrl = await invoke<string>("read_clipboard_image_data_url");
         const { addOverlayImage } = await import("@/lib/addImage");
         const id = await addOverlayImage(dataUrl);
         if (!id) toast.error("Couldn't add clipboard image");
       } else {
+        // Empty canvas: the pasted image becomes the base.
         await invoke<string>("paste_into_editor");
       }
     } catch (err) {

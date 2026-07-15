@@ -267,13 +267,15 @@ export default function EditorPage() {
       ev.preventDefault();
       try {
         const { invoke } = await import("@tauri-apps/api/core");
-        if (useEditor.getState().addImageMode) {
-          // Add-image mode: layer the clipboard image as an overlay object.
+        if (useEditor.getState().hasImage) {
+          // Canvas already has a base image: layer the clipboard image as a
+          // movable overlay object on top.
           const dataUrl = await invoke<string>("read_clipboard_image_data_url");
           const { addOverlayImage } = await import("@/lib/addImage");
           const id = await addOverlayImage(dataUrl);
           if (!id) toast.error("Couldn't add clipboard image");
         } else {
+          // Empty canvas: the pasted image becomes the base.
           await invoke<string>("paste_into_editor");
         }
       } catch (err) {
@@ -286,9 +288,9 @@ export default function EditorPage() {
   }, []);
 
   // Desktop file drag-drop: dropping an image file onto the editor window
-  // imports it, honoring Add-image mode (add overlay vs. replace). Non-image
-  // drops are ignored with a toast. OS drops arrive as Tauri drag-drop events
-  // because the editor window has drag_drop_enabled.
+  // imports it — base image on an empty canvas, overlay on a non-empty one.
+  // Non-image drops are rejected with a toast. OS drops arrive as Tauri
+  // drag-drop events because the editor window has drag_drop_enabled.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {

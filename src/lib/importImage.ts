@@ -10,16 +10,16 @@ export function isImportableImagePath(path: string): boolean {
 }
 
 /**
- * Desktop: bring an on-disk image file into the editor, honoring Add-image mode.
- * With mode ON (and a base image present) the file is layered as a movable
- * overlay object; otherwise it replaces the workspace like paste does. Rust
- * normalizes the file to an RGBA PNG (alpha preserved). Resolves true on
- * success, false if the image couldn't be decoded / added.
+ * Desktop: bring an on-disk image file into the editor. On an empty canvas the
+ * file becomes the base image (replace); once a base image exists it is layered
+ * as a movable overlay object on top. Rust normalizes the file to an RGBA PNG
+ * (alpha preserved). Resolves true on success, false if the image couldn't be
+ * decoded / added.
  */
 export async function importImagePathDesktop(path: string): Promise<boolean> {
   const { invoke } = await import("@tauri-apps/api/core");
   const s = useEditor.getState();
-  if (s.addImageMode && s.hasImage) {
+  if (s.hasImage) {
     const dataUrl = await invoke<string>("read_image_file_data_url", { path });
     const id = await addOverlayImage(dataUrl);
     return !!id;
