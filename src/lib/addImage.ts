@@ -1,5 +1,6 @@
 import { useEditor } from "@/stores/editor";
 import { getStageImageSize } from "@/lib/stageBridge";
+import { uid } from "@/lib/uid";
 
 /** Load an image URL (data:, blob:, asset:) and resolve its natural size, or
  *  null if it fails to decode. */
@@ -35,7 +36,7 @@ export async function addOverlayImage(src: string): Promise<string | null> {
   const h = Math.max(8, Math.round(natural.h * fit));
   const cx = base ? base.w / 2 : w / 2;
   const cy = base ? base.h / 2 : h / 2;
-  const id = crypto.randomUUID();
+  const id = uid();
   useEditor.getState().add({
     type: "image",
     id,

@@ -61,6 +61,7 @@ import {
 } from "@/lib/annotationBounds";
 import { snapAxis } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
+import { uid } from "@/lib/uid";
 
 const SNAP_SCREEN_PX = 6;
 
@@ -82,10 +83,6 @@ type TextEditor = {
   value: string;
   id?: string;
 };
-
-function uid() {
-  return crypto.randomUUID();
-}
 
 function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
   switch (a.type) {
