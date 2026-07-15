@@ -3,11 +3,12 @@
 import { forwardRef, type SVGProps } from "react";
 
 /**
- * Map-pin marker with a "1" in the head. Signals that the Pin tool drops
- * auto-incrementing numbered markers, which a plain location pin (MapPin)
- * doesn't convey. The "1" is static — a live counter in a 16px icon reads as
- * noise, not information. Toolbar affordance only; placed pins render from the
- * canvas layer, not this icon.
+ * Numbered circle marker: a ring with a "1" in it. Signals that the Pin tool
+ * drops auto-incrementing numbered markers, which a plain location pin doesn't
+ * convey. Circle (not a map-pin teardrop) so the badge reads clearly at 16px
+ * and matches the round numbered markers the tool places. The "1" is static — a
+ * live counter in a 16px icon reads as noise, not information. Toolbar
+ * affordance only; placed pins render from the canvas layer, not this icon.
  *
  * Shaped to be interchangeable with a lucide icon (forwardRef + SVGProps), so
  * it slots into the same `icon` fields and is sized/colored by className +
@@ -28,13 +29,13 @@ export const NumberedPinIcon = forwardRef<SVGSVGElement, SVGProps<SVGSVGElement>
         strokeLinejoin="round"
         {...props}
       >
-        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+        <circle cx="12" cy="12" r="9" />
         <text
           x="12"
-          y="10"
+          y="12"
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize="9"
+          fontSize="11"
           fontWeight="700"
           fill="currentColor"
           stroke="none"

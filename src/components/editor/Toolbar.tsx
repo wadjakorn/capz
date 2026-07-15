@@ -73,7 +73,6 @@ import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
 import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButton";
 import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
-import { ToolGroupButton } from "./toolbar/ToolGroupButton";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { isTauriRuntime } from "@/lib/platform";
@@ -102,56 +101,15 @@ const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
   { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight },
   { id: "rect", label: "Shapes", hint: "R", icon: ShapesIcon },
-  { id: "pen", label: "Pen", hint: "D", icon: Pencil },
+  { id: "text", label: "Text", hint: "T", icon: Type },
   { id: "blur", label: "Blur", hint: "B", icon: Droplet },
+  { id: "pen", label: "Pen", hint: "D", icon: Pencil },
   { id: "highlighter", label: "Highlighter", hint: "H", icon: Highlighter },
   { id: "magnify", label: "Magnify", hint: "M", icon: Search },
-  { id: "text", label: "Text", hint: "T", icon: Type },
   { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
   { id: "pin", label: "Pin", hint: "P", icon: NumberedPinIcon as LucideIcon },
   { id: "crop", label: "Crop", hint: "C", icon: Crop },
 ];
-
-const byId = (id: Tool): ToolDef => {
-  const t = TOOLS.find((x) => x.id === id);
-  if (!t) throw new Error(`unknown tool ${id}`);
-  return t;
-};
-
-/**
- * Palette layout: some tools collapse into a group dropdown, the rest stand
- * alone. Collapsing is what keeps all tools reachable at the 1024px minimum
- * window width — flat, 11 buttons don't fit once a screenshot's controls fill
- * the row. Grouping is by intent: `draw` = the vector tools; `emphasis` = the
- * two attention tools. Blur stays standalone (it redacts, the opposite of
- * emphasize) alongside the content/frame tools.
- */
-type GroupId = "draw" | "emphasis";
-type PaletteEntry =
-  | { kind: "tool"; tool: ToolDef }
-  | { kind: "group"; id: GroupId; label: string; tools: ToolDef[] };
-
-const PALETTE: PaletteEntry[] = [
-  { kind: "tool", tool: byId("select") },
-  { kind: "group", id: "draw", label: "Draw", tools: [byId("arrow"), byId("rect"), byId("pen")] },
-  { kind: "tool", tool: byId("blur") },
-  {
-    kind: "group",
-    id: "emphasis",
-    label: "Emphasis",
-    tools: [byId("highlighter"), byId("magnify")],
-  },
-  { kind: "tool", tool: byId("text") },
-  { kind: "tool", tool: byId("sticker") },
-  { kind: "tool", tool: byId("pin") },
-  { kind: "tool", tool: byId("crop") },
-];
-
-/** Tools that live inside a group dropdown (used to seed each group's primary). */
-const GROUP_DEFAULT_PRIMARY: Record<GroupId, Tool> = {
-  draw: "arrow",
-  emphasis: "highlighter",
-};
 
 const FONT_FAMILIES: { label: string; value: string }[] = [
   { label: "Sans", value: "system-ui, sans-serif" },
@@ -1350,49 +1308,27 @@ export function Toolbar({
     })();
   };
 
-  // Tool palette overflow zone — groups collapse the slot count first, then
-  // whatever still doesn't fit drops into the ⋯ menu.
+  // Tool palette overflow zone
   const paletteRef = useRef<HTMLDivElement | null>(null);
-
-  // Each group's primary button remembers the last tool used from that group so
-  // switching away and back doesn't reset it. Kept in sync whenever the active
-  // tool belongs to a group — covers keyboard shortcuts, which hit tools directly.
-  const [groupPrimary, setGroupPrimary] =
-    useState<Record<GroupId, Tool>>(GROUP_DEFAULT_PRIMARY);
-  useEffect(() => {
-    for (const entry of PALETTE) {
-      if (entry.kind === "group" && entry.tools.some((t) => t.id === tool)) {
-        setGroupPrimary((p) => (p[entry.id] === tool ? p : { ...p, [entry.id]: tool }));
-      }
-    }
-  }, [tool]);
-
-  const entryHasTool = (e: PaletteEntry, id: Tool) =>
-    e.kind === "tool" ? e.tool.id === id : e.tools.some((t) => t.id === id);
-  const activeEntryIndex = PALETTE.findIndex((e) => entryHasTool(e, tool));
-  const { visible: visibleEntries, overflow: overflowEntries } = useOverflowSlots(
-    PALETTE,
+  const activeToolIndex = TOOLS.findIndex((t) => t.id === tool);
+  const { visible: visibleTools, overflow: overflowTools } = useOverflowSlots(
+    TOOLS,
     paletteRef,
     0,
-    // Mostly 32px single buttons plus two 48px group buttons; 40px is the average
-    // slot (incl. the 4px gap), so the fit estimate tracks reality closely.
-    40,
-    activeEntryIndex >= 0 ? activeEntryIndex : undefined,
+    36,
+    activeToolIndex >= 0 ? activeToolIndex : undefined,
   );
-  // Overflowed entries drop into the ⋯ menu as flat tools (groups expand).
   const overflowItems: OverflowItem[] = useMemo(
     () =>
-      overflowEntries
-        .flatMap((e) => (e.kind === "tool" ? [e.tool] : e.tools))
-        .map((t) => ({
-          key: t.id,
-          label: t.label,
-          icon: t.icon,
-          hint: t.hint,
-          active: tool === t.id,
-          onSelect: () => setTool(t.id),
-        })),
-    [overflowEntries, tool, setTool],
+      overflowTools.map((t) => ({
+        key: t.id,
+        label: t.label,
+        icon: t.icon,
+        hint: t.hint,
+        active: tool === t.id,
+        onSelect: () => setTool(t.id),
+      })),
+    [overflowTools, tool, setTool],
   );
 
   const hasContext = !!(
@@ -1564,27 +1500,16 @@ export function Toolbar({
         )}
         {/* Tool palette with responsive overflow */}
         <div ref={paletteRef} className="flex min-w-0 flex-1 items-center gap-1">
-          {visibleEntries.map((e) =>
-            e.kind === "tool" ? (
-              <ToolButton
-                key={e.tool.id}
-                icon={e.tool.icon}
-                label={e.tool.label}
-                hint={e.tool.hint}
-                active={tool === e.tool.id}
-                onClick={() => setTool(e.tool.id)}
-              />
-            ) : (
-              <ToolGroupButton
-                key={e.id}
-                label={e.label}
-                tools={e.tools}
-                activeTool={tool}
-                primaryId={groupPrimary[e.id]}
-                onSelect={(id) => setTool(id)}
-              />
-            ),
-          )}
+          {visibleTools.map((t) => (
+            <ToolButton
+              key={t.id}
+              icon={t.icon}
+              label={t.label}
+              hint={t.hint}
+              active={tool === t.id}
+              onClick={() => setTool(t.id)}
+            />
+          ))}
           <OverflowMenu items={overflowItems} />
         </div>
         {/* Settings — far right (desktop only) */}
