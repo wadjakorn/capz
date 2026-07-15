@@ -372,7 +372,12 @@ export default function EditorPage() {
           </div>
         )}
       </main>
-      <Toaster theme="dark" position="top-right" richColors closeButton />
+      <Toaster
+        theme="dark"
+        position="bottom-center"
+        closeButton
+        visibleToasts={1}
+      />
       <InertGrantRecoveryDialog
         open={recoveryOpen}
         onClose={() => setRecoveryOpen(false)}
