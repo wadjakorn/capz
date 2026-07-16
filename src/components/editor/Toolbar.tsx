@@ -207,14 +207,12 @@ export function Toolbar({
       if (selected.type === "rect") {
         const rectSel = selected;
         const curShape = rectSel.shape ?? toolsCfg.rect.shape;
-        rectShapeCtx = {
-          value: curShape,
-          onChange: (v) => {
-            updateAnnotation(rectSel.id, { shape: v });
-            if (remember) patchLastUsed({ rect: { shape: v } });
-            else void updateSettings("tools", { rect: { shape: v } } as Partial<AppConfig["tools"]>);
-          },
-        };
+        // Shape is add-only: it decides the annotation's *type* at draw time
+        // (line/dashline draw a 2-point segment, rect/ellipse draw a box — see
+        // EditorStage's pointer-down), so it cannot be re-picked afterwards.
+        // Switching it on an existing shape either did nothing (rect → line) or
+        // silently squared off an ellipse, so the picker is hidden while a
+        // shape is selected — pick the shape before drawing the next one.
         if (curShape === "rect") {
           cornerCtx = {
             label: "Radius",
