@@ -364,6 +364,10 @@ type Validator = (v: unknown) => boolean;
 const isStr: Validator = (v) => typeof v === "string";
 const isBool: Validator = (v) => typeof v === "boolean";
 const isNum: Validator = (v) => typeof v === "number" && Number.isFinite(v);
+// Strictly positive — used where a zero/negative would break layout math (a
+// corrupted persisted lineHeight of 0 collapses the text box and line spacing).
+const isPosNum: Validator = (v) =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
 const isStrOrNull: Validator = (v) => v === null || typeof v === "string";
 const isValidAccelerator: Validator = (v) =>
   typeof v === "string" && validateAccelerator(v).ok;
@@ -538,7 +542,7 @@ function vTools(
       backgroundColor: isStrOrNull,
       backgroundPadding: isNum,
       align: inSet("left", "center", "right"),
-      lineHeight: isNum,
+      lineHeight: isPosNum,
     }, issues),
     blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }, issues),
     sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }, issues),
@@ -634,7 +638,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     backgroundColor: isStrOrNull,
     backgroundPadding: isNum,
     align: inSet("left", "center", "right"),
-    lineHeight: isNum,
+    lineHeight: isPosNum,
   });
   keep("blur", { blurRadius: isNum });
   keep("sticker", { fontSize: isNum });
