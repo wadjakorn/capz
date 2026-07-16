@@ -11,6 +11,7 @@ import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantReco
 import { CaptureConflictDialog } from "@/components/editor/CaptureConflictDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor, type CaptureSource } from "@/stores/editor";
+import { routeIncomingCapture } from "@/lib/captureRouting";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
 import {
@@ -119,15 +120,17 @@ export default function EditorPage() {
   // handled by the CaptureConflictDialog.
   const handleIncomingCapture = useCallback(
     (path: string | null, source: CaptureSource = "other") => {
-      if (!path) {
-        void applyFile(null);
-        return;
+      switch (routeIncomingCapture(path, useEditor.getState().hasImage)) {
+        case "clear":
+          void applyFile(null);
+          return;
+        case "base":
+          void applyFile(path, source);
+          return;
+        case "prompt":
+          setConflict({ path: path as string, source });
+          return;
       }
-      if (!useEditor.getState().hasImage) {
-        void applyFile(path, source);
-        return;
-      }
-      setConflict({ path, source });
     },
     [applyFile],
   );

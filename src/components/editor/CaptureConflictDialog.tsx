@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Images, RefreshCw, X } from "lucide-react";
 
 type Props = {
@@ -20,6 +20,8 @@ type Props = {
  * other way (Escape, backdrop, X) is treated as Cancel — no change.
  */
 export function CaptureConflictDialog({ open, onReplace, onAdd, onCancel }: Props) {
+  const addRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -28,6 +30,12 @@ export function CaptureConflictDialog({ open, onReplace, onAdd, onCancel }: Prop
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onCancel]);
+
+  // Move focus into the modal on open so keyboard/AT users aren't left on the
+  // underlying editor. Matches the intent of a dialog without a full focus trap.
+  useEffect(() => {
+    if (open) addRef.current?.focus();
+  }, [open]);
 
   if (!open) return null;
 
@@ -68,6 +76,7 @@ export function CaptureConflictDialog({ open, onReplace, onAdd, onCancel }: Prop
 
         <div className="flex flex-col gap-2 px-6 pb-6">
           <button
+            ref={addRef}
             type="button"
             onClick={onAdd}
             className="btn btn--primary w-full justify-start gap-2"
