@@ -57,12 +57,12 @@ export function PresetSlider({
   // A preset reads as active when the value is within half a step of it.
   const tol = step < 1 ? step / 2 : 0.5;
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-[var(--fg-2)]">{label}</span>
         <span className="text-xs tabular-nums text-[var(--fg-3)]">{readout}</span>
       </div>
-      <div className="flex gap-1">
+      <div className="flex gap-1.5">
         {presets.map((p) => {
           const active = Math.abs(value - p.value) <= tol;
           return (
@@ -95,7 +95,7 @@ export function PresetSlider({
         onChange={(e) =>
           onChange(round ? Math.round(+e.target.value) : +e.target.value)
         }
-        className="h-1 w-full cursor-pointer accent-[var(--accent)]"
+        className="mt-1 h-1 w-full cursor-pointer accent-[var(--accent)]"
       />
     </div>
   );
