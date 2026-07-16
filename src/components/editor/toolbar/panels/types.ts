@@ -6,15 +6,14 @@ import type {
   MagnifyShape,
   ArrowHeads,
   TextAlign,
+  TextFontStyle,
+  TextDecoration,
 } from "@/stores/editor";
 
-/** Font style is a space-joined set of "bold"/"italic" (Konva convention). */
-export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
-export type TextDecoration =
-  | ""
-  | "underline"
-  | "line-through"
-  | "underline line-through";
+// The annotation store owns these; re-exported so panels and Toolbar can pull
+// the whole control-context contract from one place without a second copy that
+// could drift from the store's.
+export type { TextFontStyle, TextDecoration };
 
 /** A color control (swatch input). */
 export type ColorCtx = {

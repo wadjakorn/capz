@@ -7,6 +7,69 @@ import { ShapeSizeGlyph } from "./glyphs";
 import { Group, NumericField } from "./kit";
 import type { NumCtx } from "./types";
 
+/** The emoji/image grid. Custom images (if any) replace the built-in emoji. */
+function StickerPicker({
+  entries,
+  selection,
+  onSelect,
+}: {
+  entries: StickerEntry[];
+  selection: StickerSelection;
+  onSelect: (sel: StickerSelection) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-0.5">
+      {entries.length > 0
+        ? entries.map((e) => {
+            const active =
+              selection.kind === "image" && selection.src === e.dataUrl;
+            return (
+              <button
+                key={e.name}
+                type="button"
+                onClick={() =>
+                  onSelect({ kind: "image", src: e.dataUrl, name: e.name })
+                }
+                title={e.name}
+                className={[
+                  "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
+                  active
+                    ? "bg-[var(--accent)]"
+                    : "hover:bg-[var(--surface-raised)]",
+                ].join(" ")}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={e.dataUrl}
+                  alt={e.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </button>
+            );
+          })
+        : STICKERS.map((c) => {
+            const active = selection.kind === "emoji" && selection.char === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onSelect({ kind: "emoji", char: c })}
+                title={c}
+                className={[
+                  "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
+                  active
+                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                    : "hover:bg-[var(--surface-raised)]",
+                ].join(" ")}
+              >
+                {c}
+              </button>
+            );
+          })}
+    </div>
+  );
+}
+
 /** Sticker tool: emoji/image picker + a "Size" control (range 12–200). */
 export function StickerPanel({
   sizeCtx,
@@ -19,62 +82,19 @@ export function StickerPanel({
   entries: StickerEntry[];
   selection: StickerSelection;
   onSelect: (sel: StickerSelection) => void;
-  /** The emoji/image grid shows only in tool mode; a selected sticker gets
-   * just the Size control. */
+  /** The picker shows only in tool mode; a selected sticker gets just Size. */
   showPicker: boolean;
 }) {
   return (
     <Group>
       {showPicker && (
         <>
-      <SectionLabel>Sticker</SectionLabel>
-      <div className="flex flex-wrap items-center gap-0.5">
-        {entries.length > 0
-          ? entries.map((e) => {
-              const active =
-                selection.kind === "image" && selection.src === e.dataUrl;
-              return (
-                <button
-                  key={e.name}
-                  type="button"
-                  onClick={() =>
-                    onSelect({ kind: "image", src: e.dataUrl, name: e.name })
-                  }
-                  title={e.name}
-                  className={[
-                    "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
-                    active ? "bg-[var(--accent)]" : "hover:bg-[var(--surface-raised)]",
-                  ].join(" ")}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={e.dataUrl}
-                    alt={e.name}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </button>
-              );
-            })
-          : STICKERS.map((c) => {
-              const active = selection.kind === "emoji" && selection.char === c;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => onSelect({ kind: "emoji", char: c })}
-                  title={c}
-                  className={[
-                    "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
-                    active
-                      ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                      : "hover:bg-[var(--surface-raised)]",
-                  ].join(" ")}
-                >
-                  {c}
-                </button>
-              );
-            })}
-      </div>
+          <SectionLabel>Sticker</SectionLabel>
+          <StickerPicker
+            entries={entries}
+            selection={selection}
+            onSelect={onSelect}
+          />
         </>
       )}
       {sizeCtx && (
