@@ -109,6 +109,14 @@ pub struct StitchOutcome {
     pub duplicate: bool,
     /// No confident overlap was found; the frame was butt-joined whole.
     pub low_confidence: bool,
+    /// The frame was recognized as an **upward re-show** (`ScrollDecision::ScrollUp`):
+    /// content already captured on the way down, re-appearing because the target
+    /// reflowed / bounced content upward. Appends nothing (like `duplicate`), but
+    /// the auto-scroll sampler must treat it as *neutral* — neither progress nor
+    /// no-progress — so a transient reflow frame never feeds the no-progress streak
+    /// toward a premature "bottom reached" (CP-0018). Always `false` for the plain
+    /// paused-frame `Duplicate`.
+    pub upward_reshow: bool,
 }
 
 /// Per-row grayscale fingerprint for a frame: `height * ROW_SAMPLES` bytes, row
@@ -483,13 +491,42 @@ pub enum StitchDecision {
     ButtJoin,
 }
 
+/// Alignment scores behind a [`measure_frame`] decision, for per-frame
+/// diagnostics (CP-0018 Windows root-cause logging). All fields are `None` when
+/// the corresponding score wasn't computed (raw-identical frames, or frames too
+/// short to align). Means are per grayscale sample, comparable to
+/// [`CONFIDENT_MEAN_ABS_DIFF`] / [`PLAUSIBLE_MEAN_ABS_DIFF`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StitchDiag {
+    /// Largest searchable offset magnitude (rows) — the overlap-window ceiling. A
+    /// real scroll past this can't be found and is forced to butt-join.
+    pub max_s: Option<u32>,
+    /// Stationary (`s = 0`) alignment score — the no-scroll baseline.
+    pub zero_mean: Option<f32>,
+    /// Best downward offset `(s, mean)` — the alignment the stitcher appends.
+    pub down: Option<(u32, f32)>,
+    /// Best upward offset `(s, mean)` — a re-show of already-captured rows.
+    pub up: Option<(u32, f32)>,
+}
+
 /// Decide how `next` stitches onto `prev` **without mutating any accumulator**.
 /// Same tiers as before; separated so the sampler can inspect the decision (and
 /// establish the fixed-footer height) before choosing where to append.
 pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> StitchDecision {
+    measure_frame_diag(prev, next, exclude).0
+}
+
+/// [`measure_frame`] plus the raw alignment scores that drove the decision, so
+/// the scroll sampler can log exactly why each Windows frame landed where it did
+/// (CP-0018). Behaviourally identical to `measure_frame`; it just also computes
+/// the upward offset in every branch (cheap at the sampler's ~3 Hz cadence) so a
+/// butt-join or plausible seam can be attributed from the log alone.
+pub fn measure_frame_diag(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> (StitchDecision, StitchDiag) {
+    let mut diag = StitchDiag::default();
+
     // De-dup: identical raw buffers → the user didn't scroll.
     if prev.as_raw() == next.as_raw() {
-        return StitchDecision::Duplicate;
+        return (StitchDecision::Duplicate, diag);
     }
 
     let prev_fp = Fingerprint::new(prev);
@@ -499,14 +536,20 @@ pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> Stitch
     // searches. `None` → frames too short to align at all; nothing to stitch onto,
     // so butt-join the frame whole.
     let Some(band) = match_band(&prev_fp, &next_fp, exclude) else {
-        return StitchDecision::ButtJoin;
+        return (StitchDecision::ButtJoin, diag);
     };
+    diag.max_s = Some(band.3);
     let Some(zero_mean) = stationary_mean(&prev_fp, &next_fp, band) else {
-        return StitchDecision::ButtJoin;
+        return (StitchDecision::ButtJoin, diag);
     };
+    diag.zero_mean = Some(zero_mean);
     let down = best_offset(&prev_fp, &next_fp, band);
+    diag.down = down;
+    // Always score the upward direction too (for the diagnostic log), even though
+    // the decision only consults it in the weak-downward branch below.
+    diag.up = best_up_offset(&prev_fp, &next_fp, band);
 
-    match down {
+    let decision = match down {
         // Genuine downward scroll: confident overlap that also beats the
         // stationary baseline by a real margin (stops a paused frame with dynamic
         // noise from reading as a tiny scroll).
@@ -534,7 +577,7 @@ pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> Stitch
         // bottom-most position — so a resumed downward scroll stitches on cleanly
         // with no duplicated band (CP-0008). Requiring the confident tier keeps a
         // weak coincidental upward alias from ever dropping a frame.
-        Some(_) => match best_up_offset(&prev_fp, &next_fp, band) {
+        Some(_) => match diag.up {
             Some((_, up_mean))
                 if up_mean <= CONFIDENT_MEAN_ABS_DIFF
                     && zero_mean - up_mean >= MIN_SCROLL_IMPROVEMENT =>
@@ -548,7 +591,8 @@ pub fn measure_frame(prev: &RgbaImage, next: &RgbaImage, exclude: u32) -> Stitch
         // the content is preserved; never treat this as an upward re-show, which
         // would silently drop a screenful on near-periodic pages (CP-0008 review).
         None => StitchDecision::ButtJoin,
-    }
+    };
+    (decision, diag)
 }
 
 /// Apply a [`StitchDecision`] to `acc`, appending only the genuinely-new content
@@ -564,16 +608,24 @@ pub fn apply_frame(
     let h = next.height();
     let footer = footer.min(h);
     match decision {
-        // Paused frame, or an upward scroll re-showing already-captured rows:
-        // append nothing. Reported as `duplicate` so the sampler keeps `prev` at
-        // the bottom-most position and counts no progress / no seam warning. The
-        // scrolling sampler maps `ScrollUp` to `ButtJoin` while auto-scrolling (see
-        // `commands::scroll::stitch_frame`), so this no-append `ScrollUp` outcome is
-        // reached only for manual captures and never perturbs bottom detection.
-        StitchDecision::Duplicate | StitchDecision::ScrollUp => StitchOutcome {
+        // Paused frame: aligns best with no movement. Append nothing.
+        StitchDecision::Duplicate => StitchOutcome {
             appended: 0,
             duplicate: true,
             low_confidence: false,
+            upward_reshow: false,
+        },
+        // An upward scroll re-showing already-captured rows (the user scrolled
+        // back up, or the target reflowed content upward). Append nothing — the
+        // rows are already in `acc` — and keep `prev` at the bottom-most position.
+        // Flagged `upward_reshow` so the auto-scroll sampler treats it as neutral
+        // (not a no-progress duplicate); butt-joining it instead re-appends the
+        // whole frame and stacks a duplicate band, the CP-0018 Windows artifact.
+        StitchDecision::ScrollUp => StitchOutcome {
+            appended: 0,
+            duplicate: true,
+            low_confidence: false,
+            upward_reshow: true,
         },
         StitchDecision::Scroll { s, low_confidence } => {
             let appended = append_content_rows(acc, next, s, footer);
@@ -581,6 +633,7 @@ pub fn apply_frame(
                 appended,
                 duplicate: false,
                 low_confidence,
+                upward_reshow: false,
             }
         }
         StitchDecision::ButtJoin => {
@@ -590,6 +643,7 @@ pub fn apply_frame(
                 appended,
                 duplicate: false,
                 low_confidence: true,
+                upward_reshow: false,
             }
         }
     }
@@ -1207,5 +1261,44 @@ mod tests {
             }
         }
         assert_eq!(static_bottom_rows(&first, &last), chrome);
+    }
+
+    #[test]
+    fn scrollup_outcome_appends_nothing_and_flags_upward_reshow() {
+        // Core contract behind the CP-0018 fix: applying a `ScrollUp` decision
+        // appends no rows (the content is already captured) and flags
+        // `upward_reshow` so the sampler can treat it as neutral for bottom
+        // detection — instead of butt-joining and stacking a duplicate band.
+        let src = vnoise_image(60, 200);
+        let mut acc = src.clone();
+        let out = apply_frame(&mut acc, &src, StitchDecision::ScrollUp, 0);
+        assert_eq!(out.appended, 0, "an upward re-show must append nothing");
+        assert!(out.duplicate, "reported as duplicate (no append)");
+        assert!(out.upward_reshow, "flagged as an upward re-show");
+        assert_eq!(acc.height(), 200, "acc must not grow — no duplicated band");
+        // A plain paused Duplicate must NOT set the upward flag.
+        let dup = apply_frame(&mut acc, &src, StitchDecision::Duplicate, 0);
+        assert!(dup.duplicate && !dup.upward_reshow);
+    }
+
+    #[test]
+    fn measure_frame_diag_reports_scores_without_changing_the_decision() {
+        // The diagnostic surface must return the same decision as `measure_frame`
+        // and populate the alignment scores the CP-0018 log depends on.
+        let w = 120;
+        let vh = 300;
+        let step = 90;
+        let full = tall_image(w, 900);
+        let prev = viewport(&full, 0, vh);
+        let next = viewport(&full, step, vh);
+        let (decision, diag) = measure_frame_diag(&prev, &next, 0);
+        assert_eq!(decision, measure_frame(&prev, &next, 0), "diag must not change the decision");
+        match decision {
+            StitchDecision::Scroll { s, .. } => assert_eq!(s, step),
+            other => panic!("expected a clean downward scroll, got {other:?}"),
+        }
+        assert!(diag.max_s.is_some(), "overlap-window ceiling must be reported");
+        assert!(diag.zero_mean.is_some(), "stationary baseline must be reported");
+        assert_eq!(diag.down.map(|(s, _)| s), Some(step), "down offset must be reported");
     }
 }

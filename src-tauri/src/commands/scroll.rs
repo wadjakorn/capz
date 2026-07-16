@@ -49,7 +49,7 @@ const AUTO_NO_PROGRESS_STREAK: u32 = 3;
 /// no-progress `streak`, whether auto-scroll has advanced at all this session
 /// (`auto_progressed`), and whether the Windows step-size ramp has been exhausted
 /// (`ramp_exhausted` — a max-size step was already posted; see
-/// [`next_auto_clicks`]). Pure so the decision is unit-tested (see tests below).
+/// [`next_auto_wheel_delta`]). Pure so the decision is unit-tested (see tests below).
 #[derive(Debug, PartialEq, Eq)]
 enum AutoOutcome {
     /// Keep auto-scrolling.
@@ -77,12 +77,25 @@ fn auto_outcome(streak: u32, auto_progressed: bool, ramp_exhausted: bool) -> Aut
     }
 }
 
-/// Smallest and largest wheel-notch count a single Windows auto-scroll step may
-/// request. The floor is one notch (never post zero — that moves nothing and
-/// would stall bottom detection); the ceiling caps how far a "too small" step
-/// can ramp up before it risks overshooting the stitcher's overlap window.
-const AUTO_CLICKS_MIN: i32 = 1;
-const AUTO_CLICKS_MAX: i32 = 4;
+/// One wheel notch in Win32 `WHEEL_DELTA` units — the granularity a physical
+/// wheel clicks in. The Windows step is tracked in these units (not whole
+/// notches) so it can go **below** one notch.
+pub const WHEEL_DELTA: i32 = 120;
+
+/// Smallest and largest wheel-delta **magnitude** a single Windows auto-scroll
+/// step may request (WHEEL_DELTA units). The floor is a **quarter notch**, not a
+/// whole notch (CP-0018): if even one notch overshoots the stitcher's overlap
+/// window on high-DPI / large-line-height targets, a whole-notch floor leaves the
+/// controller unable to take a smaller bite, so every frame butt-joins and stacks
+/// a duplicate band. Windows accumulates sub-notch deltas, so a quarter-notch step
+/// scrolls proportionally less on targets that honour precise deltas (and a target
+/// that only moves at notch boundaries simply reads as "too small" and ramps back
+/// up). The ceiling caps how far a "too small" step ramps before it risks
+/// overshooting. Never post zero — that moves nothing and stalls bottom detection.
+pub const AUTO_DELTA_MIN: i32 = WHEEL_DELTA / 4; // 30
+pub const AUTO_DELTA_MAX: i32 = WHEEL_DELTA * 4; // 480
+/// The first step's magnitude: exactly one notch, the familiar safe default.
+pub const AUTO_DELTA_START: i32 = WHEEL_DELTA; // 120
 
 /// Advance fractions (of the viewport) that bound a healthy per-step scroll.
 /// Below [`AUTO_ADVANCE_LOW`] the step barely moved — push harder next time.
@@ -92,13 +105,13 @@ const AUTO_CLICKS_MAX: i32 = 4;
 const AUTO_ADVANCE_LOW: f32 = 0.25;
 const AUTO_ADVANCE_HIGH: f32 = 0.70;
 
-/// Adaptive Windows wheel-click controller (CP-0014). Given the count used for
-/// the step that just ran, how many rows it actually advanced (`appended`; 0 on
-/// a duplicate/no-move) and the viewport height, return the notch count for the
-/// **next** step.
+/// Adaptive Windows wheel-delta controller (CP-0014, revised for CP-0018). Given
+/// the delta magnitude used for the step that just ran, how many rows it actually
+/// advanced (`appended`; 0 on a duplicate/no-move) and the viewport height, return
+/// the delta magnitude (WHEEL_DELTA units) for the **next** step.
 ///
-/// A fixed count overshoots on targets that map each notch to a large jump, so
-/// we steer toward a sub-viewport advance judged purely by the fraction advanced:
+/// A fixed step overshoots on targets that map each notch to a large jump, so we
+/// steer toward a sub-viewport advance judged purely by the fraction advanced:
 /// - **Shrink** above [`AUTO_ADVANCE_HIGH`]. A butt-join (no overlap found —
 ///   content was skipped) always lands here: it appends nearly the whole frame
 ///   (the fixed footer is clamped to ≤ ¼ of the frame, so the append is ≥ ¾ of a
@@ -107,26 +120,34 @@ const AUTO_ADVANCE_HIGH: f32 = 0.70;
 ///   duplicate), so a long page isn't captured one hairline at a time.
 /// - **Hold** in the healthy band.
 ///
-/// Crucially, low seam *confidence* is NOT treated as an overshoot: a plausible
-/// (noisy / fractional-DPI) overlap still aligned correctly and appended only the
-/// real new rows, so it's judged by its advance like any other — otherwise a
-/// small-but-valid noisy step would be stuck at one notch and crawl. Pure so the
-/// policy is unit-tested (see tests).
+/// Adaptation is **multiplicative** (halve / 1.5×), not ±1 notch: the pixels-per-
+/// delta ratio is target-defined and unknown, so a geometric search converges on
+/// it in a couple of steps regardless of scale, and — crucially — can drop below
+/// one notch (to [`AUTO_DELTA_MIN`]) to escape an overshoot a whole-notch floor
+/// could never (the CP-0018 duplicate-band bug).
 ///
-/// Only consulted on Windows; macOS ignores the click count (exact pixel step).
-fn next_auto_clicks(current: i32, appended: u32, viewport_h: u32) -> i32 {
+/// Low seam *confidence* is NOT treated as an overshoot: a plausible (noisy /
+/// fractional-DPI) overlap still aligned correctly and appended only the real new
+/// rows, so it's judged by its advance like any other — otherwise a small-but-valid
+/// noisy step would be stuck small and crawl. Pure so the policy is unit-tested.
+///
+/// Only consulted on Windows; macOS ignores the delta (exact pixel step).
+fn next_auto_wheel_delta(current: i32, appended: u32, viewport_h: u32) -> i32 {
     let frac = appended as f32 / viewport_h.max(1) as f32;
-    if frac > AUTO_ADVANCE_HIGH {
+    let next = if frac > AUTO_ADVANCE_HIGH {
         // Overshot (butt-join or a jump past the stitcher's overlap window) —
-        // take a smaller bite next time.
-        (current - 1).max(AUTO_CLICKS_MIN)
+        // take a smaller bite next time. Halve so even a single-notch overshoot
+        // reaches a sub-notch step in one or two rounds.
+        current / 2
     } else if frac < AUTO_ADVANCE_LOW {
-        // Barely moved (or a target that eats a single notch) — push harder so a
-        // long page isn't captured one hairline at a time.
-        (current + 1).min(AUTO_CLICKS_MAX)
+        // Barely moved (or a target that eats the whole step) — push ~1.5× harder
+        // so a long page isn't captured one hairline at a time. `+ WHEEL_DELTA / 4`
+        // guarantees real growth even from the floor (30 → 45 → 67 → …).
+        current + current / 2 + WHEEL_DELTA / 4
     } else {
         current
-    }
+    };
+    next.clamp(AUTO_DELTA_MIN, AUTO_DELTA_MAX)
 }
 
 /// Live progress pushed to the HUD after each sample.
@@ -276,12 +297,12 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         loop {
             // Snapshot the region + whether we're auto-driving this tick + the
-            // adapted per-step wheel-click count (Windows; ignored on macOS).
-            let (region, auto, clicks) = {
+            // adapted per-step wheel-delta magnitude (Windows; ignored on macOS).
+            let (region, auto, wheel_delta) = {
                 let st = app.state::<AppState>();
                 let g = st.scroll.lock().expect("scroll mutex poisoned");
                 match g.as_ref() {
-                    Some(s) => ((s.monitor_id, s.x, s.y, s.w, s.h), s.auto, s.auto_clicks),
+                    Some(s) => ((s.monitor_id, s.x, s.y, s.w, s.h), s.auto, s.auto_wheel_delta),
                     None => break,
                 }
             };
@@ -292,7 +313,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 // can't be posted (no Accessibility grant on macOS, unsupported
                 // platform, injection failure) fall back to manual: clear `auto`,
                 // tell the HUD, keep sampling so the user can finish by hand.
-                if let Err(e) = synthetic_scroll::scroll_step(mid, x, y, w, h, clicks) {
+                if let Err(e) = synthetic_scroll::scroll_step(mid, x, y, w, h, wheel_delta) {
                     log::warn!("auto-scroll step: {e}");
                     let st = app.state::<AppState>();
                     let mut g = st.scroll.lock().expect("scroll mutex poisoned");
@@ -343,23 +364,34 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                 let mut note: Option<String> = None;
                 let mut bottomed = false;
                 if s.auto {
-                    // The count that *this* step actually posted (before we adapt
-                    // it below). Once a max-size step has been posted with no
+                    // The magnitude that *this* step actually posted (before we
+                    // adapt it below). Once a max-size step has been posted with no
                     // progress, the ramp is exhausted and fallback may fire.
-                    let ramp_exhausted = s.auto_clicks >= AUTO_CLICKS_MAX;
-                    // Adapt the Windows wheel-click count from what this step
-                    // actually advanced, so the next step lands inside the
-                    // stitcher's overlap window (CP-0014). No-op on macOS, which
-                    // ignores the count and steps an exact pixel fraction.
-                    s.auto_clicks = next_auto_clicks(s.auto_clicks, out.appended, s.h);
-                    if progressed {
-                        s.dup_streak = 0;
-                        // Record that auto-scroll (not an earlier manual scroll)
-                        // actually advanced the page — this is what separates
-                        // "bottom reached" from "target ignored the wheel".
-                        s.auto_progressed = true;
+                    let ramp_exhausted = s.auto_wheel_delta >= AUTO_DELTA_MAX;
+                    if out.upward_reshow {
+                        // The target reflowed / bounced content upward, re-showing
+                        // rows already captured (CP-0018). It was deduped (nothing
+                        // appended, no duplicate band). Treat it as **neutral**: do
+                        // not adapt the step from it (it doesn't measure our scroll)
+                        // and do not count it toward the no-progress streak — else a
+                        // transient reflow frame drives a premature "bottom reached"
+                        // that truncates the capture (the CP-0008 concern, now
+                        // resolved without butt-joining a duplicate).
                     } else {
-                        s.dup_streak += 1;
+                        // Adapt the Windows wheel-delta from what this step actually
+                        // advanced, so the next step lands inside the stitcher's
+                        // overlap window (CP-0014/CP-0018). No-op on macOS, which
+                        // ignores the delta and steps an exact pixel fraction.
+                        s.auto_wheel_delta = next_auto_wheel_delta(s.auto_wheel_delta, out.appended, s.h);
+                        if progressed {
+                            s.dup_streak = 0;
+                            // Record that auto-scroll (not an earlier manual scroll)
+                            // actually advanced the page — this is what separates
+                            // "bottom reached" from "target ignored the wheel".
+                            s.auto_progressed = true;
+                        } else {
+                            s.dup_streak += 1;
+                        }
                     }
                     match auto_outcome(s.dup_streak, s.auto_progressed, ramp_exhausted) {
                         AutoOutcome::Continue => {}
@@ -409,9 +441,9 @@ pub fn scroll_capture_auto_start_command<R: Runtime>(app: AppHandle<R>) -> Resul
     // before this point from being counted as auto-scroll progress (which would
     // let an ignored-scroll target be mistaken for "bottom reached").
     s.auto_progressed = false;
-    // Start the Windows step-size ramp from the smallest bite again, so a new
-    // auto run can't inherit a large count from a previous one and overshoot.
-    s.auto_clicks = 1;
+    // Start the Windows step-size ramp from one notch again, so a new auto run
+    // can't inherit a large magnitude from a previous one and overshoot.
+    s.auto_wheel_delta = AUTO_DELTA_START;
     Ok(())
 }
 
@@ -529,7 +561,7 @@ fn stitch_frame(s: &mut ScrollSession, frame: image::RgbaImage) -> stitch::Stitc
     // (plus the default band) from matching so window chrome doesn't bias the
     // offset.
     let exclude = EXCLUDE_BAND.max(s.footer.unwrap_or(0));
-    let mut decision = stitch::measure_frame(&s.prev, &frame, exclude);
+    let (mut decision, mut diag) = stitch::measure_frame_diag(&s.prev, &frame, exclude);
     // Lock the fixed-footer height on the FIRST confident/plausible scroll (not a
     // fling/butt-join, whose frames don't share a real static band). The footer
     // is the bottom band identical between these two consecutive frames — the
@@ -557,19 +589,43 @@ fn stitch_frame(s: &mut ScrollSession, frame: image::RgbaImage) -> stitch::Stitc
         s.footer = Some(f);
         // Re-measure with the now-known footer excluded for a clean first offset
         // (matters only when the footer exceeds the default band).
-        decision = stitch::measure_frame(&s.prev, &frame, EXCLUDE_BAND.max(f));
+        let re = stitch::measure_frame_diag(&s.prev, &frame, EXCLUDE_BAND.max(f));
+        decision = re.0;
+        diag = re.1;
     }
-    // Up-scroll recognition is a MANUAL-only affordance. Auto-scroll only ever
-    // steps down, so a `ScrollUp` there could only come from page reflow shifting
-    // content up net of the step; treating it as an ignored no-progress frame would
-    // feed the no-progress streak and risk a premature "bottom reached" that
-    // truncates the capture (CP-0008 review). Fall back to the original butt-join,
-    // which appends the frame (content preserved) and keeps auto-scroll advancing.
-    if s.auto && matches!(decision, stitch::StitchDecision::ScrollUp) {
-        decision = stitch::StitchDecision::ButtJoin;
-    }
+    // Up-scroll recognition during auto-scroll (CP-0018): auto only ever steps
+    // DOWN, so a `ScrollUp` here is the target reflowing / bouncing content upward
+    // and re-showing rows already captured. Keep it as `ScrollUp` — `apply_frame`
+    // appends nothing (no duplicate band) and flags `upward_reshow` so the sampler
+    // treats it as neutral for bottom detection (see `spawn_sampler`). The old code
+    // remapped it to `ButtJoin`, which re-appended the whole re-shown frame and
+    // stacked the duplicate bands seen in the CP-0018 report.
     let footer = s.footer.unwrap_or(0);
     let out = stitch::apply_frame(&mut s.acc, &frame, decision, footer);
+    // Per-frame root-cause log (CP-0018). Greppable as `[scroll-stitch]`; one line
+    // per sampled frame carries every input to the decision so a bad seam on
+    // Windows can be attributed (overshoot butt-join vs. reflow ScrollUp vs.
+    // plausible tier) from the log alone. Cheap at the sampler's ~3 Hz cadence.
+    log::info!(
+        "[scroll-stitch] auto={} step_delta={} vp_h={} footer={} exclude={} max_s={:?} zero_mean={} down={} up={} decision={} appended={} dup={} up_reshow={} acc_h={} dup_streak={} auto_progressed={} frames={}",
+        s.auto,
+        s.auto_wheel_delta,
+        s.h,
+        footer,
+        exclude,
+        diag.max_s,
+        fmt_mean(diag.zero_mean),
+        fmt_off(diag.down),
+        fmt_off(diag.up),
+        decision_label(&decision),
+        out.appended,
+        out.duplicate,
+        out.upward_reshow,
+        s.acc.height(),
+        s.dup_streak,
+        s.auto_progressed,
+        s.frames,
+    );
     if !out.duplicate {
         s.prev = frame;
         s.frames += 1;
@@ -578,6 +634,34 @@ fn stitch_frame(s: &mut ScrollSession, frame: image::RgbaImage) -> stitch::Stitc
         }
     }
     out
+}
+
+/// Compact `StitchDecision` label for the per-frame diagnostic log.
+fn decision_label(d: &stitch::StitchDecision) -> String {
+    match d {
+        stitch::StitchDecision::Duplicate => "Duplicate".into(),
+        stitch::StitchDecision::Scroll { s, low_confidence } => {
+            format!("Scroll(s={s},{})", if *low_confidence { "plausible" } else { "confident" })
+        }
+        stitch::StitchDecision::ScrollUp => "ScrollUp".into(),
+        stitch::StitchDecision::ButtJoin => "ButtJoin".into(),
+    }
+}
+
+/// Format an optional `(offset, mean)` alignment score for the diagnostic log.
+fn fmt_off(o: Option<(u32, f32)>) -> String {
+    match o {
+        Some((s, m)) => format!("(s={s},mean={m:.1})"),
+        None => "none".into(),
+    }
+}
+
+/// Format an optional mean grayscale score for the diagnostic log.
+fn fmt_mean(m: Option<f32>) -> String {
+    match m {
+        Some(m) => format!("{m:.1}"),
+        None => "none".into(),
+    }
 }
 
 /// Produce the final stitched image from a finished session: re-attach the fixed
@@ -614,8 +698,8 @@ pub fn scroll_capture_cancel_command<R: Runtime>(app: AppHandle<R>) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::{
-        auto_outcome, finalize_capture, next_auto_clicks, stitch_frame, AutoOutcome,
-        AUTO_CLICKS_MAX, AUTO_CLICKS_MIN, AUTO_NO_PROGRESS_STREAK,
+        auto_outcome, finalize_capture, next_auto_wheel_delta, stitch_frame, AutoOutcome,
+        AUTO_DELTA_MAX, AUTO_DELTA_MIN, AUTO_DELTA_START, AUTO_NO_PROGRESS_STREAK, WHEEL_DELTA,
     };
     use crate::state::ScrollSession;
     use image::{Rgba, RgbaImage};
@@ -683,7 +767,7 @@ mod tests {
             auto: false,
             dup_streak: 0,
             auto_progressed: false,
-            auto_clicks: 1,
+            auto_wheel_delta: AUTO_DELTA_START,
             footer: None,
         }
     }
@@ -841,13 +925,14 @@ mod tests {
         assert_eq!(s.acc.height(), after_down + 90);
     }
 
-    /// CP-0008 review (Finding 3): up-scroll recognition is manual-only. During
-    /// auto-scroll a frame that would classify as ScrollUp (page reflow shifting
-    /// content up net of the step) must fall back to butt-join — appended, not a
-    /// no-progress duplicate — so it never feeds the streak toward a premature
-    /// "bottom reached" that truncates the capture.
+    /// CP-0018: during auto-scroll a frame that classifies as ScrollUp (the target
+    /// reflowed / bounced content upward, re-showing already-captured rows) must be
+    /// **deduped** — append nothing, grow `acc` by zero, no duplicated band — and
+    /// be flagged `upward_reshow` so the sampler treats it as neutral for bottom
+    /// detection. The old code remapped it to ButtJoin, re-appending the whole
+    /// re-shown frame and stacking the duplicate bands in the CP-0018 report.
     #[test]
-    fn auto_scroll_does_not_treat_upward_frame_as_no_progress() {
+    fn auto_scroll_dedups_upward_reflow_frame_no_duplicate_band() {
         let w = 120u32;
         let vh = 300u32;
         let mut page = RgbaImage::new(w, 900);
@@ -866,12 +951,22 @@ mod tests {
         s.auto = true;
         stitch_frame(&mut s, frame_at(90));
         stitch_frame(&mut s, frame_at(180));
+        let h_before = s.acc.height();
 
-        // A frame that WOULD be ScrollUp in manual mode. In auto it butt-joins:
-        // appended (content preserved), not a no-progress duplicate.
+        // A reflow frame that classifies as ScrollUp. It must be deduped, not
+        // butt-joined: nothing appended, no growth, and flagged as an upward
+        // re-show so bottom detection stays neutral.
         let up = stitch_frame(&mut s, frame_at(90));
-        assert!(!up.duplicate, "auto-scroll must not treat an upward frame as no-progress");
-        assert!(up.appended > 0, "auto-scroll butt-joins the frame (content preserved)");
+        assert!(up.duplicate, "auto-scroll upward reflow frame must be deduped");
+        assert!(up.upward_reshow, "…and flagged as an upward re-show (neutral for bottom detection)");
+        assert_eq!(up.appended, 0, "no rows appended — the content is already captured");
+        assert_eq!(s.acc.height(), h_before, "no duplicated band: acc must not grow");
+
+        // Resuming downward past the previous bottom appends only the new rows —
+        // `prev` stayed anchored at the bottom-most position through the re-show.
+        let resume = stitch_frame(&mut s, frame_at(270));
+        assert!(!resume.duplicate, "resumed downward scroll must append");
+        assert_eq!(resume.appended, 90, "must append only the newly-revealed rows");
     }
 
     #[test]
@@ -925,63 +1020,82 @@ mod tests {
         );
     }
 
-    // ---- next_auto_clicks (CP-0014 Windows step-size controller) ----
+    // ---- next_auto_wheel_delta (CP-0014 / CP-0018 Windows step controller) ----
 
     #[test]
-    fn overshoot_shrinks_the_click_count() {
+    fn overshoot_halves_the_wheel_delta() {
         let vp = 1000u32;
         // A butt-join appends nearly the whole frame (footer clamped to ≤ ¼) —
-        // frac ≥ 0.75, past the high-water mark, so back off.
-        assert_eq!(next_auto_clicks(3, vp, vp), 2);
-        // A confident scroll that jumped past 0.70 of a viewport also backs off.
-        assert_eq!(next_auto_clicks(3, 800, vp), 2);
+        // frac ≥ 0.75, past the high-water mark, so halve the step.
+        assert_eq!(next_auto_wheel_delta(2 * WHEEL_DELTA, vp, vp), WHEEL_DELTA);
+        // A confident scroll that jumped past 0.70 of a viewport also halves.
+        assert_eq!(next_auto_wheel_delta(2 * WHEEL_DELTA, 800, vp), WHEEL_DELTA);
+    }
+
+    /// The CP-0018 regression: when even a **single notch** overshoots the
+    /// stitcher's overlap window, the controller must be able to take a *sub-notch*
+    /// bite — the old whole-notch floor (`AUTO_CLICKS_MIN = 1`) could not, so every
+    /// frame butt-joined and stacked duplicate bands. Repeated overshoot must drive
+    /// the step below one notch, all the way down to the sub-notch floor.
+    #[test]
+    fn overshoot_escapes_below_one_notch() {
+        let vp = 1000u32;
+        // One notch overshoots → must drop BELOW one notch.
+        let d1 = next_auto_wheel_delta(WHEEL_DELTA, 900, vp);
+        assert!(d1 < WHEEL_DELTA, "one-notch overshoot must go sub-notch, got {d1}");
+        // Keep overshooting → converge to the sub-notch floor, never below.
+        let d2 = next_auto_wheel_delta(d1, 900, vp);
+        let d3 = next_auto_wheel_delta(d2, 900, vp);
+        assert!(d3 >= AUTO_DELTA_MIN, "must not go below the floor");
+        assert!(d3 <= d2 && d2 <= d1, "must keep shrinking toward the floor");
     }
 
     #[test]
-    fn tiny_or_stalled_step_grows_the_click_count() {
+    fn tiny_or_stalled_step_grows_the_wheel_delta() {
         let vp = 1000u32;
-        // Barely moved (< 0.25 viewport) — push harder.
-        assert_eq!(next_auto_clicks(1, 100, vp), 2);
-        // A no-move duplicate (0 rows) counts as too small: a target that eats a
-        // single notch must be pushed past, not left stalling forever.
-        assert_eq!(next_auto_clicks(1, 0, vp), 2);
+        // Barely moved (< 0.25 viewport) — push ~1.5× harder.
+        assert!(next_auto_wheel_delta(WHEEL_DELTA, 100, vp) > WHEEL_DELTA);
+        // A no-move duplicate (0 rows) counts as too small: a target that eats the
+        // whole step must be pushed past, not left stalling forever.
+        assert!(next_auto_wheel_delta(WHEEL_DELTA, 0, vp) > WHEEL_DELTA);
+        // Even from the sub-notch floor the step grows by a real amount (never 0).
+        assert!(next_auto_wheel_delta(AUTO_DELTA_MIN, 0, vp) > AUTO_DELTA_MIN);
     }
 
-    /// Regression (codex review): a *plausible* low-confidence seam still aligned
-    /// correctly and appended only the real new rows — it must be judged by its
-    /// advance, not treated as an overshoot. A small such step (frac < 0.25) must
-    /// GROW the click count, otherwise a noisy / fractional-DPI Windows target
-    /// gets stuck at one notch and auto-scroll crawls or falls back.
+    /// A *plausible* low-confidence seam still aligned correctly and appended only
+    /// the real new rows — it must be judged by its advance, not treated as an
+    /// overshoot. A small such step (frac < 0.25) must GROW the step, otherwise a
+    /// noisy / fractional-DPI Windows target gets stuck small and auto-scroll crawls.
     #[test]
     fn small_plausible_seam_grows_not_shrinks() {
         let vp = 1000u32;
-        // 120 rows revealed on a plausible (low-confidence) overlap: frac 0.12.
-        // Confidence is not an input any more — only the advance matters.
-        assert_eq!(next_auto_clicks(1, 120, vp), 2);
-        assert_eq!(next_auto_clicks(2, 120, vp), 3);
+        // 120 rows revealed on a plausible overlap: frac 0.12 → grow.
+        assert!(next_auto_wheel_delta(WHEEL_DELTA, 120, vp) > WHEEL_DELTA);
     }
 
     #[test]
-    fn healthy_advance_holds_the_click_count() {
+    fn healthy_advance_holds_the_wheel_delta() {
         let vp = 1000u32;
         // Inside the [0.25, 0.70] sweet spot: leave it be.
-        assert_eq!(next_auto_clicks(2, 300, vp), 2);
-        assert_eq!(next_auto_clicks(2, 600, vp), 2);
+        assert_eq!(next_auto_wheel_delta(200, 300, vp), 200);
+        assert_eq!(next_auto_wheel_delta(200, 600, vp), 200);
     }
 
     #[test]
-    fn click_count_stays_within_bounds() {
+    fn wheel_delta_stays_within_bounds() {
         let vp = 1000u32;
         // Already at the floor: an overshoot can't push it below MIN.
-        assert_eq!(next_auto_clicks(AUTO_CLICKS_MIN, vp, vp), AUTO_CLICKS_MIN);
+        assert_eq!(next_auto_wheel_delta(AUTO_DELTA_MIN, vp, vp), AUTO_DELTA_MIN);
         // Already at the ceiling: a tiny step can't push it above MAX.
-        assert_eq!(next_auto_clicks(AUTO_CLICKS_MAX, 0, vp), AUTO_CLICKS_MAX);
+        assert_eq!(next_auto_wheel_delta(AUTO_DELTA_MAX, 0, vp), AUTO_DELTA_MAX);
     }
 
     #[test]
     fn zero_viewport_is_safe() {
         // Degenerate viewport must not divide by zero; a 0-row append reads as
         // "too small" and grows within bounds.
-        assert_eq!(next_auto_clicks(1, 0, 0), 2);
+        let d = next_auto_wheel_delta(WHEEL_DELTA, 0, 0);
+        assert!((AUTO_DELTA_MIN..=AUTO_DELTA_MAX).contains(&d));
+        assert!(d > WHEEL_DELTA, "a stalled step must grow");
     }
 }

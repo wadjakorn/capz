@@ -40,21 +40,23 @@ const STEP_MAX_PX: f64 = 800.0;
 /// scrolled — a target that ignores synthetic wheel, or a missing Accessibility
 /// grant on macOS, both surface later as "no progress" in the sampler).
 ///
-/// `clicks` is the requested wheel-notch count for **Windows only**, where the
-/// wheel delta maps to app-defined lines (not pixels) so the per-step pixel
-/// advance can't be set exactly — the caller adapts it toward a sub-viewport
-/// target (see `commands::scroll::next_auto_clicks`). It is ignored on macOS,
-/// which scrolls an exact pixel fraction of the viewport and needs no feedback
-/// (see [`STEP_FRACTION`]).
+/// `wheel_delta` is the requested wheel-delta **magnitude** for **Windows only**
+/// (Win32 `WHEEL_DELTA` units, where 120 = one notch), where the wheel delta maps
+/// to app-defined lines (not pixels) so the per-step pixel advance can't be set
+/// exactly — the caller adapts it toward a sub-viewport target, and may dial it
+/// **below one notch** to escape overshoot (see
+/// `commands::scroll::next_auto_wheel_delta`). It is ignored on macOS, which
+/// scrolls an exact pixel fraction of the viewport and needs no feedback (see
+/// [`STEP_FRACTION`]).
 #[allow(unused_variables)]
-pub fn scroll_step(monitor_id: u32, x: i32, y: i32, w: u32, h: u32, clicks: i32) -> Result<(), String> {
+pub fn scroll_step(monitor_id: u32, x: i32, y: i32, w: u32, h: u32, wheel_delta: i32) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         macos::scroll_step(monitor_id, x, y, w, h)
     }
     #[cfg(target_os = "windows")]
     {
-        windows_impl::scroll_step(monitor_id, x, y, w, h, clicks)
+        windows_impl::scroll_step(monitor_id, x, y, w, h, wheel_delta)
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -146,16 +148,13 @@ mod windows_impl {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::SetCursorPos;
 
-    /// One notch of the wheel, per the Win32 `WHEEL_DELTA` contract.
-    const WHEEL_DELTA: i32 = 120;
-
     pub fn scroll_step(
         monitor_id: u32,
         x: i32,
         y: i32,
         w: u32,
         h: u32,
-        clicks: i32,
+        wheel_delta: i32,
     ) -> Result<(), String> {
         let m = monitor_service::monitor_by_id(monitor_id).map_err(|e| e.to_string())?;
         // On Windows both the monitor geometry and the region are physical px,
@@ -166,10 +165,13 @@ mod windows_impl {
         let cy = my + y + (h as i32) / 2;
 
         // Negative delta = wheel toward the user = scroll content downward.
-        // `clicks` is adapted per-step by the sampler to keep the advance under
-        // one viewport; never post zero (that would move nothing and stall the
-        // bottom-detection streak).
-        let delta = -(clicks.max(1) * WHEEL_DELTA);
+        // `wheel_delta` is the raw WHEEL_DELTA-unit magnitude (120 = one notch),
+        // adapted per-step by the sampler to keep the advance under one viewport —
+        // it may be sub-notch to escape overshoot (CP-0018). Windows accumulates
+        // sub-notch deltas, so a value < 120 scrolls proportionally less on targets
+        // that honour precise deltas. Never post zero (that moves nothing and would
+        // stall the bottom-detection streak).
+        let delta = -wheel_delta.max(1);
 
         unsafe {
             // Move the pointer over the region: Vista+ routes WM_MOUSEWHEEL to

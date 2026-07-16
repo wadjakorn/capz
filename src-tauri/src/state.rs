@@ -40,13 +40,16 @@ pub struct ScrollSession {
     /// would misread those as auto progress and finish a truncated capture when
     /// the target actually ignores synthetic scroll. Reset each time auto starts.
     pub auto_progressed: bool,
-    /// Requested wheel-notch count for the **next** Windows auto-scroll step.
-    /// Adapted after each step by `commands::scroll::next_auto_clicks` to keep
-    /// the per-step advance well under one viewport (a fixed count overshoots on
-    /// targets that map each notch to a large jump — CP-0014). Starts small and
-    /// only grows if steps are too small to progress. Unused on macOS, which
+    /// Requested wheel-delta **magnitude** (Win32 `WHEEL_DELTA` units, where 120 =
+    /// one notch) for the **next** Windows auto-scroll step. Adapted after each
+    /// step by `commands::scroll::next_auto_wheel_delta` to keep the per-step
+    /// advance well under one viewport. Tracked in raw delta units — not whole
+    /// notches — so the controller can dial **below one notch** (down to
+    /// `AUTO_DELTA_MIN`) when even a single notch overshoots the stitcher's overlap
+    /// window; a whole-notch floor was the CP-0018 Windows overshoot bug, where
+    /// every frame butt-joined and stacked duplicate bands. Unused on macOS, which
     /// scrolls an exact pixel fraction and needs no feedback.
-    pub auto_clicks: i32,
+    pub auto_wheel_delta: i32,
     /// Height (physical px) of the fixed bottom band (window chrome / scrollbar /
     /// bottom border) that never scrolls, locked on the first genuine scroll.
     /// Excluded from every stitch so it is never welded into a seam. `None` until
@@ -81,10 +84,10 @@ impl ScrollSession {
             auto,
             dup_streak: 0,
             auto_progressed: false,
-            // Start at one notch: the smallest, safest advance. The Windows
-            // sampler ramps up only if a step proves too small to progress
-            // (`next_auto_clicks`), so a first step can't overshoot the stitcher.
-            auto_clicks: 1,
+            // Start at one notch (WHEEL_DELTA). The Windows sampler adapts from
+            // there — growing if a step is too small, or shrinking below one notch
+            // if even a single notch overshoots (`next_auto_wheel_delta`).
+            auto_wheel_delta: crate::commands::scroll::AUTO_DELTA_START,
             footer: None,
         }
     }
