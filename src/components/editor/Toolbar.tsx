@@ -1,54 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   MousePointer2,
   ArrowUpRight,
-  Square,
   Type,
   Droplet,
   Smile,
-  MapPin,
   Crop,
   Pencil,
   Highlighter,
   Search,
-  Minus,
-  Spline,
-  Waypoints,
-  PenLine,
-  ArrowLeftRight,
   Shapes as ShapesIcon,
-  Circle as CircleIcon,
-  MessageCircle,
-  ArrowUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
   Undo2,
   Redo2,
   Trash2,
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Settings as SettingsIcon,
   Ruler,
   ScanText,
   Loader2,
   Monitor,
-  Link2,
-  Link2Off,
   ImageDown,
-  BringToFront,
-  SendToBack,
-  ChevronsUp,
-  ChevronsDown,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut } from "@/lib/shortcuts";
@@ -56,13 +30,6 @@ import {
   useEditor,
   STICKERS,
   type Tool,
-  type PinShapeKind,
-  type PinTailDir,
-  type RectShapeKind,
-  type FreehandMode,
-  type MagnifyShape,
-  type ArrowHeads,
-  type TextAlign,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -70,7 +37,7 @@ import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
-import { effectiveTools, THAI_SANS_STACK, type AppConfig } from "@/lib/config";
+import { effectiveTools, type AppConfig } from "@/lib/config";
 import { ToolButton } from "./toolbar/ToolButton";
 import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
@@ -79,34 +46,24 @@ import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButto
 import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
-import {
-  PresetSlider,
-  SectionLabel,
-  SizeGlyph,
-  LineGapIcon,
-  PadIcon,
-} from "./toolbar/PresetSlider";
+import { ToolOptionsPanel } from "./toolbar/panels/ToolOptionsPanel";
+import type {
+  ColorCtx,
+  NumCtx,
+  ToggleCtx,
+  TextStyleCtx,
+  TextFontStyle,
+  TextDecoration,
+  PinShapeCtx,
+  PinTailCtx,
+  RectShapeCtx,
+  PenModeCtx,
+  MagnifyShapeCtx,
+  ArrowHeadsCtx,
+} from "./toolbar/panels/types";
 import { isTauriRuntime } from "@/lib/platform";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
-
-/** Dashed horizontal line — no lucide equivalent, so a tiny inline SVG. */
-function DashLineIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeDasharray="3 3"
-      className={className}
-      aria-hidden
-    >
-      <line x1="1.5" y1="8" x2="14.5" y2="8" />
-    </svg>
-  );
-}
 
 const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
@@ -121,48 +78,6 @@ const TOOLS: ToolDef[] = [
   { id: "pin", label: "Pin", hint: "P", icon: NumberedPinIcon as LucideIcon },
   { id: "crop", label: "Crop", hint: "C", icon: Crop },
 ];
-
-const FONT_FAMILIES: { label: string; value: string }[] = [
-  // "Sans" leads with Noto Sans Thai so Thai glyphs render cleanly; falls back
-  // to the system sans for Latin. The other families append Noto Sans Thai as a
-  // last resort so Thai still renders (per-glyph fallback) without a loaded
-  // serif/mono/cursive Thai face.
-  { label: "Sans", value: THAI_SANS_STACK },
-  { label: "Serif", value: 'serif, "Noto Sans Thai"' },
-  { label: "Mono", value: 'ui-monospace, monospace, "Noto Sans Thai"' },
-  { label: "Cursive", value: 'cursive, "Noto Sans Thai"' },
-];
-
-type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
-type TextDecoration =
-  | ""
-  | "underline"
-  | "line-through"
-  | "underline line-through";
-
-function withBold(s: TextFontStyle, on: boolean): TextFontStyle {
-  const italic = s.includes("italic");
-  if (on) return italic ? "italic bold" : "bold";
-  return italic ? "italic" : "normal";
-}
-function withItalic(s: TextFontStyle, on: boolean): TextFontStyle {
-  const bold = s.includes("bold");
-  if (on) return bold ? "italic bold" : "italic";
-  return bold ? "bold" : "normal";
-}
-function withDeco(
-  d: TextDecoration,
-  which: "underline" | "line-through",
-  on: boolean,
-): TextDecoration {
-  const has = (k: "underline" | "line-through") => d.includes(k);
-  const u = which === "underline" ? on : has("underline");
-  const s = which === "line-through" ? on : has("line-through");
-  if (u && s) return "underline line-through";
-  if (u) return "underline";
-  if (s) return "line-through";
-  return "";
-}
 
 export function Toolbar({
   onOpenSettings,
@@ -239,60 +154,6 @@ export function Toolbar({
     ? annotations.find((a) => a.id === selectedId) ?? null
     : null;
 
-  type ColorCtx = {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-  };
-  type NumCtx = {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    onChange: (v: number) => void;
-  };
-  type TextStyleCtx = {
-    fontStyle: TextFontStyle;
-    textDecoration: TextDecoration;
-    fontFamily: string;
-    backgroundColor: string | null;
-    bgPadding: number;
-    align: TextAlign;
-    lineHeight: number;
-    setFontStyle: (v: TextFontStyle) => void;
-    setTextDecoration: (v: TextDecoration) => void;
-    setFontFamily: (v: string) => void;
-    setBackgroundColor: (v: string | null) => void;
-    setBgPadding: (v: number) => void;
-    setAlign: (v: TextAlign) => void;
-    setLineHeight: (v: number) => void;
-  };
-  type PinShapeCtx = {
-    value: PinShapeKind;
-    onChange: (v: PinShapeKind) => void;
-  };
-  type PinTailCtx = {
-    value: PinTailDir;
-    onChange: (v: PinTailDir) => void;
-  };
-  type RectShapeCtx = {
-    value: RectShapeKind;
-    onChange: (v: RectShapeKind) => void;
-  };
-  type PenModeCtx = {
-    value: FreehandMode;
-    onChange: (v: FreehandMode) => void;
-  };
-  type MagnifyShapeCtx = {
-    value: MagnifyShape;
-    onChange: (v: MagnifyShape) => void;
-  };
-  type ArrowHeadsCtx = {
-    value: ArrowHeads;
-    onChange: (v: ArrowHeads) => void;
-  };
-  type ToggleCtx = { value: boolean; onChange: (v: boolean) => void };
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
   let sizeCtx: NumCtx | null = null;
@@ -1405,28 +1266,10 @@ export function Toolbar({
     : -1;
   const atFront = selIndex >= 0 && selIndex === annotations.length - 1;
   const atBack = selIndex === 0;
-  const reorderBtn = (
-    Icon: LucideIcon,
-    title: string,
-    mode: "front" | "back" | "forward" | "backward",
-    disabled: boolean,
-  ) => (
-    <button
-      type="button"
-      onClick={() => selected && reorderAnnotation(selected.id, mode)}
-      disabled={disabled}
-      title={title}
-      aria-label={title}
-      className={[
-        "flex h-7 w-7 items-center justify-center rounded transition-colors",
-        disabled
-          ? "text-[var(--fg-2)] opacity-40"
-          : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-      ].join(" ")}
-    >
-      <Icon className="h-3.5 w-3.5" aria-hidden />
-    </button>
-  );
+
+  // Resolved panel kind: a selected annotation's type wins over the active tool
+  // (editing an element shows that element's controls).
+  const panelKind = selected ? selected.type : tool;
 
   return (
     <div className="relative z-20 flex flex-col border-b border-[var(--border)] bg-[var(--surface-overlay)] px-2 py-1.5">
@@ -1572,657 +1415,59 @@ export function Toolbar({
           />
         )}
       </div>
-      {hasContext && portalTarget && createPortal((
-      <div className="flex flex-col items-stretch gap-2.5">
-      {colorCtx && !textStyleCtx && (
-        <>
-          <label
-            className="flex items-center gap-1.5 text-xs text-foreground/80"
-            title={selected ? "Edit selected element color" : "Default color for next element"}
-          >
-            {colorCtx.label}
-            <input
-              ref={colorInputRef}
-              type="color"
-              value={colorCtx.value}
-              onChange={(e) => colorCtx!.onChange(e.target.value)}
-              className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-            />
-          </label>
-        </>
-      )}
-      {pinLabelCtx && (
-        <label
-          className="flex items-center gap-1.5 text-xs text-foreground/80"
-          title="Pin number color"
-        >
-          {pinLabelCtx.label}
-          <input
-            type="color"
-            value={pinLabelCtx.value}
-            onChange={(e) => pinLabelCtx!.onChange(e.target.value)}
-            className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-          />
-        </label>
-      )}
-      {pinBorderCtx && (
-        <label
-          className="flex items-center gap-1.5 text-xs text-foreground/80"
-          title="Pin border color"
-        >
-          {pinBorderCtx.label}
-          <input
-            type="color"
-            value={pinBorderCtx.value}
-            onChange={(e) => pinBorderCtx!.onChange(e.target.value)}
-            className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-          />
-        </label>
-      )}
-      {pinBorderWidthCtx && (
-        <label
-          className="flex items-center gap-1.5 text-xs text-foreground/80"
-          title={pinBorderWidthCtx.label}
-        >
-          {pinBorderWidthCtx.label}
-          <input
-            type="range"
-            min={pinBorderWidthCtx.min}
-            max={pinBorderWidthCtx.max}
-            step={pinBorderWidthCtx.step}
-            value={Math.round(pinBorderWidthCtx.value)}
-            onChange={(e) =>
-              pinBorderWidthCtx!.onChange(parseInt(e.target.value, 10))
-            }
-            className="h-1 w-20 cursor-pointer accent-[var(--accent)]"
-          />
-          <span className="w-5 text-right tabular-nums">
-            {Math.round(pinBorderWidthCtx.value)}
-          </span>
-        </label>
-      )}
-      {pinShapeCtx && (() => {
-        const psc = pinShapeCtx;
-        const shapeBtn = (
-          v: PinShapeKind,
-          title: string,
-          Icon: LucideIcon,
-        ) => (
-          <button
-            type="button"
-            onClick={() => psc.onChange(v)}
-            title={title}
-            aria-pressed={psc.value === v}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              psc.value === v
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-        return (
-          <div
-            className="flex items-center gap-0.5"
-            title="Pin shape"
-          >
-            {shapeBtn("circle", "Circle", CircleIcon)}
-            {shapeBtn("bubble", "Message bubble", MessageCircle)}
-            {shapeBtn("mappin", "Map pin", MapPin)}
-          </div>
-        );
-      })()}
-      {pinTailCtx && pinShapeCtx?.value === "bubble" && (() => {
-        const ptc = pinTailCtx;
-        const tailBtn = (
-          v: PinTailDir,
-          title: string,
-          Icon: LucideIcon,
-        ) => (
-          <button
-            type="button"
-            onClick={() => ptc.onChange(v)}
-            title={title}
-            aria-pressed={ptc.value === v}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              ptc.value === v
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-        return (
-          <div className="flex items-center gap-0.5" title="Tail direction">
-            {tailBtn("up", "Tail up", ArrowUp)}
-            {tailBtn("down", "Tail down", ArrowDown)}
-            {tailBtn("left", "Tail left", ArrowLeft)}
-            {tailBtn("right", "Tail right", ArrowRight)}
-          </div>
-        );
-      })()}
-      {rectShapeCtx && (() => {
-        const rsc = rectShapeCtx;
-        const shapeBtn = (
-          v: RectShapeKind,
-          title: string,
-          Icon: ComponentType<{ className?: string }>,
-        ) => (
-          <button
-            type="button"
-            onClick={() => rsc.onChange(v)}
-            title={title}
-            aria-pressed={rsc.value === v}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              rsc.value === v
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-        return (
-          <div className="flex items-center gap-0.5" title="Shape">
-            {shapeBtn("rect", "Rectangle", Square)}
-            {shapeBtn("ellipse", "Circle", CircleIcon)}
-            {shapeBtn("line", "Line", Minus)}
-            {shapeBtn("dashline", "Dashed line", DashLineIcon)}
-          </div>
-        );
-      })()}
-      {penModeCtx && (() => {
-        const pmc = penModeCtx;
-        const modeBtn = (v: FreehandMode, title: string, Icon: LucideIcon) => (
-          <button
-            type="button"
-            onClick={() => pmc.onChange(v)}
-            title={title}
-            aria-pressed={pmc.value === v}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              pmc.value === v
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-        return (
-          <div className="flex items-center gap-0.5" title="Smoothing">
-            {modeBtn("raw", "Raw", PenLine)}
-            {modeBtn("polygon", "Polygon", Waypoints)}
-            {modeBtn("curve", "Curve", Spline)}
-          </div>
-        );
-      })()}
-      {magnifyShapeCtx && (() => {
-        const msc = magnifyShapeCtx;
-        const shapeBtn = (v: MagnifyShape, title: string, Icon: LucideIcon) => (
-          <button
-            type="button"
-            onClick={() => msc.onChange(v)}
-            title={title}
-            aria-pressed={msc.value === v}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              msc.value === v
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-        return (
-          <div className="flex items-center gap-0.5" title="Loupe shape">
-            {shapeBtn("circle", "Circle", CircleIcon)}
-            {shapeBtn("rect", "Rectangle", Square)}
-          </div>
-        );
-      })()}
-      {arrowHeadsCtx && (() => {
-        const ahc = arrowHeadsCtx;
-        const twoWay = ahc.value === "both";
-        return (
-          <button
-            type="button"
-            onClick={() => ahc.onChange(twoWay ? "end" : "both")}
-            title="Two-way arrowhead"
-            aria-pressed={twoWay}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              twoWay
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-      })()}
-      {arrowDashCtx && (() => {
-        const adc = arrowDashCtx;
-        return (
-          <button
-            type="button"
-            onClick={() => adc.onChange(!adc.value)}
-            title="Dashed line"
-            aria-pressed={adc.value}
-            aria-label="Dashed line"
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              adc.value
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <DashLineIcon className="h-3.5 w-3.5" />
-          </button>
-        );
-      })()}
-      {widthCtx && (
-        <>
-          <label
-            className="flex items-center gap-1.5 text-xs text-foreground/80"
-            title={`${widthCtx.label}: [/]`}
-          >
-            {widthCtx.label}
-            <input
-              type="range"
-              min={widthCtx.min}
-              max={widthCtx.max}
-              step={widthCtx.step}
-              value={Math.round(widthCtx.value)}
-              onChange={(e) => widthCtx!.onChange(parseInt(e.target.value, 10))}
-              className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
-            />
-            <span className="w-6 text-right tabular-nums">{Math.round(widthCtx.value)}</span>
-          </label>
-        </>
-      )}
-      {cornerCtx && (
-        <label
-          className="flex items-center gap-1.5 text-xs text-foreground/80"
-          title={cornerCtx.label}
-        >
-          {cornerCtx.label}
-          <input
-            type="range"
-            min={cornerCtx.min}
-            max={cornerCtx.max}
-            step={cornerCtx.step}
-            value={Math.round(cornerCtx.value)}
-            onChange={(e) => cornerCtx!.onChange(parseInt(e.target.value, 10))}
-            className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
-          />
-          <span className="w-6 text-right tabular-nums">{Math.round(cornerCtx.value)}</span>
-        </label>
-      )}
-      {penLevelCtx && (
-        <label
-          className="flex items-center gap-1.5 text-xs text-foreground/80"
-          title={penLevelCtx.label}
-        >
-          {penLevelCtx.label}
-          <input
-            type="range"
-            min={penLevelCtx.min}
-            max={penLevelCtx.max}
-            step={penLevelCtx.step}
-            value={Math.round(penLevelCtx.value)}
-            onChange={(e) => penLevelCtx!.onChange(parseInt(e.target.value, 10))}
-            className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
-          />
-          <span className="w-7 text-right tabular-nums">{Math.round(penLevelCtx.value)}</span>
-        </label>
-      )}
-      {magnifyLinkCtx && (() => {
-        const mlc = magnifyLinkCtx;
-        return (
-          <button
-            type="button"
-            onClick={() => mlc.onChange(!mlc.value)}
-            title={mlc.value ? "Borders linked — click to set separately" : "Borders separate — click to link"}
-            aria-pressed={mlc.value}
-            aria-label="Link border widths"
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              mlc.value
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            {mlc.value ? (
-              <Link2 className="h-3.5 w-3.5" aria-hidden />
-            ) : (
-              <Link2Off className="h-3.5 w-3.5" aria-hidden />
-            )}
-          </button>
-        );
-      })()}
-      {sizeCtx && !textStyleCtx && (
-        <>
-          <label
-            className="flex items-center gap-1.5 text-xs text-foreground/80"
-            title={`${sizeCtx.label}: -/+`}
-          >
-            {sizeCtx.label}
-            <input
-              type="range"
-              min={sizeCtx.min}
-              max={sizeCtx.max}
-              step={sizeCtx.step}
-              value={Math.round(sizeCtx.value)}
-              onChange={(e) => sizeCtx!.onChange(parseInt(e.target.value, 10))}
-              className="h-1 w-24 cursor-pointer accent-[var(--accent)]"
-            />
-            <span className="w-8 text-right tabular-nums">{Math.round(sizeCtx.value)}</span>
-          </label>
-        </>
-      )}
-      {textStyleCtx && (() => {
-        const tsc = textStyleCtx;
-        const bold = tsc.fontStyle.includes("bold");
-        const italic = tsc.fontStyle.includes("italic");
-        const ul = tsc.textDecoration.includes("underline");
-        const st = tsc.textDecoration.includes("line-through");
-        const togBtn = (
-          active: boolean,
-          onClick: () => void,
-          title: string,
-          Icon: LucideIcon,
-        ) => (
-          <button
-            type="button"
-            onClick={onClick}
-            title={title}
-            aria-pressed={active}
-            className={[
-              "flex h-7 w-7 items-center justify-center rounded transition-colors",
-              active
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        );
-        return (
-          <div className="flex flex-col gap-3">
-            <SectionLabel>Type</SectionLabel>
-
-            <label
-              className="flex items-center justify-between gap-2 text-xs text-[var(--fg-2)]"
-              title="Font family"
-            >
-              <span>Font</span>
-              <select
-                value={tsc.fontFamily}
-                onChange={(e) => tsc.setFontFamily(e.target.value)}
-                className="min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs text-foreground outline-none focus:border-[var(--accent)]"
-              >
-                {FONT_FAMILIES.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {sizeCtx && (
-              <PresetSlider
-                label="Size"
-                value={sizeCtx.value}
-                min={sizeCtx.min}
-                max={sizeCtx.max}
-                step={sizeCtx.step}
-                round
-                unit="px"
-                onChange={(v) => sizeCtx!.onChange(v)}
-                presets={[
-                  { value: 16, node: <SizeGlyph px={10} />, title: "16 px" },
-                  { value: 24, node: <SizeGlyph px={13} />, title: "24 px" },
-                  { value: 48, node: <SizeGlyph px={17} />, title: "48 px" },
-                  { value: 96, node: <SizeGlyph px={21} />, title: "96 px" },
-                ]}
-              />
-            )}
-
-            <PresetSlider
-              label="Line height"
-              value={tsc.lineHeight}
-              min={1}
-              max={2.5}
-              step={0.05}
-              format={(v) => `${v.toFixed(2)}×`}
-              onChange={(v) => tsc.setLineHeight(v)}
-              presets={[
-                { value: 1, node: <LineGapIcon gap={2.5} />, title: "1.0× tight" },
-                { value: 1.25, node: <LineGapIcon gap={4} />, title: "1.25× normal" },
-                { value: 1.5, node: <LineGapIcon gap={5.5} />, title: "1.5× loose" },
-              ]}
-            />
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-0.5">
-                {togBtn(bold, () => tsc.setFontStyle(withBold(tsc.fontStyle, !bold)), "Bold", Bold)}
-                {togBtn(italic, () => tsc.setFontStyle(withItalic(tsc.fontStyle, !italic)), "Italic", Italic)}
-                {togBtn(ul, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul)), "Underline", Underline)}
-                {togBtn(st, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st)), "Strike", Strikethrough)}
-              </div>
-              <div className="flex items-center gap-0.5" role="group" aria-label="Text alignment">
-                {togBtn(tsc.align === "left", () => tsc.setAlign("left"), "Align left", AlignLeft)}
-                {togBtn(tsc.align === "center", () => tsc.setAlign("center"), "Align center", AlignCenter)}
-                {togBtn(tsc.align === "right", () => tsc.setAlign("right"), "Align right", AlignRight)}
-              </div>
-            </div>
-
-            {colorCtx && (
-              <label
-                className="flex items-center justify-between gap-2 text-xs text-[var(--fg-2)]"
-                title="Text color"
-              >
-                <span>Color</span>
-                <input
-                  ref={colorInputRef}
-                  type="color"
-                  value={colorCtx.value}
-                  onChange={(e) => colorCtx!.onChange(e.target.value)}
-                  className="h-6 w-9 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-                />
-              </label>
-            )}
-
-            <SectionLabel>Background</SectionLabel>
-
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  tsc.setBackgroundColor(
-                    tsc.backgroundColor === null ? lastBgColor : null,
-                  )
+      {hasContext && portalTarget && createPortal(
+        <ToolOptionsPanel
+          kind={panelKind}
+          colorCtx={colorCtx}
+          widthCtx={widthCtx}
+          sizeCtx={sizeCtx}
+          cornerCtx={cornerCtx}
+          penLevelCtx={penLevelCtx}
+          magnifyLinkCtx={magnifyLinkCtx}
+          rectShapeCtx={rectShapeCtx}
+          penModeCtx={penModeCtx}
+          magnifyShapeCtx={magnifyShapeCtx}
+          arrowHeadsCtx={arrowHeadsCtx}
+          arrowDashCtx={arrowDashCtx}
+          textStyleCtx={textStyleCtx}
+          pinLabelCtx={pinLabelCtx}
+          pinBorderCtx={pinBorderCtx}
+          pinBorderWidthCtx={pinBorderWidthCtx}
+          pinShapeCtx={pinShapeCtx}
+          pinTailCtx={pinTailCtx}
+          colorInputRef={colorInputRef}
+          selected={!!selected}
+          lastBgColor={lastBgColor}
+          setLastBgColor={setLastBgColor}
+          stickerEntries={stickerEntries}
+          stickerSelection={stickerSelection}
+          onSelectSticker={setStickerSelection}
+          stickerPicker={tool === "sticker"}
+          numbering={
+            tool === "pin"
+              ? {
+                  next: nextPinNumber,
+                  onChangeNext,
+                  onSave: savePersisted,
+                  onClear: clearPersisted,
+                  onToggleContinuity: toggleContinuity,
+                  continuityOn: pinsCfg.continuityMode === "continue",
+                  clearTo: pinsCfg.defaultStartNumber - 1,
                 }
-                aria-pressed={tsc.backgroundColor !== null}
-                title="Text background on/off"
-                className={[
-                  "rounded-md px-2.5 py-1 text-xs transition-colors",
-                  tsc.backgroundColor !== null
-                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                    : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-                ].join(" ")}
-              >
-                Fill {tsc.backgroundColor !== null ? "on" : "off"}
-              </button>
-              {tsc.backgroundColor !== null && (
-                <input
-                  type="color"
-                  value={tsc.backgroundColor}
-                  title="Background color"
-                  onChange={(e) => {
-                    setLastBgColor(e.target.value);
-                    tsc.setBackgroundColor(e.target.value);
-                  }}
-                  className="h-6 w-9 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-                />
-              )}
-            </div>
-
-            {tsc.backgroundColor !== null && (
-              <PresetSlider
-                label="Padding"
-                value={tsc.bgPadding}
-                min={0}
-                max={256}
-                step={1}
-                round
-                unit="px"
-                onChange={(v) => tsc.setBgPadding(v)}
-                presets={[
-                  { value: 0, node: <PadIcon inset={1} />, title: "None" },
-                  { value: 16, node: <PadIcon inset={3} />, title: "16 px" },
-                  { value: 40, node: <PadIcon inset={5} />, title: "40 px" },
-                  { value: 128, node: <PadIcon inset={6} />, title: "128 px" },
-                ]}
-              />
-            )}
-          </div>
-        );
-      })()}
-      {tool === "pin" && (
-        <>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/80">
-            <label className="flex items-center gap-1">
-              Next:
-              <input
-                type="number"
-                min={0}
-                value={nextPinNumber}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value, 10);
-                  if (!Number.isNaN(v) && v >= 0) onChangeNext(v);
-                }}
-                className="w-14 rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-[var(--accent)]"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={savePersisted}
-              title="Persist current as latest used number"
-              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={clearPersisted}
-              title={`Clear persisted (reset to ${pinsCfg.defaultStartNumber - 1})`}
-              className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={toggleContinuity}
-              title="Toggle continuity across captures"
-              className={[
-                "rounded-md px-2 py-1 transition-colors",
-                pinsCfg.continuityMode === "continue"
-                  ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                  : "text-foreground/85 hover:bg-[var(--surface-raised)]",
-              ].join(" ")}
-            >
-              Continue
-            </button>
-          </div>
-        </>
+              : null
+          }
+          reorder={
+            selected
+              ? {
+                  atFront,
+                  atBack,
+                  onReorder: (mode) => reorderAnnotation(selected.id, mode),
+                }
+              : null
+          }
+        />,
+        portalTarget,
       )}
-      {tool === "sticker" && (
-        <>
-          <div className="flex flex-wrap items-center gap-0.5">
-            {stickerEntries.length > 0
-              ? stickerEntries.map((e) => {
-                  const active =
-                    stickerSelection.kind === "image" &&
-                    stickerSelection.src === e.dataUrl;
-                  return (
-                    <button
-                      key={e.name}
-                      type="button"
-                      onClick={() =>
-                        setStickerSelection({
-                          kind: "image",
-                          src: e.dataUrl,
-                          name: e.name,
-                        })
-                      }
-                      title={e.name}
-                      className={[
-                        "flex h-7 w-7 items-center justify-center rounded p-0.5 transition-colors",
-                        active
-                          ? "bg-[var(--accent)]"
-                          : "hover:bg-[var(--surface-raised)]",
-                      ].join(" ")}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={e.dataUrl}
-                        alt={e.name}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </button>
-                  );
-                })
-              : STICKERS.map((c) => {
-                  const active =
-                    stickerSelection.kind === "emoji" &&
-                    stickerSelection.char === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() =>
-                        setStickerSelection({ kind: "emoji", char: c })
-                      }
-                      title={c}
-                      className={[
-                        "rounded px-1.5 py-0.5 text-base leading-none transition-colors",
-                        active
-                          ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                          : "hover:bg-[var(--surface-raised)]",
-                      ].join(" ")}
-                    >
-                      {c}
-                    </button>
-                  );
-                })}
-          </div>
-        </>
-      )}
-      {selected && (
-        <>
-          <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
-          <div
-            className="flex items-center gap-0.5"
-            role="group"
-            aria-label="Stacking order"
-          >
-            {reorderBtn(SendToBack, "Send to back", "back", atBack)}
-            {reorderBtn(ChevronsDown, "Send backward", "backward", atBack)}
-            {reorderBtn(ChevronsUp, "Bring forward", "forward", atFront)}
-            {reorderBtn(BringToFront, "Bring to front", "front", atFront)}
-          </div>
-        </>
-      )}
-      </div>
-      ), portalTarget)}
     </div>
   );
 }
