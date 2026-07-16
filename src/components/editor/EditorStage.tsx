@@ -2607,30 +2607,22 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   const align = a.align ?? "left";
   const lineHeight = a.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT;
 
-  // Size the background Rect from real glyph ink (handles tall/stacked scripts
-  // like Thai) plus padding, and offset the Text by its baseline so the ink
-  // sits exactly inside the Rect with even padding — Konva's em-box metrics
-  // would otherwise let stacked marks overflow.
+  // Size the content box to Konva's own line-box height (lines × lineHeight ×
+  // fontSize) — the Text node's intrinsic height. Matching it means the
+  // background Rect, the Text node, and the selection/transformer all coincide
+  // at any lineHeight, so the transformer hugs the visible background + padding.
+  // (An ink-tight height made the transformer overshoot by the line leading; a
+  // smaller explicit height on <Text> would make Konva truncate overflow lines.)
+  // Width still comes from real glyph ink (max advance across lines) so it hugs
+  // tall/stacked scripts like Thai and drives per-line alignment.
   const box = useMemo(() => {
     const ink = measureTextInk(a.text, a.fontSize, fontStyle, fontFamily);
     const lines = (a.text || " ").split("\n").length;
-    // Konva spaces lines by lineHeight × fontSize; widen the vertical gap so
-    // Thai above/below marks don't collide.
-    const lineGap = a.fontSize * lineHeight;
-    const innerH = ink.ascent + ink.descent + (lines - 1) * lineGap;
-    // Max advance width across lines — drives both the background and the Text
-    // node width that Konva aligns shorter lines within.
     const innerW = Math.ceil(ink.width);
+    const innerH = Math.ceil(lines * a.fontSize * lineHeight);
     const w = innerW + padX * 2;
     const h = innerH + padY * 2;
-    // Konva (non-legacy) draws line 0's alphabetic baseline at this offset from
-    // the Text node's top; shift the node so that baseline puts the ink top at
-    // padY. The half-line-box term scales with lineHeight (reduces to the old
-    // fontSize/2 at lineHeight = 1).
-    const konvaBaseline =
-      (ink.fontAscent - ink.fontDescent) / 2 + (a.fontSize * lineHeight) / 2;
-    const textY = padY + ink.ascent - konvaBaseline;
-    return { w, h, textY, innerW };
+    return { w, h, innerW, innerH };
   }, [a.text, a.fontSize, fontStyle, fontFamily, lineHeight, padX, padY]);
 
   const cornerRadius = bg
@@ -2689,7 +2681,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       )}
       <Text
         x={padX}
-        y={box.textY}
+        y={padY}
         width={box.innerW}
         text={a.text}
         fontSize={a.fontSize}

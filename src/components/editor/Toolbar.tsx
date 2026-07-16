@@ -2080,7 +2080,7 @@ export function Toolbar({
                 label="Padding"
                 value={tsc.bgPadding}
                 min={0}
-                max={48}
+                max={256}
                 step={1}
                 round
                 unit="px"
@@ -2089,6 +2089,7 @@ export function Toolbar({
                   { value: 0, node: <PadIcon inset={1} />, title: "None" },
                   { value: 16, node: <PadIcon inset={3} />, title: "16 px" },
                   { value: 40, node: <PadIcon inset={5} />, title: "40 px" },
+                  { value: 128, node: <PadIcon inset={6} />, title: "128 px" },
                 ]}
               />
             )}
