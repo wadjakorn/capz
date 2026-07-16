@@ -5,34 +5,38 @@ use crate::shortcuts::CaptureKind;
 use crate::windows;
 
 pub fn dispatch_full<R: Runtime>(app: &AppHandle<R>) {
-    // Single-monitor fast path: there is nothing to pick, so grab that one
-    // display straight away instead of popping the "click a screen" overlay
-    // (saves the redundant click). Multi-monitor still shows the picker.
+    // Always grab the monitor under the cursor instantly — no "click a screen"
+    // picker, for any monitor count. The cursor is the user's target display, so
+    // resolving it in Rust means we never show an overlay, never steal OS focus,
+    // and a source app's transient state (open dropdown, hover tooltip, context
+    // menu) survives the capture (ticket CP-0024). Multi-monitor no longer
+    // detours through the focus-stealing picker.
     //
-    // Only fast-path when no overlay is already up. If an area/window/scroll
-    // selection is in progress, defer to `show_overlay_mode`, which re-focuses
-    // the existing overlay and leaves that in-progress selection intact —
-    // matching the multi-monitor path rather than yanking a full-screen shot
-    // out from under the user.
+    // Exception: if an area/window/scroll selection overlay is already up, defer
+    // to `show_overlay_mode`, which re-focuses that existing overlay (and creates
+    // nothing) rather than yanking a full-screen shot out from under an
+    // in-progress selection.
     let overlay_open = app
         .webview_windows()
         .keys()
         .any(|label| label.starts_with("overlay-"));
-    match monitor_service::list_monitors() {
-        Ok(mons) if !overlay_open && mons.len() == 1 => {
-            let monitor_id = mons[0].id;
-            let app = app.clone();
-            tauri::async_runtime::spawn(async move {
-                capture_single_monitor(app, monitor_id).await;
-            });
+    if overlay_open {
+        if let Err(e) = windows::show_overlay_mode(app, "full") {
+            log::error!("show_overlay_mode(full) failed: {e}");
+        }
+        return;
+    }
+    let monitor_id = match monitor_service::monitor_under_cursor() {
+        Ok(id) => id,
+        Err(e) => {
+            log::error!("dispatch_full: no monitor to capture ({e})");
             return;
         }
-        Ok(_) => {}
-        Err(e) => log::warn!("dispatch_full: list_monitors failed ({e}); showing picker"),
-    }
-    if let Err(e) = windows::show_overlay_mode(app, "full") {
-        log::error!("show_overlay_mode(full) failed: {e}");
-    }
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        capture_single_monitor(app, monitor_id).await;
+    });
 }
 
 /// Capture the sole display directly, bypassing the pick-a-screen overlay.
