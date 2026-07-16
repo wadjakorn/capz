@@ -556,11 +556,12 @@ function TemplateRect({
 }
 
 // ---------------------------------------------------------------------------
-// Full / window mode: single-click / hover-to-pick a whole screen or window.
-// (Preserved from the original overlay; area mode no longer uses this path.)
+// Window mode: hover-to-pick a whole window. (Full-screen capture no longer
+// opens an overlay — it grabs the monitor under the cursor instantly, see
+// capture_dispatch::dispatch_full — so this path is window-only now.)
 // ---------------------------------------------------------------------------
 
-function PickMode({ mode, monitorId }: { mode: "full" | "window"; monitorId: number }) {
+function PickMode({ monitorId }: { monitorId: number }) {
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(false);
   const [windows, setWindows] = useState<WindowOverlayInfo[]>([]);
@@ -568,12 +569,12 @@ function PickMode({ mode, monitorId }: { mode: "full" | "window"; monitorId: num
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (mode !== "window" || !active || fetchedRef.current) return;
+    if (!active || fetchedRef.current) return;
     fetchedRef.current = true;
     invoke<WindowOverlayInfo[]>("list_capture_windows", { monitorId })
       .then(setWindows)
       .catch((e) => console.error("list_capture_windows failed", e));
-  }, [mode, active, monitorId]);
+  }, [active, monitorId]);
 
   const onPointerEnter = () => {
     setActive(true);
@@ -581,50 +582,34 @@ function PickMode({ mode, monitorId }: { mode: "full" | "window"; monitorId: num
   };
   const onPointerLeave = () => {
     setActive(false);
-    if (mode === "window") setHovered(null);
+    setHovered(null);
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
     if (!active) setActive(true);
-    if (mode === "window") {
-      if (busy) return;
-      setHovered(hitTestWindow(windows, { x: e.clientX, y: e.clientY }));
-    }
+    if (busy) return;
+    setHovered(hitTestWindow(windows, { x: e.clientX, y: e.clientY }));
   };
 
   const onClick = async () => {
-    if (busy || !active) return;
-    if (mode === "full") {
-      setBusy(true);
-      getCurrentWindow().hide().catch((e) => console.warn("hide overlay failed", e));
-      try {
-        await invoke<string>("capture_full_monitor", { monitorId });
-      } catch (err) {
-        console.error("capture_full_monitor failed", err);
-        closeOverlay();
-      }
-    } else {
-      if (!hovered) return;
-      setBusy(true);
-      getCurrentWindow().hide().catch((e) => console.warn("hide overlay failed", e));
-      try {
-        await invoke<string>("capture_window_command", { windowId: hovered.id });
-      } catch (err) {
-        console.error("capture_window_command failed", err);
-        closeOverlay();
-      }
+    if (busy || !active || !hovered) return;
+    setBusy(true);
+    getCurrentWindow().hide().catch((e) => console.warn("hide overlay failed", e));
+    try {
+      await invoke<string>("capture_window_command", { windowId: hovered.id });
+    } catch (err) {
+      console.error("capture_window_command failed", err);
+      closeOverlay();
     }
   };
 
   const cutoutRect: Rect | null =
-    mode === "window" && active && hovered
+    active && hovered
       ? { x: hovered.x, y: hovered.y, w: hovered.width, h: hovered.height }
       : null;
 
   const hintText = !active
     ? "Move cursor here to select on this screen"
-    : mode === "full"
-    ? "Click to capture this screen · Esc to cancel"
     : "Click a window to capture · Esc to cancel";
 
   return (
@@ -646,7 +631,7 @@ function PickMode({ mode, monitorId }: { mode: "full" | "window"; monitorId: num
         />
       )}
       {cutoutRect && <OuterDim rect={cutoutRect} />}
-      {mode === "window" && active && hovered && (
+      {active && hovered && (
         <div
           className="pointer-events-none absolute"
           style={{
@@ -743,7 +728,9 @@ function OverlayInner() {
         scroll={mode === "scroll"}
       />
     );
-  return <PickMode mode={mode} monitorId={monitorId} />;
+  // "window" (and, defensively, any non-area/scroll mode) → window picker.
+  // Full-screen never reaches here: it captures instantly without an overlay.
+  return <PickMode monitorId={monitorId} />;
 }
 
 export default function OverlayPage() {
