@@ -13,7 +13,7 @@ Shipped. Desktop app (**capz**, macOS + Windows) built and released. Also ships 
 - **Canvas editor:** react-konva + konva
 - **Rust capture/encode:** `xcap` + `image` crates
 - **Package manager:** pnpm 9 (never npm/yarn)
-- **IPC types:** `ts-rs` to mirror Rust structs → `src/types/ipc.ts`
+- **IPC types:** hand-written TypeScript mirroring the Rust structs — there is no codegen
 
 ## Commands
 
@@ -31,28 +31,27 @@ pnpm tauri signer generate -w ~/.tauri/capz-updater.key    # one-time updater ke
 
 ## Architecture Big Picture
 
-Three Tauri windows + tray, all driven by Rust core (PLAN.md §2):
+One long-lived editor window plus transient helper windows, all driven by the Rust core. (PLAN.md §2 describes the *original plan*; the shipped shape below is authoritative where they disagree.)
 
-- **Tray** (always present) → registers global shortcuts → dispatches capture
-- **Overlay window** (`overlay`): transparent, fullscreen across **union of all monitors**, area-select drag → emits `{x,y,w,h,monitor_id}` to Rust
-- **Editor window** (`editor-<timestamp>`, multiple may coexist): loads temp PNG into Konva stage for annotation
-- **Settings window** (`settings`): hidden by default
-- **Onboarding window** (`onboarding`): first-launch only, drives macOS TCC permission flow
+- **Tray** (always present) → dispatches capture. Global shortcuts are registered at startup in `lib.rs` via `shortcuts::register_shortcuts`, not by the tray.
+- **Editor window** (`editor`) — **single and reused**, not one per capture. Hosts the Konva annotation stage, and also hosts the **Settings** and **Onboarding** *views* (`src/app/editor/page.tsx`) — neither has its own window.
+- **Overlay windows** (`overlay-<monitor_id>`) — **one transparent window per monitor**, not a single union-spanning window: macOS "Displays have separate Spaces" blocks a window that spans screens. Area selection stays per-display; the drag emits `{x,y,w,h,monitor_id}` to Rust.
+- **Transient helpers:** command ring (`command-ring`), scroll HUD (`scroll-hud`), scroll guide (`scroll-guide`).
 
-Capture pipeline: hotkey → Rust enumerates monitors via `xcap` → captures buffer → encodes PNG via `image` → writes to OS temp dir as `shotr-temp-*.png` → spawns editor window with file path as URL param. On editor close, **delete the temp file**; on startup, sweep stale `shotr-temp-*.png` >24h old.
+Capture pipeline: hotkey → Rust enumerates monitors via `xcap` → captures buffer → `image_service` encodes PNG (or JPEG, per the user's intermediate-format setting) → writes to the OS temp dir as **`capz-temp-<unix_millis>.{png,jpg}`** → `windows::load_editor_image` shows the editor and emits `editor:load-image` carrying the path; the webview loads it via `convertFileSrc` (it is **not** a URL param). Loading a new image deletes the prior temp file; on startup `image_service::sweep_stale_temp` removes `capz-temp-*` files older than 24h.
 
 Output is either file (via `tauri-plugin-fs` + `tauri-plugin-dialog`) or clipboard PNG (via `tauri-plugin-clipboard-manager.writeImage`). No backend API, no telemetry, no cloud in v1.
 
 ## Cross-Cutting Rules (PLAN.md §5 — read before Phase 4+)
 
-- **High-DPI:** `xcap` returns **physical pixels**. Overlay coords are **logical (CSS) pixels** — multiply by `devicePixelRatio` (frontend) or `monitor.scale_factor()` (Rust) before passing to xcap. Konva export uses `pixelRatio: 2` on Retina.
-- **Multi-monitor:** overlay must cover union of all monitor rects (negative coords are normal). v1 restricts area selection to a single monitor — no cross-monitor stitching.
+- **High-DPI:** `xcap` returns **physical pixels**. Overlay coords are **logical (CSS) pixels** — multiply by `devicePixelRatio` (frontend) or `monitor.scale_factor()` (Rust) before passing to xcap. Konva export uses `pixelRatio: 1 / scale` (`src/lib/exportImage.ts`) so the export is native-resolution regardless of on-screen zoom — it is not a hardcoded `2`.
+- **Multi-monitor:** one overlay window **per monitor** (`overlay-<monitor_id>`) — negative coords are normal. Area selection is restricted to a single monitor; no cross-monitor stitching.
 - **Storage:** **No `localStorage`/`sessionStorage`.** Use `tauri-plugin-store` exclusively on desktop. The web build cannot use the store — `src/stores/settings.ts` falls back to in-memory `DEFAULT_CONFIG` when `!isTauriRuntime()`; do not add localStorage as a web fallback.
 - **Platform split:** use `isTauriRuntime()` (`src/lib/platform.ts`) to branch between desktop and web at runtime. Gate all Tauri IPC and plugins behind this check and use `next/dynamic` to code-split Tauri imports out of the web bundle. Do not gate on build-time env vars or eslint rules.
-- **Window labels** must be unique: `settings`, `overlay`, `editor-<timestamp>`, `onboarding`. Don't reuse `main`.
-- **Capabilities:** per-window JSON files in `src-tauri/capabilities/` (`default.json`, `overlay.json`, `editor.json`) — give each window the **minimum** scope.
-- **Filesystem writes** go through `tauri-plugin-fs` with explicit scope in capabilities, never raw Rust `std::fs` for user-facing output.
-- **IPC:** shared types live in `src/types/ipc.ts`, generated from Rust via `ts-rs`.
+- **Window labels** must be unique. In use: `editor`, `overlay-<monitor_id>`, `command-ring`, `scroll-hud`, `scroll-guide`. Don't reuse `main`.
+- **Capabilities:** per-window JSON files in `src-tauri/capabilities/` — `default.json`, `desktop.json`, `editor.json` (windows: `editor`) and `overlay.json` (windows: `overlay-*`, `scroll-hud`, `scroll-guide`, `command-ring`). Give each window the **minimum** scope.
+- **Filesystem writes** for user-facing output go through `tauri-plugin-fs` with explicit scope in capabilities, never raw Rust `std::fs`. (Internal temp files under `$TEMP` are written directly by `image_service` — that is intentional and not user-facing output.)
+- **IPC:** shared types are hand-written on both sides and must be kept in sync manually. There is **no** `ts-rs` dependency and **no** `src/types/` directory.
 
 ## Updater Key (CRITICAL — PLAN.md §5.8)
 
@@ -66,14 +65,20 @@ Ed25519 update-signing keypair is a **single point of failure for the entire use
 ## Phase Execution Protocol (PLAN.md §4, Phases 0–12)
 
 - Execute phases **in order**. Each phase has acceptance checks — do not advance until they pass with `pnpm tauri dev` verified interactively.
-- Maintain `PROGRESS.md` checklist as phases complete.
+- Maintain the live trackers as work completes: PROGRESS-NEXT.md + the sub-trackers listed under Repository State. There is no `PROGRESS.md`.
 - Commit per phase with conventional commits: `feat(phase-N): <description>`.
 - When a Tauri API is unclear, consult v2 docs in PLAN.md §8 — APIs differ significantly from Tauri v1; do not guess from v1 memory.
 - Open questions in PLAN.md §9 must be resolved with the user **before Phase 7** (output behavior, branding, filename template, sticker library, update channel, telemetry).
 
 ## Default Hotkeys
 
+Defined in `src-tauri/src/shortcuts.rs`:
+
 - Full screen: `CmdOrCtrl+Alt+Shift+3`
 - Area: `CmdOrCtrl+Alt+Shift+4`
+- Window: `CmdOrCtrl+Alt+Shift+5`
+- Show editor: `CmdOrCtrl+Alt+Shift+0`
+- Command ring: `CmdOrCtrl+Shift+Space`
+- Scrolling capture: **unbound by default** (empty accelerator = not registered; the user assigns one in Settings)
 
 macOS reserved (cannot override): `Cmd+Space`, `Cmd+Tab`, `Cmd+Q`, `Cmd+Shift+3/4/5`. `register()` may silently lose to last-registered app on some OSes — document in onboarding, expose "Reset to defaults" in Settings.
