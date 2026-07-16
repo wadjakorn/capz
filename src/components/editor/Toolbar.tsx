@@ -34,6 +34,9 @@ import {
   Italic,
   Underline,
   Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   Settings as SettingsIcon,
   Ruler,
   ScanText,
@@ -59,6 +62,7 @@ import {
   type FreehandMode,
   type MagnifyShape,
   type ArrowHeads,
+  type TextAlign,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -66,7 +70,7 @@ import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
-import { effectiveTools, type AppConfig } from "@/lib/config";
+import { effectiveTools, THAI_SANS_STACK, type AppConfig } from "@/lib/config";
 import { ToolButton } from "./toolbar/ToolButton";
 import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
@@ -75,6 +79,13 @@ import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButto
 import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
 import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
+import {
+  PresetSlider,
+  SectionLabel,
+  SizeGlyph,
+  LineGapIcon,
+  PadIcon,
+} from "./toolbar/PresetSlider";
 import { isTauriRuntime } from "@/lib/platform";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
@@ -112,10 +123,14 @@ const TOOLS: ToolDef[] = [
 ];
 
 const FONT_FAMILIES: { label: string; value: string }[] = [
-  { label: "Sans", value: "system-ui, sans-serif" },
-  { label: "Serif", value: "serif" },
-  { label: "Mono", value: "ui-monospace, monospace" },
-  { label: "Cursive", value: "cursive" },
+  // "Sans" leads with Noto Sans Thai so Thai glyphs render cleanly; falls back
+  // to the system sans for Latin. The other families append Noto Sans Thai as a
+  // last resort so Thai still renders (per-glyph fallback) without a loaded
+  // serif/mono/cursive Thai face.
+  { label: "Sans", value: THAI_SANS_STACK },
+  { label: "Serif", value: 'serif, "Noto Sans Thai"' },
+  { label: "Mono", value: 'ui-monospace, monospace, "Noto Sans Thai"' },
+  { label: "Cursive", value: 'cursive, "Noto Sans Thai"' },
 ];
 
 type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
@@ -243,11 +258,15 @@ export function Toolbar({
     fontFamily: string;
     backgroundColor: string | null;
     bgPadding: number;
+    align: TextAlign;
+    lineHeight: number;
     setFontStyle: (v: TextFontStyle) => void;
     setTextDecoration: (v: TextDecoration) => void;
     setFontFamily: (v: string) => void;
     setBackgroundColor: (v: string | null) => void;
     setBgPadding: (v: number) => void;
+    setAlign: (v: TextAlign) => void;
+    setLineHeight: (v: number) => void;
   };
   type PinShapeCtx = {
     value: PinShapeKind;
@@ -578,6 +597,8 @@ export function Toolbar({
         fontFamily: toolsCfg.text.fontFamily,
         backgroundColor: toolsCfg.text.backgroundColor,
         backgroundPadding: toolsCfg.text.backgroundPadding,
+        align: toolsCfg.text.align,
+        lineHeight: toolsCfg.text.lineHeight,
       });
       colorCtx = {
         label: "Color",
@@ -604,12 +625,16 @@ export function Toolbar({
       const curDeco = (selected.textDecoration ?? "") as TextDecoration;
       const curFamily = selected.fontFamily ?? toolsCfg.text.fontFamily;
       const curBg = selected.backgroundColor ?? null;
+      const curAlign = selected.align ?? toolsCfg.text.align;
+      const curLineHeight = selected.lineHeight ?? toolsCfg.text.lineHeight;
       textStyleCtx = {
         fontStyle: curStyle,
         textDecoration: curDeco,
         fontFamily: curFamily,
         backgroundColor: curBg,
         bgPadding: selected.bgPadding ?? toolsCfg.text.backgroundPadding,
+        align: curAlign,
+        lineHeight: curLineHeight,
         setFontStyle: (v) => {
           updateAnnotation(selected.id, { fontStyle: v });
           if (remember) patchLastUsed({ text: { fontStyle: v } });
@@ -634,6 +659,16 @@ export function Toolbar({
           updateAnnotation(selected.id, { bgPadding: v });
           if (remember) patchLastUsed({ text: { backgroundPadding: v } });
           else void updateSettings("tools", { text: { ...baseText(), backgroundPadding: v } });
+        },
+        setAlign: (v) => {
+          updateAnnotation(selected.id, { align: v });
+          if (remember) patchLastUsed({ text: { align: v } });
+          else void updateSettings("tools", { text: { ...baseText(), align: v } });
+        },
+        setLineHeight: (v) => {
+          updateAnnotation(selected.id, { lineHeight: v });
+          if (remember) patchLastUsed({ text: { lineHeight: v } });
+          else void updateSettings("tools", { text: { ...baseText(), lineHeight: v } });
         },
       };
     } else if (selected.type === "pin") {
@@ -967,6 +1002,8 @@ export function Toolbar({
       fontFamily: toolsCfg.text.fontFamily,
       backgroundColor: toolsCfg.text.backgroundColor,
       backgroundPadding: toolsCfg.text.backgroundPadding,
+      align: toolsCfg.text.align,
+      lineHeight: toolsCfg.text.lineHeight,
     });
     colorCtx = {
       label: "Color",
@@ -993,6 +1030,8 @@ export function Toolbar({
       fontFamily: toolsCfg.text.fontFamily,
       backgroundColor: toolsCfg.text.backgroundColor,
       bgPadding: toolsCfg.text.backgroundPadding,
+      align: toolsCfg.text.align,
+      lineHeight: toolsCfg.text.lineHeight,
       setFontStyle: (v) => {
         if (remember) patchLastUsed({ text: { fontStyle: v } });
         else void updateSettings("tools", { text: { ...baseText(), fontStyle: v } });
@@ -1012,6 +1051,14 @@ export function Toolbar({
       setBgPadding: (v) => {
         if (remember) patchLastUsed({ text: { backgroundPadding: v } });
         else void updateSettings("tools", { text: { ...baseText(), backgroundPadding: v } });
+      },
+      setAlign: (v) => {
+        if (remember) patchLastUsed({ text: { align: v } });
+        else void updateSettings("tools", { text: { ...baseText(), align: v } });
+      },
+      setLineHeight: (v) => {
+        if (remember) patchLastUsed({ text: { lineHeight: v } });
+        else void updateSettings("tools", { text: { ...baseText(), lineHeight: v } });
       },
     };
   } else if (tool === "pin") {
@@ -1527,7 +1574,7 @@ export function Toolbar({
       </div>
       {hasContext && portalTarget && createPortal((
       <div className="flex flex-col items-stretch gap-2.5">
-      {colorCtx && (
+      {colorCtx && !textStyleCtx && (
         <>
           <label
             className="flex items-center gap-1.5 text-xs text-foreground/80"
@@ -1860,7 +1907,7 @@ export function Toolbar({
           </button>
         );
       })()}
-      {sizeCtx && (
+      {sizeCtx && !textStyleCtx && (
         <>
           <label
             className="flex items-center gap-1.5 text-xs text-foreground/80"
@@ -1908,19 +1955,18 @@ export function Toolbar({
           </button>
         );
         return (
-          <>
-            <div className="flex items-center gap-0.5">
-              {togBtn(bold, () => tsc.setFontStyle(withBold(tsc.fontStyle, !bold)), "Bold", Bold)}
-              {togBtn(italic, () => tsc.setFontStyle(withItalic(tsc.fontStyle, !italic)), "Italic", Italic)}
-              {togBtn(ul, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul)), "Underline", Underline)}
-              {togBtn(st, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st)), "Strike", Strikethrough)}
-            </div>
-            <label className="flex items-center gap-1.5 text-xs text-foreground/80" title="Font family">
-              Font
+          <div className="flex flex-col gap-3">
+            <SectionLabel>Type</SectionLabel>
+
+            <label
+              className="flex items-center justify-between gap-2 text-xs text-[var(--fg-2)]"
+              title="Font family"
+            >
+              <span>Font</span>
               <select
                 value={tsc.fontFamily}
                 onChange={(e) => tsc.setFontFamily(e.target.value)}
-                className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-[var(--accent)]"
+                className="min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs text-foreground outline-none focus:border-[var(--accent)]"
               >
                 {FONT_FAMILIES.map((f) => (
                   <option key={f.value} value={f.value}>
@@ -1929,7 +1975,74 @@ export function Toolbar({
                 ))}
               </select>
             </label>
-            <div className="flex items-center gap-1.5 text-xs text-foreground/80">
+
+            {sizeCtx && (
+              <PresetSlider
+                label="Size"
+                value={sizeCtx.value}
+                min={sizeCtx.min}
+                max={sizeCtx.max}
+                step={sizeCtx.step}
+                round
+                unit="px"
+                onChange={(v) => sizeCtx!.onChange(v)}
+                presets={[
+                  { value: 16, node: <SizeGlyph px={10} />, title: "16 px" },
+                  { value: 24, node: <SizeGlyph px={13} />, title: "24 px" },
+                  { value: 48, node: <SizeGlyph px={17} />, title: "48 px" },
+                  { value: 96, node: <SizeGlyph px={21} />, title: "96 px" },
+                ]}
+              />
+            )}
+
+            <PresetSlider
+              label="Line height"
+              value={tsc.lineHeight}
+              min={1}
+              max={2.5}
+              step={0.05}
+              format={(v) => `${v.toFixed(2)}×`}
+              onChange={(v) => tsc.setLineHeight(v)}
+              presets={[
+                { value: 1, node: <LineGapIcon gap={2.5} />, title: "1.0× tight" },
+                { value: 1.25, node: <LineGapIcon gap={4} />, title: "1.25× normal" },
+                { value: 1.5, node: <LineGapIcon gap={5.5} />, title: "1.5× loose" },
+              ]}
+            />
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-0.5">
+                {togBtn(bold, () => tsc.setFontStyle(withBold(tsc.fontStyle, !bold)), "Bold", Bold)}
+                {togBtn(italic, () => tsc.setFontStyle(withItalic(tsc.fontStyle, !italic)), "Italic", Italic)}
+                {togBtn(ul, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul)), "Underline", Underline)}
+                {togBtn(st, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st)), "Strike", Strikethrough)}
+              </div>
+              <div className="flex items-center gap-0.5" role="group" aria-label="Text alignment">
+                {togBtn(tsc.align === "left", () => tsc.setAlign("left"), "Align left", AlignLeft)}
+                {togBtn(tsc.align === "center", () => tsc.setAlign("center"), "Align center", AlignCenter)}
+                {togBtn(tsc.align === "right", () => tsc.setAlign("right"), "Align right", AlignRight)}
+              </div>
+            </div>
+
+            {colorCtx && (
+              <label
+                className="flex items-center justify-between gap-2 text-xs text-[var(--fg-2)]"
+                title="Text color"
+              >
+                <span>Color</span>
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={colorCtx.value}
+                  onChange={(e) => colorCtx!.onChange(e.target.value)}
+                  className="h-6 w-9 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
+                />
+              </label>
+            )}
+
+            <SectionLabel>Background</SectionLabel>
+
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -1940,45 +2053,47 @@ export function Toolbar({
                 aria-pressed={tsc.backgroundColor !== null}
                 title="Text background on/off"
                 className={[
-                  "rounded px-2 py-0.5 text-[11px] transition-colors",
+                  "rounded-md px-2.5 py-1 text-xs transition-colors",
                   tsc.backgroundColor !== null
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                     : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
                 ].join(" ")}
               >
-                Bg
+                Fill {tsc.backgroundColor !== null ? "on" : "off"}
               </button>
               {tsc.backgroundColor !== null && (
-                <>
-                  <input
-                    type="color"
-                    value={tsc.backgroundColor}
-                    title="Background color"
-                    onChange={(e) => {
-                      setLastBgColor(e.target.value);
-                      tsc.setBackgroundColor(e.target.value);
-                    }}
-                    className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
-                  />
-                  <label className="flex items-center gap-1" title="Background padding">
-                    Pad
-                    <input
-                      type="range"
-                      min={0}
-                      max={48}
-                      step={1}
-                      value={Math.round(tsc.bgPadding)}
-                      onChange={(e) => tsc.setBgPadding(parseInt(e.target.value, 10))}
-                      className="h-1 w-20 cursor-pointer accent-[var(--accent)]"
-                    />
-                    <span className="w-5 text-right tabular-nums">
-                      {Math.round(tsc.bgPadding)}
-                    </span>
-                  </label>
-                </>
+                <input
+                  type="color"
+                  value={tsc.backgroundColor}
+                  title="Background color"
+                  onChange={(e) => {
+                    setLastBgColor(e.target.value);
+                    tsc.setBackgroundColor(e.target.value);
+                  }}
+                  className="h-6 w-9 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
+                />
               )}
             </div>
-          </>
+
+            {tsc.backgroundColor !== null && (
+              <PresetSlider
+                label="Padding"
+                value={tsc.bgPadding}
+                min={0}
+                max={256}
+                step={1}
+                round
+                unit="px"
+                onChange={(v) => tsc.setBgPadding(v)}
+                presets={[
+                  { value: 0, node: <PadIcon inset={1} />, title: "None" },
+                  { value: 16, node: <PadIcon inset={3} />, title: "16 px" },
+                  { value: 40, node: <PadIcon inset={5} />, title: "40 px" },
+                  { value: 128, node: <PadIcon inset={6} />, title: "128 px" },
+                ]}
+              />
+            )}
+          </div>
         );
       })()}
       {tool === "pin" && (

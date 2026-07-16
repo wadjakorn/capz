@@ -1,4 +1,5 @@
 import type { Annotation } from "@/stores/editor";
+import { DEFAULT_TEXT_LINE_HEIGHT } from "@/lib/config";
 
 export type AABB = { x: number; y: number; w: number; h: number };
 
@@ -30,14 +31,17 @@ export function annotationAABB(a: Annotation): AABB | null {
       };
     }
     case "text": {
-      // Approximate: width = chars × fontSize × 0.6, height = fontSize × 1.2.
+      // Approximate: width = chars × fontSize × 0.6, height = lines × line-box.
+      // Line box tracks the annotation's lineHeight (default ~1.35) so snap
+      // guides stay aligned with the taller multi-line rendering.
       const lines = a.text.split("\n");
       const maxLen = lines.reduce((m, l) => Math.max(m, l.length), 1);
+      const lineBox = a.fontSize * (a.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT);
       return {
         x: a.x,
         y: a.y,
         w: maxLen * a.fontSize * 0.6,
-        h: lines.length * a.fontSize * 1.2,
+        h: lines.length * lineBox,
       };
     }
     case "pen":

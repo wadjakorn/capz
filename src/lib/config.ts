@@ -5,8 +5,18 @@ import type {
   FreehandMode,
   MagnifyShape,
   ArrowHeads,
+  TextAlign,
 } from "@/stores/editor";
 import { validateAccelerator } from "@/lib/shortcuts";
+
+/** Thai-aware sans stack (mirrors OcrLayer's FONT_STACK) — leads with
+ * "Noto Sans Thai" so Thai glyphs render cleanly, falling back to the system
+ * sans for everything else. Default family for the text tool. */
+export const THAI_SANS_STACK =
+  '"Noto Sans Thai", system-ui, -apple-system, sans-serif';
+/** Default line-height multiplier for text annotations — roomy enough that Thai
+ * above/below marks don't collide across lines. */
+export const DEFAULT_TEXT_LINE_HEIGHT = 1.35;
 
 export type Tool =
   | "select"
@@ -127,6 +137,8 @@ export type AppConfig = {
       fontFamily?: string;
       backgroundColor?: string | null;
       backgroundPadding?: number;
+      align?: TextAlign;
+      lineHeight?: number;
     };
     blur?: { blurRadius?: number };
     sticker?: { fontSize?: number };
@@ -161,6 +173,8 @@ export type AppConfig = {
       fontFamily: string;
       backgroundColor: string | null;
       backgroundPadding: number;
+      align: TextAlign;
+      lineHeight: number;
     };
     blur: { blurRadius: number };
     pen: {
@@ -268,9 +282,11 @@ export const DEFAULT_CONFIG: AppConfig = {
       color: "#000000",
       fontStyle: "normal",
       textDecoration: "",
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: THAI_SANS_STACK,
       backgroundColor: "#ffffff",
       backgroundPadding: 14,
+      align: "left",
+      lineHeight: DEFAULT_TEXT_LINE_HEIGHT,
     },
     blur: { blurRadius: 16 },
     pen: {
@@ -348,6 +364,10 @@ type Validator = (v: unknown) => boolean;
 const isStr: Validator = (v) => typeof v === "string";
 const isBool: Validator = (v) => typeof v === "boolean";
 const isNum: Validator = (v) => typeof v === "number" && Number.isFinite(v);
+// Strictly positive — used where a zero/negative would break layout math (a
+// corrupted persisted lineHeight of 0 collapses the text box and line spacing).
+const isPosNum: Validator = (v) =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
 const isStrOrNull: Validator = (v) => v === null || typeof v === "string";
 const isValidAccelerator: Validator = (v) =>
   typeof v === "string" && validateAccelerator(v).ok;
@@ -521,6 +541,8 @@ function vTools(
       fontFamily: isStr,
       backgroundColor: isStrOrNull,
       backgroundPadding: isNum,
+      align: inSet("left", "center", "right"),
+      lineHeight: isPosNum,
     }, issues),
     blur: vsec("tools.blur", r.blur, def.blur, { blurRadius: isNum }, issues),
     sticker: vsec("tools.sticker", r.sticker, def.sticker, { fontSize: isNum }, issues),
@@ -615,6 +637,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     fontFamily: isStr,
     backgroundColor: isStrOrNull,
     backgroundPadding: isNum,
+    align: inSet("left", "center", "right"),
+    lineHeight: isPosNum,
   });
   keep("blur", { blurRadius: isNum });
   keep("sticker", { fontSize: isNum });
@@ -713,6 +737,8 @@ export type EffectiveTools = {
     fontFamily: string;
     backgroundColor: string | null;
     backgroundPadding: number;
+    align: TextAlign;
+    lineHeight: number;
   };
   blur: { blurRadius: number };
   pen: {
@@ -796,6 +822,8 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
           ? lu.text.backgroundColor
           : t.text.backgroundColor,
       backgroundPadding: lu?.text?.backgroundPadding ?? t.text.backgroundPadding,
+      align: lu?.text?.align ?? t.text.align,
+      lineHeight: lu?.text?.lineHeight ?? t.text.lineHeight,
     },
     blur: {
       blurRadius: lu?.blur?.blurRadius ?? t.blur.blurRadius,

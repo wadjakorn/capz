@@ -132,6 +132,7 @@ export type MagnifyAnnotation = Base & {
 };
 
 export type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
+export type TextAlign = "left" | "center" | "right";
 export type TextDecoration =
   | ""
   | "underline"
@@ -151,6 +152,10 @@ export type TextAnnotation = Base & {
   backgroundColor?: string | null;
   /** Horizontal background padding in image px (vertical is derived). Absent = default. */
   bgPadding?: number;
+  /** Horizontal alignment for multi-line text. Absent = "left" (back-compat). */
+  align?: TextAlign;
+  /** Line-height multiplier (× fontSize). Absent = config default (~1.35). */
+  lineHeight?: number;
 };
 
 export type BlurAnnotation = Base & {

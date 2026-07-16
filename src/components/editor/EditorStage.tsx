@@ -49,7 +49,12 @@ import {
   setScrollContainer,
 } from "@/lib/stageBridge";
 import { toast } from "sonner";
-import { effectiveTools, type AppConfig } from "@/lib/config";
+import {
+  effectiveTools,
+  THAI_SANS_STACK,
+  DEFAULT_TEXT_LINE_HEIGHT,
+  type AppConfig,
+} from "@/lib/config";
 import { canvasFill, paddedBox } from "@/lib/backdrop";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
@@ -152,6 +157,8 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           fontFamily: a.fontFamily,
           backgroundColor: a.backgroundColor,
           backgroundPadding: a.bgPadding,
+          align: a.align,
+          lineHeight: a.lineHeight,
         },
       };
     case "blur":
@@ -1018,6 +1025,8 @@ export function EditorStage({ src }: Props) {
         fontFamily: toolsCfg.text.fontFamily,
         backgroundColor: toolsCfg.text.backgroundColor,
         bgPadding: toolsCfg.text.backgroundPadding,
+        align: toolsCfg.text.align,
+        lineHeight: toolsCfg.text.lineHeight,
       };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1740,6 +1749,8 @@ export function EditorStage({ src }: Props) {
         const teStyle = editing?.fontStyle ?? toolsCfg.text.fontStyle;
         const teDeco = editing?.textDecoration ?? toolsCfg.text.textDecoration;
         const teFamily = editing?.fontFamily ?? toolsCfg.text.fontFamily;
+        const teAlign = editing?.align ?? toolsCfg.text.align;
+        const teLineHeight = editing?.lineHeight ?? toolsCfg.text.lineHeight;
         const teBg =
           editing?.backgroundColor !== undefined
             ? editing.backgroundColor
@@ -1769,6 +1780,8 @@ export function EditorStage({ src }: Props) {
             top: textEditor.screenY,
             fontFamily: teFamily,
             fontSize: Math.max(14, teFontSize * scale),
+            lineHeight: teLineHeight,
+            textAlign: teAlign,
             fontWeight: bold ? 700 : 400,
             fontStyle: italic ? "italic" : "normal",
             textDecoration: teDeco || "none",
@@ -2590,25 +2603,27 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   const padY = bg ? Math.round(padX * 0.66) : 0;
   const fontStyle = a.fontStyle ?? "normal";
   const textDecoration = a.textDecoration ?? "";
-  const fontFamily = a.fontFamily ?? "system-ui, sans-serif";
+  const fontFamily = a.fontFamily ?? THAI_SANS_STACK;
+  const align = a.align ?? "left";
+  const lineHeight = a.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT;
 
-  // Size the background Rect from real glyph ink (handles tall/stacked scripts
-  // like Thai) plus padding, and offset the Text by its baseline so the ink
-  // sits exactly inside the Rect with even padding — Konva's em-box metrics
-  // would otherwise let stacked marks overflow.
+  // Size the content box to Konva's own line-box height (lines × lineHeight ×
+  // fontSize) — the Text node's intrinsic height. Matching it means the
+  // background Rect, the Text node, and the selection/transformer all coincide
+  // at any lineHeight, so the transformer hugs the visible background + padding.
+  // (An ink-tight height made the transformer overshoot by the line leading; a
+  // smaller explicit height on <Text> would make Konva truncate overflow lines.)
+  // Width still comes from real glyph ink (max advance across lines) so it hugs
+  // tall/stacked scripts like Thai and drives per-line alignment.
   const box = useMemo(() => {
     const ink = measureTextInk(a.text, a.fontSize, fontStyle, fontFamily);
     const lines = (a.text || " ").split("\n").length;
-    const lineGap = a.fontSize; // Konva default line height (1.0 × fontSize)
-    const innerH = ink.ascent + ink.descent + (lines - 1) * lineGap;
-    const w = ink.width + padX * 2;
+    const innerW = Math.ceil(ink.width);
+    const innerH = Math.ceil(lines * a.fontSize * lineHeight);
+    const w = innerW + padX * 2;
     const h = innerH + padY * 2;
-    // Konva (non-legacy) draws line 0's alphabetic baseline at this offset from
-    // the Text node's top; shift the node so that baseline puts the ink top at padY.
-    const konvaBaseline = (ink.fontAscent - ink.fontDescent) / 2 + a.fontSize / 2;
-    const textY = padY + ink.ascent - konvaBaseline;
-    return { w, h, textY };
-  }, [a.text, a.fontSize, fontStyle, fontFamily, padX, padY]);
+    return { w, h, innerW, innerH };
+  }, [a.text, a.fontSize, fontStyle, fontFamily, lineHeight, padX, padY]);
 
   const cornerRadius = bg
     ? Math.min(22, Math.max(6, Math.round(Math.min(box.w, box.h) * 0.18)))
@@ -2666,9 +2681,13 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       )}
       <Text
         x={padX}
-        y={box.textY}
+        y={padY}
+        width={box.innerW}
         text={a.text}
         fontSize={a.fontSize}
+        lineHeight={lineHeight}
+        align={align}
+        wrap="none"
         fill={a.fill}
         fontStyle={fontStyle}
         textDecoration={textDecoration}
