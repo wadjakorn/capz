@@ -34,6 +34,9 @@ import {
   Italic,
   Underline,
   Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   Settings as SettingsIcon,
   Ruler,
   ScanText,
@@ -59,6 +62,7 @@ import {
   type FreehandMode,
   type MagnifyShape,
   type ArrowHeads,
+  type TextAlign,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -66,7 +70,7 @@ import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
-import { effectiveTools, type AppConfig } from "@/lib/config";
+import { effectiveTools, THAI_SANS_STACK, type AppConfig } from "@/lib/config";
 import { ToolButton } from "./toolbar/ToolButton";
 import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
@@ -112,10 +116,14 @@ const TOOLS: ToolDef[] = [
 ];
 
 const FONT_FAMILIES: { label: string; value: string }[] = [
-  { label: "Sans", value: "system-ui, sans-serif" },
-  { label: "Serif", value: "serif" },
-  { label: "Mono", value: "ui-monospace, monospace" },
-  { label: "Cursive", value: "cursive" },
+  // "Sans" leads with Noto Sans Thai so Thai glyphs render cleanly; falls back
+  // to the system sans for Latin. The other families append Noto Sans Thai as a
+  // last resort so Thai still renders (per-glyph fallback) without a loaded
+  // serif/mono/cursive Thai face.
+  { label: "Sans", value: THAI_SANS_STACK },
+  { label: "Serif", value: 'serif, "Noto Sans Thai"' },
+  { label: "Mono", value: 'ui-monospace, monospace, "Noto Sans Thai"' },
+  { label: "Cursive", value: 'cursive, "Noto Sans Thai"' },
 ];
 
 type TextFontStyle = "normal" | "bold" | "italic" | "italic bold";
@@ -243,11 +251,15 @@ export function Toolbar({
     fontFamily: string;
     backgroundColor: string | null;
     bgPadding: number;
+    align: TextAlign;
+    lineHeight: number;
     setFontStyle: (v: TextFontStyle) => void;
     setTextDecoration: (v: TextDecoration) => void;
     setFontFamily: (v: string) => void;
     setBackgroundColor: (v: string | null) => void;
     setBgPadding: (v: number) => void;
+    setAlign: (v: TextAlign) => void;
+    setLineHeight: (v: number) => void;
   };
   type PinShapeCtx = {
     value: PinShapeKind;
@@ -578,6 +590,8 @@ export function Toolbar({
         fontFamily: toolsCfg.text.fontFamily,
         backgroundColor: toolsCfg.text.backgroundColor,
         backgroundPadding: toolsCfg.text.backgroundPadding,
+        align: toolsCfg.text.align,
+        lineHeight: toolsCfg.text.lineHeight,
       });
       colorCtx = {
         label: "Color",
@@ -604,12 +618,16 @@ export function Toolbar({
       const curDeco = (selected.textDecoration ?? "") as TextDecoration;
       const curFamily = selected.fontFamily ?? toolsCfg.text.fontFamily;
       const curBg = selected.backgroundColor ?? null;
+      const curAlign = selected.align ?? toolsCfg.text.align;
+      const curLineHeight = selected.lineHeight ?? toolsCfg.text.lineHeight;
       textStyleCtx = {
         fontStyle: curStyle,
         textDecoration: curDeco,
         fontFamily: curFamily,
         backgroundColor: curBg,
         bgPadding: selected.bgPadding ?? toolsCfg.text.backgroundPadding,
+        align: curAlign,
+        lineHeight: curLineHeight,
         setFontStyle: (v) => {
           updateAnnotation(selected.id, { fontStyle: v });
           if (remember) patchLastUsed({ text: { fontStyle: v } });
@@ -634,6 +652,16 @@ export function Toolbar({
           updateAnnotation(selected.id, { bgPadding: v });
           if (remember) patchLastUsed({ text: { backgroundPadding: v } });
           else void updateSettings("tools", { text: { ...baseText(), backgroundPadding: v } });
+        },
+        setAlign: (v) => {
+          updateAnnotation(selected.id, { align: v });
+          if (remember) patchLastUsed({ text: { align: v } });
+          else void updateSettings("tools", { text: { ...baseText(), align: v } });
+        },
+        setLineHeight: (v) => {
+          updateAnnotation(selected.id, { lineHeight: v });
+          if (remember) patchLastUsed({ text: { lineHeight: v } });
+          else void updateSettings("tools", { text: { ...baseText(), lineHeight: v } });
         },
       };
     } else if (selected.type === "pin") {
@@ -967,6 +995,8 @@ export function Toolbar({
       fontFamily: toolsCfg.text.fontFamily,
       backgroundColor: toolsCfg.text.backgroundColor,
       backgroundPadding: toolsCfg.text.backgroundPadding,
+      align: toolsCfg.text.align,
+      lineHeight: toolsCfg.text.lineHeight,
     });
     colorCtx = {
       label: "Color",
@@ -993,6 +1023,8 @@ export function Toolbar({
       fontFamily: toolsCfg.text.fontFamily,
       backgroundColor: toolsCfg.text.backgroundColor,
       bgPadding: toolsCfg.text.backgroundPadding,
+      align: toolsCfg.text.align,
+      lineHeight: toolsCfg.text.lineHeight,
       setFontStyle: (v) => {
         if (remember) patchLastUsed({ text: { fontStyle: v } });
         else void updateSettings("tools", { text: { ...baseText(), fontStyle: v } });
@@ -1012,6 +1044,14 @@ export function Toolbar({
       setBgPadding: (v) => {
         if (remember) patchLastUsed({ text: { backgroundPadding: v } });
         else void updateSettings("tools", { text: { ...baseText(), backgroundPadding: v } });
+      },
+      setAlign: (v) => {
+        if (remember) patchLastUsed({ text: { align: v } });
+        else void updateSettings("tools", { text: { ...baseText(), align: v } });
+      },
+      setLineHeight: (v) => {
+        if (remember) patchLastUsed({ text: { lineHeight: v } });
+        else void updateSettings("tools", { text: { ...baseText(), lineHeight: v } });
       },
     };
   } else if (tool === "pin") {
@@ -1915,6 +1955,26 @@ export function Toolbar({
               {togBtn(ul, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul)), "Underline", Underline)}
               {togBtn(st, () => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st)), "Strike", Strikethrough)}
             </div>
+            <div className="flex items-center gap-0.5" role="group" aria-label="Text alignment">
+              {togBtn(tsc.align === "left", () => tsc.setAlign("left"), "Align left", AlignLeft)}
+              {togBtn(tsc.align === "center", () => tsc.setAlign("center"), "Align center", AlignCenter)}
+              {togBtn(tsc.align === "right", () => tsc.setAlign("right"), "Align right", AlignRight)}
+            </div>
+            <label className="flex items-center gap-1 text-xs text-foreground/80" title="Line spacing">
+              Line
+              <input
+                type="range"
+                min={1}
+                max={2.5}
+                step={0.05}
+                value={tsc.lineHeight}
+                onChange={(e) => tsc.setLineHeight(parseFloat(e.target.value))}
+                className="h-1 w-16 cursor-pointer accent-[var(--accent)]"
+              />
+              <span className="w-7 text-right tabular-nums">
+                {tsc.lineHeight.toFixed(2)}
+              </span>
+            </label>
             <label className="flex items-center gap-1.5 text-xs text-foreground/80" title="Font family">
               Font
               <select
