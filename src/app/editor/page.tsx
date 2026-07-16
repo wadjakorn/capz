@@ -8,8 +8,10 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
+import { CaptureConflictDialog } from "@/components/editor/CaptureConflictDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor, type CaptureSource } from "@/stores/editor";
+import { routeIncomingCapture } from "@/lib/captureRouting";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
 import {
@@ -33,6 +35,7 @@ export default function EditorPage() {
   const [src, setSrc] = useState("");
   const [view, setView] = useState<View>("editor");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [conflict, setConflict] = useState<{ path: string; source: CaptureSource } | null>(null);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
   const openRecovery = useCallback(() => setRecoveryOpen(true), []);
@@ -92,6 +95,46 @@ export default function EditorPage() {
     useEditor.getState().setNextPinNumber(start);
   }, [resetEditor, setHasImage]);
 
+  // Add path: keep the current canvas and layer the new capture as a movable
+  // overlay object. We embed the capture as a data URL (mirroring paste and
+  // desktop file-import) so the overlay is self-contained and does not depend
+  // on the temp file — which Rust's `state.swap` already deleted for the prior
+  // base and will clean for this one on editor close. Does NOT reset the editor,
+  // so annotations/crop/zoom/base image are preserved.
+  const addCaptureAsOverlay = useCallback(async (path: string) => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const dataUrl = await invoke<string>("read_image_file_data_url", { path });
+      const { addOverlayImage } = await import("@/lib/addImage");
+      const id = await addOverlayImage(dataUrl);
+      if (!id) toast.error("Couldn't add the new capture");
+    } catch (err) {
+      console.error("add capture as overlay failed", err);
+      toast.error("Couldn't add the new capture", { description: String(err) });
+    }
+  }, []);
+
+  // Route an incoming capture. Empty canvas → the capture becomes the base
+  // image with no prompt (current behavior). Non-empty canvas → prompt with
+  // Replace / Add rather than silently wiping the user's work; the choice is
+  // handled by the CaptureConflictDialog.
+  const handleIncomingCapture = useCallback(
+    (path: string | null, source: CaptureSource = "other") => {
+      switch (routeIncomingCapture(path, useEditor.getState().hasImage)) {
+        case "clear":
+          void applyFile(null);
+          return;
+        case "base":
+          void applyFile(path, source);
+          return;
+        case "prompt":
+          setConflict({ path: path as string, source });
+          return;
+      }
+    },
+    [applyFile],
+  );
+
   useEffect(() => {
     (async () => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -143,16 +186,16 @@ export default function EditorPage() {
           // Payload is `{ path, source }`; tolerate a bare string (legacy).
           const p = e.payload;
           if (typeof p === "string") {
-            void applyFile(p);
+            handleIncomingCapture(p);
           } else {
-            void applyFile(p.path, p.source ?? "other");
+            handleIncomingCapture(p.path, p.source ?? "other");
           }
           setView("editor");
         },
       );
     })();
     return () => unlisten?.();
-  }, [applyFile]);
+  }, [handleIncomingCapture]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -386,6 +429,20 @@ export default function EditorPage() {
       <InertGrantRecoveryDialog
         open={recoveryOpen}
         onClose={() => setRecoveryOpen(false)}
+      />
+      <CaptureConflictDialog
+        open={conflict !== null}
+        onReplace={() => {
+          const c = conflict;
+          setConflict(null);
+          if (c) void applyFile(c.path, c.source);
+        }}
+        onAdd={() => {
+          const c = conflict;
+          setConflict(null);
+          if (c) void addCaptureAsOverlay(c.path);
+        }}
+        onCancel={() => setConflict(null)}
       />
     </div>
   );
