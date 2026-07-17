@@ -31,6 +31,7 @@ type HotkeyPatch = {
   captureArea?: string;
   captureWindow?: string;
   captureScroll?: string;
+  captureSystemArea?: string;
   showEditor?: string;
   commandRing?: string;
 };
@@ -40,6 +41,7 @@ const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
   captureArea: "Capture area",
   captureWindow: "Capture window",
   captureScroll: "Scrolling capture",
+  captureSystemArea: "System area capture (macOS)",
   showEditor: "Show editor",
   commandRing: "Command ring",
 };
@@ -233,6 +235,19 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   }
                 />
               </FieldRow>
+              {IS_MAC && (
+                <FieldRow label="System area capture (macOS)">
+                  <HotkeyRecorder
+                    value={config.hotkeys.captureSystemArea}
+                    clearable
+                    onChange={(v) =>
+                      applyHotkey(useSettings.getState, update, {
+                        captureSystemArea: v,
+                      })
+                    }
+                  />
+                </FieldRow>
+              )}
               <FieldRow label="Capture window">
                 <HotkeyRecorder
                   value={config.hotkeys.captureWindow}

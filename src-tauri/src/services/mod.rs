@@ -3,6 +3,8 @@ pub mod config_store;
 pub mod image_service;
 pub mod monitor_service;
 pub mod ocr;
+#[cfg(target_os = "macos")]
+pub mod screencapture;
 pub mod sound;
 pub mod stitch;
 pub mod synthetic_scroll;
