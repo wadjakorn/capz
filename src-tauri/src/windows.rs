@@ -199,7 +199,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
                 if !any_overlay {
                     break;
                 }
-                let pt = unsafe { cursor_cg_point() };
+                let pt = monitor_service::cursor_position();
                 let Some(pt) = pt else { continue };
                 let hit = labels
                     .iter()
@@ -226,27 +226,6 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     }
 
     Ok(())
-}
-
-/// Read current cursor position, convert to CG top-left coords (matching xcap monitor x/y).
-/// Returns None on failure.
-#[cfg(target_os = "macos")]
-unsafe fn cursor_cg_point() -> Option<(f64, f64)> {
-    use objc2::{class, msg_send, runtime::AnyObject};
-    use objc2_foundation::{NSPoint, NSRect};
-    let pt: NSPoint = msg_send![class!(NSEvent), mouseLocation];
-    let screens: *mut AnyObject = msg_send![class!(NSScreen), screens];
-    if screens.is_null() {
-        return None;
-    }
-    let count: usize = msg_send![screens, count];
-    if count == 0 {
-        return None;
-    }
-    let primary: *mut AnyObject = msg_send![screens, objectAtIndex: 0usize];
-    let frame: NSRect = msg_send![primary, frame];
-    let h_primary = frame.size.height;
-    Some((pt.x, h_primary - pt.y))
 }
 
 /// Window label for the radial command ring. Distinct from the `overlay-*`
@@ -302,8 +281,8 @@ pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Err(tauri::Error::Anyhow(anyhow::anyhow!("no monitors")));
     }
 
-    // Build hidden first: on Windows/Linux `cursor_position()` needs a live
-    // window. We reposition + reveal once the cursor's display is known.
+    // Build hidden first, then reposition + reveal once the cursor's display is
+    // known (the cursor is read window-free via `monitor_service::cursor_position`).
     let win = WebviewWindowBuilder::new(app, COMMAND_RING_LABEL, WebviewUrl::App("ring/".into()))
         .title("capz — Command ring")
         .transparent(true)
@@ -317,11 +296,9 @@ pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .build()?;
 
     // Cursor in the same space xcap reports monitors: logical CG points on
-    // macOS, physical pixels on Windows/Linux.
-    #[cfg(target_os = "macos")]
-    let cursor: Option<(f64, f64)> = unsafe { cursor_cg_point() };
-    #[cfg(not(target_os = "macos"))]
-    let cursor: Option<(f64, f64)> = win.cursor_position().ok().map(|p| (p.x, p.y));
+    // macOS, physical pixels on Windows. Resolved without the window (Win32
+    // GetCursorPos / NSEvent) so it matches `dispatch_full`'s monitor pick.
+    let cursor: Option<(f64, f64)> = monitor_service::cursor_position();
 
     // Display under the cursor; fall back to primary, then first.
     let disp = cursor
