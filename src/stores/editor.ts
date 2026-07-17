@@ -24,7 +24,13 @@ export type Tool =
 export type ImageCrop = { x: number; y: number; w: number; h: number };
 
 /** Which capture opened the current editor image (mirrors Rust CaptureSource). */
-export type CaptureSource = "full" | "area" | "window" | "scroll" | "other";
+export type CaptureSource =
+  | "full"
+  | "area"
+  | "window"
+  | "scroll"
+  | "systemArea"
+  | "other";
 
 type Base = { id: string; rotation?: number };
 

@@ -7,6 +7,7 @@ import {
   AppWindow,
   ChevronDown,
   ScrollText,
+  Crosshair,
   type LucideIcon,
 } from "lucide-react";
 import { currentPlatform, formatShortcut, type Platform } from "@/lib/shortcuts";
@@ -31,6 +32,8 @@ export function CaptureSplitButton({
   lastKind,
   onCapture,
   onScrollCapture,
+  onSystemAreaCapture,
+  systemAreaAccelerator,
   accelerators,
 }: {
   lastKind: CaptureKind;
@@ -38,6 +41,13 @@ export function CaptureSplitButton({
   /** Start a scrolling (long-page) capture. Kept out of `CaptureKind` so it
    * never becomes the persisted primary/last kind. */
   onScrollCapture?: () => void;
+  /** Start a macOS system area capture (`screencapture -i`) — a separate mode
+   * from the remembered-region area capture. Kept out of `CaptureKind` so it
+   * never becomes the persisted primary/last kind, and only passed on macOS
+   * (the caller gates on platform), so the item is hidden elsewhere. */
+  onSystemAreaCapture?: () => void;
+  /** Accelerator glyph for the system area item (may be "" when unbound). */
+  systemAreaAccelerator?: string;
   accelerators: Record<CaptureKind, string>;
 }) {
   const primary = KINDS.find((k) => k.kind === lastKind) ?? KINDS[0];
@@ -89,6 +99,20 @@ export function CaptureSplitButton({
               </DropdownMenuItem>
             );
           })}
+          {onSystemAreaCapture ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onSystemAreaCapture()}>
+                <Crosshair aria-hidden />
+                <span>System area capture</span>
+                {systemAreaAccelerator ? (
+                  <DropdownMenuShortcut>
+                    {formatShortcut(systemAreaAccelerator, platform)}
+                  </DropdownMenuShortcut>
+                ) : null}
+              </DropdownMenuItem>
+            </>
+          ) : null}
           {onScrollCapture ? (
             <>
               <DropdownMenuSeparator />

@@ -506,6 +506,10 @@ pub enum CaptureSource {
     Area,
     Window,
     Scroll,
+    /// macOS system area capture (`screencapture -i`). A separate mode from
+    /// `Area`: it does not use the remembered-region template / continuous
+    /// re-capture flow, so it is tagged distinctly end-to-end.
+    SystemArea,
     Other,
 }
 
@@ -516,6 +520,7 @@ impl CaptureSource {
             CaptureSource::Area => "area",
             CaptureSource::Window => "window",
             CaptureSource::Scroll => "scroll",
+            CaptureSource::SystemArea => "systemArea",
             CaptureSource::Other => "other",
         }
     }

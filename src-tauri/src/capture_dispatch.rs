@@ -113,9 +113,9 @@ pub async fn trigger_capture<R: Runtime>(
 /// Runs the (blocking, user-paced) selection off the main thread. On success we
 /// reuse `capture_to_editor` so we inherit the intermediate-format setting, tray
 /// busy/idle state, correct `capz-temp-*` naming, and temp-file bookkeeping. The
-/// image is tagged `CaptureSource::Area` — from the editor's perspective a system
-/// area capture *is* an area capture (same backdrop/auto-crop behavior); there is
-/// no user-visible reason to distinguish it downstream.
+/// image is tagged `CaptureSource::SystemArea` — a mode distinct from the
+/// remembered-region area capture (which serves continuous re-capture of one
+/// region); this is a one-shot system selection.
 #[cfg(target_os = "macos")]
 fn dispatch_system_area<R: Runtime>(app: &AppHandle<R>) {
     let app = app.clone();
@@ -125,7 +125,7 @@ fn dispatch_system_area<R: Runtime>(app: &AppHandle<R>) {
                 if let Err(e) = crate::commands::capture::capture_to_editor(
                     app.clone(),
                     "capture_system_area".into(),
-                    windows::CaptureSource::Area,
+                    windows::CaptureSource::SystemArea,
                     move || Ok(img),
                 )
                 .await

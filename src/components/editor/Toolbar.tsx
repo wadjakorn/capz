@@ -63,6 +63,11 @@ import type {
 } from "./toolbar/panels/types";
 import { isTauriRuntime } from "@/lib/platform";
 
+// macOS-only: the system area capture mode delegates to `screencapture -i`,
+// which exists only on macOS. Guarded for prerender (navigator is absent).
+const IS_MAC =
+  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
 const TOOLS: ToolDef[] = [
@@ -1298,6 +1303,29 @@ export function Toolbar({
                   }
                 })();
               }}
+              onSystemAreaCapture={
+                IS_MAC
+                  ? () => {
+                      void (async () => {
+                        try {
+                          const { invoke } = await import("@tauri-apps/api/core");
+                          await invoke("trigger_capture_command", {
+                            kind: "systemArea",
+                          });
+                        } catch (err) {
+                          console.error(
+                            "trigger_capture_command(systemArea) failed",
+                            err,
+                          );
+                          toast.error("System area capture failed", {
+                            description: String(err),
+                          });
+                        }
+                      })();
+                    }
+                  : undefined
+              }
+              systemAreaAccelerator={fullConfig.hotkeys.captureSystemArea}
               accelerators={captureAccelerators}
             />
             <Divider />

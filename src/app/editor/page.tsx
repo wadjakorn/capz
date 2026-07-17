@@ -81,7 +81,7 @@ export default function EditorPage() {
     const autoBackdrop =
       source === "full"
         ? bd.autoForFull
-        : source === "area"
+        : source === "area" || source === "systemArea"
           ? bd.autoForArea
           : source === "window"
             ? bd.autoForWindow
