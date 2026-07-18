@@ -6,7 +6,7 @@
 > by registering everything once at startup and never touching the plugin again.
 >
 > v2 bindings: `Cmd+Shift+A` cycle · `Cmd+Shift+Enter` commit ·
-> `Cmd+Shift+Delete` cancel · 6s idle auto-cancel (never fires a capture).
+> `Cmd+Shift+Backspace` cancel · 6s idle auto-cancel (never fires a capture).
 
 Throwaway spike. Record empirical results here as they land.
 
@@ -118,3 +118,40 @@ key — it is `<leader modifiers> + <key>`. Two things follow:
 ## F4 — teardown leaves no keys registered (Q4)
 Partially observed: disarm logged success for all four slots. Not yet stress-
 tested against the F5 race or an exit mid-gesture.
+
+## F7 — CONFIRMED: the ring window is reused, and the reused mode is sticky
+
+Observed macOS 2026-07-18: "sometimes the ring is gone but the log still shows
+output when I press the cycle key" — i.e. POC state said the ring was up while
+no window was on screen.
+
+**Cause:** `show_command_ring_ex` reuses an existing `command-ring` window
+rather than rebuilding it. The two modes load DIFFERENT URLs (`ring/` vs
+`ring/?poc=1`), and only the `?poc=1` build skips the focus-grab and blur-close.
+The v1 ring hotkey is still registered, so if v1 opened the ring first, the POC
+reused a v1-built webview — which still had its blur-close listener and, being
+unfocused, closed itself immediately while the POC state stayed `Some`.
+
+**Fix applied:** track the mode the live window was built in and rebuild on a
+mismatch.
+
+**Consequence for the real feature:** if v1 and v2 rings coexist (they are
+planned to — separate config entries), they CANNOT share one reused window
+unless the behavioural differences move out of the URL and into runtime state.
+Either give v2 its own window label, or make the ring page mode-switchable at
+runtime. Reuse-with-different-URL is a trap.
+
+## F8 — `Delete` is the wrong accelerator on macOS
+The key labelled "delete" on Mac keyboards is Backspace; Tauri's `Delete` is
+forward-delete, which many Mac keyboards lack entirely. Cancel moved to
+`Cmd+Shift+Backspace`. Worth remembering for any default binding.
+
+## F9 — OPEN: the ring does not close when the user stops holding
+Reported as surprising: "it's not gone when I unhold". This is inherent, not a
+bug — F2 established that modifier release is unobservable, so there is nothing
+to close on. v2 is explicitly not a hold gesture; the ring persists until
+commit, cancel, or the idle timeout.
+
+**This is a genuine UX mismatch to resolve before implementation.** The user's
+instinct is that the ring belongs to the hold. If that instinct is strong, the
+cycle-and-commit model may simply feel wrong regardless of how well it works.

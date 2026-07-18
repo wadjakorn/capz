@@ -16,7 +16,7 @@
 //!
 //!   Cmd+Shift+A      cycle — opens the ring, then advances the highlight
 //!   Cmd+Shift+Enter  commit — fires the highlighted mode
-//!   Cmd+Shift+Delete cancel — closes the ring, captures nothing
+//!   Cmd+Shift+Backspace cancel — closes the ring, captures nothing
 //!
 //! Consequences: no transient arm/disarm, so F1's deadlock constraint and F5's
 //! key-leak race are both designed out rather than worked around. Nothing is
@@ -43,7 +43,9 @@ use crate::windows;
 
 const CYCLE: &str = "CmdOrCtrl+Shift+A";
 const COMMIT: &str = "CmdOrCtrl+Shift+Enter";
-const CANCEL: &str = "CmdOrCtrl+Shift+Delete";
+// Backspace, not Delete: the key labelled "delete" on Mac keyboards IS
+// Backspace. Tauri's `Delete` is forward-delete, which many Macs lack entirely.
+const CANCEL: &str = "CmdOrCtrl+Shift+Backspace";
 
 /// Cycle order. Matches the ring's clockwise-from-top wedge order so the
 /// highlight visibly walks around the ring rather than jumping.

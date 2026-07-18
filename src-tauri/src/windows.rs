@@ -278,14 +278,30 @@ pub fn show_command_ring_unfocused<R: Runtime>(app: &AppHandle<R>) -> tauri::Res
     show_command_ring_ex(app, false)
 }
 
+/// Whether the live ring window was built in POC (unfocused) mode. The window is
+/// REUSED across opens, and the two modes load different URLs — a `?poc=1` build
+/// skips the focus-grab and blur-close. Reusing a window built in the other mode
+/// silently gives the wrong behaviour: a v1-built ring reused by the POC keeps
+/// its blur-close listener and, being unfocused, immediately closes itself while
+/// the POC still believes it is open. Track the mode and rebuild on a mismatch.
+static RING_BUILT_UNFOCUSED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::Result<()> {
+    use std::sync::atomic::Ordering;
     if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
-        let _ = win.show();
-        if focus {
-            let _ = win.set_focus();
+        if RING_BUILT_UNFOCUSED.load(Ordering::SeqCst) == focus {
+            log::info!("command ring: mode changed, rebuilding window");
+            let _ = win.close();
+        } else {
+            let _ = win.show();
+            if focus {
+                let _ = win.set_focus();
+            }
+            return Ok(());
         }
-        return Ok(());
     }
+    RING_BUILT_UNFOCUSED.store(!focus, Ordering::SeqCst);
 
     let mons = monitor_service::list_monitors()
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("list monitors: {e}")))?;
