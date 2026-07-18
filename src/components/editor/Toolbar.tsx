@@ -25,7 +25,7 @@ import {
   ImageDown,
   type LucideIcon,
 } from "lucide-react";
-import { formatShortcut } from "@/lib/shortcuts";
+import { formatShortcut, currentPlatform } from "@/lib/shortcuts";
 import {
   useEditor,
   STICKERS,
@@ -64,9 +64,9 @@ import type {
 import { isTauriRuntime } from "@/lib/platform";
 
 // macOS-only: the system area capture mode delegates to `screencapture -i`,
-// which exists only on macOS. Guarded for prerender (navigator is absent).
-const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+// which exists only on macOS. `currentPlatform` is prerender-safe (navigator is
+// absent during static export) and handles the deprecated `navigator.platform`.
+const IS_MAC = currentPlatform() === "mac";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 

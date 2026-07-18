@@ -16,7 +16,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
-import { statusMessage, type RegoResult, type HotkeyAction } from "@/lib/shortcuts";
+import {
+  statusMessage,
+  currentPlatform,
+  type RegoResult,
+  type HotkeyAction,
+} from "@/lib/shortcuts";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
@@ -110,8 +115,7 @@ type SettingsViewProps = {
   onOpenInertRecovery?: () => void;
 };
 
-const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+const IS_MAC = currentPlatform() === "mac";
 
 export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
   const { config, ready, init, update, reset } = useSettings();
