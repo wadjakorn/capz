@@ -13,7 +13,7 @@ export function currentPlatform(): Platform {
 }
 
 // ---- IPC types (hand-mirrored from Rust; keep in sync with shortcuts.rs) ----
-export type RegoStatus = "ok" | "invalid" | "taken" | "reserved";
+export type RegoStatus = "ok" | "invalid" | "taken";
 export type HotkeyAction =
   | "captureFull"
   | "captureArea"
@@ -80,7 +80,11 @@ const MODIFIERS = new Set([
   "Shift",
 ]);
 
-const RESERVED_MAC = new Set([
+// Combos the OS shell normally owns. CP-0037(a): these are a WARNING, not a
+// refusal — Cmd+Shift+3/4/5 in particular are user-disableable in System
+// Settings, so a user who turned them off can legitimately claim them. The
+// live registration attempt (reported as "taken") is the real authority.
+const OS_OWNED_MAC = new Set([
   "Cmd+Space",
   "Cmd+Tab",
   "Cmd+Q",
@@ -89,7 +93,7 @@ const RESERVED_MAC = new Set([
   "Cmd+Shift+5",
 ]);
 
-const RESERVED_WIN = new Set([
+const OS_OWNED_WIN = new Set([
   "CmdOrCtrl+Shift+Escape",
   "Alt+Tab",
   "Alt+Shift+Tab",
@@ -105,11 +109,21 @@ export function formatShortcut(accel: string, platform: Platform = currentPlatfo
   return platform === "mac" ? parts.join("") : parts.join("+");
 }
 
-export function isReserved(accel: string, platform: Platform = currentPlatform()): boolean {
+// True when the OS shell usually owns this combo. Advisory only — callers
+// warn and still allow the binding. Mirrors `RESERVED_MAC`/`RESERVED_WIN` in
+// `src-tauri/src/accel.rs`; keep the two lists in sync by hand.
+export function isOsOwned(accel: string, platform: Platform = currentPlatform()): boolean {
   if (platform === "mac") {
-    return RESERVED_MAC.has(accel.replace(/CmdOrCtrl/g, "Cmd"));
+    return OS_OWNED_MAC.has(accel.replace(/CmdOrCtrl/g, "Cmd"));
   }
-  return RESERVED_WIN.has(accel);
+  return OS_OWNED_WIN.has(accel);
+}
+
+// Bare F13–F20 are bindable without a modifier: they carry no default OS or
+// app meaning and are the conventional capture-tool binding. Mirrors
+// `is_bare_high_function_key` in `src-tauri/src/accel.rs`.
+export function isBareHighFunctionKey(accel: string): boolean {
+  return /^F(1[3-9]|20)$/i.test(accel.trim());
 }
 
 export type AccelEvent = { ok: true; accel: string } | { ok: false; reason: "none" | "win" };
@@ -145,13 +159,17 @@ export function eventToAccelerator(
   if (e.altKey) parts.push("Alt");
   if (e.shiftKey) parts.push("Shift");
 
-  if (parts.length === 0) return { ok: false, reason: "none" };
-  return { ok: true, accel: [...parts, tokenFromEvent(e)].join("+") };
+  const token = tokenFromEvent(e);
+  // F13–F20 bind bare; everything else still needs a modifier.
+  if (parts.length === 0 && !isBareHighFunctionKey(token)) {
+    return { ok: false, reason: "none" };
+  }
+  return { ok: true, accel: [...parts, token].join("+") };
 }
 
 export type AccelValidation =
-  | { ok: true }
-  | { ok: false; reason: "invalid" | "reserved" | "win" | "no-modifier" };
+  | { ok: true; warning?: "os-owned" }
+  | { ok: false; reason: "invalid" | "win" | "no-modifier" };
 
 export function validateAccelerator(
   accel: string,
@@ -166,8 +184,10 @@ export function validateAccelerator(
   if (platform === "win" && parts.some((p) => p === "Cmd" || p === "Meta" || p === "Super")) {
     return { ok: false, reason: "win" };
   }
-  if (mods.length === 0) return { ok: false, reason: "no-modifier" };
-  if (isReserved(accel, platform)) return { ok: false, reason: "reserved" };
+  if (mods.length === 0 && !isBareHighFunctionKey(keys[0])) {
+    return { ok: false, reason: "no-modifier" };
+  }
+  if (isOsOwned(accel, platform)) return { ok: true, warning: "os-owned" };
   return { ok: true };
 }
 
@@ -176,9 +196,7 @@ export function statusMessage(accel: string, status: RegoStatus): string | null 
     case "ok":
       return null;
     case "taken":
-      return `${accel} is already used by another app`;
-    case "reserved":
-      return `${accel} is reserved by the OS`;
+      return `${accel} is already claimed by the OS or another app`;
     case "invalid":
       return `${accel} isn't a valid shortcut`;
   }

@@ -11,13 +11,16 @@ pub enum AccelClass {
     Valid,
     /// Unparseable, or violates the "≥1 modifier / single key / no Win" policy.
     Invalid,
-    /// Parses but collides with an OS-reserved combo we refuse to bind.
-    Reserved,
+    /// Parses, and we attempt registration anyway, but the OS shell usually
+    /// owns this combo. Callers should warn the user; the live registration
+    /// attempt stays the authority on whether it actually binds.
+    Discouraged,
 }
 
-/// Windows combos we refuse even though `RegisterHotKey` might accept them —
-/// binding them breaks core OS UX. Win+ combos are rejected separately (the
-/// SUPER modifier is disallowed on Windows), so this is the non-Win set.
+/// Windows combos the OS shell normally owns. Binding them is usually a bad
+/// idea, but it is the user's call — we warn and let `RegisterHotKey` have the
+/// final say. Win+ combos are rejected outright elsewhere (the SUPER modifier
+/// is disallowed on Windows), so this is the non-Win set.
 const RESERVED_WIN: &[&str] = &[
     "CmdOrCtrl+Shift+Escape", // Task Manager
     "Alt+Tab",
@@ -27,7 +30,10 @@ const RESERVED_WIN: &[&str] = &[
     "CmdOrCtrl+Escape",
 ];
 
-/// macOS combos the OS owns and silently swallows.
+/// macOS combos the OS normally owns and silently swallows. Cmd+Shift+3/4/5
+/// are user-disableable in System Settings > Keyboard > Shortcuts, so a user
+/// who has turned the system screenshot shortcuts off can legitimately claim
+/// them — hence warn rather than refuse.
 const RESERVED_MAC: &[&str] = &[
     "CmdOrCtrl+Space",
     "CmdOrCtrl+Tab",
@@ -51,6 +57,17 @@ fn is_reserved(sc: &Shortcut, is_windows: bool) -> bool {
 /// SUPER on macOS builds and CONTROL on Windows builds — a compile-time mapping
 /// that the parsed bit cannot distinguish from a real Win-key request. The
 /// recorder never emits these tokens; this guards injected/legacy config.
+/// True for bare F13–F20. These keys exist on full-size/extended keyboards,
+/// carry no default OS or app meaning, and are the conventional binding for
+/// capture tools — so they are the one exception to the ≥1-modifier rule.
+/// Checked on the raw token for the same reason as `has_win_token`.
+fn is_bare_high_function_key(accel: &str) -> bool {
+    matches!(
+        accel.trim().to_ascii_uppercase().as_str(),
+        "F13" | "F14" | "F15" | "F16" | "F17" | "F18" | "F19" | "F20"
+    )
+}
+
 fn has_win_token(accel: &str) -> bool {
     accel.split('+').any(|t| {
         matches!(
@@ -69,11 +86,12 @@ pub fn classify(accel: &str, is_windows: bool) -> AccelClass {
         return AccelClass::Invalid;
     };
     // Policy the parser does NOT enforce: a bare key would hijack it globally.
-    if sc.mods.is_empty() {
+    // F13–F20 are exempt — nothing else claims them.
+    if sc.mods.is_empty() && !is_bare_high_function_key(accel) {
         return AccelClass::Invalid;
     }
     if is_reserved(&sc, is_windows) {
-        return AccelClass::Reserved;
+        return AccelClass::Discouraged;
     }
     AccelClass::Valid
 }
@@ -114,9 +132,30 @@ mod tests {
         assert_eq!(classify("Super+Shift+S", true), AccelClass::Invalid);
     }
 
+    /// CP-0037(a). These used to be a hard refusal. They are now attempted —
+    /// the OS decides — so classification must be Discouraged, not Invalid.
     #[test]
-    fn reserved_mac_and_win() {
-        assert_eq!(classify("CmdOrCtrl+Space", false), AccelClass::Reserved);
-        assert_eq!(classify("Alt+Tab", true), AccelClass::Reserved);
+    fn os_owned_combos_are_discouraged_not_refused() {
+        for accel in ["CmdOrCtrl+Space", "CmdOrCtrl+Shift+3", "CmdOrCtrl+Shift+5"] {
+            assert_eq!(classify(accel, false), AccelClass::Discouraged, "{accel}");
+        }
+        for accel in ["Alt+Tab", "CmdOrCtrl+Shift+Escape"] {
+            assert_eq!(classify(accel, true), AccelClass::Discouraged, "{accel}");
+        }
+    }
+
+    /// CP-0037(a). Bare F13–F20 are bindable; every other bare key is not.
+    #[test]
+    fn bare_high_function_keys_accepted_others_still_rejected() {
+        for accel in ["F13", "F16", "F20", "f18"] {
+            assert_eq!(classify(accel, false), AccelClass::Valid, "{accel}");
+            assert_eq!(classify(accel, true), AccelClass::Valid, "{accel}");
+        }
+        // Just outside the range, and ordinary keys, stay modifier-gated.
+        for accel in ["F12", "F21", "A", "Space", "Escape"] {
+            assert_eq!(classify(accel, true), AccelClass::Invalid, "{accel}");
+        }
+        // The exemption is for BARE keys only — modified F13 is still fine.
+        assert_eq!(classify("CmdOrCtrl+F13", true), AccelClass::Valid);
     }
 }

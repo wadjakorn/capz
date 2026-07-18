@@ -43,7 +43,6 @@ pub enum RegoStatus {
     Ok,
     Invalid,
     Taken,
-    Reserved,
 }
 
 #[derive(Clone, Copy, Serialize, PartialEq, Eq, Debug)]
@@ -80,13 +79,17 @@ fn default_accel(action: HotkeyAction) -> &'static str {
 }
 
 /// Decide what to attempt registering for one action before any live call.
-/// Invalid/Reserved requests fall back to the action's default so the app
-/// stays usable; the returned status describes the REQUESTED value.
+/// Invalid requests fall back to the action's default so the app stays usable;
+/// the returned status describes the REQUESTED value.
+///
+/// CP-0037(a): a `Discouraged` combo (one the OS shell usually owns) is
+/// attempted like any other. If the OS really holds it, `register_one` fails
+/// and the caller reports `Taken` — the live attempt, not our hardcoded list,
+/// is the authority.
 pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (String, RegoStatus) {
     match classify(requested, is_windows) {
-        AccelClass::Valid => (requested.to_string(), RegoStatus::Ok),
+        AccelClass::Valid | AccelClass::Discouraged => (requested.to_string(), RegoStatus::Ok),
         AccelClass::Invalid => (default_accel(action).to_string(), RegoStatus::Invalid),
-        AccelClass::Reserved => (default_accel(action).to_string(), RegoStatus::Reserved),
     }
 }
 
@@ -281,8 +284,7 @@ pub fn probe_hotkey<R: Runtime>(app: AppHandle<R>, accel: String) -> HotkeyProbe
     let win = cfg!(target_os = "windows");
     let status = match classify(&accel, win) {
         AccelClass::Invalid => RegoStatus::Invalid,
-        AccelClass::Reserved => RegoStatus::Reserved,
-        AccelClass::Valid => match accel.parse::<Shortcut>() {
+        AccelClass::Valid | AccelClass::Discouraged => match accel.parse::<Shortcut>() {
             Ok(sc) => {
                 let gs = app.global_shortcut();
                 match gs.register(sc) {
@@ -381,11 +383,18 @@ mod tests {
         assert_eq!(st, RegoStatus::Invalid);
     }
 
+    /// CP-0037(a). An OS-owned combo is no longer swapped for the default at
+    /// plan time — we attempt exactly what was asked for and let registration
+    /// fail (reported as `Taken`) if the OS genuinely holds it.
     #[test]
-    fn reserved_request_falls_back_to_default() {
+    fn discouraged_request_is_attempted_as_is() {
         let (eff, st) = plan_one(HotkeyAction::CaptureWindow, "Alt+Tab", true);
-        assert_eq!(eff, DEFAULT_WINDOW);
-        assert_eq!(st, RegoStatus::Reserved);
+        assert_eq!(eff, "Alt+Tab");
+        assert_eq!(st, RegoStatus::Ok);
+
+        let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Shift+3", false);
+        assert_eq!(eff, "CmdOrCtrl+Shift+3");
+        assert_eq!(st, RegoStatus::Ok);
     }
 
     #[test]

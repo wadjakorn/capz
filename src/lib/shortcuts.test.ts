@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   eventToAccelerator,
   validateAccelerator,
-  isReserved,
+  isOsOwned,
   statusMessage,
 } from "./shortcuts";
 
@@ -68,8 +68,22 @@ describe("validateAccelerator", () => {
   it("rejects the Win key on Windows", () => {
     expect(validateAccelerator("Super+Shift+S", "win")).toEqual({ ok: false, reason: "win" });
   });
-  it("rejects a reserved combo", () => {
-    expect(validateAccelerator("Alt+Tab", "win")).toEqual({ ok: false, reason: "reserved" });
+  // CP-0037(a): OS-owned combos are allowed with a warning instead of refused,
+  // so the user can bind them after disabling the system shortcut.
+  it("allows an OS-owned combo but flags it", () => {
+    expect(validateAccelerator("Alt+Tab", "win")).toEqual({ ok: true, warning: "os-owned" });
+    expect(validateAccelerator("CmdOrCtrl+Shift+3", "mac")).toEqual({
+      ok: true,
+      warning: "os-owned",
+    });
+  });
+
+  // CP-0037(a): F13-F20 are the one bare-key exemption.
+  it("accepts bare F13-F20 but no other bare key", () => {
+    for (const k of ["F13", "F20"]) expect(validateAccelerator(k, "mac")).toEqual({ ok: true });
+    for (const k of ["F12", "F21"]) {
+      expect(validateAccelerator(k, "mac")).toEqual({ ok: false, reason: "no-modifier" });
+    }
   });
 });
 
@@ -77,17 +91,16 @@ describe("statusMessage", () => {
   it("returns null for ok and copy for failures", () => {
     expect(statusMessage("X", "ok")).toBeNull();
     expect(statusMessage("Ctrl+Shift+A", "taken")).toMatch(/another app/);
-    expect(statusMessage("Ctrl+Shift+A", "reserved")).toMatch(/reserved/);
     expect(statusMessage("Ctrl+Shift+A", "invalid")).toMatch(/valid/);
   });
 });
 
-describe("isReserved", () => {
+describe("isOsOwned", () => {
   it("uses the Windows set on win", () => {
-    expect(isReserved("Alt+Tab", "win")).toBe(true);
-    expect(isReserved("CmdOrCtrl+Space", "win")).toBe(false);
+    expect(isOsOwned("Alt+Tab", "win")).toBe(true);
+    expect(isOsOwned("CmdOrCtrl+Space", "win")).toBe(false);
   });
   it("uses the macOS set on mac", () => {
-    expect(isReserved("CmdOrCtrl+Space", "mac")).toBe(true);
+    expect(isOsOwned("CmdOrCtrl+Space", "mac")).toBe(true);
   });
 });
