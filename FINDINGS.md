@@ -6,7 +6,7 @@
 > by registering everything once at startup and never touching the plugin again.
 >
 > v2 bindings: `Cmd+Shift+A` cycle · `Cmd+Shift+Enter` commit ·
-> `Cmd+Shift+Backspace` cancel · 6s idle auto-cancel (never fires a capture).
+> `Cmd+Shift+Backspace` or `Escape` cancel · 6s idle auto-cancel (never fires a capture).
 
 Throwaway spike. Record empirical results here as they land.
 
@@ -155,3 +155,31 @@ commit, cancel, or the idle timeout.
 **This is a genuine UX mismatch to resolve before implementation.** The user's
 instinct is that the ring belongs to the hold. If that instinct is strong, the
 cycle-and-commit model may simply feel wrong regardless of how well it works.
+
+## F10 — Escape cancel requires transient registration (accepted risk in POC)
+
+The ring holds no focus, so it cannot receive Escape as an ordinary key event.
+Escape must be a GLOBAL shortcut, registered only while the ring is open —
+reintroducing the dynamic registration that v2 was built to avoid.
+
+Mitigations applied:
+- Single owner: `ESC_ARMED` mutex serialises arm/disarm, so they cannot invert
+  the way v1's two racing spawns could (F5).
+- Arm/disarm deferred off the shortcut callback (F1).
+- Exit path releases SYNCHRONOUSLY — a spawned task may never run before the
+  process dies.
+- Failure to release logs loudly: Escape stuck is a system-wide regression.
+
+Residual risk: while the ring is open, Escape is swallowed from every app.
+Bounded by IDLE_CANCEL (6s), but real.
+
+**Decision needed for the real feature.** Three options:
+1. Accept it — Escape is conventional for dismissing transient UI, and the
+   exposure window is short.
+2. Drop bare Escape; keep only the modifier cancel combo. Zero dynamic
+   registration, less conventional.
+3. Give the ring focus after all, and lose the no-focus-steal property that
+   motivated v2 in the first place.
+
+Option 2 is the conservative choice; option 1 is what the POC currently does so
+the feel can be judged.

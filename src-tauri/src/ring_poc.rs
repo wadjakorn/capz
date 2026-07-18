@@ -17,6 +17,7 @@
 //!   Cmd+Shift+A      cycle — opens the ring, then advances the highlight
 //!   Cmd+Shift+Enter  commit — fires the highlighted mode
 //!   Cmd+Shift+Backspace cancel — closes the ring, captures nothing
+//!   Escape          cancel — registered ONLY while the ring is open (see ESC)
 //!
 //! Consequences: no transient arm/disarm, so F1's deadlock constraint and F5's
 //! key-leak race are both designed out rather than worked around. Nothing is
@@ -55,6 +56,21 @@ const MODES: [&str; 4] = ["window", "full", "scroll", "area"];
 /// forgotten ring never sits on screen. Auto-cancel NEVER fires a capture —
 /// an unrequested screenshot is far worse than a no-op.
 const IDLE_CANCEL: Duration = Duration::from_secs(6);
+
+/// Bare `Escape`, registered ONLY while the ring is open so it closes the ring
+/// the way every other transient UI does. This is the one place v2 registers a
+/// shortcut dynamically, so it carries F1/F5's hazards — mitigated by having a
+/// single owner (`ESC_ARMED`) that serialises arm/disarm under one lock, rather
+/// than v1's two racing spawns.
+///
+/// While armed, Escape is swallowed system-wide. That is bounded by the ring
+/// being open at all (<= IDLE_CANCEL), but it is a real cost: if teardown ever
+/// fails, Escape is dead everywhere until capz restarts.
+const ESC: &str = "Escape";
+
+/// `true` while bare Escape is registered. Guarded by a mutex so arm and disarm
+/// can never invert (F5) — the lock is the single owner of the registration.
+static ESC_ARMED: Mutex<bool> = Mutex::new(false);
 
 /// Index into `MODES`, or `None` when the ring is down.
 static SELECTED: Mutex<Option<usize>> = Mutex::new(None);
@@ -130,6 +146,7 @@ fn on_cycle<R: Runtime>(app: &AppHandle<R>) {
         if let Err(e) = windows::show_command_ring_unfocused(app) {
             log::error!("[ring-poc] show_command_ring_unfocused failed: {e}");
             *SELECTED.lock().unwrap() = None;
+            set_escape(app, false);
             return;
         }
     } else {
@@ -137,7 +154,55 @@ fn on_cycle<R: Runtime>(app: &AppHandle<R>) {
     }
 
     let _ = app.emit_to("command-ring", "ring-poc:highlight", MODES[idx]);
+    if first {
+        set_escape(app, true);
+    }
     arm_idle_cancel(app);
+}
+
+/// Arm or disarm bare Escape. Deferred off the caller because this touches the
+/// global-shortcut plugin and callers are usually inside a shortcut callback —
+/// doing it synchronously there deadlocks the app (F1).
+fn set_escape<R: Runtime>(app: &AppHandle<R>, want: bool) {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move { set_escape_now(&app2, want) });
+}
+
+/// The actual registration, serialised under `ESC_ARMED`. Never call this from
+/// inside a global-shortcut callback.
+fn set_escape_now<R: Runtime>(app: &AppHandle<R>, want: bool) {
+    let mut armed = ESC_ARMED.lock().unwrap();
+    if *armed == want {
+        return;
+    }
+    let Ok(sc) = ESC.parse::<Shortcut>() else {
+        log::error!("[ring-poc] Escape failed to parse");
+        return;
+    };
+    if want {
+        let app2 = app.clone();
+        match app.global_shortcut().on_shortcut(sc, move |_a, _s, event| {
+            if event.state == ShortcutState::Pressed {
+                log::info!("[ring-poc] ESC pressed");
+                on_cancel(&app2);
+            }
+        }) {
+            Ok(()) => {
+                *armed = true;
+                log::info!("[ring-poc] Escape armed (swallowed system-wide until the ring closes)");
+            }
+            Err(e) => log::error!("[ring-poc] FAILED to arm Escape: {e}"),
+        }
+    } else {
+        match app.global_shortcut().unregister(sc) {
+            Ok(()) => {
+                *armed = false;
+                log::info!("[ring-poc] Escape released");
+            }
+            // Loud on purpose: Escape is now dead system-wide.
+            Err(e) => log::error!("[ring-poc] FAILED to release Escape: {e} — ESC IS STUCK"),
+        }
+    }
 }
 
 fn on_commit<R: Runtime>(app: &AppHandle<R>) {
@@ -148,6 +213,7 @@ fn on_commit<R: Runtime>(app: &AppHandle<R>) {
     GENERATION.fetch_add(1, Ordering::SeqCst);
     let kind = MODES[idx];
     log::info!("[ring-poc] COMMIT -> firing {kind}");
+    set_escape(app, false);
     windows::close_command_ring(app);
 
     let app2 = app.clone();
@@ -176,6 +242,7 @@ fn on_cancel<R: Runtime>(app: &AppHandle<R>) {
     }
     GENERATION.fetch_add(1, Ordering::SeqCst);
     log::info!("[ring-poc] CANCEL — captured nothing");
+    set_escape(app, false);
     windows::close_command_ring(app);
 }
 
@@ -195,14 +262,18 @@ fn arm_idle_cancel<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
         log::info!("[ring-poc] IDLE TIMEOUT — closing ring, captured nothing");
+        // Already off the callback here, so release directly.
+        set_escape_now(&app2, false);
         windows::close_command_ring(&app2);
     });
 }
 
-/// Nothing is transiently registered in v2, so exit needs only to drop the ring.
+/// Exit path. Escape is released SYNCHRONOUSLY: a spawned task might never run
+/// before the process dies, which would leave Escape swallowed system-wide.
 pub fn release_all<R: Runtime>(app: &AppHandle<R>) {
     if SELECTED.lock().unwrap().take().is_some() {
         log::warn!("[ring-poc] exiting with ring up — closing it");
         windows::close_command_ring(app);
     }
+    set_escape_now(app, false);
 }
