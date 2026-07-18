@@ -87,7 +87,13 @@ fn on_leader_down<R: Runtime>(app: &AppHandle<R>) {
         teardown(app);
         return;
     }
-    arm_slot_keys(app);
+    // MUST be deferred: calling `global_shortcut().on_shortcut()` from inside a
+    // global-shortcut callback DEADLOCKS the whole app (the plugin holds an
+    // internal lock while dispatching this handler, and the handler runs on the
+    // main thread — so the machine appears to freeze). Hop off the callback
+    // first. See FINDINGS.md.
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move { arm_slot_keys(&app2) });
 }
 
 fn on_leader_up<R: Runtime>(app: &AppHandle<R>) {
@@ -105,7 +111,9 @@ fn on_leader_up<R: Runtime>(app: &AppHandle<R>) {
         g.highlighted
     );
 
-    disarm_slot_keys(app);
+    // Same deadlock hazard as arming — defer off the callback.
+    let app_disarm = app.clone();
+    tauri::async_runtime::spawn(async move { disarm_slot_keys(&app_disarm) });
     windows::close_command_ring(app);
 
     match g.highlighted {
@@ -136,6 +144,9 @@ fn on_leader_up<R: Runtime>(app: &AppHandle<R>) {
 }
 
 /// Q2: register the bare slot keys for the duration of the hold.
+///
+/// NEVER call this synchronously from inside a global-shortcut callback — see
+/// the deadlock note in `on_leader_down`.
 fn arm_slot_keys<R: Runtime>(app: &AppHandle<R>) {
     for (key, kind) in SLOTS {
         let sc: Shortcut = match key.parse() {
@@ -184,7 +195,8 @@ fn disarm_slot_keys<R: Runtime>(app: &AppHandle<R>) {
 /// Abort with no capture. Used when showing the ring fails.
 fn teardown<R: Runtime>(app: &AppHandle<R>) {
     *STATE.lock().unwrap() = None;
-    disarm_slot_keys(app);
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move { disarm_slot_keys(&app2) });
     windows::close_command_ring(app);
 }
 
@@ -194,5 +206,10 @@ pub fn release_all<R: Runtime>(app: &AppHandle<R>) {
     if STATE.lock().unwrap().is_some() {
         log::warn!("[ring-poc] exiting mid-gesture — releasing slot keys");
     }
-    teardown(app);
+    *STATE.lock().unwrap() = None;
+    // Synchronous on purpose: this runs at exit and is NOT inside a
+    // global-shortcut callback, so there is no deadlock hazard — and a spawned
+    // task might never run before the process dies, leaking the bare keys.
+    disarm_slot_keys(app);
+    windows::close_command_ring(app);
 }
