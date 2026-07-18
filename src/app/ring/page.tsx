@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import {
   RING_ANGLE,
   RING_LABELS,
@@ -57,6 +58,12 @@ export default function CommandRingPage() {
 
   // The ring window is transparent — clear the opaque app background so only
   // the ring paints (same trick as the scroll HUD).
+  // CP-0038 POC: Rust opens `ring/?poc=1` when the ring is shown WITHOUT focus.
+  // In that mode the ring is a passive display — Rust owns selection, so we must
+  // not grab focus (Q3) and must not close on blur (we are never focused).
+  const isPoc =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("poc");
+
   useEffect(() => {
     const prevBody = document.body.style.background;
     const prevHtml = document.documentElement.style.background;
@@ -84,6 +91,7 @@ export default function CommandRingPage() {
   // and no capability grants JS set-focus — so swallow the rejection exactly
   // like the area overlay does, rather than surfacing it as a runtime error.
   useEffect(() => {
+    if (isPoc) return;
     getCurrentWindow().setFocus().catch(() => {});
     let disposed = false;
     // Close when focus is lost (clicked another app, or hotkey toggled). Guarded
@@ -98,7 +106,17 @@ export default function CommandRingPage() {
       disposed = true;
       void unlisten.then((f) => f());
     };
-  }, []);
+  }, [isPoc]);
+
+  // CP-0038 POC: highlight is pushed from Rust (the slot key was captured by a
+  // transient global shortcut, not by this webview — it has no focus).
+  useEffect(() => {
+    if (!isPoc) return;
+    const un = listen<string>("ring-poc:highlight", (e) => setHover(e.payload as Target));
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [isPoc]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

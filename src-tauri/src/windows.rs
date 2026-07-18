@@ -269,9 +269,21 @@ fn ring_position(
 /// dispatches the chosen capture via `command_ring_select`, or closes on
 /// Esc / blur / click-outside.
 pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    show_command_ring_ex(app, true)
+}
+
+/// CP-0038 POC: same ring, shown WITHOUT taking keyboard focus, so the user's
+/// app keeps focus while the gesture is held. THROWAWAY — see `ring_poc`.
+pub fn show_command_ring_unfocused<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    show_command_ring_ex(app, false)
+}
+
+fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
         let _ = win.show();
-        let _ = win.set_focus();
+        if focus {
+            let _ = win.set_focus();
+        }
         return Ok(());
     }
 
@@ -283,7 +295,7 @@ pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     // Build hidden first, then reposition + reveal once the cursor's display is
     // known (the cursor is read window-free via `monitor_service::cursor_position`).
-    let win = WebviewWindowBuilder::new(app, COMMAND_RING_LABEL, WebviewUrl::App("ring/".into()))
+    let win = WebviewWindowBuilder::new(app, COMMAND_RING_LABEL, WebviewUrl::App(if focus { "ring/".into() } else { "ring/?poc=1".into() }))
         .title("capz — Command ring")
         .transparent(true)
         .decorations(false)
@@ -351,7 +363,9 @@ pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     disable_dwm_transitions(&win);
 
     win.show()?;
-    let _ = win.set_focus();
+    if focus {
+        let _ = win.set_focus();
+    }
 
     #[cfg(target_os = "macos")]
     {

@@ -2,6 +2,7 @@ mod accel;
 mod capture_dispatch;
 mod commands;
 mod notice;
+mod ring_poc;
 mod services;
 mod shortcuts;
 mod state;
@@ -201,6 +202,9 @@ pub fn run() {
             {
                 use tauri::Emitter;
                 let report = shortcuts::register_shortcuts(app.handle());
+                // CP-0038 POC — throwaway, registered after the real hotkeys so
+                // it can never displace one. See `ring_poc`.
+                ring_poc::register(app.handle());
                 let inactive: Vec<String> = report
                     .iter()
                     .filter(|r| r.status != shortcuts::RegoStatus::Ok)
@@ -232,6 +236,9 @@ pub fn run() {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
                 if code.is_none() {
                     api.prevent_exit();
+                } else {
+                    // CP-0038 POC Q4: never leave bare slot keys registered.
+                    ring_poc::release_all(_app);
                 }
             }
         });
