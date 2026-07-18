@@ -19,6 +19,7 @@ type Props = {
 export function HotkeyRecorder({ value, onChange }: Props) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   const suspended = useRef(false);
 
@@ -64,11 +65,9 @@ export function HotkeyRecorder({ value, onChange }: Props) {
       setError(
         v.reason === "win"
           ? "Windows reserves the ⊞ key — use Ctrl, Alt or Shift"
-          : v.reason === "reserved"
-            ? `${accel} is reserved by the OS`
-            : v.reason === "no-modifier"
-              ? "Add a modifier (Ctrl, Alt or Shift)"
-              : "Not a valid shortcut",
+          : v.reason === "no-modifier"
+            ? "Add a modifier (Ctrl, Alt or Shift)"
+            : "Not a valid shortcut",
       );
       return;
     }
@@ -89,6 +88,13 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     }
 
     setError(null);
+    // CP-0037(a): OS-owned combos bind if the probe succeeded, but the system
+    // can still swallow the keystroke before capz sees it, so say so.
+    setWarning(
+      v.warning === "os-owned"
+        ? `The system usually owns ${formatShortcut(accel)}. If it doesn't trigger capz, turn the system shortcut off first.`
+        : null,
+    );
     onChange(accel);
     setRecording(false);
     ref.current?.blur();
@@ -108,6 +114,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
           onFocus={() => {
             setRecording(true);
             setError(null);
+            setWarning(null);
             void suspend();
           }}
           onBlur={() => {
@@ -124,6 +131,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               setError(null);
+              setWarning(null);
               onChange("");
             }}
             className="shrink-0 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
@@ -134,6 +142,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
         )}
       </div>
       {error && <span className="text-xs text-destructive">{error}</span>}
+      {!error && warning && <span className="text-xs text-amber-600">{warning}</span>}
     </div>
   );
 }
