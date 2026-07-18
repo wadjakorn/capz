@@ -243,7 +243,6 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                 <FieldRow label="System area capture (macOS)">
                   <HotkeyRecorder
                     value={config.hotkeys.captureSystemArea}
-                    clearable
                     onChange={(v) =>
                       applyHotkey(useSettings.getState, update, {
                         captureSystemArea: v,
@@ -263,7 +262,6 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               <FieldRow label="Scrolling capture">
                 <HotkeyRecorder
                   value={config.hotkeys.captureScroll}
-                  clearable
                   onChange={(v) =>
                     applyHotkey(useSettings.getState, update, { captureScroll: v })
                   }
