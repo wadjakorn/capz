@@ -38,13 +38,75 @@ handler**. It must be hopped off the callback
 This is a genuine design constraint, not a POC artifact. It needs to be written
 into CP-0038 before implementation, and the arm-race needs an answer.
 
-## F2 — `Released` semantics (Q1)
-Not yet observed; the deadlock blocked the run.
+## F2 — CONFIRMED: `Released` fires when the NON-MODIFIER key goes up
 
-## F3 — unfocused ring renders + keeps app focus (Q3)
-The ring window was created before the hang. Rendering/focus behaviour not yet
-observed.
+Observed macOS 2026-07-18. Two quick taps of Space while Cmd+Shift stayed held
+logged `LEADER RELEASED after 92ms` and `after 57ms` — matching the Space taps,
+not the modifier hold.
 
-## F4 — teardown leaves no bare keys registered (Q4)
-Not yet observed. Note the keys were never successfully registered in the frozen
-run, so nothing leaked.
+**Consequence:** the Cmd+Tab mechanic (hold modifier, tap to cycle, release
+modifier to commit) is NOT reproducible. The gesture ends when Space lifts.
+
+What IS buildable: the user holds all of Cmd+Shift+Space down, taps a slot key,
+then releases. No auto-repeat was observed on a sustained hold, so holding is
+stable. Ergonomically clumsier than Cmd+Tab — the leader's own key must stay
+depressed throughout. **UX copy must not promise Cmd+Tab-equivalent behaviour.**
+
+Also confirmed: the ring shows only while held and closes on release, which
+follows directly from the above.
+
+## F3 — CONFIRMED: unfocused ring keeps the other app live (Q3)
+Cursor and tooltips in the previously focused app stayed active while the ring
+was up. Showing the ring without `set_focus()` works.
+
+Still unverified: whether the highlight event actually reaches and renders in
+the unfocused webview (blocked by F6).
+
+## F5 — CONFIRMED: arm/disarm race can leak keys permanently
+
+**Severity: must be fixed in the real feature.**
+
+On a short press the log shows the gesture COMPLETING before arming starts:
+
+```
+LEADER RELEASED after 57ms — highlighted=None
+CANCELLED
+armed slot key A ... disarmed slot key A
+armed slot key S ... disarmed slot key S
+```
+
+Two independent `spawn`s (one arming, one disarming) race. Here arm won every
+pair and it ended clean — by luck, not by design. **If disarm runs before arm,
+the accelerator stays registered with no gesture to release it**, i.e. dead
+system-wide until capz restarts.
+
+Also visible: for short presses the slot accelerators are registered AFTER the
+ring has already closed, so they are briefly live outside any gesture.
+
+**Fix for the real feature:** serialize the lifecycle through a single owner —
+a generation counter checked before each arm/disarm, or one task that owns
+arm→wait→disarm — never two independent spawns.
+
+## F6 — CONFIRMED: slot keys must carry the leader's modifiers
+
+Observed macOS 2026-07-18: holding the leader and pressing A fired nothing.
+
+**Cause:** while Cmd+Shift are held, pressing A emits `Cmd+Shift+A`. A bare `A`
+shortcut requires NO modifiers, so it never matches during the hold. The POC
+originally registered bare keys and could not possibly have worked.
+
+**Consequence for the real feature:** a slot's selector is not a free-standing
+key — it is `<leader modifiers> + <key>`. Two things follow:
+
+1. The Settings UI cannot let the user pick an arbitrary bare key per slot; the
+   modifiers are implied by the leader. If the leader changes, every slot
+   accelerator changes with it.
+2. Each slot accelerator (`Cmd+Shift+A`) is an ordinary registrable combo. So a
+   user could bind those directly today with no ring at all — **the ring's only
+   value is the visual feedback during the hold.** If that feedback proves
+   unconvincing, the whole feature reduces to plain shortcuts and should be
+   dropped.
+
+## F4 — teardown leaves no keys registered (Q4)
+Partially observed: disarm logged success for all four slots. Not yet stress-
+tested against the F5 race or an exit mid-gesture.

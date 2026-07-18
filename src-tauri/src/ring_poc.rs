@@ -27,13 +27,17 @@ use crate::windows;
 /// Hardcoded leader. Real feature makes this configurable.
 const LEADER: &str = "CmdOrCtrl+Shift+Space";
 
-/// Hardcoded slot keys → capture mode. Real feature makes this an assignable
-/// four-slot map. Bare single keys on purpose: proving they register is Q2.
+/// Hardcoded slot accelerators → capture mode. Real feature makes this an
+/// assignable four-slot map.
+///
+/// F6: these MUST carry the leader's modifiers. While the user holds
+/// `CmdOrCtrl+Shift+Space`, pressing A emits `CmdOrCtrl+Shift+A` — a bare `A`
+/// shortcut requires NO modifiers and therefore never matches during the hold.
 const SLOTS: [(&str, &str); 4] = [
-    ("A", "window"),
-    ("S", "full"),
-    ("D", "scroll"),
-    ("F", "area"),
+    ("CmdOrCtrl+Shift+A", "window"),
+    ("CmdOrCtrl+Shift+S", "full"),
+    ("CmdOrCtrl+Shift+D", "scroll"),
+    ("CmdOrCtrl+Shift+F", "area"),
 ];
 
 /// Live gesture state. `None` when the ring is down.
@@ -143,7 +147,7 @@ fn on_leader_up<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Q2: register the bare slot keys for the duration of the hold.
+/// Q2: register the slot accelerators for the duration of the hold.
 ///
 /// NEVER call this synchronously from inside a global-shortcut callback — see
 /// the deadlock note in `on_leader_down`.
