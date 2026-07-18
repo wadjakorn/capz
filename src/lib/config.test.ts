@@ -82,6 +82,29 @@ describe("validateConfig hotkeys", () => {
     });
     expect(config.hotkeys.captureScroll).toBe("CmdOrCtrl+Alt+Shift+6");
   });
+
+  // CP-0036: every hotkey is clearable, so "" must survive a persist/load
+  // round-trip for all of them — not just the two that ship unbound. Before
+  // this, clearing e.g. captureFull reverted to its default on next launch.
+  it("accepts an empty accelerator for every hotkey without an issue", () => {
+    for (const key of Object.keys(DEFAULT_CONFIG.hotkeys) as (keyof typeof DEFAULT_CONFIG.hotkeys)[]) {
+      const { config, issues } = validateConfig({
+        schemaVersion: 1,
+        hotkeys: { ...DEFAULT_CONFIG.hotkeys, [key]: "" },
+      });
+      expect(config.hotkeys[key], `${key} should stay cleared`).toBe("");
+      expect(issues.join(" ")).not.toMatch(new RegExp(key));
+    }
+  });
+
+  it("still rejects a malformed accelerator for a clearable hotkey", () => {
+    const { config, issues } = validateConfig({
+      schemaVersion: 1,
+      hotkeys: { ...DEFAULT_CONFIG.hotkeys, showEditor: "nonsense" },
+    });
+    expect(config.hotkeys.showEditor).toBe(DEFAULT_CONFIG.hotkeys.showEditor);
+    expect(issues.some((i) => i.includes("hotkeys.showEditor"))).toBe(true);
+  });
 });
 
 describe("validateConfig general.backdrop", () => {

@@ -90,6 +90,24 @@ pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (Str
     }
 }
 
+/// Full pre-registration decision for one action, including the "unbound" case.
+///
+/// An empty accelerator means the user deliberately cleared this hotkey (or it
+/// ships unbound). It MUST short-circuit ahead of `plan_one`, which maps an
+/// unclassifiable accelerator — and "" is unclassifiable — back to the action's
+/// default. Skipping this guard would silently re-bind every cleared hotkey to
+/// its factory shortcut on the next registration pass.
+pub fn plan_requested(
+    action: HotkeyAction,
+    requested: &str,
+    is_windows: bool,
+) -> (String, RegoStatus) {
+    if requested.trim().is_empty() {
+        return (String::new(), RegoStatus::Ok);
+    }
+    plan_one(action, requested, is_windows)
+}
+
 struct Hotkeys {
     full: String,
     area: String,
@@ -211,13 +229,8 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
 
     let mut report = Vec::with_capacity(items.len());
     for (action, requested) in items {
-        // An empty accelerator means "unbound" (scroll ships this way, and any
-        // action the user clears): register nothing, report it as Ok/unset.
-        let (effective, pre) = if requested.trim().is_empty() {
-            (String::new(), RegoStatus::Ok)
-        } else {
-            plan_one(action, &requested, win)
-        };
+        // Unbound ("") registers nothing and reports Ok/unset — see plan_requested.
+        let (effective, pre) = plan_requested(action, &requested, win);
         if effective.is_empty() {
             report.push(RegoResult {
                 action,
@@ -326,6 +339,33 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CP-0036 regression. `plan_one` alone maps "" (Invalid) back to the
+    /// action's default; `plan_requested` must short-circuit first so a hotkey
+    /// the user cleared stays cleared instead of silently returning.
+    #[test]
+    fn cleared_hotkey_stays_unbound_and_does_not_fall_back_to_default() {
+        for action in [
+            HotkeyAction::CaptureFull,
+            HotkeyAction::CaptureArea,
+            HotkeyAction::CaptureWindow,
+            HotkeyAction::CaptureScroll,
+            HotkeyAction::CaptureSystemArea,
+            HotkeyAction::ShowEditor,
+            HotkeyAction::CommandRing,
+        ] {
+            for requested in ["", "   "] {
+                let (eff, st) = plan_requested(action, requested, false);
+                assert_eq!(eff, "", "{action:?} with {requested:?} must stay unbound");
+                assert_eq!(st, RegoStatus::Ok);
+            }
+        }
+
+        // Guard the ordering explicitly: the raw planner DOES fall back, which
+        // is exactly why the empty-check must run ahead of it.
+        let (eff, _) = plan_one(HotkeyAction::CaptureFull, "", false);
+        assert_eq!(eff, DEFAULT_FULL);
+    }
 
     #[test]
     fn valid_request_keeps_itself_and_ok() {

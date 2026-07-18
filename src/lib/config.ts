@@ -375,10 +375,8 @@ const isNum: Validator = (v) => typeof v === "number" && Number.isFinite(v);
 const isPosNum: Validator = (v) =>
   typeof v === "number" && Number.isFinite(v) && v > 0;
 const isStrOrNull: Validator = (v) => v === null || typeof v === "string";
-const isValidAccelerator: Validator = (v) =>
-  typeof v === "string" && validateAccelerator(v).ok;
-// Same, but an empty string is allowed — used for hotkeys that may be unbound
-// (e.g. scrolling capture ships with no default key).
+// An empty string means "unbound" and is allowed for every hotkey — any of
+// them can be cleared from Settings.
 const isValidOrEmptyAccelerator: Validator = (v) =>
   v === "" || (typeof v === "string" && validateAccelerator(v).ok);
 const isNumOrNull: Validator = (v) =>
@@ -674,13 +672,16 @@ export function validateConfig(raw: unknown): ValidatedConfig {
   const config: AppConfig = {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     hotkeys: vsec("hotkeys", r.hotkeys, d.hotkeys, {
-      captureFull: isValidAccelerator,
-      captureArea: isValidAccelerator,
-      captureWindow: isValidAccelerator,
+      // Every hotkey may be unbound (""): the user can clear any of them from
+      // Settings, and the empty string must survive a persist/load round-trip
+      // or the cleared key silently returns to its default on next launch.
+      captureFull: isValidOrEmptyAccelerator,
+      captureArea: isValidOrEmptyAccelerator,
+      captureWindow: isValidOrEmptyAccelerator,
       captureScroll: isValidOrEmptyAccelerator,
       captureSystemArea: isValidOrEmptyAccelerator,
-      showEditor: isValidAccelerator,
-      commandRing: isValidAccelerator,
+      showEditor: isValidOrEmptyAccelerator,
+      commandRing: isValidOrEmptyAccelerator,
     }, issues),
     output: vsec("output", r.output, d.output, {
       defaultMode: inSet("file", "clipboard", "both"),

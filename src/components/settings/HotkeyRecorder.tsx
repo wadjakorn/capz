@@ -14,11 +14,9 @@ import {
 type Props = {
   value: string;
   onChange: (accel: string) => void;
-  /** Show a Clear button to unbind the shortcut (empty string). */
-  clearable?: boolean;
 };
 
-export function HotkeyRecorder({ value, onChange, clearable = false }: Props) {
+export function HotkeyRecorder({ value, onChange }: Props) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
@@ -98,7 +96,7 @@ export function HotkeyRecorder({ value, onChange, clearable = false }: Props) {
 
   const display = recording
     ? "Press keys…"
-    : formatShortcut(value) || (clearable ? "Click to set" : "Click to record");
+    : formatShortcut(value) || "Not set — click to record";
 
   return (
     <div className="flex flex-col gap-1">
@@ -119,7 +117,7 @@ export function HotkeyRecorder({ value, onChange, clearable = false }: Props) {
           onKeyDown={(e) => void handleKey(e)}
           className="font-mono cursor-pointer"
         />
-        {clearable && value && (
+        {value && (
           <button
             type="button"
             // Prevent the input's blur/record cycle from swallowing the click.
