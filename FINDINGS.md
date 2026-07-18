@@ -1,5 +1,13 @@
 # CP-0038 POC findings
 
+> **POC v2 (cycle-and-commit) is what is on the branch now.** v1's hold gesture
+> was abandoned after F1/F2/F6. Findings F1-F6 below were all measured against
+> v1 and remain valid constraints on any design; v2 sidesteps F1 and F5 entirely
+> by registering everything once at startup and never touching the plugin again.
+>
+> v2 bindings: `Cmd+Shift+A` cycle · `Cmd+Shift+Enter` commit ·
+> `Cmd+Shift+Delete` cancel · 6s idle auto-cancel (never fires a capture).
+
 Throwaway spike. Record empirical results here as they land.
 
 ## F1 — CONFIRMED: registering a shortcut from inside a shortcut callback deadlocks the app
