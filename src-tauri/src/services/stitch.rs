@@ -219,7 +219,7 @@ fn stationary_mean(prev: &Fingerprint, next: &Fingerprint, band: (u32, u32, u32,
 }
 
 /// Search over the shared `band` for the scroll offset of magnitude `s` (rows,
-/// >= 1) in direction `dir` (+1 downward, -1 upward) that best aligns `next` onto
+/// at least 1) in direction `dir` (+1 downward, -1 upward) that best aligns `next` onto
 /// `prev`: `next[a]` ≈ `prev[a + dir*s]`. Returns `(s, mean_abs_diff)` for the
 /// best candidate — per grayscale sample, so directly comparable to
 /// `CONFIDENT_MEAN_ABS_DIFF`. `None` if no offset overlaps within the band. The

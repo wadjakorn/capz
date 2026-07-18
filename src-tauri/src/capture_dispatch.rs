@@ -145,7 +145,7 @@ fn dispatch_system_area<R: Runtime>(app: &AppHandle<R>) {
             Err(e) => {
                 log::error!("system area capture failed: {e}");
                 windows::show_editor_if_hidden(&app);
-                crate::notice::error(&app, &format!("Capture failed: {e}"));
+                crate::notice::error(&app, format!("Capture failed: {e}"));
             }
         }
     });
