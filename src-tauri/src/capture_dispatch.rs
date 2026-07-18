@@ -89,10 +89,64 @@ pub async fn trigger_capture<R: Runtime>(
         }
         CaptureKind::Window => dispatch_window(&app_dispatch),
         CaptureKind::Scroll => dispatch_scroll(&app_dispatch),
+        CaptureKind::SystemArea => {
+            #[cfg(target_os = "macos")]
+            dispatch_system_area(&app_dispatch);
+            #[cfg(not(target_os = "macos"))]
+            {
+                // macOS-only mode: there is no `screencapture` equivalent, and
+                // the Settings row is hidden off-Mac so this should never fire.
+                // Restore the editor we just hid if it somehow does.
+                log::warn!("system area capture is macOS-only; ignoring");
+                windows::show_editor_if_hidden(&app_dispatch);
+            }
+        }
     });
     if let Err(e) = res {
         windows::show_editor_if_hidden(&app);
         return Err(e.to_string());
     }
     Ok(())
+}
+
+/// System area capture (macOS): hand selection to Apple's `screencapture -i`,
+/// then feed the decoded image through the shared editor pipeline. The editor
+/// was already hidden by `trigger_capture` (so an in-editor capture doesn't bake
+/// the editor chrome into the shot); on cancel or error we restore it.
+///
+/// Runs the (blocking, user-paced) selection off the main thread. On success we
+/// reuse `capture_to_editor` so we inherit the intermediate-format setting, tray
+/// busy/idle state, correct `capz-temp-*` naming, and temp-file bookkeeping. The
+/// image is tagged `CaptureSource::SystemArea` — a mode distinct from the
+/// remembered-region area capture (which serves continuous re-capture of one
+/// region); this is a one-shot system selection.
+#[cfg(target_os = "macos")]
+fn dispatch_system_area<R: Runtime>(app: &AppHandle<R>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        match crate::services::screencapture::run_interactive_area().await {
+            Ok(Some(img)) => {
+                if let Err(e) = crate::commands::capture::capture_to_editor(
+                    app.clone(),
+                    "capture_system_area".into(),
+                    windows::CaptureSource::SystemArea,
+                    move || Ok(img),
+                )
+                .await
+                {
+                    log::error!("system area capture_to_editor failed: {e}");
+                }
+            }
+            Ok(None) => {
+                // Clean user-cancel (Esc): no error toast, just restore the editor.
+                log::info!("system area capture cancelled");
+                windows::show_editor_if_hidden(&app);
+            }
+            Err(e) => {
+                log::error!("system area capture failed: {e}");
+                windows::show_editor_if_hidden(&app);
+                crate::notice::error(&app, &format!("Capture failed: {e}"));
+            }
+        }
+    });
 }

@@ -172,6 +172,7 @@ pub async fn trigger_capture_command<R: Runtime>(
         "area" => crate::shortcuts::CaptureKind::Area,
         "window" => crate::shortcuts::CaptureKind::Window,
         "scroll" => crate::shortcuts::CaptureKind::Scroll,
+        "systemArea" => crate::shortcuts::CaptureKind::SystemArea,
         other => return Err(format!("unknown capture kind: {other}")),
     };
     crate::capture_dispatch::trigger_capture(app, parsed).await

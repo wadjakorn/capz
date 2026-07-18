@@ -25,7 +25,7 @@ import {
   ImageDown,
   type LucideIcon,
 } from "lucide-react";
-import { formatShortcut } from "@/lib/shortcuts";
+import { formatShortcut, currentPlatform } from "@/lib/shortcuts";
 import {
   useEditor,
   STICKERS,
@@ -62,6 +62,11 @@ import type {
   ArrowHeadsCtx,
 } from "./toolbar/panels/types";
 import { isTauriRuntime } from "@/lib/platform";
+
+// macOS-only: the system area capture mode delegates to `screencapture -i`,
+// which exists only on macOS. `currentPlatform` is prerender-safe (navigator is
+// absent during static export) and handles the deprecated `navigator.platform`.
+const IS_MAC = currentPlatform() === "mac";
 
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
@@ -1298,6 +1303,29 @@ export function Toolbar({
                   }
                 })();
               }}
+              onSystemAreaCapture={
+                IS_MAC
+                  ? () => {
+                      void (async () => {
+                        try {
+                          const { invoke } = await import("@tauri-apps/api/core");
+                          await invoke("trigger_capture_command", {
+                            kind: "systemArea",
+                          });
+                        } catch (err) {
+                          console.error(
+                            "trigger_capture_command(systemArea) failed",
+                            err,
+                          );
+                          toast.error("System area capture failed", {
+                            description: String(err),
+                          });
+                        }
+                      })();
+                    }
+                  : undefined
+              }
+              systemAreaAccelerator={fullConfig.hotkeys.captureSystemArea}
               accelerators={captureAccelerators}
             />
             <Divider />

@@ -15,6 +15,9 @@ const DEFAULT_COMMAND_RING: &str = "CmdOrCtrl+Shift+Space";
 // Scrolling capture ships UNBOUND by default — the user assigns a key in
 // Settings. Empty means "no shortcut registered".
 const DEFAULT_SCROLL: &str = "";
+// System area capture (macOS `screencapture -i`) also ships UNBOUND — same
+// contract as scroll. macOS-only; off other platforms it stays unset.
+const DEFAULT_SYSTEM_AREA: &str = "";
 
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -23,6 +26,10 @@ pub enum CaptureKind {
     Area,
     Window,
     Scroll,
+    // `rename_all = "lowercase"` would emit "systemarea"; the wire value the rest
+    // of the app agrees on is "systemArea".
+    #[serde(rename = "systemArea")]
+    SystemArea,
 }
 
 #[derive(Clone, Serialize)]
@@ -46,6 +53,7 @@ pub enum HotkeyAction {
     CaptureArea,
     CaptureWindow,
     CaptureScroll,
+    CaptureSystemArea,
     ShowEditor,
     CommandRing,
 }
@@ -65,6 +73,7 @@ fn default_accel(action: HotkeyAction) -> &'static str {
         HotkeyAction::CaptureArea => DEFAULT_AREA,
         HotkeyAction::CaptureWindow => DEFAULT_WINDOW,
         HotkeyAction::CaptureScroll => DEFAULT_SCROLL,
+        HotkeyAction::CaptureSystemArea => DEFAULT_SYSTEM_AREA,
         HotkeyAction::ShowEditor => DEFAULT_SHOW_EDITOR,
         HotkeyAction::CommandRing => DEFAULT_COMMAND_RING,
     }
@@ -86,6 +95,7 @@ struct Hotkeys {
     area: String,
     window: String,
     scroll: String,
+    system_area: String,
     show_editor: String,
     command_ring: String,
 }
@@ -96,6 +106,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
         area: DEFAULT_AREA.into(),
         window: DEFAULT_WINDOW.into(),
         scroll: DEFAULT_SCROLL.into(),
+        system_area: DEFAULT_SYSTEM_AREA.into(),
         show_editor: DEFAULT_SHOW_EDITOR.into(),
         command_ring: DEFAULT_COMMAND_RING.into(),
     };
@@ -124,6 +135,13 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
             if let Some(s) = map.get("captureScroll").and_then(|x| x.as_str()) {
                 hk.scroll = s.to_string();
             }
+            // macOS-only mode. Read it only on macOS so a config synced from a
+            // Mac can never register (or steal) this key on Windows/Linux, where
+            // there is no `screencapture`. Absent or empty both mean unbound.
+            #[cfg(target_os = "macos")]
+            if let Some(s) = map.get("captureSystemArea").and_then(|x| x.as_str()) {
+                hk.system_area = s.to_string();
+            }
             if let Some(s) = map.get("showEditor").and_then(|x| x.as_str()) {
                 hk.show_editor = s.to_string();
             }
@@ -141,6 +159,7 @@ fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
         HotkeyAction::CaptureArea => emit_trigger(app, CaptureKind::Area),
         HotkeyAction::CaptureWindow => emit_trigger(app, CaptureKind::Window),
         HotkeyAction::CaptureScroll => emit_trigger(app, CaptureKind::Scroll),
+        HotkeyAction::CaptureSystemArea => emit_trigger(app, CaptureKind::SystemArea),
         HotkeyAction::ShowEditor => {
             log::info!("shortcut triggered: show_editor");
             if let Err(e) = windows::show_editor(app) {
@@ -185,6 +204,7 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
         (HotkeyAction::CaptureArea, hk.area),
         (HotkeyAction::CaptureWindow, hk.window),
         (HotkeyAction::CaptureScroll, hk.scroll),
+        (HotkeyAction::CaptureSystemArea, hk.system_area),
         (HotkeyAction::ShowEditor, hk.show_editor),
         (HotkeyAction::CommandRing, hk.command_ring),
     ];
@@ -289,6 +309,7 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
         CaptureKind::Area => "area",
         CaptureKind::Window => "window",
         CaptureKind::Scroll => "scroll",
+        CaptureKind::SystemArea => "systemArea",
     };
     log::info!("shortcut triggered: {kind_str}");
     if let Err(e) = app.emit("shortcut://triggered", ShortcutPayload { kind }) {

@@ -1,7 +1,13 @@
 export type Platform = "mac" | "win";
 
 export function currentPlatform(): Platform {
-  return typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
+  if (typeof navigator === "undefined") return "win";
+  // `navigator.platform` is deprecated; prefer `userAgentData.platform` where
+  // the engine exposes it, falling back for those that don't.
+  const uaPlatform = (
+    navigator as Navigator & { userAgentData?: { platform?: string } }
+  ).userAgentData?.platform;
+  return /Mac|iPhone|iPad/.test(uaPlatform || navigator.platform || "")
     ? "mac"
     : "win";
 }
@@ -13,6 +19,8 @@ export type HotkeyAction =
   | "captureArea"
   | "captureWindow"
   | "captureScroll"
+  // macOS-only (system area capture); Rust emits this in RegoResult.action.
+  | "captureSystemArea"
   | "showEditor"
   | "commandRing";
 export type RegoResult = {

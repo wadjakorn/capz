@@ -16,7 +16,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
-import { statusMessage, type RegoResult, type HotkeyAction } from "@/lib/shortcuts";
+import {
+  statusMessage,
+  currentPlatform,
+  type RegoResult,
+  type HotkeyAction,
+} from "@/lib/shortcuts";
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
@@ -31,6 +36,7 @@ type HotkeyPatch = {
   captureArea?: string;
   captureWindow?: string;
   captureScroll?: string;
+  captureSystemArea?: string;
   showEditor?: string;
   commandRing?: string;
 };
@@ -40,6 +46,7 @@ const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
   captureArea: "Capture area",
   captureWindow: "Capture window",
   captureScroll: "Scrolling capture",
+  captureSystemArea: "System area capture (macOS)",
   showEditor: "Show editor",
   commandRing: "Command ring",
 };
@@ -108,8 +115,7 @@ type SettingsViewProps = {
   onOpenInertRecovery?: () => void;
 };
 
-const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+const IS_MAC = currentPlatform() === "mac";
 
 export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
   const { config, ready, init, update, reset } = useSettings();
@@ -233,6 +239,19 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   }
                 />
               </FieldRow>
+              {IS_MAC && (
+                <FieldRow label="System area capture (macOS)">
+                  <HotkeyRecorder
+                    value={config.hotkeys.captureSystemArea}
+                    clearable
+                    onChange={(v) =>
+                      applyHotkey(useSettings.getState, update, {
+                        captureSystemArea: v,
+                      })
+                    }
+                  />
+                </FieldRow>
+              )}
               <FieldRow label="Capture window">
                 <HotkeyRecorder
                   value={config.hotkeys.captureWindow}

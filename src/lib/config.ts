@@ -38,6 +38,11 @@ export type AppConfig = {
     captureWindow: string;
     /** Scrolling capture — may be "" (unbound; no default key). */
     captureScroll: string;
+    /**
+     * System area capture via macOS `screencapture -i` — macOS-only, may be ""
+     * (unbound; no default key). Ignored by the Rust side off macOS.
+     */
+    captureSystemArea: string;
     showEditor: string;
     commandRing: string;
   };
@@ -223,6 +228,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureArea: "CmdOrCtrl+Alt+Shift+4",
     captureWindow: "CmdOrCtrl+Alt+Shift+5",
     captureScroll: "",
+    captureSystemArea: "",
     showEditor: "CmdOrCtrl+Alt+Shift+0",
     commandRing: "CmdOrCtrl+Shift+Space",
   },
@@ -672,6 +678,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       captureArea: isValidAccelerator,
       captureWindow: isValidAccelerator,
       captureScroll: isValidOrEmptyAccelerator,
+      captureSystemArea: isValidOrEmptyAccelerator,
       showEditor: isValidAccelerator,
       commandRing: isValidAccelerator,
     }, issues),
