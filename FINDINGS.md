@@ -10,6 +10,16 @@
 > v3 deletes v2's Enter/Backspace/Escape/idle-timeout entirely, along with F10's
 > transient-registration risk.
 >
+> **F11 — CONFIRMED WORKING (macOS, 2026-07-18):** no Accessibility prompt, and
+> the ring vanishes instantly on release. Modifier-state polling is a viable
+> non-interception path to alt+tab behaviour. This is the finding the whole POC
+> existed to produce.
+>
+> **F12:** re-triggering the ring now closes any overlay left open by an
+> abandoned capture (`windows::close_overlays`). Without it a stale area/window
+> overlay sits under the ring and eats the next selection. Cancelling is the
+> safe direction — it captures nothing.
+>
 > **Superseded: POC v2 (cycle-and-commit).** v1's hold gesture
 > was abandoned after F1/F2/F6. Findings F1-F6 below were all measured against
 > v1 and remain valid constraints on any design; v2 sidesteps F1 and F5 entirely

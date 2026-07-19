@@ -99,6 +99,11 @@ fn on_cycle<R: Runtime>(app: &AppHandle<R>) {
 
     if first {
         log::info!("[ring-poc] CYCLE (open) -> {}", MODES[idx]);
+        // Re-triggering the ring abandons any capture still in progress: an
+        // area/window overlay left open from a previous trigger would otherwise
+        // sit under the ring and swallow the next selection. Cancelling is the
+        // safe direction — it captures nothing.
+        windows::close_overlays(app);
         if let Err(e) = windows::show_command_ring_unfocused(app) {
             log::error!("[ring-poc] show_command_ring_unfocused failed: {e}");
             *SELECTED.lock().unwrap() = None;
