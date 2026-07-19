@@ -187,12 +187,13 @@ export default function CommandRingPage() {
   const targetAt = useCallback(
     (px: number, py: number): Target | null => {
       const d = Math.hypot(px - cx, py - cy);
-      if (d < rInner) return "center";
+      // No center button in hold mode — the dead-zone is inert, not a target.
+      if (d < rInner) return hold ? null : "center";
       if (d > rOuter) return null;
       const slot = slotAtPoint(px, py, cx, cy, rInner, slots.length);
       return slot === null ? null : slots[slot];
     },
-    [cx, cy, rInner, rOuter, slots],
+    [cx, cy, rInner, rOuter, slots, hold],
   );
 
   const onMove = useCallback(
@@ -351,25 +352,27 @@ export default function CommandRingPage() {
             );
           })}
 
-          {/* Center button → open / refocus the editor */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={rCenter}
-            strokeWidth={1.25}
-            style={{
-              fill: hover === "center" ? "var(--accent-soft)" : "var(--surface-overlay)",
-              stroke: hover === "center" ? "var(--accent)" : "var(--border-strong)",
-            }}
-          />
-          {(() => {
-            const icon = rCenter * 1.15;
-            return (
+          {/* Center button → open / refocus the editor. v1 only: the hold ring
+              is unfocused and takes no clicks, so this would be an affordance
+              that cannot be used. Its hit-area is dropped too (see `targetAt`),
+              leaving the dead-zone as plain chrome. */}
+          {!hold && (
+            <>
+              <circle
+                cx={cx}
+                cy={cy}
+                r={rCenter}
+                strokeWidth={1.25}
+                style={{
+                  fill: hover === "center" ? "var(--accent-soft)" : "var(--surface-overlay)",
+                  stroke: hover === "center" ? "var(--accent)" : "var(--border-strong)",
+                }}
+              />
               <svg
-                x={cx - icon / 2}
-                y={cy - icon / 2}
-                width={icon}
-                height={icon}
+                x={cx - rCenter * 1.15 / 2}
+                y={cy - rCenter * 1.15 / 2}
+                width={rCenter * 1.15}
+                height={rCenter * 1.15}
                 viewBox="0 0 24 24"
                 fill="none"
                 strokeWidth={2}
@@ -384,8 +387,8 @@ export default function CommandRingPage() {
                 <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" />
               </svg>
-            );
-          })()}
+            </>
+          )}
         </svg>
       )}
     </div>
