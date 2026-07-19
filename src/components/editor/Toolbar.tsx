@@ -16,13 +16,8 @@ import {
   Shapes as ShapesIcon,
   Undo2,
   Redo2,
-  Trash2,
   Settings as SettingsIcon,
-  Ruler,
-  ScanText,
-  Loader2,
   Monitor,
-  ImageDown,
   type LucideIcon,
 } from "lucide-react";
 import { formatShortcut, currentPlatform } from "@/lib/shortcuts";
@@ -39,14 +34,13 @@ import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
 import { ToolButton } from "./toolbar/ToolButton";
-import { BackdropControl } from "./toolbar/BackdropControl";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
 import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButton";
 import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
-import { ZoomMenuButton } from "./toolbar/ZoomMenuButton";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { ToolOptionsPanel } from "./toolbar/panels/ToolOptionsPanel";
+import { GlobalToolsPanel } from "./toolbar/panels/GlobalToolsPanel";
 import type {
   ColorCtx,
   NumCtx,
@@ -1350,82 +1344,10 @@ export function Toolbar({
         {/* History group */}
         <ToolButton icon={Undo2} label="Undo" hint="⌘Z" disabled={!past} onClick={undo} />
         <ToolButton icon={Redo2} label="Redo" hint="⇧⌘Z" disabled={!future} onClick={redo} />
-        {tauriUi && (
-          <ToolButton
-            icon={Trash2}
-            label={hasImage ? "Clear workspace" : "Workspace already empty"}
-            disabled={!hasImage}
-            onClick={onClearWorkspace}
-          />
-        )}
-        {!tauriUi && onWebClear && (
-          <ToolButton
-            icon={Trash2}
-            label={hasImage ? "Delete image" : "No image loaded"}
-            disabled={!hasImage}
-            onClick={onWebClear}
-          />
-        )}
         <Divider />
-        {/* View group */}
-        <ZoomMenuButton displayScale={displayScale} disabled={!hasImage} />
-        <Divider />
-        {/* Ruler toggle */}
-        <ToolButton
-          icon={Ruler}
-          label={fullConfig.general.showRulers ? "Hide rulers" : "Show rulers"}
-          pressed={fullConfig.general.showRulers}
-          onClick={() =>
-            void updateSettings("general", {
-              showRulers: !fullConfig.general.showRulers,
-            })
-          }
-        />
-        <Divider />
-        {/* Import an image file (native picker on desktop, file input on web).
-            First image on an empty canvas becomes the base; a further image
-            lands as a movable overlay on top. Enabled even with no base image
-            so it can load the first one. */}
-        <ToolButton
-          icon={ImageDown}
-          label={
-            hasImage
-              ? "Add image file as overlay"
-              : "Open image file"
-          }
-          onClick={importImageFile}
-        />
-        <Divider />
-        {/* Padded gradient/solid backdrop behind the capture. Divider travels
-            with the control so an imageless toolbar doesn't show a double rule. */}
-        {hasImage && (
-          <>
-            <BackdropControl />
-            <Divider />
-          </>
-        )}
-        {/* OCR detect-text toggle (desktop only — OCR runs in the Rust core) */}
-        {tauriUi && (
-          <>
-            <ToolButton
-              icon={ocrStatus === "scanning" ? Loader2 : ScanText}
-              iconClassName={ocrStatus === "scanning" ? "animate-spin" : undefined}
-              label={
-                !hasImage
-                  ? "Detect text (load an image first)"
-                  : ocrStatus === "scanning"
-                    ? "Detecting text…"
-                    : ocrMode
-                      ? "Hide detected text"
-                      : "Detect text"
-              }
-              pressed={ocrMode}
-              disabled={!hasImage || ocrStatus === "scanning"}
-              onClick={() => void toggleOcr()}
-            />
-            <Divider />
-          </>
-        )}
+        {/* Zoom, rulers, image import, backdrop, OCR and clear-workspace now
+            live in the sidebar's GlobalToolsPanel (CP-0044). Undo/redo stay
+            here: they're needed while drawing, when that panel is hidden. */}
         {/* Tool palette with responsive overflow */}
         <div ref={paletteRef} className="flex min-w-0 flex-1 items-center gap-1">
           {visibleTools.map((t) => (
@@ -1449,6 +1371,36 @@ export function Toolbar({
           />
         )}
       </div>
+      {/* Sidebar slot: contextual tool options when something is selected or a
+          tool has options, otherwise the global/workspace tools. Mutually
+          exclusive by construction. Crop is excluded from both — EditorStage
+          portals its own crop UI into this same node. */}
+      {!hasContext && tool !== "crop" && portalTarget && createPortal(
+        <GlobalToolsPanel
+          tauriUi={tauriUi}
+          hasImage={hasImage}
+          displayScale={displayScale}
+          showRulers={fullConfig.general.showRulers}
+          onToggleRulers={() =>
+            void updateSettings("general", {
+              showRulers: !fullConfig.general.showRulers,
+            })
+          }
+          onImportImage={importImageFile}
+          onClearWorkspace={onClearWorkspace}
+          onWebClear={onWebClear}
+          ocr={
+            tauriUi
+              ? {
+                  mode: ocrMode,
+                  scanning: ocrStatus === "scanning",
+                  onToggle: () => void toggleOcr(),
+                }
+              : null
+          }
+        />,
+        portalTarget,
+      )}
       {hasContext && portalTarget && createPortal(
         <ToolOptionsPanel
           kind={panelKind}

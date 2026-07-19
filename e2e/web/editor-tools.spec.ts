@@ -84,3 +84,24 @@ test("settings cog opens settings view", async ({ page }) => {
     page.getByRole("heading", { name: "Settings", level: 1 }),
   ).toBeVisible();
 });
+
+test("sidebar shows global tools when idle, swaps to tool options", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.waitForLoadState("networkidle");
+
+  const slot = page.locator("#tool-options-slot");
+  // Idle (Select tool, nothing selected) → global/workspace tools (CP-0044).
+  await expect(slot.getByText("Workspace", { exact: true })).toBeVisible();
+  await expect(slot.getByRole("button", { name: "Open image file" })).toBeVisible();
+  await expect(slot.getByText("Rulers", { exact: true })).toBeVisible();
+
+  // Picking a tool with options hands the slot to that tool's panel.
+  await page.getByRole("button", { name: "Pin", exact: true }).click();
+  await expect(slot.getByText("Workspace", { exact: true })).toHaveCount(0);
+
+  // Back to Select → global tools return.
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await expect(slot.getByText("Workspace", { exact: true })).toBeVisible();
+});
