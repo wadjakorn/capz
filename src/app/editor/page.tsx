@@ -8,7 +8,6 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
-import { CaptureConflictDialog } from "@/components/editor/CaptureConflictDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor, type CaptureSource } from "@/stores/editor";
 import { routeIncomingCapture } from "@/lib/captureRouting";
@@ -35,7 +34,6 @@ export default function EditorPage() {
   const [src, setSrc] = useState("");
   const [view, setView] = useState<View>("editor");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const [conflict, setConflict] = useState<{ path: string; source: CaptureSource } | null>(null);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
   const openRecovery = useCallback(() => setRecoveryOpen(true), []);
@@ -95,12 +93,12 @@ export default function EditorPage() {
     useEditor.getState().setNextPinNumber(start);
   }, [resetEditor, setHasImage]);
 
-  // Add path: keep the current canvas and layer the new capture as a movable
+  // Layer path: keep the current canvas and layer the new capture as a movable
   // overlay object. We embed the capture as a data URL (mirroring paste and
   // desktop file-import) so the overlay is self-contained and does not depend
-  // on the temp file — which Rust's `state.swap` already deleted for the prior
-  // base and will clean for this one on editor close. Does NOT reset the editor,
-  // so annotations/crop/zoom/base image are preserved.
+  // on the temp file — Rust deliberately leaves the base image as the active
+  // workspace file for a layer capture, so nothing owns this one. Does NOT
+  // reset the editor, so annotations/crop/zoom/base image are preserved.
   const addCaptureAsOverlay = useCallback(async (path: string) => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -114,25 +112,25 @@ export default function EditorPage() {
     }
   }, []);
 
-  // Route an incoming capture. Empty canvas → the capture becomes the base
-  // image with no prompt (current behavior). Non-empty canvas → prompt with
-  // Replace / Add rather than silently wiping the user's work; the choice is
-  // handled by the CaptureConflictDialog.
+  // Route an incoming capture. A capture always replaces the workspace unless
+  // it was explicitly requested as a layer (the editor's capture-as-layer
+  // button) — intent is decided *before* capturing, never asked about after.
   const handleIncomingCapture = useCallback(
-    (path: string | null, source: CaptureSource = "other") => {
-      switch (routeIncomingCapture(path, useEditor.getState().hasImage)) {
+    (path: string | null, source: CaptureSource = "other", asLayer = false) => {
+      if (path && asLayer && useEditor.getState().hasImage) {
+        void addCaptureAsOverlay(path);
+        return;
+      }
+      switch (routeIncomingCapture(path)) {
         case "clear":
           void applyFile(null);
           return;
         case "base":
           void applyFile(path, source);
           return;
-        case "prompt":
-          setConflict({ path: path as string, source });
-          return;
       }
     },
-    [applyFile],
+    [applyFile, addCaptureAsOverlay],
   );
 
   useEffect(() => {
@@ -180,15 +178,17 @@ export default function EditorPage() {
     let unlisten: (() => void) | undefined;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen<string | { path: string; source?: CaptureSource }>(
+      unlisten = await listen<
+        string | { path: string; source?: CaptureSource; asLayer?: boolean }
+      >(
         "editor:load-image",
         (e) => {
-          // Payload is `{ path, source }`; tolerate a bare string (legacy).
+          // Payload is `{ path, source, asLayer }`; tolerate a bare string (legacy).
           const p = e.payload;
           if (typeof p === "string") {
             handleIncomingCapture(p);
           } else {
-            handleIncomingCapture(p.path, p.source ?? "other");
+            handleIncomingCapture(p.path, p.source ?? "other", p.asLayer ?? false);
           }
           setView("editor");
         },
@@ -429,20 +429,6 @@ export default function EditorPage() {
       <InertGrantRecoveryDialog
         open={recoveryOpen}
         onClose={() => setRecoveryOpen(false)}
-      />
-      <CaptureConflictDialog
-        open={conflict !== null}
-        onReplace={() => {
-          const c = conflict;
-          setConflict(null);
-          if (c) void applyFile(c.path, c.source);
-        }}
-        onAdd={() => {
-          const c = conflict;
-          setConflict(null);
-          if (c) void addCaptureAsOverlay(c.path);
-        }}
-        onCancel={() => setConflict(null)}
       />
     </div>
   );

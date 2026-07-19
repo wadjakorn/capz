@@ -332,7 +332,7 @@ fn emit_trigger<R: Runtime>(app: &AppHandle<R>, kind: CaptureKind) {
     }
     let app_dispatch = app.clone();
     tauri::async_runtime::spawn(async move {
-        if let Err(e) = crate::capture_dispatch::trigger_capture(app_dispatch, kind).await {
+        if let Err(e) = crate::capture_dispatch::trigger_capture(app_dispatch, kind, false).await {
             log::error!("trigger_capture failed: {e}");
         }
     });

@@ -1140,6 +1140,8 @@ export function Toolbar({
 
   const lastCaptureKind: CaptureKind =
     fullConfig.lastUsed?.lastCaptureKind ?? "full";
+  const lastLayerCaptureKind: CaptureKind =
+    fullConfig.lastUsed?.lastLayerCaptureKind ?? "full";
 
   // Output split button: default primary is Copy (the most common single action
   // for a screenshot), then remembers whatever was last used.
@@ -1151,17 +1153,26 @@ export function Toolbar({
     void doExport(action);
   };
 
-  const triggerCapture = (kind: CaptureKind) => {
-    patchLastUsed({ lastCaptureKind: kind });
+  /** Fire a capture. `asLayer` tells Rust the result should be added as a new
+   * image layer instead of replacing the workspace; it rides the whole capture
+   * round-trip server-side, so a cancelled selection can't strand it. */
+  const dispatchCapture = (kind: string, asLayer: boolean, what: string) => {
     void (async () => {
       try {
         const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("trigger_capture_command", { kind });
+        await invoke("trigger_capture_command", { kind, asLayer });
       } catch (err) {
-        console.error("trigger_capture_command failed", err);
-        toast.error("Capture failed", { description: String(err) });
+        console.error(`trigger_capture_command(${kind}) failed`, err);
+        toast.error(`${what} failed`, { description: String(err) });
       }
     })();
+  };
+
+  const triggerCapture = (kind: CaptureKind, asLayer = false) => {
+    patchLastUsed(
+      asLayer ? { lastLayerCaptureKind: kind } : { lastCaptureKind: kind },
+    );
+    dispatchCapture(kind, asLayer, "Capture");
   };
 
   const captureAccelerators: Record<CaptureKind, string> = {
@@ -1291,38 +1302,35 @@ export function Toolbar({
           <>
             <CaptureSplitButton
               lastKind={lastCaptureKind}
-              onCapture={triggerCapture}
-              onScrollCapture={() => {
-                void (async () => {
-                  try {
-                    const { invoke } = await import("@tauri-apps/api/core");
-                    await invoke("trigger_capture_command", { kind: "scroll" });
-                  } catch (err) {
-                    console.error("trigger_capture_command(scroll) failed", err);
-                    toast.error("Scrolling capture failed", { description: String(err) });
-                  }
-                })();
-              }}
+              onCapture={(kind) => triggerCapture(kind)}
+              onScrollCapture={() =>
+                dispatchCapture("scroll", false, "Scrolling capture")
+              }
               onSystemAreaCapture={
                 IS_MAC
-                  ? () => {
-                      void (async () => {
-                        try {
-                          const { invoke } = await import("@tauri-apps/api/core");
-                          await invoke("trigger_capture_command", {
-                            kind: "systemArea",
-                          });
-                        } catch (err) {
-                          console.error(
-                            "trigger_capture_command(systemArea) failed",
-                            err,
-                          );
-                          toast.error("System area capture failed", {
-                            description: String(err),
-                          });
-                        }
-                      })();
-                    }
+                  ? () =>
+                      dispatchCapture("systemArea", false, "System area capture")
+                  : undefined
+              }
+              systemAreaAccelerator={fullConfig.hotkeys.captureSystemArea}
+              accelerators={captureAccelerators}
+            />
+            {/* Same capture kinds, different destination: the result lands as a
+                new image layer. Meaningless without a base image to layer over,
+                so it stays disabled until one exists. */}
+            <CaptureSplitButton
+              variant="layer"
+              disabled={!hasImage}
+              disabledReason="Capture something first — a layer needs an image to sit on"
+              lastKind={lastLayerCaptureKind}
+              onCapture={(kind) => triggerCapture(kind, true)}
+              onScrollCapture={() =>
+                dispatchCapture("scroll", true, "Scrolling capture")
+              }
+              onSystemAreaCapture={
+                IS_MAC
+                  ? () =>
+                      dispatchCapture("systemArea", true, "System area capture")
                   : undefined
               }
               systemAreaAccelerator={fullConfig.hotkeys.captureSystemArea}

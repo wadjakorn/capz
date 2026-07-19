@@ -162,10 +162,13 @@ pub async fn capture_monitor_command<R: Runtime>(
     .await
 }
 
+/// Dispatch a capture from the frontend. `as_layer` (optional, defaults to
+/// false) marks the shot as coming from the editor's capture-as-layer button.
 #[tauri::command]
 pub async fn trigger_capture_command<R: Runtime>(
     app: AppHandle<R>,
     kind: String,
+    as_layer: Option<bool>,
 ) -> Result<(), String> {
     let parsed = match kind.as_str() {
         "full" => crate::shortcuts::CaptureKind::Full,
@@ -175,7 +178,7 @@ pub async fn trigger_capture_command<R: Runtime>(
         "systemArea" => crate::shortcuts::CaptureKind::SystemArea,
         other => return Err(format!("unknown capture kind: {other}")),
     };
-    crate::capture_dispatch::trigger_capture(app, parsed).await
+    crate::capture_dispatch::trigger_capture(app, parsed, as_layer.unwrap_or(false)).await
 }
 
 /// Capture an area selection and open it in the editor.
