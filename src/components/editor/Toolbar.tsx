@@ -1373,9 +1373,11 @@ export function Toolbar({
       </div>
       {/* Sidebar slot: contextual tool options when something is selected or a
           tool has options, otherwise the global/workspace tools. Mutually
-          exclusive by construction. Crop is excluded from both — EditorStage
-          portals its own crop UI into this same node. */}
-      {!hasContext && tool !== "crop" && portalTarget && createPortal(
+          exclusive by construction. Crop yields the slot to EditorStage, which
+          portals its own crop UI into this same node — but only when an image
+          is loaded, so keep the global tools (incl. "Open image file") when
+          crop has nothing to show. */}
+      {!hasContext && !(tool === "crop" && hasImage) && portalTarget && createPortal(
         <GlobalToolsPanel
           tauriUi={tauriUi}
           hasImage={hasImage}
