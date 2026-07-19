@@ -70,19 +70,34 @@ const DEFAULT_MODES: [&str; 4] = ["window", "full", "scroll", "area"];
 
 /// The live gesture: which slots are on the ring and which one is highlighted.
 /// `None` = the ring is down.
+///
+/// One gesture per process. The ring is a single global window driven by a
+/// global hotkey, so there is nothing to key a per-instance state off — but it
+/// does mean this state is shared by every window and thread in the app.
 struct Gesture {
     modes: Vec<String>,
     index: usize,
     /// Modifiers whose release ends the gesture — derived from the accelerator
     /// that opened it, so a rebound hotkey polls the right keys.
     hold: Mods,
+    /// Identity of this gesture. A poll loop carries the generation it was
+    /// spawned for and exits as soon as the live gesture is a different one.
+    ///
+    /// This lives INSIDE the gesture rather than in a separate atomic on
+    /// purpose. With the counter outside, closing was two steps — take the
+    /// gesture, then bump — and a re-tap landing between them would open a new
+    /// gesture whose poll loop read the stale generation, then get retired by
+    /// the bump it had already raced past. That left `GESTURE` occupied with no
+    /// window and no loop: a ring stuck open that no further tap could recover.
+    /// Tying identity to the gesture makes "is this loop still current?" a
+    /// single read under one lock, with no ordering to get wrong.
+    generation: u64,
 }
 
 static GESTURE: Mutex<Option<Gesture>> = Mutex::new(None);
 
-/// Bumped whenever the ring closes so an in-flight poll loop from a previous
-/// gesture exits instead of acting on the current one.
-static GENERATION: AtomicU64 = AtomicU64::new(0);
+/// Issues gesture generations. Only ever incremented.
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Is modifier polling available here? If not, v2 cannot work at all and the
 /// caller must not register its accelerator.
@@ -184,12 +199,15 @@ pub fn on_trigger<R: Runtime>(app: &AppHandle<R>, accel: &str) {
         return;
     }
 
-    let opened = {
+    // `Some(generation)` if this press opened the ring, `None` if it advanced an
+    // existing one. The generation is issued under the same lock that installs
+    // the gesture, so the loop spawned below can never be handed a stale one.
+    let opened: Option<u64> = {
         let mut g = GESTURE.lock().unwrap();
         match g.as_mut() {
             Some(active) => {
                 active.index = (active.index + 1) % active.modes.len();
-                false
+                None
             }
             None => {
                 // Cancel rides at the end of the cycle, so tapping past the
@@ -197,13 +215,14 @@ pub fn on_trigger<R: Runtime>(app: &AppHandle<R>, accel: &str) {
                 // straight back to the first.
                 let mut modes = read_modes(app);
                 modes.push(CANCEL.to_string());
-                *g = Some(Gesture { modes, index: 0, hold });
-                true
+                let generation = NEXT_GENERATION.fetch_add(1, Ordering::SeqCst);
+                *g = Some(Gesture { modes, index: 0, hold, generation });
+                Some(generation)
             }
         }
     };
 
-    if opened {
+    if opened.is_some() {
         // Re-triggering abandons any capture still in progress: an area/window
         // overlay left open from a previous trigger would otherwise sit under
         // the ring and swallow the next selection. Cancelling is the safe
@@ -219,27 +238,24 @@ pub fn on_trigger<R: Runtime>(app: &AppHandle<R>, accel: &str) {
     if let Some(state) = current_highlight() {
         let _ = app.emit_to(windows::COMMAND_RING_LABEL, "ring:highlight", state);
     }
-    if opened {
-        start_release_poll(app);
+    if let Some(generation) = opened {
+        start_release_poll(app, generation);
     }
 }
 
 /// Watch for the hold modifiers coming up, then fire. This is the whole idea.
-fn start_release_poll<R: Runtime>(app: &AppHandle<R>) {
-    let generation = GENERATION.load(Ordering::SeqCst);
+fn start_release_poll<R: Runtime>(app: &AppHandle<R>, generation: u64) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(POLL).await;
-            // A newer gesture (or an explicit close) superseded this loop.
-            if GENERATION.load(Ordering::SeqCst) != generation {
-                return;
-            }
+            // One locked read answers both "is the ring still up?" and "is it
+            // still MY gesture?" — a closed ring or a newer one retires us.
             let hold = {
                 let g = GESTURE.lock().unwrap();
                 match g.as_ref() {
-                    Some(g) => g.hold,
-                    None => return,
+                    Some(g) if g.generation == generation => g.hold,
+                    _ => return,
                 }
             };
             let Some(now) = modifiers::current() else {
@@ -288,13 +304,15 @@ fn fire<R: Runtime>(app: &AppHandle<R>) {
 
 /// Close the ring and clear state, returning the mode that was highlighted.
 fn close<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
+    // Clearing the gesture is all it takes to retire its poll loop: the loop
+    // matches on generation, so it stops whether the ring closed or a newer
+    // gesture replaced it. No separate counter to bump, and no window between
+    // the two where a re-tap could be stranded.
     let selected = GESTURE
         .lock()
         .unwrap()
         .take()
         .map(|g| g.modes[g.index].clone());
-    // Bump before closing so any in-flight poll loop sees the new generation.
-    GENERATION.fetch_add(1, Ordering::SeqCst);
     windows::close_command_ring(app);
     selected
 }
@@ -304,7 +322,6 @@ fn close<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
 pub fn shutdown<R: Runtime>(app: &AppHandle<R>) {
     if GESTURE.lock().unwrap().take().is_some() {
         log::warn!("ring: exiting with the ring up — closing it");
-        GENERATION.fetch_add(1, Ordering::SeqCst);
         windows::close_command_ring(app);
     }
 }

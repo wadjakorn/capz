@@ -107,15 +107,6 @@ export function ringSlotAngleDeg(i: number, n: number): number {
   return -90 + i * ringSweepDeg(n);
 }
 
-/** Center angle (radians) of each wedge in the fixed 4-slot v1 layout. */
-export const RING_ANGLE: Record<RingWedge, number> = {
-  window: -Math.PI / 2, // up
-  full: 0, // right
-  scroll: Math.PI / 2, // down
-  area: Math.PI, // left
-  systemArea: Math.PI, // unused in the v1 layout
-};
-
 /**
  * Which slot contains the point `(px,py)` relative to ring center `(cx,cy)`?
  * Returns `null` inside the dead-zone (distance < `innerRadius`). Screen coords,
