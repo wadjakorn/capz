@@ -5,11 +5,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit, listen } from "@tauri-apps/api/event";
 import {
+  RING_CANCEL,
   RING_LABELS,
+  holdRingSlots,
   RING_WEDGES,
   ringSlotAngleDeg,
   ringSweepDeg,
   slotAtPoint,
+  type RingSlot,
   type RingWedge,
 } from "@/lib/commandRing";
 
@@ -32,7 +35,7 @@ function isHoldMode(): boolean {
 
 /** What the cursor is over: a capture wedge, the center editor button, or
  *  nothing (outside the ring → dismiss). */
-type Target = RingWedge | "center";
+type Target = RingSlot | "center";
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
@@ -80,7 +83,9 @@ export default function CommandRingPage() {
   const [hold] = useState(isHoldMode);
   /** Slots to draw. v1 is always the fixed four; v2 gets its configured 1-4
    *  from Rust with the first `ring:highlight`. */
-  const [slots, setSlots] = useState<readonly RingWedge[]>(RING_WEDGES);
+  const [slots, setSlots] = useState<readonly RingSlot[]>(() =>
+    isHoldMode() ? holdRingSlots(RING_WEDGES) : RING_WEDGES,
+  );
   /** Highlighted slot index in hold mode (null = v1 / pointer-driven). */
   const [heldIndex, setHeldIndex] = useState<number | null>(null);
 
@@ -152,7 +157,9 @@ export default function CommandRingPage() {
   // Hold mode: Rust drives the highlight and tells us which slots to draw.
   useEffect(() => {
     if (!hold) return;
-    const un = listen<{ modes: RingWedge[]; index: number }>("ring:highlight", (e) => {
+    // Rust sends the full cycle, cancel slot included — it appends it, so the
+    // two ends can't disagree about where cancel sits.
+    const un = listen<{ modes: RingSlot[]; index: number }>("ring:highlight", (e) => {
       const { modes, index } = e.payload;
       if (modes.length > 0) setSlots(modes);
       setHeldIndex(index);
@@ -213,6 +220,10 @@ export default function CommandRingPage() {
         invoke("command_ring_editor").catch((err) =>
           console.error("command_ring_editor failed", err),
         );
+      } else if (t === RING_CANCEL) {
+        // Not reachable today (v1's slots are capture modes only), but the type
+        // allows it — dismiss rather than dispatch "cancel" as a capture kind.
+        closeRing();
       } else {
         invoke("command_ring_select", { kind: t }).catch((err) =>
           console.error("command_ring_select failed", err),
@@ -231,6 +242,7 @@ export default function CommandRingPage() {
       : hover && hover !== "center"
         ? slots.indexOf(hover)
         : -1;
+  const activeIsCancel = activeIndex >= 0 && slots[activeIndex] === RING_CANCEL;
 
   return (
     <div
@@ -275,7 +287,14 @@ export default function CommandRingPage() {
                 sweep,
               )}
               strokeWidth={1.5}
-              style={{ fill: "var(--accent-soft)", stroke: "var(--accent)" }}
+              // Cancel highlights in muted tones rather than the accent: the
+              // accent everywhere else means "this will capture", and cancel is
+              // the one slot that won't.
+              style={
+                activeIsCancel
+                  ? { fill: "var(--border-strong)", stroke: "var(--muted-foreground)" }
+                  : { fill: "var(--accent-soft)", stroke: "var(--accent)" }
+              }
             />
           )}
 
@@ -316,7 +335,14 @@ export default function CommandRingPage() {
                 fontSize={Math.max(13, half * 0.115)}
                 fontWeight={600}
                 style={{
-                  fill: activeIndex === i ? "var(--accent)" : "var(--fg)",
+                  fill:
+                    activeIndex === i
+                      ? activeIsCancel
+                        ? "var(--fg)"
+                        : "var(--accent)"
+                      : w === RING_CANCEL
+                        ? "var(--muted-foreground)"
+                        : "var(--fg)",
                   pointerEvents: "none",
                 }}
               >

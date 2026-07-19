@@ -3,6 +3,22 @@
 export type RingWedge = "window" | "full" | "scroll" | "area" | "systemArea";
 
 /**
+ * The cancel slot — always the last slot on the v2 hold ring, never a
+ * configurable capture mode (so it can't be unchecked away).
+ *
+ * Releasing the modifiers always fires whatever is highlighted, so without a
+ * slot that fires *nothing* there is no way to back out of a gesture once
+ * started. The alternative — a globally-registered Escape while the ring is up
+ * — is exactly the transient registration CP-0038 rules out: it would swallow
+ * Escape system-wide, and a failed teardown leaves it swallowed for the
+ * session.
+ */
+export const RING_CANCEL = "cancel" as const;
+
+/** A slot on the ring: a capture mode, or the cancel slot. */
+export type RingSlot = RingWedge | typeof RING_CANCEL;
+
+/**
  * Every capture mode that may be assigned to a ring slot, in the order the
  * Settings checkbox list presents them.
  *
@@ -33,7 +49,8 @@ export const RING_MAX_MODES = 4;
 export const RING_WEDGES: readonly RingWedge[] = ["window", "full", "scroll", "area"] as const;
 
 /** Short label rendered on each wedge. */
-export const RING_LABELS: Record<RingWedge, string> = {
+export const RING_LABELS: Record<RingSlot, string> = {
+  cancel: "cancel",
   window: "window",
   full: "full",
   scroll: "scroll",
@@ -61,6 +78,15 @@ export const RING_MODE_LABELS: Record<RingWedge, string> = {
  */
 export function usableRingModes(modes: readonly RingWedge[], isMac: boolean): RingWedge[] {
   return modes.filter((m) => isMac || !MACOS_ONLY_RING_MODES.includes(m));
+}
+
+/**
+ * The slots the hold ring actually renders: the configured modes, then cancel.
+ * Kept in one place so Rust's cycle order and the frontend's layout cannot
+ * drift — Rust appends the same sentinel in the same position.
+ */
+export function holdRingSlots(modes: readonly RingWedge[]): RingSlot[] {
+  return [...modes, RING_CANCEL];
 }
 
 /**

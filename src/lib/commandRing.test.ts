@@ -9,6 +9,9 @@ import {
   RING_LABELS,
   RING_MODE_LABELS,
   RING_MAX_MODES,
+  RING_MIN_MODES,
+  RING_CANCEL,
+  holdRingSlots,
   type RingWedge,
 } from "./commandRing";
 
@@ -134,5 +137,44 @@ describe("ring mode metadata", () => {
     const modes: RingWedge[] = ["full", "systemArea", "area"];
     expect(usableRingModes(modes, true)).toEqual(modes);
     expect(usableRingModes(modes, false)).toEqual(["full", "area"]);
+  });
+});
+
+describe("holdRingSlots (cancel slot)", () => {
+  it("appends cancel after the configured modes", () => {
+    expect(holdRingSlots(["full", "area"])).toEqual(["full", "area", RING_CANCEL]);
+  });
+
+  // Cancel is what makes a hold gesture escapable without a global Escape, so
+  // it must survive every legal slot count — including a one-mode ring.
+  it("is present for every legal mode count", () => {
+    for (let n = RING_MIN_MODES; n <= RING_MAX_MODES; n++) {
+      const slots = holdRingSlots(RING_MODE_IDS.slice(0, n));
+      expect(slots).toHaveLength(n + 1);
+      expect(slots[slots.length - 1]).toBe(RING_CANCEL);
+    }
+  });
+
+  it("is never one of the configurable capture modes", () => {
+    expect(RING_MODE_IDS).not.toContain(RING_CANCEL);
+  });
+
+  it("is labelled", () => {
+    expect(RING_LABELS[RING_CANCEL]).toBeTruthy();
+  });
+
+  // The full ring is 4 modes + cancel = 5 slots; the geometry must still
+  // partition the circle cleanly at that count.
+  it("keeps the ring hit-testable at max modes plus cancel", () => {
+    const n = holdRingSlots(RING_MODE_IDS.slice(0, RING_MAX_MODES)).length;
+    expect(n).toBe(5);
+    const seen = new Set<number>();
+    for (let deg = 0; deg < 360; deg += 1) {
+      const rad = (deg * Math.PI) / 180;
+      const s = slotAtPoint(180 + Math.cos(rad) * 100, 180 + Math.sin(rad) * 100, 180, 180, 60, n);
+      expect(s).not.toBeNull();
+      seen.add(s as number);
+    }
+    expect(seen.size).toBe(n);
   });
 });

@@ -6,6 +6,9 @@
 //! focus**. Tap again to advance the highlight. Release the modifiers and the
 //! highlighted mode fires and the ring vanishes — exactly like alt+tab.
 //!
+//! The last slot in the cycle is always `CANCEL`, which fires nothing: it is
+//! how a gesture is backed out of without a globally-registered Escape.
+//!
 //! # Why it is built this way
 //!
 //! The global-shortcut plugin reports the *trigger key* going down and up, but
@@ -52,6 +55,15 @@ pub const RING_MODES: [&str; 5] = ["window", "full", "scroll", "area", "systemAr
 
 pub const RING_MIN_MODES: usize = 1;
 pub const RING_MAX_MODES: usize = 4;
+
+/// The cancel slot: always the last slot in the cycle, never configurable.
+///
+/// Releasing always fires whatever is highlighted, so without a slot that fires
+/// *nothing* a gesture cannot be backed out of once started. A global Escape
+/// while the ring is up would be the transient registration this design rules
+/// out — it swallows Escape system-wide and a failed teardown leaves it that
+/// way for the session. Mirrors `RING_CANCEL` in commandRing.ts.
+pub const CANCEL: &str = "cancel";
 
 /// Default slot assignment, matching `DEFAULT_CONFIG.ring.modes`.
 const DEFAULT_MODES: [&str; 4] = ["window", "full", "scroll", "area"];
@@ -180,7 +192,11 @@ pub fn on_trigger<R: Runtime>(app: &AppHandle<R>, accel: &str) {
                 false
             }
             None => {
-                let modes = read_modes(app);
+                // Cancel rides at the end of the cycle, so tapping past the
+                // last capture mode lands on "do nothing" rather than wrapping
+                // straight back to the first.
+                let mut modes = read_modes(app);
+                modes.push(CANCEL.to_string());
                 *g = Some(Gesture { modes, index: 0, hold });
                 true
             }
@@ -246,6 +262,10 @@ fn start_release_poll<R: Runtime>(app: &AppHandle<R>) {
 /// Fire the highlighted mode and drop the ring.
 fn fire<R: Runtime>(app: &AppHandle<R>) {
     let Some(kind) = close(app) else { return };
+    if kind == CANCEL {
+        log::info!("ring: cancelled");
+        return;
+    }
     log::info!("ring: firing {kind}");
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -310,6 +330,26 @@ mod tests {
         assert_eq!(cycle(4, 5), vec![0, 1, 2, 3, 0, 1]);
         // A single-slot ring is legal: every tap keeps the one mode selected.
         assert_eq!(cycle(1, 3), vec![0, 0, 0, 0]);
+    }
+
+    /// The cycle is modes + cancel, so cancel is always reachable and always
+    /// last — a user who taps past the final capture mode lands on "do nothing"
+    /// rather than wrapping to the first mode and firing it by surprise.
+    #[test]
+    fn cancel_is_the_last_slot_and_is_reachable() {
+        let mut cycle: Vec<String> = DEFAULT_MODES.iter().map(|s| s.to_string()).collect();
+        cycle.push(CANCEL.to_string());
+        assert_eq!(cycle.last().unwrap(), CANCEL);
+        // Tapping once per slot visits every mode and ends on cancel.
+        assert_eq!(cycle.len(), DEFAULT_MODES.len() + 1);
+        assert_eq!(cycle[(cycle.len() - 1) % cycle.len()], CANCEL);
+    }
+
+    /// Cancel must never be assignable as a capture mode, or it could be
+    /// configured away (or duplicated) via the store.
+    #[test]
+    fn cancel_is_not_a_configurable_mode() {
+        assert!(!RING_MODES.contains(&CANCEL));
     }
 
     #[test]

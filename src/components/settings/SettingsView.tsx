@@ -298,7 +298,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               </FieldRow>
               <FieldRow
                 label="Command ring (hold)"
-                hint="Alt+tab style: hold the modifiers and tap to cycle, release to capture. Needs at least one modifier; the app you are capturing keeps focus."
+                hint="Alt+tab style: hold the modifiers and tap to cycle, release to capture. Cycle to the cancel slot to back out. Needs at least one modifier; the app you are capturing keeps focus."
               >
                 <HotkeyRecorder
                   value={config.hotkeys.commandRingV2}
@@ -736,7 +736,7 @@ function RingModesField() {
         <Label className="text-foreground">Ring slots</Label>
         <span className="text-xs text-muted-foreground">
           Modes on the hold ring, clockwise from the top. Choose {RING_MIN_MODES}–
-          {RING_MAX_MODES}.
+          {RING_MAX_MODES}; a cancel slot is always added last.
         </span>
       </div>
       <div className="grid gap-2">
