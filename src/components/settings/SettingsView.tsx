@@ -719,11 +719,23 @@ function RingModesField() {
     (m) => IS_MAC || !MACOS_ONLY_RING_MODES.includes(m),
   );
 
+  // A config synced from a Mac can list `systemArea` on Windows, where it has
+  // no checkbox. Counting it toward the limits would show fewer ticks than the
+  // slot count claims AND block a fourth visible mode with no way to free the
+  // slot — the hidden entry can't be unchecked. So the limits apply to what
+  // the user can actually see and act on.
+  const hidden = selected.filter((m) => !available.includes(m));
+  const visible = selected.filter((m) => available.includes(m));
+
   const toggle = async (mode: RingWedge, checked: boolean) => {
-    const next = checked
-      ? [...selected, mode]
-      : selected.filter((m) => m !== mode);
-    if (next.length < RING_MIN_MODES || next.length > RING_MAX_MODES) return;
+    const nextVisible = checked ? [...visible, mode] : visible.filter((m) => m !== mode);
+    if (nextVisible.length < RING_MIN_MODES || nextVisible.length > RING_MAX_MODES) return;
+    // Preserve platform-hidden modes so a round-trip through this machine
+    // doesn't silently strip them from the Mac's ring — but only while they
+    // fit. A choice the user just made on the machine in front of them beats
+    // an entry they cannot see.
+    const keptHidden = hidden.slice(0, RING_MAX_MODES - nextVisible.length);
+    const next = [...nextVisible, ...keptHidden];
     // Keep slots in the canonical list order so the ring layout is a function
     // of *which* modes are on it, not the order they happened to be ticked.
     const ordered = RING_MODE_IDS.filter((m) => next.includes(m));
@@ -741,11 +753,11 @@ function RingModesField() {
       </div>
       <div className="grid gap-2">
         {available.map((mode) => {
-          const checked = selected.includes(mode);
+          const checked = visible.includes(mode);
           // Block the toggle that would empty the ring or overfill it.
           const disabled = checked
-            ? selected.length <= RING_MIN_MODES
-            : selected.length >= RING_MAX_MODES;
+            ? visible.length <= RING_MIN_MODES
+            : visible.length >= RING_MAX_MODES;
           return (
             <label
               key={mode}
@@ -766,8 +778,8 @@ function RingModesField() {
         })}
       </div>
       <span className="text-xs text-muted-foreground">
-        {selected.length} of {RING_MAX_MODES} slots used
-        {selected.length >= RING_MAX_MODES && " — uncheck one to swap in another"}
+        {visible.length} of {RING_MAX_MODES} slots used
+        {visible.length >= RING_MAX_MODES && " — uncheck one to swap in another"}
       </span>
     </div>
   );
