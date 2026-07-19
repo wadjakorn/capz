@@ -1,50 +1,10 @@
 "use client";
 
-import type { ComponentType, ReactNode } from "react";
-import { ImageDown, Loader2, ScanText, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { ImageDown, Loader2, Ruler, ScanText, Trash2 } from "lucide-react";
+import { ActionRow } from "./kit";
 import { BackdropSection } from "../BackdropControl";
 import { ZoomMenuButton } from "../ZoomMenuButton";
-
-type IconType = ComponentType<{ className?: string }>;
-
-/** Full-width labelled action — the sidebar counterpart of a ToolButton. The
- * slot is a 15rem column, so these read as rows, not icon-only squares. */
-function ActionRow({
-  Icon,
-  label,
-  onClick,
-  disabled,
-  pressed,
-  iconClassName,
-}: {
-  Icon: IconType;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  pressed?: boolean;
-  iconClassName?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      aria-pressed={pressed}
-      className={[
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
-        pressed
-          ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-          : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-        "disabled:opacity-40 disabled:hover:bg-transparent",
-      ].join(" ")}
-    >
-      <Icon className={iconClassName ?? "h-4 w-4"} aria-hidden />
-      <span className="truncate">{label}</span>
-    </button>
-  );
-}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -92,14 +52,12 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
         <div className="px-1">
           <ZoomMenuButton displayScale={p.displayScale} disabled={!p.hasImage} />
         </div>
-        <label className="flex items-center justify-between px-2 py-1 text-xs text-[var(--fg-2)]">
-          <span>Rulers</span>
-          <input
-            type="checkbox"
-            checked={p.showRulers}
-            onChange={p.onToggleRulers}
-          />
-        </label>
+        <ActionRow
+          Icon={Ruler}
+          label="Rulers"
+          pressed={p.showRulers}
+          onClick={p.onToggleRulers}
+        />
       </Section>
 
       <Section title="Workspace">
@@ -150,9 +108,7 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
 
       {p.hasImage && (
         <Section title="Backdrop">
-          <div className="px-2">
-            <BackdropSection />
-          </div>
+          <BackdropSection />
         </Section>
       )}
     </div>

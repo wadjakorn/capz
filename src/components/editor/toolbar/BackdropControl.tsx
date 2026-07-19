@@ -1,8 +1,10 @@
 "use client";
 
+import { Frame, SunMedium } from "lucide-react";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { GRADIENT_PRESETS } from "@/lib/backdrop";
+import { ActionRow } from "./panels/kit";
 
 /**
  * Padded-backdrop controls (K5pWujLnPFKv): an on/off toggle plus the
@@ -27,88 +29,96 @@ export function BackdropSection() {
 
   return (
     <div className="text-sm">
-      <label className="mb-2 flex items-center justify-between">
-        <span className="text-[var(--fg-2)]">Backdrop</span>
-        <input
-          type="checkbox"
-          checked={backdropOn}
-          onChange={(e) => setBackdropOn(e.target.checked)}
+      <div className="mb-1">
+        <ActionRow
+          Icon={Frame}
+          label="Show backdrop"
+          pressed={backdropOn}
+          onClick={() => setBackdropOn(!backdropOn)}
         />
-      </label>
-
-      {/* Style toggle */}
-      <div className="mb-2 flex items-center gap-1">
-        {(["gradient", "solid"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => patch({ style: s })}
-            className={[
-              "flex-1 rounded-md px-2 py-1 text-xs capitalize transition-colors",
-              backdrop.style === s
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
-            ].join(" ")}
-          >
-            {s}
-          </button>
-        ))}
       </div>
 
-      {backdrop.style === "gradient" ? (
-        <div className="mb-3 grid grid-cols-3 gap-1.5">
-          {GRADIENT_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              title={p.name}
-              onClick={() => patch({ presetId: p.id })}
-              className={[
-                "h-8 rounded-md border transition-transform hover:scale-105",
-                backdrop.presetId === p.id
-                  ? "border-[var(--accent)]"
-                  : "border-transparent",
-              ].join(" ")}
-              style={{ backgroundImage: cssPreview(p.colors, p.angle) }}
-              aria-label={p.name}
-            />
-          ))}
-        </div>
-      ) : (
-        <label className="mb-3 flex items-center justify-between gap-2">
-          <span className="text-[var(--fg-2)]">Color</span>
-          <input
-            type="color"
-            value={backdrop.solidColor}
-            onChange={(e) => patch({ solidColor: e.target.value })}
-            className="h-7 w-10 cursor-pointer rounded border border-[var(--border)] bg-transparent"
+      {/* The appearance controls are meaningless with the backdrop off, so they
+          stay hidden until it's enabled. */}
+      {!backdropOn ? null : (
+        <>
+          <div className="px-2">
+          {/* Style toggle */}
+          <div className="mb-2 flex items-center gap-1">
+            {(["gradient", "solid"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => patch({ style: s })}
+                className={[
+                  "flex-1 rounded-md px-2 py-1 text-xs capitalize transition-colors",
+                  backdrop.style === s
+                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                    : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+                ].join(" ")}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {backdrop.style === "gradient" ? (
+            <div className="mb-3 grid grid-cols-3 gap-1.5">
+              {GRADIENT_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  title={p.name}
+                  onClick={() => patch({ presetId: p.id })}
+                  className={[
+                    "h-8 rounded-md border transition-transform hover:scale-105",
+                    backdrop.presetId === p.id
+                      ? "border-[var(--accent)]"
+                      : "border-transparent",
+                  ].join(" ")}
+                  style={{ backgroundImage: cssPreview(p.colors, p.angle) }}
+                  aria-label={p.name}
+                />
+              ))}
+            </div>
+          ) : (
+            <label className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-[var(--fg-2)]">Color</span>
+              <input
+                type="color"
+                value={backdrop.solidColor}
+                onChange={(e) => patch({ solidColor: e.target.value })}
+                className="h-7 w-10 cursor-pointer rounded border border-[var(--border)] bg-transparent"
+              />
+            </label>
+          )}
+
+          <SliderRow
+            label="Padding"
+            min={0}
+            max={256}
+            value={backdrop.padding}
+            onChange={(v) => patch({ padding: v })}
           />
-        </label>
+          <SliderRow
+            label="Corners"
+            min={0}
+            max={48}
+            value={backdrop.cornerRadius}
+            onChange={(v) => patch({ cornerRadius: v })}
+          />
+          </div>
+
+          <div className="mt-1">
+            <ActionRow
+              Icon={SunMedium}
+              label="Shadow"
+              pressed={backdrop.shadow}
+              onClick={() => patch({ shadow: !backdrop.shadow })}
+            />
+          </div>
+        </>
       )}
-
-      <SliderRow
-        label="Padding"
-        min={0}
-        max={256}
-        value={backdrop.padding}
-        onChange={(v) => patch({ padding: v })}
-      />
-      <SliderRow
-        label="Corners"
-        min={0}
-        max={48}
-        value={backdrop.cornerRadius}
-        onChange={(v) => patch({ cornerRadius: v })}
-      />
-
-      <label className="mt-1 flex items-center justify-between">
-        <span className="text-[var(--fg-2)]">Shadow</span>
-        <input
-          type="checkbox"
-          checked={backdrop.shadow}
-          onChange={(e) => patch({ shadow: e.target.checked })}
-        />
-      </label>
     </div>
   );
 }
