@@ -102,7 +102,13 @@ export default function EditorPage() {
   const addCaptureAsOverlay = useCallback(async (path: string) => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      const dataUrl = await invoke<string>("read_image_file_data_url", { path });
+      // consumeTemp: a layer capture's temp file has no owner in Rust (the base
+      // image keeps the active-workspace slot), so Rust deletes it once we hold
+      // the pixels. Ignored for non-`capz-temp-*` paths.
+      const dataUrl = await invoke<string>("read_image_file_data_url", {
+        path,
+        consumeTemp: true,
+      });
       const { addOverlayImage } = await import("@/lib/addImage");
       const id = await addOverlayImage(dataUrl);
       if (!id) toast.error("Couldn't add the new capture");
