@@ -15,6 +15,12 @@
 > non-interception path to alt+tab behaviour. This is the finding the whole POC
 > existed to produce.
 >
+> **F13:** the opening highlight was never visible — Rust creates the ring
+> window and emits the highlight in the same breath, so the event lands before
+> the webview has mounted its listener. Fixed with a readiness handshake
+> (`ring-poc:ready`) rather than a guessed delay. Any window created and
+> immediately emitted to has this race.
+>
 > **F12:** re-triggering the ring now closes any overlay left open by an
 > abandoned capture (`windows::close_overlays`). Without it a stale area/window
 > overlay sits under the ring and eats the next selection. Cancelling is the

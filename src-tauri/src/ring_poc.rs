@@ -26,7 +26,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Listener, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::modifiers;
@@ -52,6 +52,18 @@ static SELECTED: Mutex<Option<usize>> = Mutex::new(None);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
 pub fn register<R: Runtime>(app: &AppHandle<R>) {
+    // The ring webview cannot receive the initial highlight until it has
+    // mounted its listener, and the window is created and emitted to in the same
+    // breath — so the first emit is always lost. The page announces readiness
+    // instead of us guessing a delay.
+    let app_ready = app.clone();
+    app.listen("ring-poc:ready", move |_| {
+        if let Some(idx) = *SELECTED.lock().unwrap() {
+            log::info!("[ring-poc] ring ready — replaying highlight {}", MODES[idx]);
+            let _ = app_ready.emit_to("command-ring", "ring-poc:highlight", MODES[idx]);
+        }
+    });
+
     if modifiers::current().is_none() {
         log::error!("[ring-poc] modifier polling unsupported on this platform — v3 cannot run");
         return;

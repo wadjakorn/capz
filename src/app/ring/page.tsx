@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import {
   RING_ANGLE,
   RING_LABELS,
@@ -113,6 +113,10 @@ export default function CommandRingPage() {
   useEffect(() => {
     if (!isPoc) return;
     const un = listen<string>("ring-poc:highlight", (e) => setHover(e.payload as Target));
+    // Rust creates this window and emits the opening highlight immediately, so
+    // that first event lands before the listener above exists. Announce once we
+    // are actually listening and let Rust replay the current selection.
+    void un.then(() => emit("ring-poc:ready"));
     return () => {
       void un.then((f) => f());
     };
