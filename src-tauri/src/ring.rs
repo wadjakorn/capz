@@ -296,7 +296,10 @@ fn fire<R: Runtime>(app: &AppHandle<R>) {
                 return;
             }
         };
-        if let Err(e) = crate::capture_dispatch::trigger_capture(app, parsed).await {
+        // `as_layer: false` — a ring capture replaces, like the hotkey and v1
+        // ring paths. Only the editor's explicit capture-as-layer button passes
+        // true (CP-0041).
+        if let Err(e) = crate::capture_dispatch::trigger_capture(app, parsed, false).await {
             log::error!("ring: trigger_capture failed: {e}");
         }
     });
