@@ -230,7 +230,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
 
 /// Window label for the radial command ring. Distinct from the `overlay-*`
 /// family so the overlay iteration/close helpers never touch it.
-const COMMAND_RING_LABEL: &str = "command-ring";
+pub const COMMAND_RING_LABEL: &str = "command-ring";
 /// Fixed logical (macOS points / physical px elsewhere, matching the overlay
 /// convention) size of the square command-ring window. The ring art, labels and
 /// hover glow all live inside this box; positioning clamps the whole box inside
@@ -269,11 +269,56 @@ fn ring_position(
 /// dispatches the chosen capture via `command_ring_select`, or closes on
 /// Esc / blur / click-outside.
 pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    show_command_ring_ex(app, true)
+}
+
+/// Show the ring WITHOUT taking focus — command ring v2 (CP-0038).
+///
+/// The whole point of the hold gesture is that the app you are capturing keeps
+/// focus: a source app's transient state (open menu, hover tooltip, text
+/// selection) must survive the ring being up, and stealing focus would also
+/// mean releasing the modifiers lands in our window instead of theirs.
+pub fn show_command_ring_unfocused<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    show_command_ring_ex(app, false)
+}
+
+/// Whether the existing ring webview was built for the unfocused (v2) flow.
+///
+/// v1 and v2 CANNOT share a reused window. The focus mode is baked into the
+/// page at creation (via the URL) and v1's webview installs a close-on-blur
+/// listener — reuse it for v2 and the ring closes itself the moment it appears
+/// while the Rust side still believes it is open, leaving a gesture that
+/// silently does nothing. So a mode change rebuilds the window instead.
+static RING_BUILT_UNFOCUSED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::Result<()> {
+    use std::sync::atomic::Ordering;
+    // Compare like with like. Reading the flag directly against `focus` is
+    // correct but inverted-looking (they are opposites), so name the request in
+    // the flag's own terms first — `want_unfocused != built_unfocused` then
+    // reads as plainly as it behaves.
+    let want_unfocused = !focus;
     if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
-        let _ = win.show();
-        let _ = win.set_focus();
-        return Ok(());
+        let built_unfocused = RING_BUILT_UNFOCUSED.load(Ordering::SeqCst);
+        if built_unfocused != want_unfocused {
+            log::info!(
+                "command ring: focus mode changed (built_unfocused={built_unfocused}, \
+                 want_unfocused={want_unfocused}), rebuilding window"
+            );
+            let _ = win.close();
+        } else {
+            let _ = win.show();
+            if focus {
+                let _ = win.set_focus();
+            }
+            return Ok(());
+        }
     }
+    // Stale if the window was destroyed by another path, but harmless: the
+    // `get_webview_window` check above fails first, so we fall through to a
+    // rebuild and overwrite it here.
+    RING_BUILT_UNFOCUSED.store(want_unfocused, Ordering::SeqCst);
 
     let mons = monitor_service::list_monitors()
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("list monitors: {e}")))?;
@@ -283,7 +328,11 @@ pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     // Build hidden first, then reposition + reveal once the cursor's display is
     // known (the cursor is read window-free via `monitor_service::cursor_position`).
-    let win = WebviewWindowBuilder::new(app, COMMAND_RING_LABEL, WebviewUrl::App("ring/".into()))
+    // The mode rides in the URL so the page knows at mount time whether it is
+    // the click ring (v1) or the hold ring (v2) — the two have different input
+    // handling and v2 must not close on blur.
+    let url = if focus { "ring/" } else { "ring/?hold=1" };
+    let win = WebviewWindowBuilder::new(app, COMMAND_RING_LABEL, WebviewUrl::App(url.into()))
         .title("capz — Command ring")
         .transparent(true)
         .decorations(false)
@@ -351,7 +400,9 @@ pub fn show_command_ring<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     disable_dwm_transitions(&win);
 
     win.show()?;
-    let _ = win.set_focus();
+    if focus {
+        let _ = win.set_focus();
+    }
 
     #[cfg(target_os = "macos")]
     {

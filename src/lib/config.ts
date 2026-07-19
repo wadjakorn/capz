@@ -8,6 +8,13 @@ import type {
   TextAlign,
 } from "@/stores/editor";
 import { validateAccelerator } from "@/lib/shortcuts";
+import {
+  RING_MAX_MODES,
+  RING_MIN_MODES,
+  RING_MODE_IDS,
+  RING_WEDGES,
+  type RingWedge,
+} from "@/lib/commandRing";
 
 /** Thai-aware sans stack (mirrors OcrLayer's FONT_STACK) — leads with
  * "Noto Sans Thai" so Thai glyphs render cleanly, falling back to the system
@@ -44,7 +51,22 @@ export type AppConfig = {
      */
     captureSystemArea: string;
     showEditor: string;
+    /** Command ring v1 — click-to-pick. Press once; the ring takes focus. */
     commandRing: string;
+    /**
+     * Command ring v2 — alt+tab-style hold/cycle/release (CP-0038). Kept
+     * deliberately separate from `commandRing`: the two rings coexist and the
+     * user may bind one, both, or neither. Ships unbound ("").
+     */
+    commandRingV2: string;
+  };
+  ring: {
+    /**
+     * Capture modes occupying the v2 ring's slots, clockwise from the top.
+     * 1–4 entries (`RING_MIN_MODES`..`RING_MAX_MODES`); v2 cycles through them
+     * in this order.
+     */
+    modes: RingWedge[];
   };
   output: {
     defaultMode: "file" | "clipboard" | "both";
@@ -223,7 +245,8 @@ export type AppConfig = {
   };
 };
 
-export const CONFIG_SCHEMA_VERSION = 1;
+// v2 (CP-0038): added `hotkeys.commandRingV2` and the `ring` section.
+export const CONFIG_SCHEMA_VERSION = 2;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -235,6 +258,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     captureSystemArea: "",
     showEditor: "CmdOrCtrl+Alt+Shift+0",
     commandRing: "CmdOrCtrl+Shift+Space",
+    // v2 ships unbound: it would otherwise collide with v1's default, and the
+    // hold gesture is opt-in. Same "" contract as scroll (CP-0036).
+    commandRingV2: "",
+  },
+  ring: {
+    // The v1 wedge order, so a user who binds v2 sees the ring they already know.
+    modes: [...RING_WEDGES],
   },
   output: {
     defaultMode: "clipboard",
@@ -339,10 +369,15 @@ export const DEFAULT_CONFIG: AppConfig = {
 export const CONFIG_STORE_FILE = "config.json";
 export const CONFIG_STORE_KEY = "app";
 
-// Forward-compatible migration entry point. v1 = initial schema, so any
-// persisted shape (including pre-versioned stores) is passed through.
-// Future schema bumps add cases that transform `raw` to the latest shape
-// before merge() in useSettings.init() fills in defaults.
+// Forward-compatible migration entry point. Transforms `raw` to the latest
+// shape before validateConfig() fills in defaults.
+//
+// v1 → v2 (CP-0038) needs no transform: it only ADDED keys
+// (`hotkeys.commandRingV2`, `ring`), and absent keys already fall back to
+// their defaults in vsec/vRing. A v1 store therefore loads with v2 ring
+// defaults and is rewritten on the schemaVersion mismatch (see the self-heal
+// in useSettings.init). This case exists to document that, so a later
+// migration doesn't assume v1 stores were ever rewritten in place.
 export function migrateConfig(raw: unknown): Partial<AppConfig> | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const obj = raw as Record<string, unknown>;
@@ -389,6 +424,60 @@ const inSet =
   (...opts: unknown[]): Validator =>
   (v) =>
     opts.includes(v);
+
+/**
+ * Validate the `ring` section (CP-0038).
+ *
+ * Not `vsec`-able: `modes` is an array with cross-element rules (known values,
+ * no duplicates, 1–4 entries) rather than an independent leaf.
+ *
+ * Enforcement happens HERE as well as in the Settings UI on purpose. The store
+ * is a plain JSON file a user can hand-edit, and a config written by a future
+ * build may legitimately contain modes this build has never heard of. Clamping
+ * on read means the ring can never end up empty (nothing to cycle, nothing to
+ * fire) or over-full (slots with no wedge to draw them in).
+ *
+ * Recovery is partial, not all-or-nothing: valid entries survive and only the
+ * bad ones are dropped, so an unknown mode from a newer build costs the user
+ * one slot instead of their whole ring layout.
+ */
+function vRing(raw: unknown, def: AppConfig["ring"], issues: string[]): AppConfig["ring"] {
+  if (raw === undefined) return { modes: [...def.modes] };
+  if (!raw || typeof raw !== "object") {
+    note(issues, "invalid ring (not an object), using defaults");
+    return { modes: [...def.modes] };
+  }
+  const obj = raw as Record<string, unknown>;
+  warnUnknownKeys("ring", obj, Object.keys(def), issues);
+  if (!("modes" in obj)) return { modes: [...def.modes] };
+  if (!Array.isArray(obj.modes)) {
+    note(issues, "invalid ring.modes (not an array), using defaults");
+    return { modes: [...def.modes] };
+  }
+  const seen = new Set<string>();
+  const modes: RingWedge[] = [];
+  for (const m of obj.modes) {
+    if (typeof m !== "string" || !RING_MODE_IDS.includes(m as RingWedge)) {
+      note(issues, `unknown ring.modes entry ${JSON.stringify(m)}, ignoring`);
+      continue;
+    }
+    if (seen.has(m)) {
+      note(issues, `duplicate ring.modes entry ${m}, ignoring`);
+      continue;
+    }
+    seen.add(m);
+    modes.push(m as RingWedge);
+  }
+  if (modes.length > RING_MAX_MODES) {
+    note(issues, `ring.modes has more than ${RING_MAX_MODES} entries, truncating`);
+    modes.length = RING_MAX_MODES;
+  }
+  if (modes.length < RING_MIN_MODES) {
+    note(issues, `ring.modes needs at least ${RING_MIN_MODES} entry, using defaults`);
+    return { modes: [...def.modes] };
+  }
+  return { modes };
+}
 
 /** Record a validation problem: collect for the UI and mirror to the console. */
 function note(issues: string[], msg: string) {
@@ -688,7 +777,9 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       captureSystemArea: isValidOrEmptyAccelerator,
       showEditor: isValidOrEmptyAccelerator,
       commandRing: isValidOrEmptyAccelerator,
+      commandRingV2: isValidOrEmptyAccelerator,
     }, issues),
+    ring: vRing(r.ring, d.ring, issues),
     output: vsec("output", r.output, d.output, {
       defaultMode: inSet("file", "clipboard", "both"),
       fileFormat: inSet("png", "jpeg", "webp"),

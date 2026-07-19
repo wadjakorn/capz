@@ -12,6 +12,10 @@ const DEFAULT_AREA: &str = "CmdOrCtrl+Alt+Shift+4";
 const DEFAULT_WINDOW: &str = "CmdOrCtrl+Alt+Shift+5";
 const DEFAULT_SHOW_EDITOR: &str = "CmdOrCtrl+Alt+Shift+0";
 const DEFAULT_COMMAND_RING: &str = "CmdOrCtrl+Shift+Space";
+// Command ring v2 (hold/cycle/release, CP-0038) ships UNBOUND: its default
+// would otherwise collide with v1's, and the hold gesture is opt-in. Kept as a
+// separate binding from `commandRing` so both rings can coexist.
+const DEFAULT_COMMAND_RING_V2: &str = "";
 // Scrolling capture ships UNBOUND by default — the user assigns a key in
 // Settings. Empty means "no shortcut registered".
 const DEFAULT_SCROLL: &str = "";
@@ -55,6 +59,7 @@ pub enum HotkeyAction {
     CaptureSystemArea,
     ShowEditor,
     CommandRing,
+    CommandRingV2,
 }
 
 #[derive(Clone, Serialize, Debug)]
@@ -75,6 +80,7 @@ fn default_accel(action: HotkeyAction) -> &'static str {
         HotkeyAction::CaptureSystemArea => DEFAULT_SYSTEM_AREA,
         HotkeyAction::ShowEditor => DEFAULT_SHOW_EDITOR,
         HotkeyAction::CommandRing => DEFAULT_COMMAND_RING,
+        HotkeyAction::CommandRingV2 => DEFAULT_COMMAND_RING_V2,
     }
 }
 
@@ -119,6 +125,7 @@ struct Hotkeys {
     system_area: String,
     show_editor: String,
     command_ring: String,
+    command_ring_v2: String,
 }
 
 fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
@@ -130,6 +137,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
         system_area: DEFAULT_SYSTEM_AREA.into(),
         show_editor: DEFAULT_SHOW_EDITOR.into(),
         command_ring: DEFAULT_COMMAND_RING.into(),
+        command_ring_v2: DEFAULT_COMMAND_RING_V2.into(),
     };
     let Ok(path) = config_store_path(app) else {
         return defaults();
@@ -169,12 +177,19 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
             if let Some(s) = map.get("commandRing").and_then(|x| x.as_str()) {
                 hk.command_ring = s.to_string();
             }
+            if let Some(s) = map.get("commandRingV2").and_then(|x| x.as_str()) {
+                hk.command_ring_v2 = s.to_string();
+            }
         }
     }
     hk
 }
 
-fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
+/// `accel` is the accelerator that actually fired. Only the v2 ring needs it —
+/// it derives the modifiers whose release ends the hold gesture from the live
+/// binding, so a rebound hotkey polls the right keys without a second source of
+/// truth.
+fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction, accel: &str) {
     match action {
         HotkeyAction::CaptureFull => emit_trigger(app, CaptureKind::Full),
         HotkeyAction::CaptureArea => emit_trigger(app, CaptureKind::Area),
@@ -193,6 +208,7 @@ fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
                 log::error!("show_command_ring failed: {e}");
             }
         }
+        HotkeyAction::CommandRingV2 => crate::ring::on_trigger(app, accel),
     }
 }
 
@@ -203,10 +219,11 @@ fn register_one<R: Runtime>(
 ) -> Result<(), String> {
     let sc: Shortcut = accel.parse().map_err(|e| format!("{e:?}"))?;
     let app2 = app.clone();
+    let accel = accel.to_string();
     app.global_shortcut()
         .on_shortcut(sc, move |_app, _sc, event| {
             if event.state == ShortcutState::Pressed {
-                dispatch_action(&app2, action);
+                dispatch_action(&app2, action, &accel);
             }
         })
         .map_err(|e| e.to_string())
@@ -228,12 +245,28 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
         (HotkeyAction::CaptureSystemArea, hk.system_area),
         (HotkeyAction::ShowEditor, hk.show_editor),
         (HotkeyAction::CommandRing, hk.command_ring),
+        (HotkeyAction::CommandRingV2, hk.command_ring_v2),
     ];
 
     let mut report = Vec::with_capacity(items.len());
     for (action, requested) in items {
         // Unbound ("") registers nothing and reports Ok/unset — see plan_requested.
         let (effective, pre) = plan_requested(action, &requested, win);
+        // The v2 ring is driven by modifier-state polling. Where that is
+        // unavailable the ring would open and never close, because nothing can
+        // observe the release — so leave it unregistered rather than binding a
+        // key to a gesture that strands a window on screen.
+        if action == HotkeyAction::CommandRingV2 && !effective.is_empty() && !crate::ring::is_supported()
+        {
+            log::warn!("command ring v2: modifier polling unavailable here; leaving unbound");
+            report.push(RegoResult {
+                action,
+                requested,
+                effective: String::new(),
+                status: pre,
+            });
+            continue;
+        }
         if effective.is_empty() {
             report.push(RegoResult {
                 action,
@@ -355,6 +388,7 @@ mod tests {
             HotkeyAction::CaptureSystemArea,
             HotkeyAction::ShowEditor,
             HotkeyAction::CommandRing,
+            HotkeyAction::CommandRingV2,
         ] {
             for requested in ["", "   "] {
                 let (eff, st) = plan_requested(action, requested, false);

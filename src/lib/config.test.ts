@@ -176,3 +176,75 @@ describe("validateConfig general.backdrop", () => {
     expect(issues.some((i) => i.includes("general.backdrop"))).toBe(true);
   });
 });
+
+describe("validateConfig ring.modes (CP-0038)", () => {
+  const ring = (modes: unknown) => validateConfig({ ...DEFAULT_CONFIG, ring: { modes } });
+
+  it("keeps a valid custom slot list in order", () => {
+    const { config, issues } = ring(["area", "window"]);
+    expect(config.ring.modes).toEqual(["area", "window"]);
+    expect(issues).toEqual([]);
+  });
+
+  it("accepts a single-slot ring", () => {
+    expect(ring(["full"]).config.ring.modes).toEqual(["full"]);
+  });
+
+  // The store is hand-editable JSON: an empty list would leave the ring with
+  // nothing to cycle or fire, so it must fall back rather than persist.
+  it("falls back to defaults when the list is empty", () => {
+    const { config, issues } = ring([]);
+    expect(config.ring.modes).toEqual(DEFAULT_CONFIG.ring.modes);
+    expect(issues.length).toBeGreaterThan(0);
+  });
+
+  it("truncates past the four-slot maximum", () => {
+    const { config, issues } = ring(["window", "full", "scroll", "area", "systemArea"]);
+    expect(config.ring.modes).toHaveLength(4);
+    expect(issues.some((i) => i.includes("truncating"))).toBe(true);
+  });
+
+  // A newer build may write a mode this one has never heard of. Dropping just
+  // that entry costs one slot instead of the user's whole layout.
+  it("drops unknown entries but keeps the valid ones", () => {
+    const { config, issues } = ring(["full", "teleport", "area"]);
+    expect(config.ring.modes).toEqual(["full", "area"]);
+    expect(issues.some((i) => i.includes("teleport"))).toBe(true);
+  });
+
+  it("drops duplicates", () => {
+    const { config } = ring(["full", "full", "area"]);
+    expect(config.ring.modes).toEqual(["full", "area"]);
+  });
+
+  it("falls back when modes is not an array", () => {
+    expect(ring("full").config.ring.modes).toEqual(DEFAULT_CONFIG.ring.modes);
+  });
+
+  it("uses defaults when the section is absent", () => {
+    const { ring: _omit, ...rest } = DEFAULT_CONFIG;
+    expect(validateConfig(rest).config.ring.modes).toEqual(DEFAULT_CONFIG.ring.modes);
+  });
+});
+
+describe("validateConfig commandRingV2 hotkey (CP-0038)", () => {
+  it("ships unbound and survives a round-trip as unbound", () => {
+    expect(DEFAULT_CONFIG.hotkeys.commandRingV2).toBe("");
+    const cfg = { ...DEFAULT_CONFIG, hotkeys: { ...DEFAULT_CONFIG.hotkeys, commandRingV2: "" } };
+    expect(validateConfig(cfg).config.hotkeys.commandRingV2).toBe("");
+  });
+
+  it("is independent of the v1 ring binding", () => {
+    const cfg = {
+      ...DEFAULT_CONFIG,
+      hotkeys: {
+        ...DEFAULT_CONFIG.hotkeys,
+        commandRing: "CmdOrCtrl+Shift+Space",
+        commandRingV2: "CmdOrCtrl+Alt+Space",
+      },
+    };
+    const { config } = validateConfig(cfg);
+    expect(config.hotkeys.commandRing).toBe("CmdOrCtrl+Shift+Space");
+    expect(config.hotkeys.commandRingV2).toBe("CmdOrCtrl+Alt+Space");
+  });
+});

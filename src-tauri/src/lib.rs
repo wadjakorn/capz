@@ -1,7 +1,9 @@
 mod accel;
 mod capture_dispatch;
 mod commands;
+mod modifiers;
 mod notice;
+mod ring;
 mod services;
 mod shortcuts;
 mod state;
@@ -198,6 +200,10 @@ pub fn run() {
             log_store_path_diagnostics(app.handle());
             services::image_service::sweep_stale_temp();
             tray::create_tray(app.handle())?;
+            // Must precede registration: the v2 ring's accelerator can fire as
+            // soon as it is registered, and the ready-handshake listener has to
+            // already exist or the first ring opens with nothing highlighted.
+            ring::init(app.handle());
             {
                 use tauri::Emitter;
                 let report = shortcuts::register_shortcuts(app.handle());
@@ -232,6 +238,11 @@ pub fn run() {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
                 if code.is_none() {
                     api.prevent_exit();
+                } else {
+                    // Really exiting: drop the ring if a hold gesture is still
+                    // up. Synchronous on purpose — a spawned task may never run
+                    // before the process dies.
+                    ring::shutdown(_app);
                 }
             }
         });
