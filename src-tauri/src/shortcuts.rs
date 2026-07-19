@@ -47,6 +47,13 @@ pub enum RegoStatus {
     Ok,
     Invalid,
     Taken,
+    /// Valid as a shortcut, but unusable for THIS action because it has no
+    /// modifier. Only the hold ring cares: its gesture ends when the modifiers
+    /// come up, so a bare key (CP-0037(a) permits bare F13-F20) would open a
+    /// ring that nothing can close. Distinct from `Invalid` so the message can
+    /// say why rather than calling a legitimate accelerator malformed.
+    #[serde(rename = "needsModifier")]
+    NeedsModifier,
 }
 
 #[derive(Clone, Copy, Serialize, PartialEq, Eq, Debug)]
@@ -267,6 +274,25 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
             });
             continue;
         }
+        // A bare accelerator registers fine but can never drive the hold ring:
+        // the gesture ends on modifier release, so with no modifier the ring
+        // opens and hangs. `on_trigger` refuses it at fire time; catching it
+        // here instead means Settings reverts the field and says why, rather
+        // than persisting a hotkey that silently does nothing. Reachable
+        // because CP-0037(a) accepts bare F13-F20.
+        if action == HotkeyAction::CommandRingV2
+            && !effective.is_empty()
+            && crate::modifiers::from_accelerator(&effective).is_empty()
+        {
+            log::warn!("command ring v2: '{effective}' has no modifier; not registering");
+            report.push(RegoResult {
+                action,
+                requested,
+                effective: String::new(),
+                status: RegoStatus::NeedsModifier,
+            });
+            continue;
+        }
         if effective.is_empty() {
             report.push(RegoResult {
                 action,
@@ -429,6 +455,31 @@ mod tests {
         let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Shift+3", false);
         assert_eq!(eff, "CmdOrCtrl+Shift+3");
         assert_eq!(st, RegoStatus::Ok);
+    }
+
+    /// Codex review. CP-0037(a) accepts bare F13-F20, so the hold ring could be
+    /// bound to one — it registers fine, then `on_trigger` refuses it because
+    /// there is no modifier to release, and the hotkey silently does nothing.
+    /// Registration must reject it so Settings can revert and explain.
+    #[test]
+    fn bare_accelerator_is_unusable_for_the_hold_ring() {
+        // Valid as a shortcut in general...
+        assert_eq!(classify("F13", false), AccelClass::Valid);
+        let (eff, st) = plan_requested(HotkeyAction::CommandRingV2, "F13", false);
+        assert_eq!(eff, "F13");
+        assert_eq!(st, RegoStatus::Ok);
+        // ...but it carries no modifier, which is what register_shortcuts keys
+        // the NeedsModifier rejection off.
+        assert!(crate::modifiers::from_accelerator("F13").is_empty());
+        assert!(!crate::modifiers::from_accelerator("CmdOrCtrl+Shift+Space").is_empty());
+    }
+
+    /// NeedsModifier must stay distinct from Invalid: the accelerator is
+    /// well-formed, so calling it invalid would be a lie to the user.
+    #[test]
+    fn needs_modifier_is_distinct_from_invalid() {
+        assert_ne!(RegoStatus::NeedsModifier, RegoStatus::Invalid);
+        assert_ne!(RegoStatus::NeedsModifier, RegoStatus::Ok);
     }
 
     #[test]

@@ -13,7 +13,10 @@ export function currentPlatform(): Platform {
 }
 
 // ---- IPC types (hand-mirrored from Rust; keep in sync with shortcuts.rs) ----
-export type RegoStatus = "ok" | "invalid" | "taken";
+/** Mirrors Rust `RegoStatus` (src-tauri/src/shortcuts.rs) — hand-kept in sync.
+ *  `needsModifier`: valid, but unusable for the hold ring, which needs a
+ *  modifier to release. */
+export type RegoStatus = "ok" | "invalid" | "taken" | "needsModifier";
 export type HotkeyAction =
   | "captureFull"
   | "captureArea"
@@ -199,5 +202,7 @@ export function statusMessage(accel: string, status: RegoStatus): string | null 
       return `${accel} is already claimed by the OS or another app`;
     case "invalid":
       return `${accel} isn't a valid shortcut`;
+    case "needsModifier":
+      return `${accel} needs a modifier — the hold ring fires when you release it`;
   }
 }

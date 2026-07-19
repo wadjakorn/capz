@@ -178,3 +178,48 @@ describe("holdRingSlots (cancel slot)", () => {
     expect(seen.size).toBe(n);
   });
 });
+
+// Codex review: on Windows a config synced from a Mac lists `systemArea`, which
+// has no checkbox there. Counting it toward the 1-4 limits showed fewer ticks
+// than the slot count claimed and blocked a fourth visible mode with no way to
+// free the slot — the hidden entry cannot be unchecked. These pin the split
+// between "configured" and "actually selectable here".
+describe("ring slot counting with platform-hidden modes", () => {
+  const available = (isMac: boolean) => RING_MODE_IDS.filter((m) => usableRingModes([m], isMac).length > 0);
+  const split = (selected: readonly RingWedge[], isMac: boolean) => {
+    const avail = available(isMac);
+    return {
+      visible: selected.filter((m) => avail.includes(m)),
+      hidden: selected.filter((m) => !avail.includes(m)),
+    };
+  };
+
+  it("excludes a macOS-only mode from the visible count on Windows", () => {
+    const { visible, hidden } = split(["window", "full", "scroll", "systemArea"], false);
+    expect(visible).toEqual(["window", "full", "scroll"]);
+    expect(hidden).toEqual(["systemArea"]);
+    // 3 visible, so a fourth is still addable — the bug made this read as 4.
+    expect(visible.length).toBeLessThan(RING_MAX_MODES);
+  });
+
+  it("counts every mode on macOS, where none are hidden", () => {
+    const { visible, hidden } = split(["window", "full", "scroll", "systemArea"], true);
+    expect(visible).toHaveLength(4);
+    expect(hidden).toHaveLength(0);
+  });
+
+  it("keeps a hidden mode only while it fits alongside the visible choices", () => {
+    const { visible, hidden } = split(["window", "full", "scroll", "systemArea"], false);
+    const nextVisible = [...visible, "area" as RingWedge]; // user adds a 4th
+    const keptHidden = hidden.slice(0, RING_MAX_MODES - nextVisible.length);
+    // Ring is full with visible modes, so the invisible one yields.
+    expect(keptHidden).toEqual([]);
+    expect([...nextVisible, ...keptHidden]).toHaveLength(RING_MAX_MODES);
+  });
+
+  it("preserves the hidden mode when there is room", () => {
+    const { visible, hidden } = split(["window", "systemArea"], false);
+    const keptHidden = hidden.slice(0, RING_MAX_MODES - visible.length);
+    expect(keptHidden).toEqual(["systemArea"]);
+  });
+});
