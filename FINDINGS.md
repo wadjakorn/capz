@@ -1,6 +1,16 @@
 # CP-0038 POC findings
 
-> **POC v2 (cycle-and-commit) is what is on the branch now.** v1's hold gesture
+> **POC v3 (alt+tab hold) is what is on the branch now.**
+>
+> v3 bindings: hold `Cmd+Shift`, tap `A` to cycle, RELEASE to fire. Nothing else.
+> It polls `NSEvent.modifierFlags` / `GetAsyncKeyState` every 50ms while the ring
+> is open — a state query, not interception. If that query needs Accessibility,
+> v3 is dead and CP-0038 has no non-interception path.
+>
+> v3 deletes v2's Enter/Backspace/Escape/idle-timeout entirely, along with F10's
+> transient-registration risk.
+>
+> **Superseded: POC v2 (cycle-and-commit).** v1's hold gesture
 > was abandoned after F1/F2/F6. Findings F1-F6 below were all measured against
 > v1 and remain valid constraints on any design; v2 sidesteps F1 and F5 entirely
 > by registering everything once at startup and never touching the plugin again.

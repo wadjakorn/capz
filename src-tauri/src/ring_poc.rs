@@ -1,36 +1,26 @@
-//! CP-0038 POC v2 — cycle-and-commit command ring.
+//! CP-0038 POC v3 — alt+tab-style hold ring.
 //!
-//! THROWAWAY. Hardcoded on purpose: no config, no Settings UI, no migration.
-//! Do not promote it. Findings go in FINDINGS.md.
+//! THROWAWAY. Hardcoded; no config, no Settings UI. See FINDINGS.md.
 //!
-//! ## Why this shape
-//! POC v1 tried a Cmd+Tab-style hold gesture and hit three walls (FINDINGS.md):
-//!   F1 registering a shortcut inside a shortcut callback DEADLOCKS the app
-//!   F2 `Released` fires when the non-modifier key lifts, not when modifiers
-//!      release — so "release the modifiers to commit" is unobservable
-//!   F6 while Cmd+Shift are held, pressing A emits `Cmd+Shift+A`, so bare-key
-//!      slot shortcuts never match during a hold
+//! ## The question this answers
+//! The user wants alt+tab behaviour: hold, cycle, and the ring VANISHES on
+//! release. F2 established the shortcut plugin cannot see modifier release, and
+//! an event tap was ruled out (CP-0037(b)). v3 tries the remaining option:
+//! POLL the current modifier state (`modifiers::current`) while the ring is
+//! open, and close the moment the modifiers are no longer held.
 //!
-//! v2 leans into F6 instead of fighting it. Every interaction is an ordinary
-//! registrable combo, registered ONCE at startup and never touched again:
+//! A state query is not interception — no hook, no permission, and capz cannot
+//! see or suppress any keystroke. **If polling turns out to require
+//! Accessibility, this approach is dead** and CP-0038 has no non-interception
+//! path. That is the single thing this POC is testing.
 //!
-//!   Cmd+Shift+A      cycle — opens the ring, then advances the highlight
-//!   Cmd+Shift+Enter  commit — fires the highlighted mode
-//!   Cmd+Shift+Backspace cancel — closes the ring, captures nothing
-//!   Escape          cancel — registered ONLY while the ring is open (see ESC)
+//! ## Interaction
+//!   Hold Cmd+Shift, tap A to cycle the highlight, release Cmd or Shift to fire.
+//!   Releasing with nothing cycled cannot happen — the first tap IS the open.
 //!
-//! Consequences: no transient arm/disarm, so F1's deadlock constraint and F5's
-//! key-leak race are both designed out rather than worked around. Nothing is
-//! ever swallowed from the focused app except these three combos. The user does
-//! NOT need to keep any key depressed — the hold is no longer load-bearing.
-//!
-//! ## What this POC is still testing
-//!   Q1 Does repeated cycling feel good enough to justify the ring at all? Each
-//!      slot combo is bindable directly today, so the ring's ONLY value is the
-//!      visual feedback while choosing.
-//!   Q2 Does the highlight render in a webview that never has focus?
-//!   Q3 Does the idle auto-cancel prevent a stuck ring without ever firing a
-//!      capture the user did not ask for?
+//! Everything v2 accumulated to work around the missing release signal — Enter
+//! to commit, Backspace to cancel, transient Escape (F10), the idle timeout —
+//! is GONE. If v3 works, it is strictly simpler than v2.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -39,60 +29,34 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+use crate::modifiers;
 use crate::shortcuts::CaptureKind;
 use crate::windows;
 
 const CYCLE: &str = "CmdOrCtrl+Shift+A";
-const COMMIT: &str = "CmdOrCtrl+Shift+Enter";
-// Backspace, not Delete: the key labelled "delete" on Mac keyboards IS
-// Backspace. Tauri's `Delete` is forward-delete, which many Macs lack entirely.
-const CANCEL: &str = "CmdOrCtrl+Shift+Backspace";
+
+/// How often to sample the modifier state while the ring is open. 50ms is
+/// ~3 frames — fast enough that release feels instant, slow enough to be
+/// invisible in CPU terms. Polling runs ONLY while the ring is up.
+const POLL: Duration = Duration::from_millis(50);
 
 /// Cycle order. Matches the ring's clockwise-from-top wedge order so the
 /// highlight visibly walks around the ring rather than jumping.
 const MODES: [&str; 4] = ["window", "full", "scroll", "area"];
 
-/// The ring closes on its own after this long with no cycle keypress, so a
-/// forgotten ring never sits on screen. Auto-cancel NEVER fires a capture —
-/// an unrequested screenshot is far worse than a no-op.
-const IDLE_CANCEL: Duration = Duration::from_secs(6);
-
-/// Bare `Escape`, registered ONLY while the ring is open so it closes the ring
-/// the way every other transient UI does. This is the one place v2 registers a
-/// shortcut dynamically, so it carries F1/F5's hazards — mitigated by having a
-/// single owner (`ESC_ARMED`) that serialises arm/disarm under one lock, rather
-/// than v1's two racing spawns.
-///
-/// While armed, Escape is swallowed system-wide. That is bounded by the ring
-/// being open at all (<= IDLE_CANCEL), but it is a real cost: if teardown ever
-/// fails, Escape is dead everywhere until capz restarts.
-const ESC: &str = "Escape";
-
-/// `true` while bare Escape is registered. Guarded by a mutex so arm and disarm
-/// can never invert (F5) — the lock is the single owner of the registration.
-static ESC_ARMED: Mutex<bool> = Mutex::new(false);
-
 /// Index into `MODES`, or `None` when the ring is down.
 static SELECTED: Mutex<Option<usize>> = Mutex::new(None);
 
-/// Bumped on every state change. The idle-cancel task captures the value it was
-/// spawned with and does nothing if it no longer matches — so a stale timer can
-/// never close a ring the user has since interacted with.
+/// Bumped whenever the ring closes, so an in-flight poll loop from a previous
+/// gesture exits instead of acting on the new one.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Clone, Copy, Debug)]
-enum Action {
-    Cycle,
-    Commit,
-    Cancel,
-}
-
 pub fn register<R: Runtime>(app: &AppHandle<R>) {
-    for (accel, action) in [
-        (CYCLE, Action::Cycle),
-        (COMMIT, Action::Commit),
-        (CANCEL, Action::Cancel),
-    ] {
+    if modifiers::current().is_none() {
+        log::error!("[ring-poc] modifier polling unsupported on this platform — v3 cannot run");
+        return;
+    }
+    for accel in [CYCLE] {
         let sc: Shortcut = match accel.parse() {
             Ok(s) => s,
             Err(e) => {
@@ -103,25 +67,17 @@ pub fn register<R: Runtime>(app: &AppHandle<R>) {
         let app2 = app.clone();
         let res = app.global_shortcut().on_shortcut(sc, move |_a, _s, event| {
             if event.state == ShortcutState::Pressed {
-                dispatch(&app2, action);
+                on_cycle(&app2);
             }
         });
         match res {
-            Ok(()) => log::info!("[ring-poc] registered {accel} -> {action:?}"),
+            Ok(()) => log::info!("[ring-poc] registered {accel} (cycle)"),
             // Expected and worth seeing: another app may already own the combo.
             // In v1, Cmd+Shift+F silently did nothing for exactly this reason.
             Err(e) => {
                 log::error!("[ring-poc] FAILED to register {accel}: {e} — combo likely taken")
             }
         }
-    }
-}
-
-fn dispatch<R: Runtime>(app: &AppHandle<R>, action: Action) {
-    match action {
-        Action::Cycle => on_cycle(app),
-        Action::Commit => on_commit(app),
-        Action::Cancel => on_cancel(app),
     }
 }
 
@@ -146,7 +102,6 @@ fn on_cycle<R: Runtime>(app: &AppHandle<R>) {
         if let Err(e) = windows::show_command_ring_unfocused(app) {
             log::error!("[ring-poc] show_command_ring_unfocused failed: {e}");
             *SELECTED.lock().unwrap() = None;
-            set_escape(app, false);
             return;
         }
     } else {
@@ -155,67 +110,43 @@ fn on_cycle<R: Runtime>(app: &AppHandle<R>) {
 
     let _ = app.emit_to("command-ring", "ring-poc:highlight", MODES[idx]);
     if first {
-        set_escape(app, true);
+        start_release_poll(app);
     }
-    arm_idle_cancel(app);
 }
 
-/// Arm or disarm bare Escape. Deferred off the caller because this touches the
-/// global-shortcut plugin and callers are usually inside a shortcut callback —
-/// doing it synchronously there deadlocks the app (F1).
-fn set_escape<R: Runtime>(app: &AppHandle<R>, want: bool) {
+/// Watch for the modifiers coming up, then fire. This is the whole v3 idea.
+fn start_release_poll<R: Runtime>(app: &AppHandle<R>) {
+    let generation = GENERATION.load(Ordering::SeqCst);
     let app2 = app.clone();
-    tauri::async_runtime::spawn(async move { set_escape_now(&app2, want) });
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(POLL).await;
+            // A newer gesture (or a close) superseded this loop.
+            if GENERATION.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            let Some(m) = modifiers::current() else {
+                log::error!("[ring-poc] modifier read failed mid-gesture — closing");
+                close_and_clear(&app2);
+                return;
+            };
+            if m.command && m.shift {
+                continue;
+            }
+            log::info!("[ring-poc] MODIFIERS RELEASED (cmd={} shift={})", m.command, m.shift);
+            fire(&app2);
+            return;
+        }
+    });
 }
 
-/// The actual registration, serialised under `ESC_ARMED`. Never call this from
-/// inside a global-shortcut callback.
-fn set_escape_now<R: Runtime>(app: &AppHandle<R>, want: bool) {
-    let mut armed = ESC_ARMED.lock().unwrap();
-    if *armed == want {
-        return;
-    }
-    let Ok(sc) = ESC.parse::<Shortcut>() else {
-        log::error!("[ring-poc] Escape failed to parse");
+/// Fire the highlighted mode and drop the ring.
+fn fire<R: Runtime>(app: &AppHandle<R>) {
+    let Some(idx) = close_and_clear(app) else {
         return;
     };
-    if want {
-        let app2 = app.clone();
-        match app.global_shortcut().on_shortcut(sc, move |_a, _s, event| {
-            if event.state == ShortcutState::Pressed {
-                log::info!("[ring-poc] ESC pressed");
-                on_cancel(&app2);
-            }
-        }) {
-            Ok(()) => {
-                *armed = true;
-                log::info!("[ring-poc] Escape armed (swallowed system-wide until the ring closes)");
-            }
-            Err(e) => log::error!("[ring-poc] FAILED to arm Escape: {e}"),
-        }
-    } else {
-        match app.global_shortcut().unregister(sc) {
-            Ok(()) => {
-                *armed = false;
-                log::info!("[ring-poc] Escape released");
-            }
-            // Loud on purpose: Escape is now dead system-wide.
-            Err(e) => log::error!("[ring-poc] FAILED to release Escape: {e} — ESC IS STUCK"),
-        }
-    }
-}
-
-fn on_commit<R: Runtime>(app: &AppHandle<R>) {
-    let Some(idx) = SELECTED.lock().unwrap().take() else {
-        log::warn!("[ring-poc] COMMIT with ring down — ignoring");
-        return;
-    };
-    GENERATION.fetch_add(1, Ordering::SeqCst);
     let kind = MODES[idx];
-    log::info!("[ring-poc] COMMIT -> firing {kind}");
-    set_escape(app, false);
-    windows::close_command_ring(app);
-
+    log::info!("[ring-poc] FIRING {kind}");
     let app2 = app.clone();
     let kind = kind.to_string();
     tauri::async_runtime::spawn(async move {
@@ -235,45 +166,19 @@ fn on_commit<R: Runtime>(app: &AppHandle<R>) {
     });
 }
 
-fn on_cancel<R: Runtime>(app: &AppHandle<R>) {
-    if SELECTED.lock().unwrap().take().is_none() {
-        log::warn!("[ring-poc] CANCEL with ring down — ignoring");
-        return;
-    }
+/// Close the ring and clear state, returning what was highlighted.
+fn close_and_clear<R: Runtime>(app: &AppHandle<R>) -> Option<usize> {
+    let idx = SELECTED.lock().unwrap().take();
     GENERATION.fetch_add(1, Ordering::SeqCst);
-    log::info!("[ring-poc] CANCEL — captured nothing");
-    set_escape(app, false);
     windows::close_command_ring(app);
+    idx
 }
 
-/// Restart the idle timer. Safe to call from inside a shortcut callback: it
-/// spawns and returns, and never touches the global-shortcut plugin (which is
-/// what deadlocked v1 — see F1).
-fn arm_idle_cancel<R: Runtime>(app: &AppHandle<R>) {
-    let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    let app2 = app.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(IDLE_CANCEL).await;
-        // Superseded by a later keypress, commit, or cancel — do nothing.
-        if GENERATION.load(Ordering::SeqCst) != generation {
-            return;
-        }
-        if SELECTED.lock().unwrap().take().is_none() {
-            return;
-        }
-        log::info!("[ring-poc] IDLE TIMEOUT — closing ring, captured nothing");
-        // Already off the callback here, so release directly.
-        set_escape_now(&app2, false);
-        windows::close_command_ring(&app2);
-    });
-}
-
-/// Exit path. Escape is released SYNCHRONOUSLY: a spawned task might never run
-/// before the process dies, which would leave Escape swallowed system-wide.
+/// Exit path. v3 registers nothing transiently, so this only drops the ring.
 pub fn release_all<R: Runtime>(app: &AppHandle<R>) {
     if SELECTED.lock().unwrap().take().is_some() {
         log::warn!("[ring-poc] exiting with ring up — closing it");
+        GENERATION.fetch_add(1, Ordering::SeqCst);
         windows::close_command_ring(app);
     }
-    set_escape_now(app, false);
 }

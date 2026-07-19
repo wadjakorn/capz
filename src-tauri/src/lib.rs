@@ -1,6 +1,7 @@
 mod accel;
 mod capture_dispatch;
 mod commands;
+mod modifiers;
 mod notice;
 mod ring_poc;
 mod services;
