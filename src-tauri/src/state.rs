@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use image::RgbaImage;
@@ -101,6 +102,18 @@ pub struct AppState {
     pub active_temp_path: Mutex<Option<PathBuf>>,
     /// The single in-flight scrolling capture, if any. `None` when idle.
     pub scroll: Mutex<Option<ScrollSession>>,
+    /// Whether the capture currently being dispatched was requested "as a
+    /// layer" (from the editor's capture-as-layer split button) rather than as
+    /// a workspace replacement. Written at every dispatch entry point
+    /// (`capture_dispatch::trigger_capture`) and consumed by
+    /// `windows::load_editor_image`.
+    ///
+    /// Living in Rust rather than as a frontend latch is deliberate: the
+    /// intent must survive the editor being hidden, the overlay round-trip and
+    /// a cancelled area drag. Because *every* dispatch (hotkey, tray, command
+    /// ring, both toolbar buttons) re-writes it, a cancelled layer capture
+    /// cannot leak into the next replace capture.
+    pending_layer: AtomicBool,
 }
 
 impl AppState {
@@ -112,6 +125,17 @@ impl AppState {
             .lock()
             .expect("active_temp_path poisoned");
         std::mem::replace(&mut *g, next)
+    }
+
+    /// Record whether the capture now being dispatched is a layer capture.
+    pub fn set_pending_layer(&self, layer: bool) {
+        self.pending_layer.store(layer, Ordering::SeqCst);
+    }
+
+    /// Read-and-clear the layer intent. Clearing on read means a single
+    /// dispatch can only ever produce one layer image.
+    pub fn take_pending_layer(&self) -> bool {
+        self.pending_layer.swap(false, Ordering::SeqCst)
     }
 
     pub fn current(&self) -> Option<PathBuf> {

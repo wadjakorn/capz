@@ -123,6 +123,16 @@ pub fn write_temp_jpeg(img: &RgbaImage, quality: u8, max_edge: Option<u32>) -> R
     Ok(path)
 }
 
+/// Whether `path` names one of our own `capz-temp-*` intermediate files.
+/// Guards deletion paths so a user-supplied file can never be removed.
+pub fn is_temp_file(path: &std::path::Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| {
+            n.starts_with("capz-temp-") && (n.ends_with(".png") || n.ends_with(".jpg"))
+        })
+}
+
 /// Remove `capz-temp-*` files older than 24h from the OS temp dir.
 pub fn sweep_stale_temp() {
     let dir = std::env::temp_dir();

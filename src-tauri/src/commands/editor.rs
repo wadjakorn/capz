@@ -172,8 +172,20 @@ pub async fn import_image_file<R: Runtime>(
 /// Read an image file from disk and return it as a `data:image/png;base64,…`
 /// URL, WITHOUT touching the workspace. Used by "Add image" mode file-pick /
 /// drag-drop to layer the file as an overlay object.
+///
+/// `consume_temp` deletes the source after a successful read. A layer capture's
+/// intermediate file is deliberately never recorded in `AppState` (the base
+/// image owns that slot), so without this it would survive the whole session
+/// and only be reclaimed by the 24h startup sweep — one orphan per layer
+/// capture. Deletion is additionally gated on the file being one of our own
+/// `capz-temp-*` files, so a user-picked image can never be removed even if a
+/// caller passes the flag by mistake.
 #[tauri::command]
-pub async fn read_image_file_data_url(path: String) -> Result<String, String> {
+pub async fn read_image_file_data_url(
+    path: String,
+    consume_temp: Option<bool>,
+) -> Result<String, String> {
+    let source = std::path::PathBuf::from(&path);
     let data_url = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
         use anyhow::anyhow;
         use base64::Engine;
@@ -196,6 +208,14 @@ pub async fn read_image_file_data_url(path: String) -> Result<String, String> {
     .await
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| e.to_string())?;
+
+    if consume_temp.unwrap_or(false) && crate::services::image_service::is_temp_file(&source) {
+        if let Err(e) = std::fs::remove_file(&source) {
+            // Non-fatal: the caller already has the pixels, and the startup
+            // sweep is the backstop.
+            log::warn!("remove consumed temp {}: {e}", source.display());
+        }
+    }
 
     Ok(data_url)
 }

@@ -19,7 +19,7 @@ pub async fn command_ring_select<R: Runtime>(
         "scroll" => CaptureKind::Scroll,
         other => return Err(format!("unknown capture kind: {other}")),
     };
-    crate::capture_dispatch::trigger_capture(app, parsed).await
+    crate::capture_dispatch::trigger_capture(app, parsed, false).await
 }
 
 /// The center button was clicked: close the ring, then open/refocus the editor

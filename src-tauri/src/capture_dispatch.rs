@@ -73,10 +73,19 @@ pub fn dispatch_scroll<R: Runtime>(app: &AppHandle<R>) {
 /// Editor re-show happens automatically: on success via
 /// `windows::load_editor_image` → `show_editor`, and on user-cancel via
 /// `commands::overlay::close_overlay_command` → `show_editor_if_hidden`.
+///
+/// `as_layer` records whether the resulting image should land as a new image
+/// layer on the existing canvas instead of replacing the workspace. It is
+/// stashed on `AppState` here — the single choke point every capture entry
+/// point passes through — so the intent survives the overlay round-trip and so
+/// a cancelled layer capture is always overwritten by the next dispatch.
 pub async fn trigger_capture<R: Runtime>(
     app: AppHandle<R>,
     kind: CaptureKind,
+    as_layer: bool,
 ) -> Result<(), String> {
+    app.state::<crate::state::AppState>()
+        .set_pending_layer(as_layer);
     windows::hide_editor_and_wait(&app).await?;
     let app_dispatch = app.clone();
     let res = app.run_on_main_thread(move || match kind {

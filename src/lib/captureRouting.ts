@@ -1,22 +1,16 @@
 /** Where an incoming capture should go when it reaches the editor. */
-export type CaptureRoute = "clear" | "base" | "prompt";
+export type CaptureRoute = "clear" | "base";
 
 /**
  * Decide how an incoming capture is handled:
- * - `clear`  — no path (a clear/reset signal); wipe the workspace.
- * - `base`   — empty canvas; the capture becomes the base image, no prompt.
- * - `prompt` — non-empty canvas; ask the user to Replace or Add rather than
- *   silently discarding their work.
+ * - `clear` — no path (a clear/reset signal); wipe the workspace.
+ * - `base`  — the capture becomes the base image, replacing whatever was there.
  *
- * `hasImage` is the store's "a base image is loaded" flag, which in this editor
- * is equivalent to "the canvas has work" (annotation tools are disabled without
- * a base, and clearing removes annotations too).
+ * Replacement is unconditional: there is no "Replace or add?" prompt. Adding a
+ * capture as a layer is a separate intent the user expresses *before*
+ * capturing, via the editor's capture-as-layer split button, and is routed by
+ * the `asLayer` flag on the load-image payload rather than by this function.
  */
-export function routeIncomingCapture(
-  path: string | null,
-  hasImage: boolean,
-): CaptureRoute {
-  if (!path) return "clear";
-  if (!hasImage) return "base";
-  return "prompt";
+export function routeIncomingCapture(path: string | null): CaptureRoute {
+  return path ? "base" : "clear";
 }

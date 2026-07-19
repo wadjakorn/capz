@@ -506,9 +506,14 @@ impl CaptureSource {
 /// Payload for `editor:load-image`. Object form (was a bare path string) so the
 /// editor learns the capture source alongside the file.
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LoadImagePayload {
     path: String,
     source: String,
+    /// True when the capture was requested from the editor's capture-as-layer
+    /// button: the frontend adds it as a new image layer and leaves the base
+    /// image and its annotations alone.
+    as_layer: bool,
 }
 
 /// Set the active workspace image (replacing/removing any prior temp PNG),
@@ -521,11 +526,23 @@ pub fn load_editor_image<R: Runtime>(
     use tauri::Emitter;
 
     let state = app.state::<crate::state::AppState>();
-    let prior = state.swap(Some(std::path::PathBuf::from(path)));
-    if let Some(prev) = prior {
-        if prev != std::path::Path::new(path) {
-            if let Err(e) = std::fs::remove_file(&prev) {
-                log::warn!("remove prior temp {}: {e}", prev.display());
+    // Non-capture opens (paste, flatten-to-new) always replace, and must not
+    // consume a layer intent left over from an unrelated dispatch.
+    let as_layer = !matches!(source, CaptureSource::Other) && state.take_pending_layer();
+
+    if as_layer {
+        // The base image stays the active workspace file: swapping it here
+        // would delete the temp PNG the editor is still displaying. The layer
+        // image is read into a data URL by the frontend, so nothing needs to
+        // own its file past this point.
+        log::info!("layer capture → {path}");
+    } else {
+        let prior = state.swap(Some(std::path::PathBuf::from(path)));
+        if let Some(prev) = prior {
+            if prev != std::path::Path::new(path) {
+                if let Err(e) = std::fs::remove_file(&prev) {
+                    log::warn!("remove prior temp {}: {e}", prev.display());
+                }
             }
         }
     }
@@ -534,6 +551,7 @@ pub fn load_editor_image<R: Runtime>(
     let payload = LoadImagePayload {
         path: path.to_string(),
         source: source.as_str().to_string(),
+        as_layer,
     };
     if let Err(e) = app.emit_to("editor", "editor:load-image", payload) {
         log::warn!("emit editor:load-image: {e}");
