@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { emit, listen } from "@tauri-apps/api/event";
 import {
-  RING_ANGLE,
   RING_LABELS,
   RING_WEDGES,
-  wedgeAtPoint,
+  ringSlotAngleDeg,
+  ringSweepDeg,
+  slotAtPoint,
   type RingWedge,
 } from "@/lib/commandRing";
 
@@ -16,8 +18,17 @@ const OUTER_FRAC = 0.9;
 const INNER_FRAC = 0.46;
 /** Visible center-button disc as a fraction of the inner (dead-zone) radius. */
 const CENTER_FRAC = 0.8;
-/** Wedge boundary angles (the diagonals), where the radial separators sit. */
-const DIVIDERS = [45, 135, 225, 315];
+/**
+ * Hold mode (command ring v2, CP-0038): the ring is opened unfocused by Rust,
+ * cycles via `ring:highlight`, and fires on modifier release. It must NOT grab
+ * focus, close on blur, or handle clicks — the app underneath keeps focus for
+ * the whole gesture. Rust bakes this into the URL at window-creation time
+ * because the two modes cannot share a reused webview.
+ */
+function isHoldMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).has("hold");
+}
 
 /** What the cursor is over: a capture wedge, the center editor button, or
  *  nothing (outside the ring → dismiss). */
@@ -28,21 +39,33 @@ function polar(cx: number, cy: number, r: number, deg: number): [number, number]
   return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
 }
 
-/** Annular sector path for one 90° wedge centered on `centerDeg`. */
+/**
+ * Annular sector for one slot of `sweepDeg` centered on `centerDeg`.
+ *
+ * `sweepDeg` is a parameter rather than a hardcoded 90 because v2's slot count
+ * is user-configurable (1-4). The `large-arc-flag` follows from it: a sweep past
+ * 180° must set the flag or SVG draws the minor arc instead — which is the
+ * single-slot ring, where one sector covers the whole circle.
+ */
 function wedgePath(
   cx: number,
   cy: number,
   rInner: number,
   rOuter: number,
   centerDeg: number,
+  sweepDeg: number,
 ): string {
-  const a0 = centerDeg - 45;
-  const a1 = centerDeg + 45;
+  // A full circle can't be expressed as one arc (start and end coincide, so SVG
+  // draws nothing); shave a hair off so the single-slot ring renders.
+  const sweep = Math.min(sweepDeg, 359.9);
+  const a0 = centerDeg - sweep / 2;
+  const a1 = centerDeg + sweep / 2;
+  const large = sweep > 180 ? 1 : 0;
   const [x0o, y0o] = polar(cx, cy, rOuter, a0);
   const [x1o, y1o] = polar(cx, cy, rOuter, a1);
   const [x1i, y1i] = polar(cx, cy, rInner, a1);
   const [x0i, y0i] = polar(cx, cy, rInner, a0);
-  return `M ${x0o} ${y0o} A ${rOuter} ${rOuter} 0 0 1 ${x1o} ${y1o} L ${x1i} ${y1i} A ${rInner} ${rInner} 0 0 0 ${x0i} ${y0i} Z`;
+  return `M ${x0o} ${y0o} A ${rOuter} ${rOuter} 0 ${large} 1 ${x1o} ${y1o} L ${x1i} ${y1i} A ${rInner} ${rInner} 0 ${large} 0 ${x0i} ${y0i} Z`;
 }
 
 function closeRing() {
@@ -54,6 +77,12 @@ export default function CommandRingPage() {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<Target | null>(null);
   const selectedRef = useRef(false);
+  const [hold] = useState(isHoldMode);
+  /** Slots to draw. v1 is always the fixed four; v2 gets its configured 1-4
+   *  from Rust with the first `ring:highlight`. */
+  const [slots, setSlots] = useState<readonly RingWedge[]>(RING_WEDGES);
+  /** Highlighted slot index in hold mode (null = v1 / pointer-driven). */
+  const [heldIndex, setHeldIndex] = useState<number | null>(null);
 
   // The ring window is transparent — clear the opaque app background so only
   // the ring paints (same trick as the scroll HUD).
@@ -84,6 +113,10 @@ export default function CommandRingPage() {
   // and no capability grants JS set-focus — so swallow the rejection exactly
   // like the area overlay does, rather than surfacing it as a runtime error.
   useEffect(() => {
+    // Hold mode never takes focus and never closes on blur: the source app is
+    // meant to stay focused, so "not focused" is the normal state, and Rust
+    // owns the ring's lifetime (it closes on modifier release).
+    if (hold) return;
     getCurrentWindow().setFocus().catch(() => {});
     let disposed = false;
     // Close when focus is lost (clicked another app, or hotkey toggled). Guarded
@@ -98,9 +131,14 @@ export default function CommandRingPage() {
       disposed = true;
       void unlisten.then((f) => f());
     };
-  }, []);
+  }, [hold]);
 
   useEffect(() => {
+    // Hold mode is unfocused, so this window receives no key events at all —
+    // wiring Escape here would do nothing. (Cancelling a hold gesture would
+    // need a globally-registered Escape, which is exactly the transient
+    // registration CP-0038 rules out.)
+    if (hold) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -109,7 +147,24 @@ export default function CommandRingPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [hold]);
+
+  // Hold mode: Rust drives the highlight and tells us which slots to draw.
+  useEffect(() => {
+    if (!hold) return;
+    const un = listen<{ modes: RingWedge[]; index: number }>("ring:highlight", (e) => {
+      const { modes, index } = e.payload;
+      if (modes.length > 0) setSlots(modes);
+      setHeldIndex(index);
+    });
+    // Rust creates this window and emits the opening highlight in the same
+    // breath, so that first emit lands before this listener exists. Announcing
+    // readiness makes it a handshake rather than a race against a guessed delay.
+    void un.then(() => emit("ring:ready"));
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [hold]);
 
   const cx = size.w / 2;
   const cy = size.h / 2;
@@ -126,19 +181,26 @@ export default function CommandRingPage() {
     (px: number, py: number): Target | null => {
       const d = Math.hypot(px - cx, py - cy);
       if (d < rInner) return "center";
-      if (d <= rOuter) return wedgeAtPoint(px, py, cx, cy, rInner);
-      return null;
+      if (d > rOuter) return null;
+      const slot = slotAtPoint(px, py, cx, cy, rInner, slots.length);
+      return slot === null ? null : slots[slot];
     },
-    [cx, cy, rInner, rOuter],
+    [cx, cy, rInner, rOuter, slots],
   );
 
   const onMove = useCallback(
-    (e: React.PointerEvent) => setHover(targetAt(e.clientX, e.clientY)),
-    [targetAt],
+    (e: React.PointerEvent) => {
+      if (hold) return;
+      setHover(targetAt(e.clientX, e.clientY));
+    },
+    [targetAt, hold],
   );
 
   const onDown = useCallback(
     (e: React.PointerEvent) => {
+      // Hold mode is click-through by intent: the ring is an unfocused HUD and
+      // the gesture ends on modifier release, never on a click.
+      if (hold) return;
       const t = targetAt(e.clientX, e.clientY);
       if (t === null) {
         // Click outside the ring dismisses it.
@@ -157,16 +219,27 @@ export default function CommandRingPage() {
         );
       }
     },
-    [targetAt],
+    [targetAt, hold],
   );
 
   const ready = size.w > 0 && size.h > 0;
+  const sweep = ringSweepDeg(slots.length);
+  // One highlight source: the cycled index in hold mode, the pointer otherwise.
+  const activeIndex =
+    heldIndex !== null
+      ? Math.min(heldIndex, slots.length - 1)
+      : hover && hover !== "center"
+        ? slots.indexOf(hover)
+        : -1;
 
   return (
     <div
       ref={rootRef}
       className="fixed inset-0 select-none"
-      style={{ background: "transparent", cursor: hover ? "pointer" : "default" }}
+      style={{
+        background: "transparent",
+        cursor: !hold && hover ? "pointer" : "default",
+      }}
       onPointerMove={onMove}
       onPointerLeave={() => setHover(null)}
       onPointerDown={onDown}
@@ -190,10 +263,17 @@ export default function CommandRingPage() {
             }}
           />
 
-          {/* Hovered wedge highlight */}
-          {hover && hover !== "center" && (
+          {/* Active slot: pointer hover in v1, the cycled selection in v2. */}
+          {activeIndex >= 0 && (
             <path
-              d={wedgePath(cx, cy, rInner, rOuter, (RING_ANGLE[hover] * 180) / Math.PI)}
+              d={wedgePath(
+                cx,
+                cy,
+                rInner,
+                rOuter,
+                ringSlotAngleDeg(activeIndex, slots.length),
+                sweep,
+              )}
               strokeWidth={1.5}
               style={{ fill: "var(--accent-soft)", stroke: "var(--accent)" }}
             />
@@ -203,26 +283,29 @@ export default function CommandRingPage() {
           <circle cx={cx} cy={cy} r={rOuter} strokeWidth={1.25} style={{ fill: "none", stroke: "var(--border-strong)" }} />
           <circle cx={cx} cy={cy} r={rInner} strokeWidth={1.25} style={{ fill: "none", stroke: "var(--border-strong)" }} />
 
-          {/* Radial separators at the wedge boundaries */}
-          {DIVIDERS.map((deg) => {
-            const [x0, y0] = polar(cx, cy, rInner, deg);
-            const [x1, y1] = polar(cx, cy, rOuter, deg);
-            return (
-              <line
-                key={deg}
-                x1={x0}
-                y1={y0}
-                x2={x1}
-                y2={y1}
-                strokeWidth={1.25}
-                style={{ stroke: "var(--border-strong)" }}
-              />
-            );
-          })}
+          {/* Radial separators at the slot boundaries. A one-slot ring has no
+              boundary to draw — a lone divider would read as a seam. */}
+          {slots.length > 1 &&
+            slots.map((_, i) => {
+              const deg = ringSlotAngleDeg(i, slots.length) - sweep / 2;
+              const [x0, y0] = polar(cx, cy, rInner, deg);
+              const [x1, y1] = polar(cx, cy, rOuter, deg);
+              return (
+                <line
+                  key={`div-${i}`}
+                  x1={x0}
+                  y1={y0}
+                  x2={x1}
+                  y2={y1}
+                  strokeWidth={1.25}
+                  style={{ stroke: "var(--border-strong)" }}
+                />
+              );
+            })}
 
-          {/* Wedge labels */}
-          {RING_WEDGES.map((w) => {
-            const [lx, ly] = polar(cx, cy, rLabel, (RING_ANGLE[w] * 180) / Math.PI);
+          {/* Slot labels */}
+          {slots.map((w, i) => {
+            const [lx, ly] = polar(cx, cy, rLabel, ringSlotAngleDeg(i, slots.length));
             return (
               <text
                 key={w}
@@ -233,7 +316,7 @@ export default function CommandRingPage() {
                 fontSize={Math.max(13, half * 0.115)}
                 fontWeight={600}
                 style={{
-                  fill: hover === w ? "var(--accent)" : "var(--fg)",
+                  fill: activeIndex === i ? "var(--accent)" : "var(--fg)",
                   pointerEvents: "none",
                 }}
               >

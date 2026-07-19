@@ -26,6 +26,14 @@ import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
 import {
+  MACOS_ONLY_RING_MODES,
+  RING_MAX_MODES,
+  RING_MIN_MODES,
+  RING_MODE_IDS,
+  RING_MODE_LABELS,
+  type RingWedge,
+} from "@/lib/commandRing";
+import {
   enable as enableAutostart,
   disable as disableAutostart,
   isEnabled as isAutostartEnabled,
@@ -39,6 +47,7 @@ type HotkeyPatch = {
   captureSystemArea?: string;
   showEditor?: string;
   commandRing?: string;
+  commandRingV2?: string;
 };
 
 const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
@@ -49,6 +58,7 @@ const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
   captureSystemArea: "System area capture (macOS)",
   showEditor: "Show editor",
   commandRing: "Command ring",
+  commandRingV2: "Command ring (hold)",
 };
 
 async function applyHotkey(
@@ -275,7 +285,10 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   }
                 />
               </FieldRow>
-              <FieldRow label="Command ring">
+              <FieldRow
+                label="Command ring"
+                hint="Press once — the ring opens and takes focus; click a mode."
+              >
                 <HotkeyRecorder
                   value={config.hotkeys.commandRing}
                   onChange={(v) =>
@@ -283,6 +296,21 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
                   }
                 />
               </FieldRow>
+              <FieldRow
+                label="Command ring (hold)"
+                hint="Alt+tab style: hold the modifiers and tap to cycle, release to capture. Needs at least one modifier; the app you are capturing keeps focus."
+              >
+                <HotkeyRecorder
+                  value={config.hotkeys.commandRingV2}
+                  onChange={(v) =>
+                    applyHotkey(useSettings.getState, update, { commandRingV2: v })
+                  }
+                />
+              </FieldRow>
+            </SectionCard>
+
+            <SectionCard>
+              <RingModesField />
             </SectionCard>
           </TabsContent>
 
@@ -668,6 +696,79 @@ function ToggleRow({
     <div className="flex items-center justify-between gap-3">
       <Label className="text-foreground">{label}</Label>
       <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * Which capture modes occupy the hold-ring's slots (CP-0038).
+ *
+ * Fixed 1-4 slots: the ring cycles through the checked modes in list order,
+ * clockwise from the top. Min/max are enforced here by disabling the checkbox
+ * that would break them — so the user cannot reach an invalid state rather than
+ * being told off after the fact. `validateConfig` re-checks on read, because a
+ * hand-edited store never passes through this UI.
+ */
+function RingModesField() {
+  const config = useSettings((s) => s.config);
+  const update = useSettings((s) => s.update);
+  const selected = config.ring.modes;
+
+  // A mode this platform can't run would be a slot that never fires.
+  const available = RING_MODE_IDS.filter(
+    (m) => IS_MAC || !MACOS_ONLY_RING_MODES.includes(m),
+  );
+
+  const toggle = async (mode: RingWedge, checked: boolean) => {
+    const next = checked
+      ? [...selected, mode]
+      : selected.filter((m) => m !== mode);
+    if (next.length < RING_MIN_MODES || next.length > RING_MAX_MODES) return;
+    // Keep slots in the canonical list order so the ring layout is a function
+    // of *which* modes are on it, not the order they happened to be ticked.
+    const ordered = RING_MODE_IDS.filter((m) => next.includes(m));
+    await update("ring", { modes: ordered });
+  };
+
+  return (
+    <div className="grid gap-3">
+      <div className="grid max-w-md gap-0.5">
+        <Label className="text-foreground">Ring slots</Label>
+        <span className="text-xs text-muted-foreground">
+          Modes on the hold ring, clockwise from the top. Choose {RING_MIN_MODES}–
+          {RING_MAX_MODES}.
+        </span>
+      </div>
+      <div className="grid gap-2">
+        {available.map((mode) => {
+          const checked = selected.includes(mode);
+          // Block the toggle that would empty the ring or overfill it.
+          const disabled = checked
+            ? selected.length <= RING_MIN_MODES
+            : selected.length >= RING_MAX_MODES;
+          return (
+            <label
+              key={mode}
+              className={`flex items-center gap-2 text-sm ${
+                disabled ? "opacity-50" : "cursor-pointer"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--accent)]"
+                checked={checked}
+                disabled={disabled}
+                onChange={(e) => void toggle(mode, e.target.checked)}
+              />
+              <span>{RING_MODE_LABELS[mode]}</span>
+            </label>
+          );
+        })}
+      </div>
+      <span className="text-xs text-muted-foreground">
+        {selected.length} of {RING_MAX_MODES} slots used
+        {selected.length >= RING_MAX_MODES && " — uncheck one to swap in another"}
+      </span>
     </div>
   );
 }
