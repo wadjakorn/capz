@@ -149,6 +149,47 @@ export function NumericField({
   );
 }
 
+/** Full-width labelled action/toggle — the sidebar counterpart of a ToolButton.
+ * The tool-options slot is a 15rem column, so these read as rows rather than
+ * icon-only squares, and `pressed` gives on/off state the same accent fill the
+ * toolbar toggles use (checkboxes were too small to hit comfortably). */
+export function ActionRow({
+  Icon,
+  label,
+  onClick,
+  disabled,
+  pressed,
+  iconClassName,
+}: {
+  Icon: IconType;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  pressed?: boolean;
+  iconClassName?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-pressed={pressed}
+      className={[
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+        pressed
+          ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+          : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+        "disabled:opacity-40 disabled:hover:bg-transparent",
+      ].join(" ")}
+    >
+      <Icon className={iconClassName ?? "h-4 w-4"} aria-hidden />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 export function Group({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-3">{children}</div>;
 }
