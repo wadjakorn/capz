@@ -1,12 +1,20 @@
+import type { Metadata } from "next";
+import { Landing } from "@/components/site/Landing";
+
+export const metadata: Metadata = {
+  title: "capz — Free screen capture for macOS & Windows",
+  description:
+    "capz is a free, open-source native screen capture and recording app. An alternative to CleanShot and ShareX. macOS and Windows.",
+  openGraph: {
+    title: "capz",
+    description: "Free, open-source screen capture for macOS and Windows.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+};
+
 export default function Home() {
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-3 p-8 text-center">
-      <span className="eyebrow">Shotr</span>
-      <h1 className="headline">Screenshot capture &amp; annotation</h1>
-      <p className="max-w-sm text-[var(--fg-3)] text-[var(--text-sm)]">
-        This window isn&rsquo;t used directly &mdash; capture from the tray icon or
-        your capture hotkey, then annotate in the editor.
-      </p>
-    </main>
-  );
+  return <Landing />;
 }
