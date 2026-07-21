@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { GithubIcon } from "./GithubIcon";
 import { useT } from "@/i18n/useT";
 
@@ -63,12 +62,6 @@ export function Nav() {
               {t("nav.langEn")}
             </button>
           </div>
-          <Link
-            href="/paste"
-            className="mr-1 hidden rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-flex"
-          >
-            {t("nav.editor")}
-          </Link>
           <a
             href="https://github.com/wadjakorn/capz"
             target="_blank"

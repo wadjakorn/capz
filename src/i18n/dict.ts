@@ -5,7 +5,6 @@ export const dict = {
     "nav.langTh": "ไทย",
     "nav.langEn": "EN",
     "nav.github": "ไปที่ GitHub",
-    "nav.editor": "เอดิเตอร์บนเว็บ",
 
     "hero.badge": "เวอร์ชันล่าสุด",
     "hero.title": "จับภาพหน้าจอ",
@@ -18,7 +17,8 @@ export const dict = {
     "hero.downloadWin": "ดาวน์โหลดสำหรับ Windows",
     "hero.orDownloadWin": "หรือดาวน์โหลดสำหรับ Windows",
     "hero.copyCmd": "คัดลอกคำสั่งติดตั้ง",
-    "hero.tryWeb": "หรือลองแก้ภาพในเบราว์เซอร์ ไม่ต้องติดตั้ง",
+    "hero.or": "หรือ",
+    "hero.tryWeb": "ลองใช้ฟรีบนเว็บ (ไม่ต้องติดตั้ง)",
 
     "features.kicker": "ฟีเจอร์",
     "features.title": "capz ทำอะไรได้บ้าง",
@@ -63,7 +63,6 @@ export const dict = {
     "nav.langTh": "ไทย",
     "nav.langEn": "EN",
     "nav.github": "Go to GitHub",
-    "nav.editor": "Web editor",
 
     "hero.badge": "Latest release",
     "hero.title": "Screen capture.",
@@ -76,7 +75,8 @@ export const dict = {
     "hero.downloadWin": "Download for Windows",
     "hero.orDownloadWin": "Or download for Windows",
     "hero.copyCmd": "Copy install command",
-    "hero.tryWeb": "Or edit an image right in your browser — no install",
+    "hero.or": "or",
+    "hero.tryWeb": "Try it free in your browser — no install",
 
     "features.kicker": "Features",
     "features.title": "What capz does",

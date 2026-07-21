@@ -115,13 +115,24 @@ export function Hero() {
             </div>
           )}
 
+          <div className="mt-4 flex w-full max-w-[280px] items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground/60">
+            <span className="h-px flex-1 bg-white/10" />
+            {t("hero.or")}
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+
           <Link
             href="/paste"
-            className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="group relative mt-1 inline-flex h-12 items-center justify-center gap-2.5 rounded-full px-8 text-sm font-semibold text-white outline-none transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-[oklch(0.78_0.16_300)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.64 0.2 300), oklch(0.5 0.19 285))",
+              boxShadow:
+                "0 12px 34px -10px oklch(0.55 0.2 295 / 0.8), inset 0 1px 0 oklch(1 0 0 / 0.18)",
+            }}
           >
-            <ImageUp className="h-4 w-4" />
+            <ImageUp className="h-[18px] w-[18px]" strokeWidth={2} />
             {t("hero.tryWeb")}
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
       </div>
