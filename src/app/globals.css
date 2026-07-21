@@ -489,8 +489,15 @@
   --fg-2: #c9cad1;
   --fg-3: #9a9aa3;
   --fg-4: #71717a;
-  background-color: var(--bg);
   min-height: 100vh;
+  background-color: oklch(0.16 0.04 290);
+  background-image:
+    radial-gradient(ellipse 70% 55% at 12% -5%, oklch(0.55 0.24 305 / 0.85), transparent 60%),
+    radial-gradient(ellipse 65% 55% at 95% 25%, oklch(0.48 0.22 265 / 0.75), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% 105%, oklch(0.45 0.22 290 / 0.70), transparent 65%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 @layer components {
