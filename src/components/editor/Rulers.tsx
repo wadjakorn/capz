@@ -93,6 +93,8 @@ export function Rulers({
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const colors = useRulerColors();
+  const displayX = (imageX: number) => imageX - originX;
+  const displayY = (imageY: number) => imageY - originY;
 
   useEffect(() => {
     if (!containerEl) return;
@@ -161,7 +163,7 @@ export function Rulers({
       const sx = Math.round(padX + (v - originX) * scale - scroll.left) + 0.5;
       ctx.moveTo(sx, h - 7);
       ctx.lineTo(sx, h);
-      ctx.fillText(String(Math.round(v)), sx + 2, 1);
+      ctx.fillText(String(Math.round(displayX(v))), sx + 2, 1);
     }
     ctx.stroke();
 
@@ -220,7 +222,7 @@ export function Rulers({
       ctx.save();
       ctx.translate(1, sy + 2);
       ctx.rotate(-Math.PI / 2);
-      ctx.fillText(String(Math.round(v)), -16, 0);
+      ctx.fillText(String(Math.round(displayY(v))), -16, 0);
       ctx.restore();
     }
     ctx.stroke();
