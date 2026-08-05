@@ -161,6 +161,8 @@ export function Rulers({
       const sx = Math.round(padX + (v - originX) * scale - scroll.left) + 0.5;
       ctx.moveTo(sx, h - 7);
       ctx.lineTo(sx, h);
+      // Tick labels stay in image coordinates; originX only shifts the drawn
+      // ruler so the numbers line up with the visible image/backdrop origin.
       ctx.fillText(String(Math.round(v)), sx + 2, 1);
     }
     ctx.stroke();
@@ -220,6 +222,8 @@ export function Rulers({
       ctx.save();
       ctx.translate(1, sy + 2);
       ctx.rotate(-Math.PI / 2);
+      // Tick labels stay in image coordinates; originY only shifts the drawn
+      // ruler so the numbers line up with the visible image/backdrop origin.
       ctx.fillText(String(Math.round(v)), -16, 0);
       ctx.restore();
     }
