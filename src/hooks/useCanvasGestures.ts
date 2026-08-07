@@ -38,7 +38,11 @@ export function useCanvasGestures({
   const gestureActive = useRef(false);
   // Kept in a ref so the effect below never re-subscribes on re-render.
   const onGestureStartRef = useRef(onGestureStart);
-  onGestureStartRef.current = onGestureStart;
+  // Assigning during render is unsafe under StrictMode double-render /
+  // concurrent rendering; keep the ref in sync via an effect instead.
+  useEffect(() => {
+    onGestureStartRef.current = onGestureStart;
+  }, [onGestureStart]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -56,6 +60,7 @@ export function useCanvasGestures({
     let pendingMidX = 0;
     let pendingMidY = 0;
     let frame = 0;
+    let anchorFrame = 0;
 
     const flush = () => {
       frame = 0;
@@ -81,7 +86,8 @@ export function useCanvasGestures({
 
       // The container rect moves when the scale reflows the sizer, so the
       // anchor correction has to read it after that paint.
-      requestAnimationFrame(() => {
+      anchorFrame = requestAnimationFrame(() => {
+        anchorFrame = 0;
         const r1 = stage.container().getBoundingClientRect();
         el.scrollLeft =
           anchoredScrollOffset(
@@ -164,19 +170,47 @@ export function useCanvasGestures({
       if (e.cancelable) e.preventDefault();
     };
 
+    // Recovery net: if a pointerup/pointercancel is ever missed on `el`
+    // (mixed touch+mouse input, an odd browser cancellation, a mouse button
+    // released outside the window, ...), a leaked contact would leave
+    // `gestureActive` stuck `true` forever — drawing and selection would be
+    // permanently dead with no user-visible symptom. A capturing window
+    // listener sees pointerup/pointercancel even when some element between
+    // `el` and `window` stops the event's bubble phase, since capture runs
+    // top-down before that. `blur` covers the remaining case where the OS
+    // switches focus away mid-touch and no pointer event fires at all — that
+    // one can't identify which pointerId leaked, so it clears every contact.
+    const onWindowPointerEnd = (e: PointerEvent) => {
+      if (!contacts.has(e.pointerId)) return;
+      contacts.delete(e.pointerId);
+      apply();
+    };
+    const onWindowBlur = () => {
+      if (contacts.size === 0) return;
+      contacts.clear();
+      endGesture();
+    };
+
     el.addEventListener("pointerdown", onPointerDown);
     el.addEventListener("pointermove", onPointerMove);
     el.addEventListener("pointerup", onPointerUp);
     el.addEventListener("pointercancel", onPointerUp);
     el.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("pointerup", onWindowPointerEnd, true);
+    window.addEventListener("pointercancel", onWindowPointerEnd, true);
+    window.addEventListener("blur", onWindowBlur);
 
     return () => {
       if (frame !== 0) cancelAnimationFrame(frame);
+      if (anchorFrame !== 0) cancelAnimationFrame(anchorFrame);
       el.removeEventListener("pointerdown", onPointerDown);
       el.removeEventListener("pointermove", onPointerMove);
       el.removeEventListener("pointerup", onPointerUp);
       el.removeEventListener("pointercancel", onPointerUp);
       el.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("pointerup", onWindowPointerEnd, true);
+      window.removeEventListener("pointercancel", onWindowPointerEnd, true);
+      window.removeEventListener("blur", onWindowBlur);
     };
   }, [containerRef, stageRef]);
 
