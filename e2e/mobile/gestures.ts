@@ -3,20 +3,17 @@ import type { Page } from "@playwright/test";
 type Pt = { x: number; y: number };
 
 /**
- * Select the Shapes tool (id "rect") regardless of whether it renders as a
- * direct toolbar button or has been pushed into the "More tools" overflow
- * menu. On a Pixel 5 viewport the 44px touch targets (max-sm:h-11 w-11 on
- * ToolButton) leave less room in the toolbar row than the old 32px buttons,
- * so which state applies can vary with exactly what else is rendered in the
- * toolbar. Both are legitimate — this just picks whichever is present
- * instead of hardcoding one.
+ * Select the Shapes tool (id "rect") via the toolbar's "More tools" overflow
+ * menu. On the Pixel 5 viewport used by this project, the toolbar's overflow
+ * math (Toolbar.tsx's useOverflowSlots call, sized to ToolButton's actual
+ * max-sm:h-11 w-11 44px footprint) deterministically fits only the first two
+ * tools (Select, Arrow) as direct buttons; every tool after that — including
+ * Shapes — always renders inside the overflow menu. This asserts that single
+ * stable state rather than tolerating either outcome, so a regression in the
+ * fit math (or in ToolButton's/the toolbar's sizing) fails this helper
+ * instead of silently passing through a fallback branch.
  */
 export async function selectShapesTool(page: Page) {
-  const direct = page.getByRole("button", { name: "Shapes", exact: true });
-  if (await direct.isVisible()) {
-    await direct.click();
-    return;
-  }
   await page.getByRole("button", { name: /more tools/i }).click();
   await page.getByRole("menuitem", { name: /^Shapes/ }).click();
 }

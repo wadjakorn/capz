@@ -260,7 +260,7 @@ export default function PastePage() {
         className="relative flex min-h-0 flex-1 overflow-hidden"
         style={{ backgroundColor: "var(--bg-canvas)" }}
       >
-        <div className="relative min-w-0 flex-1">
+        <div id="canvas-area" className="relative min-w-0 flex-1">
           <div className="absolute inset-0">
             {src ? (
               <EditorStage src={src} />
@@ -279,7 +279,7 @@ export default function PastePage() {
             Below `sm` it slides over the canvas instead of stealing 240px. */}
         <button
           type="button"
-          aria-label="Tool options"
+          aria-label="Open tool options"
           onClick={() => setOptionsOpen((v) => !v)}
           className="absolute right-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-overlay)] sm:hidden"
         >
