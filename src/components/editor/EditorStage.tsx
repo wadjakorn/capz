@@ -442,7 +442,7 @@ export function EditorStage({ src }: Props) {
     let prevCursor = "";
     let prevBodyCursor = "";
     let prevUserSelect = "";
-    const onMouseDown = (e: MouseEvent) => {
+    const onMiddleMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
       panning = true;
@@ -473,14 +473,14 @@ export function EditorStage({ src }: Props) {
       const sc = stageRef.current?.container();
       if (sc) sc.style.cursor = "";
     };
-    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mousedown", onMiddleMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", endPan);
     el.addEventListener("mouseleave", endPan);
 
     return () => {
       el.removeEventListener("wheel", onWheel);
-      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mousedown", onMiddleMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", endPan);
       el.removeEventListener("mouseleave", endPan);
@@ -915,18 +915,18 @@ export function EditorStage({ src }: Props) {
     return stage.getRelativePointerPosition();
   }
 
-  function isEmptyTarget(e: Konva.KonvaEventObject<MouseEvent>): boolean {
+  function isEmptyTarget(e: Konva.KonvaEventObject<PointerEvent>): boolean {
     const t = e.target;
     return t === t.getStage() || t.name() === "bg-image";
   }
 
-  function handleMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+  function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
     // OCR read mode: suspend annotation drawing/selection on the stage; the
     // text overlay handles interaction.
     if (useOcr.getState().mode) return;
     // Crop mode: the crop box handles its own drag/resize; ignore stage clicks.
     if (tool === "crop") return;
-    if (e.evt.button !== 0) return;
+    if ((e.evt.button ?? 0) !== 0) return;
     const p = getPointer();
     if (!p) return;
     const empty = isEmptyTarget(e);
@@ -1095,7 +1095,7 @@ export function EditorStage({ src }: Props) {
     return () => setPrepareExport(null);
   }, []);
 
-  function handleMouseMove() {
+  function handlePointerMove() {
     if (tool === "highlighter") setBrushPoint(getPointer());
     if (!draft) return;
     const p = getPointer();
@@ -1113,7 +1113,7 @@ export function EditorStage({ src }: Props) {
     }
   }
 
-  function handleMouseUp() {
+  function handlePointerUp() {
     if (!draft) return;
     if (draft.kind === "rect") {
       const x = draft.w < 0 ? draft.x + draft.w : draft.x;
@@ -1397,9 +1397,9 @@ export function EditorStage({ src }: Props) {
           offsetX={contentBox.x}
           offsetY={contentBox.y}
           className={`shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
           onMouseLeave={() => setBrushPoint(null)}
         >
           <Layer>
@@ -1852,7 +1852,7 @@ export function EditorStage({ src }: Props) {
       <>
         <div
           className="fixed inset-0 z-50"
-          onMouseDown={() => setCtxMenu(null)}
+          onPointerDown={() => setCtxMenu(null)}
           onContextMenu={(e) => {
             e.preventDefault();
             setCtxMenu(null);
@@ -1861,7 +1861,7 @@ export function EditorStage({ src }: Props) {
         <div
           className="surface fixed z-50 min-w-36 overflow-hidden rounded-xl p-1 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]"
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <button
             type="button"
@@ -2001,7 +2001,7 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
     strokeWidth: a.strokeWidth,
     draggable: true,
     ...hoverHandlers(ctx),
-    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+    onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
       e.cancelBubble = true;
       ctx.onSelect();
     },
@@ -2214,7 +2214,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
         hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
         draggable
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -2258,7 +2258,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
             stroke="#ffffff"
             strokeWidth={hsw}
             draggable
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.cancelBubble = true;
             }}
             onDragMove={(e) => {
@@ -2279,7 +2279,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
               stroke={ARROW_HANDLE_COLOR}
               strokeWidth={hsw}
               draggable
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.cancelBubble = true;
               }}
               onDragMove={(e) => {
@@ -2308,7 +2308,7 @@ function usePathShape(a: FreehandAnnotation | HighlighterAnnotation, ctx: ShapeC
   const handlers = {
     draggable: true,
     ...hoverHandlers(ctx),
-    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+    onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
       e.cancelBubble = true;
       ctx.onSelect();
     },
@@ -2487,7 +2487,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         draggable={ctx.interactive}
         listening={ctx.interactive}
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -2542,7 +2542,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         draggable={ctx.interactive}
         listening={ctx.interactive}
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -2589,7 +2589,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           stroke={a.stroke}
           strokeWidth={hsw}
           draggable
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
             e.cancelBubble = true;
           }}
           onDragMove={(e) =>
@@ -2707,7 +2707,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       rotation={a.rotation ?? 0}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -2850,7 +2850,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
       blurRadius={a.blurRadius}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -2925,7 +2925,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
       rotation={rot}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -3105,7 +3105,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         rotation={a.rotation ?? 0}
         draggable
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -3160,7 +3160,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
       fontSize={a.fontSize}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -3235,7 +3235,7 @@ function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
       draggable={ctx.interactive}
       listening={ctx.interactive}
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}

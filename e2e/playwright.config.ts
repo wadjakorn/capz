@@ -43,6 +43,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], ...channelOverride },
     },
     {
+      name: "mobile",
+      testMatch: /mobile\/.*\.spec\.ts/,
+      use: { ...devices["Pixel 5"], ...channelOverride },
+    },
+    {
       name: "tauri",
       testMatch: /tauri\/.*\.spec\.ts/,
       // Tier 2: separate runner sets up tauri-driver; skipped unless explicitly invoked.
