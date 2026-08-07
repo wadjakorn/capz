@@ -69,6 +69,7 @@ import { anchoredScrollOffset } from "@/lib/zoomAnchor";
 import { snapAxis, snapResizedBox } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
+import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
 const SNAP_SCREEN_PX = 6;
 
@@ -414,6 +415,16 @@ export function EditorStage({ src }: Props) {
       });
     };
   }, [setDisplayScale]);
+
+  const gestureActive = useCanvasGestures({
+    containerRef,
+    stageRef,
+    onGestureStart: () => {
+      // A second finger landed: abandon whatever the first was drawing.
+      setDraft(null);
+      setBrushPoint(null);
+    },
+  });
 
   // Wheel: Cmd/Ctrl → zoom; Shift → horizontal scroll; else → native vertical
   // (and trackpad horizontal) scroll. Middle-mouse drag → pan.
@@ -921,6 +932,7 @@ export function EditorStage({ src }: Props) {
   }
 
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (gestureActive.current) return;
     // OCR read mode: suspend annotation drawing/selection on the stage; the
     // text overlay handles interaction.
     if (useOcr.getState().mode) return;
@@ -1096,6 +1108,7 @@ export function EditorStage({ src }: Props) {
   }, []);
 
   function handlePointerMove() {
+    if (gestureActive.current) return;
     if (tool === "highlighter") setBrushPoint(getPointer());
     if (!draft) return;
     const p = getPointer();
@@ -1114,6 +1127,7 @@ export function EditorStage({ src }: Props) {
   }
 
   function handlePointerUp() {
+    if (gestureActive.current) return;
     if (!draft) return;
     if (draft.kind === "rect") {
       const x = draft.w < 0 ? draft.x + draft.w : draft.x;
@@ -1361,6 +1375,7 @@ export function EditorStage({ src }: Props) {
     <div className="relative h-full w-full" onContextMenu={handleContextMenu}>
     <div
       ref={containerRef}
+      style={{ touchAction: "none" }}
       className="relative h-full w-full overflow-auto bg-[var(--bg-canvas)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
     >
       {status === "failed" && (

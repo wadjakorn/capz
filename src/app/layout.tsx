@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -19,6 +19,16 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "capz",
   description: "Capture, annotate, share.",
+};
+
+// The canvas owns pinch-zoom (with a far wider range than the browser's), so
+// the browser's own page zoom must not compete with it. This is the root
+// layout, so it also covers the Tauri editor window, where it is inert.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
