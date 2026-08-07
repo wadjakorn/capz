@@ -126,28 +126,34 @@ with `{passive: false}`:
 - a `touchmove` listener whose sole job is `stopPropagation()` +
   `preventDefault()` while a gesture is active.
 
-**Applying the result — one scroll write per event.** `zoomAtClient`
+**Applying the result — one scroll write per frame.** `zoomAtClient`
 (EditorStage.tsx:381–404) corrects scroll inside a `requestAnimationFrame`,
-which is fine for a discrete wheel tick but wrong for a ~60Hz pinch: the
-deferred correction would land a frame after — and overwrite — the pan write for
-the same event, using a stale reference position. The visible result is the
-point under the fingers drifting and the image shaking, on the primary gesture
-of this feature.
+because the correction needs the container's `getBoundingClientRect()` *after*
+the new scale has reflowed. That is fine for a discrete wheel tick, but wrong
+for a ~60Hz pinch: each deferred correction would land a frame later and
+overwrite the pan write for the same gesture, computed from a stale reference
+position. The visible result is the point under the fingers drifting and the
+image shaking — on the primary gesture of this feature.
 
-So the anchor math is extracted from `zoomAtClient` into a pure helper
-`src/lib/zoomAnchor.ts` — given old scale, new scale, an anchor client point,
-and the current scroll offsets, it returns the target `scrollLeft` / `scrollTop`.
-The gesture path then does, synchronously within one `pointermove`:
+The correction genuinely cannot be computed synchronously (the post-reflow rect
+is not knowable at `pointermove` time in this layout, where changing the scale
+resizes the sizer and moves the Stage). So instead of removing the rAF hop, the
+gesture path **coalesces into it**:
 
-1. compute `newScale = clampZoom(oldScale * zoomFactor)` and `setDisplayScale`
-2. compute the anchor-preserving scroll target via the helper
-3. subtract `panDx` / `panDy` from that target
-4. write `el.scrollLeft` / `el.scrollTop` **once**
+- the reducer's output accumulates into a pending `{zoomFactor, panDx, panDy,
+  midX, midY}`, and a single rAF flush is scheduled if one is not already
+  pending;
+- the flush applies the accumulated scale once via `setDisplayScale`, reads the
+  post-reflow rect once, computes the anchor-preserving scroll target, subtracts
+  the accumulated pan, and writes `el.scrollLeft` / `el.scrollTop` **once**.
 
-`zoomAtClient` is refactored to call the same helper, so the wheel path and the
-pinch path share one definition of "keep this point pinned" and cannot drift
-apart. The rAF hop stays only on the wheel path, where the DOM has not yet
-reflowed at call time.
+Multiple `pointermove` events inside one frame therefore produce exactly one
+scale change and one scroll write, in a known order — no interleaving.
+
+The anchor arithmetic is extracted from `zoomAtClient` into a pure, per-axis
+helper `src/lib/zoomAnchor.ts`, and `zoomAtClient` is refactored to call it, so
+the wheel path and the pinch path share one definition of "keep this point
+pinned" and cannot drift apart.
 
 **Gesture start.** On the transition into `{kind: "gesture"}` the hook raises a
 `gestureActive` ref, calls `stopPropagation()` + `preventDefault()`, invokes an
@@ -211,8 +217,8 @@ practice.
 - all fingers up returns to `idle`
 
 **Unit** — `src/lib/zoomAnchor.test.ts`: the extracted helper pins the anchor
-point across a scale change, and a combined zoom + pan produces the same result
-as the two applied in sequence.
+point across a scale change, is identity when the scale does not change, and is
+inert when the old scale is zero.
 
 **E2E** — a second Playwright project `mobile` in `e2e/playwright.config.ts`
 using `devices["Pixel 5"]` (which sets `hasTouch`), with specs under
