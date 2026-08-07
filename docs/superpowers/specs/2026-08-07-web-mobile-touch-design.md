@@ -17,8 +17,14 @@ Desktop behaviour must not regress.
 ## Non-goals (phase 1)
 
 Double-tap zoom, two-finger rotate, haptics, and a redesigned mobile toolbar
-layout (bottom bar / bottom sheets). Tauri desktop builds are untouched — this
-is web-only. Deferred deliberately; revisit after phase 1 ships.
+layout (bottom bar / bottom sheets). Deferred deliberately; revisit after phase
+1 ships.
+
+The feature targets the browser build. One change — the `viewport` export in
+section D — lands in the shared root layout and therefore also applies to the
+Tauri `editor` window. That is assessed as inert there (a Tauri webview has no
+browser pinch-zoom to suppress) but it is not literally web-only, and no other
+change touches the desktop build.
 
 ## Current state (verified 2026-08-07)
 
@@ -66,6 +72,17 @@ source rather than assumed:
 4. `Node.prototype.draggable` binds via `'mousedown.konva touchstart.konva'`
    (`lib/Node.js:1408`) — **shape dragging already works with touch** once touch
    events reach the Stage. No per-shape change is needed for drag itself.
+5. Konva's drag module binds `DD._drag` to **`window`** for both `mousemove`
+   and `touchmove`, in the bubble phase (`lib/DragAndDrop.js:108–109`). Our
+   container sits earlier in that bubble path, so `preventDefault()` there does
+   **not** stop `DD._drag` from running — only `stopPropagation()` does. This
+   dictates section B.
+6. There are 14 `e.cancelBubble = true` sites among the per-shape handlers
+   (e.g. EditorStage.tsx:1994, 2700), whose job is to stop a shape's press from
+   reaching the Stage handler and deselecting or starting a draw. Konva
+   bubbling is per-namespace, so shape handlers and Stage handlers **must move
+   to the pointer namespace together**; converting only one side silently
+   breaks all 14.
 
 ## Design
 
@@ -75,7 +92,7 @@ A pure reducer, no DOM and no React, so it is unit-testable under the existing
 `environment: "node"` vitest config and the existing
 `include: ["src/**/*.test.ts"]` glob. No test-config changes required.
 
-Input: a snapshot of active touch points (`{id, clientX, clientY}[]`) plus the
+Input: a snapshot of active contact points (`{id, clientX, clientY}[]`) plus the
 previous snapshot. Output, one of:
 
 - `{kind: "single"}` — exactly one finger; the caller passes the event through
@@ -87,26 +104,61 @@ previous snapshot. Output, one of:
   so the caller can abandon an in-progress draw or drag.
 - `{kind: "idle"}` — no fingers.
 
-Fingers are tracked by `Touch.identifier`, and the reducer keeps using the same
-two identifiers for the life of the gesture. Lifting one of three fingers must
-therefore not produce a zoom jump; that is an explicit test case.
+Contacts are tracked by id, and the reducer keeps using the same two ids for
+the life of the gesture. Lifting a third, untracked finger must therefore not
+produce a zoom jump; that is an explicit test case.
 
-### B. Gesture wiring — `src/hooks/useCanvasTouch.ts` (new)
+### B. Gesture wiring — `src/hooks/useCanvasGestures.ts` (new)
 
-Attaches `touchstart` / `touchmove` / `touchend` / `touchcancel` to the existing
-`containerRef` with `{passive: false}`, feeds the reducer, and applies output
-through the mechanisms that already exist — no second pan or zoom system:
+**One event model.** Because section C moves every Konva handler to the pointer
+namespace anyway, the container listener uses pointer events too — `pointerdown`
+/ `pointermove` / `pointerup` / `pointercancel` with a `Map<pointerId, {x, y}>`
+of live contacts — rather than a parallel `TouchEvent` implementation. That
+keeps a single input model across the whole editor and gets stylus support for
+free.
 
-- zoom → `zoomAtClient.current(zoomFactor, midX, midY)`
-- pan → `el.scrollLeft -= panDx; el.scrollTop -= panDy`
+One `touchmove` listener is still required, for the reason in Konva fact (5):
+`DD._drag` is bound to `window` for `touchmove`, and only `stopPropagation()`
+on an earlier element stops it. So the hook registers, all on `containerRef`
+with `{passive: false}`:
 
-On `{kind: "gesture"}` the hook calls `preventDefault()` and raises a
-`gestureActive` ref. On `{kind: "cancel"}` it clears the in-progress `draft` and
-calls `stage.stopDrag()` on any node Konva is currently dragging, so the first
-finger's partial stroke or shape move does not survive into the pinch.
+- the four pointer listeners above, which drive the reducer, and
+- a `touchmove` listener whose sole job is `stopPropagation()` +
+  `preventDefault()` while a gesture is active.
 
-The hook takes `containerRef`, `stageRef`, and the `zoomAtClient` ref as
-arguments and owns no editor state of its own.
+**Applying the result — one scroll write per event.** `zoomAtClient`
+(EditorStage.tsx:381–404) corrects scroll inside a `requestAnimationFrame`,
+which is fine for a discrete wheel tick but wrong for a ~60Hz pinch: the
+deferred correction would land a frame after — and overwrite — the pan write for
+the same event, using a stale reference position. The visible result is the
+point under the fingers drifting and the image shaking, on the primary gesture
+of this feature.
+
+So the anchor math is extracted from `zoomAtClient` into a pure helper
+`src/lib/zoomAnchor.ts` — given old scale, new scale, an anchor client point,
+and the current scroll offsets, it returns the target `scrollLeft` / `scrollTop`.
+The gesture path then does, synchronously within one `pointermove`:
+
+1. compute `newScale = clampZoom(oldScale * zoomFactor)` and `setDisplayScale`
+2. compute the anchor-preserving scroll target via the helper
+3. subtract `panDx` / `panDy` from that target
+4. write `el.scrollLeft` / `el.scrollTop` **once**
+
+`zoomAtClient` is refactored to call the same helper, so the wheel path and the
+pinch path share one definition of "keep this point pinned" and cannot drift
+apart. The rAF hop stays only on the wheel path, where the DOM has not yet
+reflowed at call time.
+
+**Gesture start.** On the transition into `{kind: "gesture"}` the hook raises a
+`gestureActive` ref, calls `stopPropagation()` + `preventDefault()`, invokes an
+`onGestureStart` callback supplied by the caller, and calls `stage.stopDrag()`
+on any node Konva is dragging.
+
+**Contract.** The hook takes `{containerRef, stageRef, onGestureStart}` and
+**returns** the `gestureActive` ref, which the Stage handlers in section C read.
+It owns no editor state: clearing the in-progress `draft` is `EditorStage`'s job,
+done from `onGestureStart`. This is what keeps the hook independently readable
+and the reducer independently testable.
 
 ### C. One-finger path — edits inside `EditorStage.tsx`
 
@@ -117,9 +169,10 @@ arguments and owns no editor state of its own.
   `PointerEvent` from touch reports `button === 0`, but the handler's typing must
   move from `KonvaEventObject<MouseEvent>` to `KonvaEventObject<PointerEvent>`
   and tolerate a missing `button`.
-- The ~15 per-shape `onMouseDown` handlers become `onPointerDown`. This is a
+- The 20 per-shape `onMouseDown` handlers become `onPointerDown`. This is a
   mechanical rename with no logic change; `draggable` needs nothing per Konva
-  fact (4).
+  fact (4). Per Konva fact (6) this conversion and the Stage conversion above
+  must land in the same change — a half-converted tree breaks `cancelBubble`.
 - Every Stage-level handler early-returns while `gestureActive` is set.
 
 The middle-mouse pan and `wheel` effect (L407–475) stay exactly as they are —
@@ -157,9 +210,25 @@ practice.
   zoom jump
 - all fingers up returns to `idle`
 
+**Unit** — `src/lib/zoomAnchor.test.ts`: the extracted helper pins the anchor
+point across a scale change, and a combined zoom + pan produces the same result
+as the two applied in sequence.
+
 **E2E** — a second Playwright project `mobile` in `e2e/playwright.config.ts`
 using `devices["Pixel 5"]` (which sets `hasTouch`), with specs under
-`e2e/mobile/`:
+`e2e/mobile/`.
+
+Playwright 1.60 cannot express these gestures on its own: `interface
+Touchscreen` exposes only `tap(x, y)` (checked in
+`playwright-core@1.60.0/types/types.d.ts`), and `page.mouse` is single-contact
+by definition. Multi-finger input must therefore go through CDP —
+`context.newCDPSession(page)` then `Input.dispatchTouchEvent` with a two-entry
+`touchPoints[]` for `touchStart` / `touchMove` / `touchEnd`. This is
+Chromium-only, which is acceptable because the existing `web` project is
+Chromium too. Write it once as `e2e/mobile/gestures.ts` exporting `pinch()` and
+`twoFingerPan()` helpers; the specs below use those.
+
+Specs:
 
 - pinch changes the zoom indicator
 - two-finger drag changes container scroll position
@@ -178,12 +247,18 @@ pointer events also fire from a mouse, that suite is the real gate on section C.
 These follow from the Konva source read but have not been observed running on a
 real device or emulator:
 
-- Konva's `draggable` touch path behaves correctly while our container listener
-  is also calling `preventDefault()` on `touchmove` during two-finger gestures.
-  Konva's drag-and-drop module listens on `window`; if it processes prevented
-  moves, the `cancel` transition in section B is what stops a shape from
-  drifting mid-pinch. If that proves insufficient, the fallback is to
-  `stopPropagation()` on the container listener during a gesture.
+- That `stopPropagation()` on the container's `touchmove` is sufficient to keep
+  `DD._drag` from moving a shape mid-pinch. The listener placement is confirmed
+  (`lib/DragAndDrop.js:109`) and the mechanism follows from DOM propagation
+  rules, but it has not been run. `stage.stopDrag()` on gesture start is the
+  belt-and-braces second line.
+- That Konva raises no `pointerdown` of its own that re-enters our Stage
+  handlers during a gesture. The `gestureActive` early-return in section C
+  covers this by design; worth watching in the first device run.
 - `Konva.hitOnDragEnabled` defaults to `false` (`lib/Global.js:26`); no touch
   behaviour in this design depends on hit detection during a drag, but this is
   worth re-checking if shape drag feels unresponsive on device.
+- That CDP `Input.dispatchTouchEvent` produces `pointermove` events (not only
+  `touchmove`) in headless Chromium. If it does not, the container listener in
+  section B falls back to the touch model for its contact tracking; the reducer
+  in section A is unaffected either way, since it takes plain objects.
