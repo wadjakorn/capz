@@ -65,6 +65,7 @@ import {
   contentBounds,
   type AABB,
 } from "@/lib/annotationBounds";
+import { anchoredScrollOffset } from "@/lib/zoomAnchor";
 import { snapAxis, snapResizedBox } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
@@ -391,15 +392,25 @@ export function EditorStage({ src }: Props) {
       const newScale = clampZoom(oldScale * factor);
       if (newScale === oldScale) return;
       const r0 = stage.container().getBoundingClientRect();
-      const imgX = (clientX - r0.left) / oldScale;
-      const imgY = (clientY - r0.top) / oldScale;
       setDisplayScale(newScale);
       requestAnimationFrame(() => {
         const r1 = stage.container().getBoundingClientRect();
-        const wantLeft = clientX - imgX * newScale;
-        const wantTop = clientY - imgY * newScale;
-        el.scrollLeft += r1.left - wantLeft;
-        el.scrollTop += r1.top - wantTop;
+        el.scrollLeft = anchoredScrollOffset(
+          el.scrollLeft,
+          clientX,
+          r0.left,
+          r1.left,
+          oldScale,
+          newScale,
+        );
+        el.scrollTop = anchoredScrollOffset(
+          el.scrollTop,
+          clientY,
+          r0.top,
+          r1.top,
+          oldScale,
+          newScale,
+        );
       });
     };
   }, [setDisplayScale]);
