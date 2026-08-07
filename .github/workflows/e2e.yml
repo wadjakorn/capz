@@ -23,11 +23,16 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e:web
+      - id: playwright_install
+        name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run Playwright web suite
+        run: pnpm test:e2e:web
         env:
           CI: "1"
-      - run: pnpm test:e2e:mobile
+      - name: Run Playwright mobile suite
+        if: ${{ !cancelled() && steps.playwright_install.outcome == 'success' }}
+        run: pnpm test:e2e:mobile
         env:
           CI: "1"
       - if: failure()
