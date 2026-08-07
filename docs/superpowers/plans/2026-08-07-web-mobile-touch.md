@@ -162,7 +162,7 @@ This is algebraically the same as the code it replaces: the old form computed
 Run: `pnpm test:unit`
 Expected: PASS, including the existing `src/stores/editor.zoom.test.ts`.
 
-Run: `pnpm --dir e2e exec playwright test --project=web`
+Run: `pnpm test:e2e:web`
 Expected: PASS — the existing desktop suite is unchanged.
 
 - [ ] **Step 7: Commit**
@@ -251,9 +251,15 @@ In `e2e/playwright.config.ts`, insert this entry into the `projects` array immed
     },
 ```
 
+Then add the matching script to `package.json`, beside the existing `test:e2e:web` on line 22, so this suite is invoked the same way as every other project in the repo:
+
+```json
+    "test:e2e:mobile": "playwright test -c e2e/playwright.config.ts --project=mobile",
+```
+
 - [ ] **Step 3: Run the test and confirm it fails**
 
-Run: `pnpm --dir e2e exec playwright test --project=mobile`
+Run: `pnpm test:e2e:mobile`
 Expected: FAIL — the undo button stays disabled, because `handleMouseDown` is bound to the mouse namespace and a touch never reaches it.
 
 - [ ] **Step 4: Convert the Stage handlers**
@@ -326,10 +332,10 @@ Expected: `0`.
 Run: `pnpm test:unit`
 Expected: PASS.
 
-Run: `pnpm --dir e2e exec playwright test --project=mobile`
+Run: `pnpm test:e2e:mobile`
 Expected: PASS — one-finger drawing now works.
 
-Run: `pnpm --dir e2e exec playwright test --project=web`
+Run: `pnpm test:e2e:web`
 Expected: PASS — this is the real gate. Pointer events fire from a mouse too, so any breakage in select/draw/drag on desktop surfaces here.
 
 - [ ] **Step 8: Commit**
@@ -829,7 +835,7 @@ test("a second finger landing mid-stroke leaves no stray shape", async ({
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
-Run: `pnpm --dir e2e exec playwright test --project=mobile zoom-pan`
+Run: `pnpm test:e2e:mobile zoom-pan`
 Expected: FAIL — nothing listens for the second contact, so zoom never changes.
 
 - [ ] **Step 3: Add the viewport export**
@@ -1090,10 +1096,10 @@ In `src/components/editor/EditorStage.tsx`, add `touch-action: none` to the scro
 Run: `pnpm test:unit`
 Expected: PASS.
 
-Run: `pnpm --dir e2e exec playwright test --project=mobile`
+Run: `pnpm test:e2e:mobile`
 Expected: PASS — all four gesture specs plus the Task 2 draw spec.
 
-Run: `pnpm --dir e2e exec playwright test --project=web`
+Run: `pnpm test:e2e:web`
 Expected: PASS. The hook's pointer listeners also fire from a mouse, but a mouse produces one contact, so the reducer reports `single` and nothing changes.
 
 - [ ] **Step 9: Commit**
@@ -1155,7 +1161,7 @@ test("the canvas area gets the full width on a phone", async ({ page }) => {
 
 - [ ] **Step 2: Run the tests and confirm they fail**
 
-Run: `pnpm --dir e2e exec playwright test --project=mobile layout`
+Run: `pnpm test:e2e:mobile layout`
 Expected: FAIL — the panel is visible from the start and there is no "Tool options" button.
 
 - [ ] **Step 3: Make the sidebar a slide-over below `sm`**
@@ -1203,10 +1209,10 @@ Every toolbar icon button renders through one shared component, so this is a one
 
 - [ ] **Step 5: Run the tests**
 
-Run: `pnpm --dir e2e exec playwright test --project=mobile`
+Run: `pnpm test:e2e:mobile`
 Expected: PASS — layout specs plus everything from Tasks 2 and 4.
 
-Run: `pnpm --dir e2e exec playwright test --project=web`
+Run: `pnpm test:e2e:web`
 Expected: PASS — the `sm:static sm:flex` classes restore the original desktop layout exactly.
 
 - [ ] **Step 6: Commit**
@@ -1258,7 +1264,7 @@ of the `web` project.
 Run: `pnpm test:unit`
 Expected: PASS.
 
-Run: `pnpm --dir e2e exec playwright test`
+Run: `pnpm test:e2e:web && pnpm test:e2e:mobile`
 Expected: PASS for `web` and `mobile`. The `tauri` project is tier 2 and stays skipped unless explicitly invoked.
 
 - [ ] **Step 5: Commit**
