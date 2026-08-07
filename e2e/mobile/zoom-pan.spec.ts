@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { pinch, twoFingerDrag } from "./gestures";
+import { pinch, selectShapesTool, twoFingerDrag } from "./gestures";
 
 async function loadImage(page: import("@playwright/test").Page) {
   await page.goto("/paste");
@@ -107,7 +107,7 @@ test("a second finger landing mid-stroke leaves no stray shape", async ({
   page,
 }) => {
   await loadImage(page);
-  await page.getByRole("button", { name: "Shapes", exact: true }).click();
+  await selectShapesTool(page);
   // Anchored on the container (not the canvas): see the comment above
   // containerCenter. Both touchStart points must land inside the ~150px-wide
   // scrollable container on the Pixel 5 viewport, or they land on a sibling

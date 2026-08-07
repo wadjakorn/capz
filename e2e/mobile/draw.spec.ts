@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { selectShapesTool } from "./gestures";
 
 test("one-finger drag with the rect tool creates a shape", async ({ page }) => {
   await page.goto("/paste");
@@ -36,7 +37,7 @@ test("one-finger drag with the rect tool creates a shape", async ({ page }) => {
 
   // The Shapes tool button (id "rect") defaults to the rectangle variant;
   // there is no separate "Rect"/"Rectangle" labeled button in the toolbar.
-  await page.getByRole("button", { name: "Shapes", exact: true }).click();
+  await selectShapesTool(page);
 
   const box = (await page.locator("canvas").first().boundingBox())!;
   const cdp = await page.context().newCDPSession(page);

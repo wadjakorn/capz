@@ -32,7 +32,7 @@ export function ToolButton({
       aria-label={label}
       aria-pressed={pressed}
       className={[
-        "flex h-8 w-8 items-center justify-center rounded-lg border transition-all disabled:opacity-30 disabled:hover:bg-transparent",
+        "flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center rounded-lg border transition-all disabled:opacity-30 disabled:hover:bg-transparent",
         active
           ? "border-transparent bg-[var(--accent)] text-[var(--accent-fg)]"
           : pressed

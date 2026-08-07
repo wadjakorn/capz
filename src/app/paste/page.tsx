@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
-import { ImageUp, Monitor } from "lucide-react";
+import { ImageUp, Monitor, SlidersHorizontal } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor } from "@/stores/editor";
@@ -30,6 +30,7 @@ export default function PastePage() {
   const [src, setSrc] = useState("");
   const [capturing, setCapturing] = useState(false);
   const [canCapture, setCanCapture] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const srcRef = useRef("");
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
@@ -274,11 +275,22 @@ export default function PastePage() {
           </div>
         </div>
         {/* Tool-options panel — always docked on the right; empty until the
-            Toolbar portals contextual controls into it. See the editor page. */}
+            Toolbar portals contextual controls into it. See the editor page.
+            Below `sm` it slides over the canvas instead of stealing 240px. */}
+        <button
+          type="button"
+          aria-label="Tool options"
+          onClick={() => setOptionsOpen((v) => !v)}
+          className="absolute right-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-overlay)] sm:hidden"
+        >
+          <SlidersHorizontal className="h-5 w-5" aria-hidden />
+        </button>
         <aside
           id="tool-options-slot"
           aria-label="Tool options"
-          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
+          className={`${
+            optionsOpen ? "flex" : "hidden"
+          } absolute right-0 top-0 z-10 h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3 sm:static sm:flex`}
         />
       </main>
       <Toaster theme="dark" position="top-right" richColors closeButton />
