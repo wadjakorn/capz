@@ -99,7 +99,7 @@ export function CaptureSplitButton({
         disabled={disabled}
         title={primaryTitle}
         aria-label={primaryLabel}
-        className="flex h-8 w-8 items-center justify-center text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        className="flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
       >
         <PrimaryIcon className="h-4 w-4" aria-hidden />
       </button>
@@ -111,7 +111,7 @@ export function CaptureSplitButton({
               disabled={disabled}
               title={disabled ? disabledReason : label("Capture options")}
               aria-label={label("Capture options")}
-              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex h-8 w-4 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronDown className="h-3 w-3" aria-hidden />
             </button>

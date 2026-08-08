@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { pinch, selectShapesTool, twoFingerDrag } from "./gestures";
+import {
+  pinch,
+  selectPinTool,
+  selectShapesTool,
+  twoFingerDrag,
+} from "./gestures";
 
 async function loadImage(page: import("@playwright/test").Page) {
   await page.goto("/paste");
@@ -41,16 +46,20 @@ async function zoomPercent(page: import("@playwright/test").Page) {
   return Number(text.replace(/[^\d]/g, ""));
 }
 
-// The mobile viewport (Pixel 5, 393px wide) leaves the scrollable canvas
-// container only ~150px wide once the toolbar/sidebar take their share — far
-// narrower than the 400x300 source image. A touchStart whose point falls
-// outside the container's on-screen box never reaches our listeners (it
+// On the mobile viewport (Pixel 5, 393x727) the scrollable canvas container
+// fills the full width: the tool-options panel is an absolute slide-over, not
+// a flex column, so it takes none of it — layout.spec.ts asserts `#canvas-area`
+// spans the viewport. Measured, the container is 393x670, below the toolbar.
+//
+// The rendered canvas is a different box from the container, though, and it
+// moves and resizes as the zoom changes. A touchStart whose point falls
+// outside the *container's* on-screen box never reaches our listeners (it
 // lands on a sibling element instead), so every gesture below is anchored on
-// the *container's* rect, which stays fixed regardless of zoom, and keeps
-// its touchStart separations well inside that rect. Once a touch has
-// started inside the container, subsequent touchmoves are still delivered
-// to it even if they drift outside the box (implicit pointer capture), so
-// only the *starting* separation of each fresh pinch needs to be safe.
+// the container's rect, which stays fixed regardless of zoom, and keeps its
+// touchStart separations well inside that rect. Once a touch has started
+// inside the container, subsequent touchmoves are still delivered to it even
+// if they drift outside the box (implicit pointer capture), so only the
+// *starting* separation of each fresh pinch needs to be safe.
 async function containerCenter(page: import("@playwright/test").Page) {
   const box = (await page.locator(".overflow-auto").boundingBox())!;
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -109,9 +118,9 @@ test("a second finger landing mid-stroke leaves no stray shape", async ({
   await loadImage(page);
   await selectShapesTool(page);
   // Anchored on the container (not the canvas): see the comment above
-  // containerCenter. Both touchStart points must land inside the ~150px-wide
-  // scrollable container on the Pixel 5 viewport, or they land on a sibling
-  // element and the second contact is never seen.
+  // containerCenter. Both touchStart points must land inside the scrollable
+  // container's rect, or they land on a sibling element and the second contact
+  // is never seen.
   const box = (await page.locator(".overflow-auto").boundingBox())!;
   const cdp = await page.context().newCDPSession(page);
   const pt = (x: number, y: number, id: number) => ({
@@ -146,4 +155,64 @@ test("a second finger landing mid-stroke leaves no stray shape", async ({
   });
 
   await expect(page.getByRole("button", { name: /undo/i })).toBeDisabled();
+});
+
+test("a second finger landing with the Pin tool commits no pin", async ({
+  page,
+}) => {
+  await loadImage(page);
+  // Pin, not Shapes: the test above only covers a tool that builds a `draft`,
+  // which `onGestureStart` can throw away. Pin (like Sticker and Text) commits
+  // on `pointerdown` alone — and Konva dispatches that Stage handler for the
+  // second finger *before* the container's gesture listener runs, so the
+  // gesture flag is still false at that moment. A guard on the flag alone
+  // would not have caught this; the fix has to recognise the second contact
+  // one dispatch earlier.
+  await selectPinTool(page);
+
+  // Anchored on the *canvas* box, like draw.spec.ts: a pin is only placed when
+  // the press hits the stage or the background image, so both contacts have to
+  // land inside the rendered canvas (329x247 here), not merely inside the
+  // scrollable container.
+  const box = (await page.locator("canvas").first().boundingBox())!;
+  const cdp = await page.context().newCDPSession(page);
+  const pt = (x: number, y: number, id: number) => ({
+    x: box.x + x,
+    y: box.y + y,
+    radiusX: 1,
+    radiusY: 1,
+    force: 1,
+    id,
+  });
+
+  // Finger one lands. Pin commits on `pointerdown`, so this legitimately drops
+  // a pin — asserting it does proves the fix is specific to the *second*
+  // contact and has not simply disabled the tool on touch.
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [pt(100, 100, 1)],
+  });
+  const undo = page.getByRole("button", { name: /undo/i });
+  await expect(undo).toBeEnabled();
+
+  // Finger two arrives, turning the press into a pinch. This is the dispatch
+  // that used to drop a second, stray numbered pin wherever it landed.
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [pt(100, 100, 1), pt(240, 200, 2)],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [pt(80, 80, 1), pt(280, 230, 2)],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+
+  // "Undo is disabled" cannot be the assertion — one pin is legitimately on the
+  // canvas. Instead undo exactly once: history must then be empty. A stray pin
+  // from the second finger would leave a second entry and keep undo enabled.
+  await undo.click();
+  await expect(undo).toBeDisabled();
 });

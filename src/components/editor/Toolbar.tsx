@@ -71,6 +71,16 @@ const IS_MAC = currentPlatform() === "mac";
 // ToolButton size classes or that gap ever change, update these constants
 // (and SM_BREAKPOINT_PX, which must match Tailwind's default `sm` of 640px)
 // to match, or the fit calculation will drift out of sync again.
+//
+// useOverflowSlots also reserves exactly one slot for the overflow trigger, so
+// OverflowMenu's button has to stay the same size as a ToolButton at both
+// breakpoints — it is likewise `h-8 w-8 max-sm:h-11 max-sm:w-11`; see
+// src/components/editor/toolbar/OverflowMenu.tsx. These constants describe the
+// palette's own buttons only. The palette div is `flex-1 min-w-0` in the row
+// below, so its measured `clientWidth` already accounts for whatever its
+// siblings (the export/capture split buttons, undo/redo, the dividers) take:
+// resizing a sibling changes how many tools fit, but never invalidates the
+// arithmetic here.
 const TOOL_BUTTON_SIZE_PX = 32;
 const TOOL_BUTTON_SIZE_PX_MOBILE = 44;
 const TOOL_PALETTE_GAP_PX = 4;

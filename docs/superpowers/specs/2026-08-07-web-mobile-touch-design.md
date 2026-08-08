@@ -186,24 +186,51 @@ they are mouse-specific and unaffected.
 
 ### D. Making room for the gestures
 
-- `src/app/layout.tsx`: add a `viewport` export with `maximumScale: 1` and
-  `userScalable: false`. **Required** — without it the browser's own pinch-zoom
-  competes with ours and the canvas gesture becomes unusable.
+- A `viewport` export with `maximumScale: 1` and `userScalable: false`.
+  **Required** — without it the browser's own pinch-zoom competes with ours and
+  the canvas gesture becomes unusable. Scoped to the `/paste` and `/editor`
+  route segments rather than the root layout; see "Accepted trade-off" below.
 - `touch-action: none` on the scroll container, so the browser does not claim
   the gesture before our listeners see it.
 - `src/app/paste/page.tsx`: the `w-60 flex-none` sidebar is hidden below the
   `sm` breakpoint and reachable as a slide-over sheet; toolbar controls get a
-  44px minimum hit target.
+  44px minimum hit target below `sm` via `max-sm:h-11` / `max-sm:w-11`. As
+  shipped this covers `ToolButton`, `OverflowMenu`'s "More tools" trigger, both
+  halves of `ExportSplitButton` and `CaptureSplitButton` (including the
+  16px carets), `ZoomMenuButton`'s shared `HIT` class, and `PresetSlider`'s
+  preset buttons.
+
+  Note the coupling: the tool palette is `flex-1 min-w-0` in the same toolbar
+  row, so widening a sibling shrinks it and pushes more tools into the overflow
+  menu. `Toolbar.tsx`'s `useOverflowSlots` call measures the palette's own
+  `clientWidth`, so that stays correct automatically — but `OverflowMenu`'s
+  trigger must keep matching `ToolButton`'s size, because the hook reserves
+  exactly one slot for it. On the Pixel 5 e2e viewport the palette ends up
+  102px, fitting one tool plus the trigger.
 
 ### Accepted trade-off
 
 `userScalable: false` plus `touch-action: none` disables the operating system's
-accessibility pinch-zoom for the **whole page**, not only the canvas. This is
-accepted for phase 1 because the canvas has its own zoom with a wider range than
-the browser's, and the alternative — scoping `touch-action` to the container and
-leaving the viewport alone — leaves the page itself zoomable in a way that
-fights the canvas gesture on some browsers. Revisit if it proves a problem in
-practice.
+accessibility pinch-zoom. That is accepted **only on the routes that own a
+canvas**, because only there is the argument for it true: the canvas provides
+its own zoom over a wider range than the browser's, and the alternative —
+scoping `touch-action` to the container and leaving the viewport alone — leaves
+the page itself zoomable in a way that fights the canvas gesture on some
+browsers.
+
+The argument does **not** extend to `/`, the public marketing landing page,
+which renders `<Landing />` with no canvas and so no substitute zoom at all;
+locking the viewport there would be a plain WCAG 1.4.4 failure on the app's
+most-visited URL. So as shipped, the `viewport` export lives in
+`src/app/paste/layout.tsx` and `src/app/editor/layout.tsx` (both re-exporting
+`canvasViewport` from `src/lib/canvasViewport.ts`), **not** in the root layout.
+Verified against the static export: `out/index.html` carries
+`width=device-width, initial-scale=1`, while `out/paste/index.html` and
+`out/editor/index.html` add `maximum-scale=1, user-scalable=no`.
+
+This supersedes the note in the preamble above: the change no longer lands in
+the shared root layout, though it still reaches the Tauri `editor` window,
+where it remains inert.
 
 ## Verification
 
@@ -258,9 +285,29 @@ real device or emulator:
   (`lib/DragAndDrop.js:109`) and the mechanism follows from DOM propagation
   rules, but it has not been run. `stage.stopDrag()` on gesture start is the
   belt-and-braces second line.
-- That Konva raises no `pointerdown` of its own that re-enters our Stage
-  handlers during a gesture. The `gestureActive` early-return in section C
-  covers this by design; worth watching in the first device run.
+- ~~That Konva raises no `pointerdown` of its own that re-enters our Stage
+  handlers during a gesture.~~ **Disproved during implementation, and fixed.**
+  Konva's content div is a *descendant* of the gesture container, so for every
+  press Konva dispatches its Stage `pointerdown` on the way up, *before* the
+  container listener that would raise `gestureActive`. When the second finger
+  lands, the Stage handler therefore runs with `gestureActive` still `false`.
+  For draw tools that is harmless — they only build a `draft`, which
+  `onGestureStart` then discards — but Sticker and Pin `add()` an annotation
+  immediately (Pin also bumps `pins.lastUsedNumber`), Text opens the editor,
+  and the empty-canvas branch clears the selection and resets the tool. None of
+  that can be undone after the fact, so an early-return on `gestureActive`
+  alone cannot fix it.
+
+  The fix recognises the gesture one dispatch earlier instead: the hook now
+  also returns a `contactCount` ref, and because the *first* finger's
+  `pointerdown` has already been recorded by the time the *second* finger's
+  Konva dispatch runs, "a contact is already live at `pointerdown` time" marks
+  a press as a gesture's second contact. `EditorStage`'s `isGestureContact()`
+  combines that with `gestureActive`; `handlePointerDown` and the shared
+  `ctx.onSelect` (guarded once for all ~20 per-shape handlers) bail on it. The
+  first finger and every mouse press see `contactCount === 0` and are
+  unaffected. Covered by the "a second finger landing with the Pin tool commits
+  no pin" e2e spec, which was confirmed to fail without the guard.
 - `Konva.hitOnDragEnabled` defaults to `false` (`lib/Global.js:26`); no touch
   behaviour in this design depends on hit detection during a drag, but this is
   worth re-checking if shape drag feels unresponsive on device.

@@ -279,7 +279,9 @@ export default function PastePage() {
             Below `sm` it slides over the canvas instead of stealing 240px. */}
         <button
           type="button"
-          aria-label="Open tool options"
+          aria-label={optionsOpen ? "Close tool options" : "Open tool options"}
+          aria-expanded={optionsOpen}
+          aria-controls="tool-options-slot"
           onClick={() => setOptionsOpen((v) => !v)}
           className="absolute right-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-overlay)] sm:hidden"
         >

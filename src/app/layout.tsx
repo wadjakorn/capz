@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -21,15 +21,10 @@ export const metadata: Metadata = {
   description: "Capture, annotate, share.",
 };
 
-// The canvas owns pinch-zoom (with a far wider range than the browser's), so
-// the browser's own page zoom must not compete with it. This is the root
-// layout, so it also covers the Tauri editor window, where it is inert.
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-};
+// No `viewport` export here on purpose. Suppressing browser zoom is scoped to
+// the route segments that own pinch-zoom themselves (src/app/paste/layout.tsx,
+// src/app/editor/layout.tsx) so the landing page at `/` keeps it. See
+// src/lib/canvasViewport.ts.
 
 export default function RootLayout({
   children,

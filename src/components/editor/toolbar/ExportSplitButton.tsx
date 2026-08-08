@@ -67,7 +67,7 @@ export function ExportSplitButton({
             : primary.label
         }
         aria-label={primary.label}
-        className="flex h-8 w-8 items-center justify-center text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
+        className="flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <PrimaryIcon className="h-4 w-4" aria-hidden />
       </button>
@@ -79,7 +79,7 @@ export function ExportSplitButton({
               title="Output options"
               aria-label="Output options"
               disabled={disabled}
-              className="flex h-8 w-4 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
+              className="flex h-8 w-4 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
             >
               <ChevronDown className="h-3 w-3" aria-hidden />
             </button>

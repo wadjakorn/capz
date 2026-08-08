@@ -6,16 +6,32 @@ type Pt = { x: number; y: number };
  * Select the Shapes tool (id "rect") via the toolbar's "More tools" overflow
  * menu. On the Pixel 5 viewport used by this project, the toolbar's overflow
  * math (Toolbar.tsx's useOverflowSlots call, sized to ToolButton's actual
- * max-sm:h-11 w-11 44px footprint) deterministically fits only the first two
- * tools (Select, Arrow) as direct buttons; every tool after that — including
- * Shapes — always renders inside the overflow menu. This asserts that single
- * stable state rather than tolerating either outcome, so a regression in the
- * fit math (or in ToolButton's/the toolbar's sizing) fails this helper
- * instead of silently passing through a fallback branch.
+ * max-sm:h-11 max-sm:w-11 44px footprint plus a 4px gap) leaves the palette
+ * 102px wide — one 48px slot for a tool, one reserved for the overflow
+ * trigger. So only the first tool (Select) renders as a direct button, and
+ * every tool after it — including Shapes — always renders inside the overflow
+ * menu. This asserts that single stable state rather than tolerating either
+ * outcome, so a regression in the fit math (or in the sizing of ToolButton or
+ * of the toolbar controls that share the palette's row and therefore set how
+ * much width is left for it) fails this helper instead of silently passing
+ * through a fallback branch.
  */
 export async function selectShapesTool(page: Page) {
+  await selectOverflowTool(page, /^Shapes/);
+}
+
+/**
+ * Select the Pin tool, which lives in the same overflow menu as Shapes (see
+ * above). Unlike Shapes, Pin commits an annotation on `pointerdown` alone with
+ * no drag, so it is the tool that exercises the immediate-commit path.
+ */
+export async function selectPinTool(page: Page) {
+  await selectOverflowTool(page, /^Pin/);
+}
+
+async function selectOverflowTool(page: Page, name: RegExp) {
   await page.getByRole("button", { name: /more tools/i }).click();
-  await page.getByRole("menuitem", { name: /^Shapes/ }).click();
+  await page.getByRole("menuitem", { name }).click();
 }
 
 const point = (p: Pt, id: number) => ({
