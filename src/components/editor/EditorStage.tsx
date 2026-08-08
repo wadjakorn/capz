@@ -205,7 +205,7 @@ const ANCHOR_SIZE_PX_TOUCH = 24;
  * Tracks `(pointer: coarse)` — a touch or stylus primary input. Starts false so
  * the static-export prerender (no `window`) and the first client render agree.
  */
-function useTransformerAnchorSize(): number {
+function useCoarsePointer(): boolean {
   const [coarse, setCoarse] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -215,7 +215,44 @@ function useTransformerAnchorSize(): number {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
-  return coarse ? ANCHOR_SIZE_PX_TOUCH : ANCHOR_SIZE_PX;
+  return coarse;
+}
+
+/** Drawn radius of the custom endpoint/control handles, in screen px. */
+const HANDLE_RADIUS_PX = 6;
+/**
+ * Drawn radius of those handles on a coarse pointer. Arrows and the magnifier
+ * carry their own `Circle` handles instead of a Transformer, so the
+ * `anchorSize` bump above never reached them and they stayed a 12px target —
+ * too small to hit with a fingertip. Kept well below 44px because a short
+ * arrow's tail, curve and head handles sit close together and would merge
+ * into one blob.
+ */
+const HANDLE_RADIUS_PX_TOUCH = 11;
+/**
+ * Radius the handles must be *pressable* to, whatever they are drawn at. The
+ * gap between drawn and pressable is covered by `hitStrokeWidth` — an invisible
+ * hit-only ring — so a fingertip gets a full 44px target without the handles
+ * visually swallowing the shape they belong to.
+ */
+const HANDLE_HIT_RADIUS_PX_TOUCH = 22;
+
+/**
+ * Drawn radius and invisible hit padding for a custom handle, in image coords
+ * so both stay a constant size on screen as the canvas zooms.
+ *
+ * `hitStrokeWidth` is a stroke centred on the circle's edge, so it reaches out
+ * by half its width: to be pressable to `hit` while drawn at `r` it must be
+ * `2 * (hit - r)`.
+ */
+function handleMetrics(scale: number, coarse: boolean) {
+  const drawn = coarse ? HANDLE_RADIUS_PX_TOUCH : HANDLE_RADIUS_PX;
+  return {
+    radius: Math.max(4, drawn / scale),
+    hitStrokeWidth: coarse
+      ? (2 * (HANDLE_HIT_RADIUS_PX_TOUCH - drawn)) / scale
+      : 0,
+  };
 }
 
 export function EditorStage({ src }: Props) {
@@ -230,7 +267,8 @@ export function EditorStage({ src }: Props) {
   // Loaded bitmaps for image annotations, keyed by annotation id — so a blur
   // placed over an added image can composite (and thus blur) that image too.
   const imageEls = useRef(new Map<string, HTMLImageElement>());
-  const anchorSize = useTransformerAnchorSize();
+  const coarsePointer = useCoarsePointer();
+  const anchorSize = coarsePointer ? ANCHOR_SIZE_PX_TOUCH : ANCHOR_SIZE_PX;
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   // Pointer position for the highlighter's on-canvas brush guide (image coords).
@@ -1519,6 +1557,7 @@ export function EditorStage({ src }: Props) {
                 selected: selectedId === a.id,
                 interactive: tool === "select",
                 scale,
+                coarsePointer,
                 // Image annotations stacked below this one (only needed by blur,
                 // so it composites + blurs them along with the base image).
                 imagesBelow:
@@ -2002,6 +2041,9 @@ type ShapeCtx = {
   interactive: boolean;
   /** Current stage scale, so on-canvas handles keep a constant screen size. */
   scale: number;
+  /** True on a touch/stylus primary input — grows the custom on-canvas handles
+   *  and their invisible hit ring. See `handleMetrics`. */
+  coarsePointer: boolean;
   onSelect: () => void;
   onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
@@ -2248,7 +2290,12 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
     setLive(null);
   };
 
-  const hr = Math.max(4, 6 / ctx.scale); // handle radius, constant on screen
+  // Handle radius and hit padding, constant on screen. Grown on touch —
+  // these handles are not Transformer anchors, so anchorSize misses them.
+  const { radius: hr, hitStrokeWidth: hhit } = handleMetrics(
+    ctx.scale,
+    ctx.coarsePointer,
+  );
   const hsw = 1.5 / ctx.scale;
 
   const dragEndpoint = (which: "tail" | "head") => (
@@ -2333,6 +2380,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
             x={mid.x}
             y={mid.y}
             radius={hr}
+            hitStrokeWidth={hhit}
             fill={ARROW_HANDLE_COLOR}
             stroke="#ffffff"
             strokeWidth={hsw}
@@ -2354,6 +2402,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
               x={which === "tail" ? g.x1 : g.x2}
               y={which === "tail" ? g.y1 : g.y2}
               radius={hr}
+              hitStrokeWidth={hhit}
               fill="#ffffff"
               stroke={ARROW_HANDLE_COLOR}
               strokeWidth={hsw}
@@ -2495,7 +2544,10 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
   const outW = srcW * g.zoom;
   const outH = srcH * g.zoom;
   const isRect = g.shape === "rect";
-  const hr = Math.max(4, 6 / ctx.scale);
+  const { radius: hr, hitStrokeWidth: hhit } = handleMetrics(
+    ctx.scale,
+    ctx.coarsePointer,
+  );
   const hsw = 1.5 / ctx.scale;
   // Source-area border (and the connector) width — independent of the output
   // loupe border. Legacy annotations without the field fall back to the old
@@ -2664,6 +2716,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           x={g.x + outW}
           y={g.y}
           radius={hr}
+          hitStrokeWidth={hhit}
           fill="#ffffff"
           stroke={a.stroke}
           strokeWidth={hsw}

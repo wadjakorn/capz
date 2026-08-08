@@ -29,9 +29,39 @@ export async function selectPinTool(page: Page) {
   await selectOverflowTool(page, /^Pin/);
 }
 
+/** Select the Arrow tool, which lives in the same overflow menu (see above). */
+export async function selectArrowTool(page: Page) {
+  await selectOverflowTool(page, /^Arrow/);
+}
+
 async function selectOverflowTool(page: Page, name: RegExp) {
   await page.getByRole("button", { name: /more tools/i }).click();
   await page.getByRole("menuitem", { name }).click();
+}
+
+/** One-finger touch drag through the CDP touch pipeline. */
+export async function oneFingerDrag(page: Page, from: Pt, to: Pt, steps = 8) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [point(from, 1)],
+  });
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        point(
+          { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
+          1,
+        ),
+      ],
+    });
+  }
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
 }
 
 const point = (p: Pt, id: number) => ({
