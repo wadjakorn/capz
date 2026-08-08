@@ -29,7 +29,12 @@ export function OverflowMenu({ items }: { items: OverflowItem[] }) {
             type="button"
             title="More tools"
             aria-label="More tools"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--fg-2)] transition-colors hover:bg-[var(--surface-raised)] hover:text-[var(--fg)]"
+            // 44px below `sm`, matching ToolButton: on a phone this trigger is
+            // the only route to most tools, so it is the toolbar's most
+            // important target. Toolbar.tsx's overflow math already reserves
+            // one full mobile tool slot (44px) for it, so this does not shift
+            // how many tools fit — it just stops under-filling that slot.
+            className="flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center rounded-lg text-[var(--fg-2)] transition-colors hover:bg-[var(--surface-raised)] hover:text-[var(--fg)]"
           >
             <MoreHorizontal className="h-4 w-4" aria-hidden />
           </button>

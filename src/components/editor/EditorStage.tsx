@@ -65,9 +65,11 @@ import {
   contentBounds,
   type AABB,
 } from "@/lib/annotationBounds";
+import { anchoredScrollOffset } from "@/lib/zoomAnchor";
 import { snapAxis, snapResizedBox } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
+import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
 const SNAP_SCREEN_PX = 6;
 
@@ -188,6 +190,71 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
 const MIN_PADDING = 24;
 const FIT_INSET = 32;
 
+/** Konva's default Transformer anchor size, fine for a mouse cursor. */
+const ANCHOR_SIZE_PX = 10;
+/**
+ * Anchor size on a coarse pointer. A fingertip cannot reliably hit 10px, so
+ * resize/rotate handles were effectively unusable on a phone. Anchors sit on
+ * the shape's own outline and four of them meet at each corner, so they cannot
+ * grow to the 44px used for toolbar buttons without swallowing small shapes
+ * whole; 24px is the largest that still leaves a selected shape visible.
+ */
+const ANCHOR_SIZE_PX_TOUCH = 24;
+
+/**
+ * Tracks `(pointer: coarse)` — a touch or stylus primary input. Starts false so
+ * the static-export prerender (no `window`) and the first client render agree.
+ */
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    const sync = () => setCoarse(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return coarse;
+}
+
+/** Drawn radius of the custom endpoint/control handles, in screen px. */
+const HANDLE_RADIUS_PX = 6;
+/**
+ * Drawn radius of those handles on a coarse pointer. Arrows and the magnifier
+ * carry their own `Circle` handles instead of a Transformer, so the
+ * `anchorSize` bump above never reached them and they stayed a 12px target —
+ * too small to hit with a fingertip. Kept well below 44px because a short
+ * arrow's tail, curve and head handles sit close together and would merge
+ * into one blob.
+ */
+const HANDLE_RADIUS_PX_TOUCH = 11;
+/**
+ * Radius the handles must be *pressable* to, whatever they are drawn at. The
+ * gap between drawn and pressable is covered by `hitStrokeWidth` — an invisible
+ * hit-only ring — so a fingertip gets a full 44px target without the handles
+ * visually swallowing the shape they belong to.
+ */
+const HANDLE_HIT_RADIUS_PX_TOUCH = 22;
+
+/**
+ * Drawn radius and invisible hit padding for a custom handle, in image coords
+ * so both stay a constant size on screen as the canvas zooms.
+ *
+ * `hitStrokeWidth` is a stroke centred on the circle's edge, so it reaches out
+ * by half its width: to be pressable to `hit` while drawn at `r` it must be
+ * `2 * (hit - r)`.
+ */
+function handleMetrics(scale: number, coarse: boolean) {
+  const drawn = coarse ? HANDLE_RADIUS_PX_TOUCH : HANDLE_RADIUS_PX;
+  return {
+    radius: Math.max(4, drawn / scale),
+    hitStrokeWidth: coarse
+      ? (2 * (HANDLE_HIT_RADIUS_PX_TOUCH - drawn)) / scale
+      : 0,
+  };
+}
+
 export function EditorStage({ src }: Props) {
   const [image, status] = useImage(src, "anonymous");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -200,6 +267,8 @@ export function EditorStage({ src }: Props) {
   // Loaded bitmaps for image annotations, keyed by annotation id — so a blur
   // placed over an added image can composite (and thus blur) that image too.
   const imageEls = useRef(new Map<string, HTMLImageElement>());
+  const coarsePointer = useCoarsePointer();
+  const anchorSize = coarsePointer ? ANCHOR_SIZE_PX_TOUCH : ANCHOR_SIZE_PX;
   const [container, setContainer] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   // Pointer position for the highlighter's on-canvas brush guide (image coords).
@@ -391,18 +460,58 @@ export function EditorStage({ src }: Props) {
       const newScale = clampZoom(oldScale * factor);
       if (newScale === oldScale) return;
       const r0 = stage.container().getBoundingClientRect();
-      const imgX = (clientX - r0.left) / oldScale;
-      const imgY = (clientY - r0.top) / oldScale;
       setDisplayScale(newScale);
       requestAnimationFrame(() => {
         const r1 = stage.container().getBoundingClientRect();
-        const wantLeft = clientX - imgX * newScale;
-        const wantTop = clientY - imgY * newScale;
-        el.scrollLeft += r1.left - wantLeft;
-        el.scrollTop += r1.top - wantTop;
+        el.scrollLeft = anchoredScrollOffset(
+          el.scrollLeft,
+          clientX,
+          r0.left,
+          r1.left,
+          oldScale,
+          newScale,
+        );
+        el.scrollTop = anchoredScrollOffset(
+          el.scrollTop,
+          clientY,
+          r0.top,
+          r1.top,
+          oldScale,
+          newScale,
+        );
       });
     };
   }, [setDisplayScale]);
+
+  const { gestureActive, contactCount } = useCanvasGestures({
+    containerRef,
+    stageRef,
+    onGestureStart: () => {
+      // A second finger landed: abandon whatever the first was drawing.
+      setDraft(null);
+      setBrushPoint(null);
+    },
+  });
+
+  /**
+   * True when this `pointerdown` is a gesture's *second* (or later) contact.
+   *
+   * `gestureActive` alone cannot answer that: Konva's content div is a
+   * descendant of the gesture container, so Konva dispatches the Stage
+   * `pointerdown` before the container listener that would raise the flag. By
+   * then `onGestureStart` is too late for anything the handler has already
+   * committed — it can drop a `draft`, but it cannot un-`add()` a pin or
+   * sticker, un-bump the pin counter, close a text editor it never opened, or
+   * restore a selection. Every `pointerdown` path with an effect that outlives
+   * the gesture must therefore bail on this instead.
+   *
+   * A live contact recorded by the hook *before* Konva's dispatch is exactly
+   * that signal: the first finger down leaves `contactCount` at 0 at its own
+   * dispatch time (so single-finger drawing and every mouse press are
+   * untouched), and at 1 by the time the second finger's dispatch runs.
+   */
+  const isGestureContact = () =>
+    gestureActive.current || contactCount.current > 0;
 
   // Wheel: Cmd/Ctrl → zoom; Shift → horizontal scroll; else → native vertical
   // (and trackpad horizontal) scroll. Middle-mouse drag → pan.
@@ -431,7 +540,7 @@ export function EditorStage({ src }: Props) {
     let prevCursor = "";
     let prevBodyCursor = "";
     let prevUserSelect = "";
-    const onMouseDown = (e: MouseEvent) => {
+    const onMiddleMouseDown = (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
       panning = true;
@@ -462,14 +571,14 @@ export function EditorStage({ src }: Props) {
       const sc = stageRef.current?.container();
       if (sc) sc.style.cursor = "";
     };
-    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mousedown", onMiddleMouseDown);
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", endPan);
     el.addEventListener("mouseleave", endPan);
 
     return () => {
       el.removeEventListener("wheel", onWheel);
-      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mousedown", onMiddleMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", endPan);
       el.removeEventListener("mouseleave", endPan);
@@ -904,18 +1013,19 @@ export function EditorStage({ src }: Props) {
     return stage.getRelativePointerPosition();
   }
 
-  function isEmptyTarget(e: Konva.KonvaEventObject<MouseEvent>): boolean {
+  function isEmptyTarget(e: Konva.KonvaEventObject<PointerEvent>): boolean {
     const t = e.target;
     return t === t.getStage() || t.name() === "bg-image";
   }
 
-  function handleMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+  function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (isGestureContact()) return;
     // OCR read mode: suspend annotation drawing/selection on the stage; the
     // text overlay handles interaction.
     if (useOcr.getState().mode) return;
     // Crop mode: the crop box handles its own drag/resize; ignore stage clicks.
     if (tool === "crop") return;
-    if (e.evt.button !== 0) return;
+    if ((e.evt.button ?? 0) !== 0) return;
     const p = getPointer();
     if (!p) return;
     const empty = isEmptyTarget(e);
@@ -1084,7 +1194,8 @@ export function EditorStage({ src }: Props) {
     return () => setPrepareExport(null);
   }, []);
 
-  function handleMouseMove() {
+  function handlePointerMove() {
+    if (gestureActive.current) return;
     if (tool === "highlighter") setBrushPoint(getPointer());
     if (!draft) return;
     const p = getPointer();
@@ -1102,7 +1213,14 @@ export function EditorStage({ src }: Props) {
     }
   }
 
-  function handleMouseUp() {
+  function handlePointerUp(e?: Konva.KonvaEventObject<PointerEvent>) {
+    // The highlighter's brush preview follows `pointermove` and is otherwise
+    // only cleared by `onMouseLeave`, which never fires on touch — so the pill
+    // stayed painted at the last point forever after a stroke on a phone.
+    // Mouse is excluded: on desktop the preview is a hover affordance and must
+    // survive releasing the button.
+    if (e && e.evt.pointerType !== "mouse") setBrushPoint(null);
+    if (gestureActive.current) return;
     if (!draft) return;
     if (draft.kind === "rect") {
       const x = draft.w < 0 ? draft.x + draft.w : draft.x;
@@ -1350,7 +1468,7 @@ export function EditorStage({ src }: Props) {
     <div className="relative h-full w-full" onContextMenu={handleContextMenu}>
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-auto bg-[var(--bg-canvas)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      className="relative h-full w-full touch-none overflow-auto bg-[var(--bg-canvas)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
     >
       {status === "failed" && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
@@ -1386,9 +1504,9 @@ export function EditorStage({ src }: Props) {
           offsetX={contentBox.x}
           offsetY={contentBox.y}
           className={`shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55),0_2px_0_rgba(255,255,255,0.04)] ${cursorClass}`}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
           onMouseLeave={() => setBrushPoint(null)}
         >
           <Layer>
@@ -1439,6 +1557,7 @@ export function EditorStage({ src }: Props) {
                 selected: selectedId === a.id,
                 interactive: tool === "select",
                 scale,
+                coarsePointer,
                 // Image annotations stacked below this one (only needed by blur,
                 // so it composites + blurs them along with the base image).
                 imagesBelow:
@@ -1450,7 +1569,14 @@ export function EditorStage({ src }: Props) {
                       })
                     : undefined,
                 registerImage,
-                onSelect: () => select(a.id),
+                // Guarded here rather than in each of the ~20 per-shape
+                // `onPointerDown` handlers: a second finger landing on a shape
+                // dispatches that handler before `gestureActive` is set, and
+                // its selection change would survive the gesture.
+                onSelect: () => {
+                  if (isGestureContact()) return;
+                  select(a.id);
+                },
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
                   update(a.id, patch);
@@ -1696,6 +1822,7 @@ export function EditorStage({ src }: Props) {
                 />
                 <Transformer
                   ref={cropTrRef}
+                  anchorSize={anchorSize}
                   rotateEnabled={false}
                   flipEnabled={false}
                   keepRatio={false}
@@ -1713,6 +1840,7 @@ export function EditorStage({ src }: Props) {
             )}
             <Transformer
               ref={hoverTrRef}
+              anchorSize={anchorSize}
               resizeEnabled={false}
               rotateEnabled={false}
               borderStroke="#6d7cff"
@@ -1721,6 +1849,7 @@ export function EditorStage({ src }: Props) {
             />
             <Transformer
               ref={trRef}
+              anchorSize={anchorSize}
               resizeEnabled={transformResizable}
               rotateEnabled={transformRotatable}
               rotationSnaps={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]}
@@ -1841,7 +1970,7 @@ export function EditorStage({ src }: Props) {
       <>
         <div
           className="fixed inset-0 z-50"
-          onMouseDown={() => setCtxMenu(null)}
+          onPointerDown={() => setCtxMenu(null)}
           onContextMenu={(e) => {
             e.preventDefault();
             setCtxMenu(null);
@@ -1850,7 +1979,7 @@ export function EditorStage({ src }: Props) {
         <div
           className="surface fixed z-50 min-w-36 overflow-hidden rounded-xl p-1 text-sm shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]"
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <button
             type="button"
@@ -1912,6 +2041,9 @@ type ShapeCtx = {
   interactive: boolean;
   /** Current stage scale, so on-canvas handles keep a constant screen size. */
   scale: number;
+  /** True on a touch/stylus primary input — grows the custom on-canvas handles
+   *  and their invisible hit ring. See `handleMetrics`. */
+  coarsePointer: boolean;
   onSelect: () => void;
   onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
@@ -1990,7 +2122,7 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
     strokeWidth: a.strokeWidth,
     draggable: true,
     ...hoverHandlers(ctx),
-    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+    onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
       e.cancelBubble = true;
       ctx.onSelect();
     },
@@ -2158,7 +2290,12 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
     setLive(null);
   };
 
-  const hr = Math.max(4, 6 / ctx.scale); // handle radius, constant on screen
+  // Handle radius and hit padding, constant on screen. Grown on touch —
+  // these handles are not Transformer anchors, so anchorSize misses them.
+  const { radius: hr, hitStrokeWidth: hhit } = handleMetrics(
+    ctx.scale,
+    ctx.coarsePointer,
+  );
   const hsw = 1.5 / ctx.scale;
 
   const dragEndpoint = (which: "tail" | "head") => (
@@ -2203,7 +2340,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
         hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
         draggable
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -2243,11 +2380,12 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
             x={mid.x}
             y={mid.y}
             radius={hr}
+            hitStrokeWidth={hhit}
             fill={ARROW_HANDLE_COLOR}
             stroke="#ffffff"
             strokeWidth={hsw}
             draggable
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.cancelBubble = true;
             }}
             onDragMove={(e) => {
@@ -2264,11 +2402,12 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
               x={which === "tail" ? g.x1 : g.x2}
               y={which === "tail" ? g.y1 : g.y2}
               radius={hr}
+              hitStrokeWidth={hhit}
               fill="#ffffff"
               stroke={ARROW_HANDLE_COLOR}
               strokeWidth={hsw}
               draggable
-              onMouseDown={(e) => {
+              onPointerDown={(e) => {
                 e.cancelBubble = true;
               }}
               onDragMove={(e) => {
@@ -2297,7 +2436,7 @@ function usePathShape(a: FreehandAnnotation | HighlighterAnnotation, ctx: ShapeC
   const handlers = {
     draggable: true,
     ...hoverHandlers(ctx),
-    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+    onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
       e.cancelBubble = true;
       ctx.onSelect();
     },
@@ -2405,7 +2544,10 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
   const outW = srcW * g.zoom;
   const outH = srcH * g.zoom;
   const isRect = g.shape === "rect";
-  const hr = Math.max(4, 6 / ctx.scale);
+  const { radius: hr, hitStrokeWidth: hhit } = handleMetrics(
+    ctx.scale,
+    ctx.coarsePointer,
+  );
   const hsw = 1.5 / ctx.scale;
   // Source-area border (and the connector) width — independent of the output
   // loupe border. Legacy annotations without the field fall back to the old
@@ -2476,7 +2618,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         draggable={ctx.interactive}
         listening={ctx.interactive}
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -2531,7 +2673,7 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
         draggable={ctx.interactive}
         listening={ctx.interactive}
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -2574,11 +2716,12 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           x={g.x + outW}
           y={g.y}
           radius={hr}
+          hitStrokeWidth={hhit}
           fill="#ffffff"
           stroke={a.stroke}
           strokeWidth={hsw}
           draggable
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
             e.cancelBubble = true;
           }}
           onDragMove={(e) =>
@@ -2696,11 +2839,16 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       rotation={a.rotation ?? 0}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
-      onDblClick={(e) => {
+      // Pointer namespace, like every other handler on this branch. Konva
+      // routes a native double-tap to `dbltap`/`pointerdblclick` and never to
+      // `dblclick` (konva/lib/Stage.js EVENTS_MAP), so `onDblClick` alone left
+      // existing text un-editable on a phone. `pointerdblclick` also fires for
+      // a desktop double-click, so this covers both with one handler.
+      onPointerDblClick={(e) => {
         ctx.onEditText?.(a, e.evt.clientX, e.evt.clientY);
       }}
       onDragMove={(e) => {
@@ -2839,7 +2987,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
       blurRadius={a.blurRadius}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -2914,7 +3062,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
       rotation={rot}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -3094,7 +3242,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         rotation={a.rotation ?? 0}
         draggable
         {...hoverHandlers(ctx)}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.cancelBubble = true;
           ctx.onSelect();
         }}
@@ -3149,7 +3297,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
       fontSize={a.fontSize}
       draggable
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}
@@ -3224,7 +3372,7 @@ function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
       draggable={ctx.interactive}
       listening={ctx.interactive}
       {...hoverHandlers(ctx)}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.cancelBubble = true;
         ctx.onSelect();
       }}

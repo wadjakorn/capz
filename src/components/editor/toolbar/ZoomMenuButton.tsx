@@ -17,9 +17,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ToolButton } from "./ToolButton";
 
-// Shared 32px hit target, matching every other toolbar button.
+// Shared 32px hit target, matching every other toolbar button; 44px below
+// Tailwind's `sm`, matching ToolButton, so it stays finger-sized on a phone.
 const HIT =
-  "flex h-8 items-center justify-center rounded-lg border border-transparent text-[var(--fg-2)] transition-all hover:bg-[var(--surface-raised)] hover:text-[var(--fg)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--fg-2)]";
+  "flex h-8 max-sm:h-11 max-sm:min-w-11 items-center justify-center rounded-lg border border-transparent text-[var(--fg-2)] transition-all hover:bg-[var(--surface-raised)] hover:text-[var(--fg)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--fg-2)]";
 
 export function ZoomMenuButton({
   displayScale,

@@ -62,6 +62,46 @@ import { isTauriRuntime } from "@/lib/platform";
 // absent during static export) and handles the deprecated `navigator.platform`.
 const IS_MAC = currentPlatform() === "mac";
 
+// Tool-palette overflow math (useOverflowSlots below) must track ToolButton's
+// actual rendered footprint, not a stale literal. ToolButton is `h-8 w-8`
+// (32px) by default and grows to `max-sm:h-11 max-sm:w-11` (44px) below
+// Tailwind's `sm` breakpoint — see
+// src/components/editor/toolbar/ToolButton.tsx. The palette row wraps its
+// buttons in `gap-1` (4px) — see the `paletteRef` div below. If either the
+// ToolButton size classes or that gap ever change, update these constants
+// (and SM_BREAKPOINT_PX, which must match Tailwind's default `sm` of 640px)
+// to match, or the fit calculation will drift out of sync again.
+//
+// useOverflowSlots also reserves exactly one slot for the overflow trigger, so
+// OverflowMenu's button has to stay the same size as a ToolButton at both
+// breakpoints — it is likewise `h-8 w-8 max-sm:h-11 max-sm:w-11`; see
+// src/components/editor/toolbar/OverflowMenu.tsx. These constants describe the
+// palette's own buttons only. The palette div is `flex-1 min-w-0` in the row
+// below, so its measured `clientWidth` already accounts for whatever its
+// siblings (the export/capture split buttons, undo/redo, the dividers) take:
+// resizing a sibling changes how many tools fit, but never invalidates the
+// arithmetic here.
+const TOOL_BUTTON_SIZE_PX = 32;
+const TOOL_BUTTON_SIZE_PX_MOBILE = 44;
+const TOOL_PALETTE_GAP_PX = 4;
+const SM_BREAKPOINT_PX = 640;
+
+/** Tracks whether the viewport is below Tailwind's `sm` breakpoint, so the
+ * toolbar's overflow math can use the same button size ToolButton renders. */
+function useIsBelowSmBreakpoint(): boolean {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < SM_BREAKPOINT_PX,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${SM_BREAKPOINT_PX - 1}px)`);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
 
 const TOOLS: ToolDef[] = [
@@ -1227,11 +1267,14 @@ export function Toolbar({
   // Tool palette overflow zone
   const paletteRef = useRef<HTMLDivElement | null>(null);
   const activeToolIndex = TOOLS.findIndex((t) => t.id === tool);
+  const isBelowSm = useIsBelowSmBreakpoint();
+  const toolSlotWidth =
+    (isBelowSm ? TOOL_BUTTON_SIZE_PX_MOBILE : TOOL_BUTTON_SIZE_PX) + TOOL_PALETTE_GAP_PX;
   const { visible: visibleTools, overflow: overflowTools } = useOverflowSlots(
     TOOLS,
     paletteRef,
     0,
-    36,
+    toolSlotWidth,
     activeToolIndex >= 0 ? activeToolIndex : undefined,
   );
   const overflowItems: OverflowItem[] = useMemo(

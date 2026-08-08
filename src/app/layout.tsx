@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   description: "Capture, annotate, share.",
 };
 
+// No `viewport` export here on purpose. Suppressing browser zoom is scoped to
+// the route segments that own pinch-zoom themselves (src/app/paste/layout.tsx,
+// src/app/editor/layout.tsx) so the landing page at `/` keeps it. See
+// src/lib/canvasViewport.ts.
+
 export default function RootLayout({
   children,
 }: Readonly<{

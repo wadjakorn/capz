@@ -48,3 +48,6 @@ playwright/.cache/
 
 # Local capture/debug artifacts
 hud-default.png
+
+# Agent scratch workspace (SDD ledger, briefs, review packages)
+.superpowers/

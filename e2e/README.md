@@ -12,6 +12,23 @@ pnpm test:e2e:ui               # interactive Playwright UI mode
 pnpm exec playwright show-report e2e/playwright-report
 ```
 
+## Mobile project
+
+`--project=mobile` runs `e2e/mobile/*.spec.ts` against `devices["Pixel 5"]`,
+which sets `hasTouch`.
+
+Playwright's `page.touchscreen` only exposes `tap(x, y)`, so multi-finger
+gestures go through CDP `Input.dispatchTouchEvent` instead. The helpers live in
+`e2e/mobile/gestures.ts` (`pinch`, `twoFingerDrag`) - use those rather than
+hand-rolling CDP calls. This binds the suite to Chromium, which is already true
+of the `web` project.
+
+Playwright ships no browser build for some newer Linux distros, including
+Ubuntu 26.04. `PLAYWRIGHT_CHANNEL=chrome` makes the suite run against a
+system-installed Chrome instead. That switch is env-gated in
+`e2e/playwright.config.ts`, and CI leaves it unset, so CI keeps using the
+downloaded browser.
+
 ## Tier 2 — tauri (smoke, manual / nightly)
 
 Drives the packaged app via `tauri-driver` (WebDriver). Requires:

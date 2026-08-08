@@ -3,6 +3,13 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 1420;
 const BASE_URL = `http://localhost:${PORT}`;
 
+// Playwright ships no browser build for some newer Linux distros (e.g. Ubuntu
+// 26.04), where `playwright install chromium` fails outright. Set
+// PLAYWRIGHT_CHANNEL=chrome to run against a system-installed Chrome instead.
+// Unset — as in CI, which uses the downloaded browser — this changes nothing.
+const CHANNEL = process.env.PLAYWRIGHT_CHANNEL;
+const channelOverride = CHANNEL ? { channel: CHANNEL } : {};
+
 export default defineConfig({
   testDir: ".",
   fullyParallel: true,
@@ -33,7 +40,12 @@ export default defineConfig({
     {
       name: "web",
       testMatch: /web\/.*\.spec\.ts/,
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], ...channelOverride },
+    },
+    {
+      name: "mobile",
+      testMatch: /mobile\/.*\.spec\.ts/,
+      use: { ...devices["Pixel 5"], ...channelOverride },
     },
     {
       name: "tauri",

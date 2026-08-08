@@ -74,7 +74,8 @@ export function PresetSlider({
               aria-pressed={active}
               onClick={() => onChange(p.value)}
               className={[
-                "flex h-7 flex-1 items-center justify-center rounded-md border transition-colors",
+                // 44px below `sm` (ToolButton's convention) so these stay finger-sized.
+                "flex h-7 max-sm:h-11 flex-1 items-center justify-center rounded-md border transition-colors",
                 active
                   ? "border-transparent bg-[var(--accent)] text-[var(--accent-fg)]"
                   : "border-white/10 bg-white/[0.05] text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
