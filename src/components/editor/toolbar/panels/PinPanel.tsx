@@ -5,7 +5,9 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  CaseUpper,
   Circle as CircleIcon,
+  Hash,
   MapPin,
   MessageCircle,
 } from "lucide-react";
@@ -15,10 +17,12 @@ import { ColorField, Group, IconSegmented, NumericField } from "./kit";
 import type {
   ColorCtx,
   NumCtx,
+  PinLabelStyleCtx,
   PinShapeCtx,
   PinTailCtx,
 } from "./types";
-import type { PinShapeKind, PinTailDir } from "@/stores/editor";
+import type { PinLabelStyle, PinShapeKind, PinTailDir } from "@/stores/editor";
+import { formatPinLabel } from "@/lib/pinLabel";
 import type { RefObject } from "react";
 
 /** Pin tool: shape (+ bubble tail), the numbered colors, size (12–120), border
@@ -31,6 +35,7 @@ export function PinPanel({
   pinBorderWidthCtx,
   pinShapeCtx,
   pinTailCtx,
+  pinLabelStyleCtx,
   colorInputRef,
   selected,
   numbering,
@@ -42,6 +47,9 @@ export function PinPanel({
   pinBorderWidthCtx: NumCtx | null;
   pinShapeCtx: PinShapeCtx | null;
   pinTailCtx: PinTailCtx | null;
+  /** Numeric vs A–Z labels. Unlike `numbering`, this shows in BOTH modes:
+   * it edits the selected pin, or the default for the next one. */
+  pinLabelStyleCtx: PinLabelStyleCtx | null;
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
   /** Capture-to-capture numbering controls (tool mode only, not per-pin). */
@@ -86,6 +94,19 @@ export function PinPanel({
         />
       )}
 
+      {pinLabelStyleCtx && (
+        <IconSegmented<PinLabelStyle>
+          value={pinLabelStyleCtx.value}
+          onChange={pinLabelStyleCtx.onChange}
+          title="Label style"
+          ariaLabel="Label style"
+          options={[
+            { value: "numeric", title: "Numbers (1, 2, 3…)", Icon: Hash },
+            { value: "alpha", title: "Letters (A, B, C…)", Icon: CaseUpper },
+          ]}
+        />
+      )}
+
       {colorCtx && (
         <ColorField
           ctx={colorCtx}
@@ -93,7 +114,7 @@ export function PinPanel({
           title={selected ? "Edit selected element color" : "Default color for next element"}
         />
       )}
-      {pinLabelCtx && <ColorField ctx={pinLabelCtx} title="Pin number color" />}
+      {pinLabelCtx && <ColorField ctx={pinLabelCtx} title="Pin label color" />}
       {pinBorderCtx && <ColorField ctx={pinBorderCtx} title="Pin border color" />}
       {sizeCtx && (
         <NumericField
@@ -137,6 +158,11 @@ export function PinPanel({
                 className="w-14 rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-[var(--accent)]"
               />
             </label>
+            {pinLabelStyleCtx?.value === "alpha" && (
+              <span className="text-foreground/60" title="Label the next pin will show">
+                → {formatPinLabel(numbering.next, "alpha")}
+              </span>
+            )}
             <button
               type="button"
               onClick={numbering.onSave}

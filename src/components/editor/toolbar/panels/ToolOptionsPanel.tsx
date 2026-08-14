@@ -27,6 +27,7 @@ import type {
   PenModeCtx,
   PinShapeCtx,
   PinTailCtx,
+  PinLabelStyleCtx,
   RectShapeCtx,
   TextStyleCtx,
   ToggleCtx,
@@ -84,6 +85,7 @@ export type ToolOptionsPanelProps = {
   pinBorderWidthCtx: NumCtx | null;
   pinShapeCtx: PinShapeCtx | null;
   pinTailCtx: PinTailCtx | null;
+  pinLabelStyleCtx: PinLabelStyleCtx | null;
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
   lastBgColor: string;
@@ -199,6 +201,7 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
           pinBorderWidthCtx={p.pinBorderWidthCtx}
           pinShapeCtx={p.pinShapeCtx}
           pinTailCtx={p.pinTailCtx}
+          pinLabelStyleCtx={p.pinLabelStyleCtx}
           colorInputRef={p.colorInputRef}
           selected={p.selected}
           numbering={p.numbering}

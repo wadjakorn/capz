@@ -1,4 +1,5 @@
 import type {
+  PinLabelStyle,
   PinShapeKind,
   PinTailDir,
   RectShapeKind,
@@ -55,6 +56,10 @@ export type TextStyleCtx = {
 
 export type PinShapeCtx = { value: PinShapeKind; onChange: (v: PinShapeKind) => void };
 export type PinTailCtx = { value: PinTailDir; onChange: (v: PinTailDir) => void };
+export type PinLabelStyleCtx = {
+  value: PinLabelStyle;
+  onChange: (v: PinLabelStyle) => void;
+};
 export type RectShapeCtx = { value: RectShapeKind; onChange: (v: RectShapeKind) => void };
 export type PenModeCtx = { value: FreehandMode; onChange: (v: FreehandMode) => void };
 export type MagnifyShapeCtx = { value: MagnifyShape; onChange: (v: MagnifyShape) => void };

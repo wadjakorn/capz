@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import type { PinLabelStyle } from "@/lib/pinLabel";
 
 export type Tool =
   | "select"
@@ -190,6 +191,7 @@ export type StickerSelection =
 
 export type PinShapeKind = "circle" | "bubble" | "mappin";
 export type PinTailDir = "down" | "up" | "left" | "right";
+export type { PinLabelStyle };
 
 export type PinAnnotation = Base & {
   type: "pin";
@@ -203,6 +205,7 @@ export type PinAnnotation = Base & {
   borderWidth?: number;
   shape?: PinShapeKind;
   bubbleTail?: PinTailDir;
+  labelStyle?: PinLabelStyle;
 };
 
 /**
