@@ -48,6 +48,7 @@ import type {
   TextStyleCtx,
   TextFontStyle,
   TextDecoration,
+  PinLabelStyleCtx,
   PinShapeCtx,
   PinTailCtx,
   RectShapeCtx,
@@ -213,6 +214,7 @@ export function Toolbar({
   let pinBorderWidthCtx: NumCtx | null = null;
   let pinShapeCtx: PinShapeCtx | null = null;
   let pinTailCtx: PinTailCtx | null = null;
+  let pinLabelStyleCtx: PinLabelStyleCtx | null = null;
 
   if (selected) {
     if (selected.type === "rect" || selected.type === "arrow") {
@@ -637,6 +639,14 @@ export function Toolbar({
           else void updateSettings("pins", { defaultBubbleTail: v });
         },
       };
+      pinLabelStyleCtx = {
+        value: selected.labelStyle ?? toolsCfg.pin.labelStyle,
+        onChange: (v) => {
+          updateAnnotation(selected.id, { labelStyle: v });
+          if (remember) patchLastUsed({ pin: { labelStyle: v } });
+          else void updateSettings("pins", { defaultLabelStyle: v });
+        },
+      };
     } else if (selected.type === "sticker") {
       sizeCtx = {
         label: "Size",
@@ -1018,6 +1028,13 @@ export function Toolbar({
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { bubbleTail: v } });
         else void updateSettings("pins", { defaultBubbleTail: v });
+      },
+    };
+    pinLabelStyleCtx = {
+      value: toolsCfg.pin.labelStyle,
+      onChange: (v) => {
+        if (remember) patchLastUsed({ pin: { labelStyle: v } });
+        else void updateSettings("pins", { defaultLabelStyle: v });
       },
     };
   } else if (tool === "sticker") {
@@ -1466,6 +1483,7 @@ export function Toolbar({
           pinBorderWidthCtx={pinBorderWidthCtx}
           pinShapeCtx={pinShapeCtx}
           pinTailCtx={pinTailCtx}
+          pinLabelStyleCtx={pinLabelStyleCtx}
           colorInputRef={colorInputRef}
           selected={!!selected}
           lastBgColor={lastBgColor}

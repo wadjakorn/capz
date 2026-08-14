@@ -35,6 +35,7 @@ import {
   type ImageAnnotation,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
+import { formatPinLabel } from "@/lib/pinLabel";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
@@ -179,6 +180,7 @@ function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastU
           borderWidth: a.borderWidth,
           shape: a.shape,
           bubbleTail: a.bubbleTail,
+          labelStyle: a.labelStyle,
         },
       };
     case "image":
@@ -1118,6 +1120,7 @@ export function EditorStage({ src }: Props) {
         borderWidth: toolsCfg.pin.borderWidth,
         shape: toolsCfg.pin.shape,
         bubbleTail: toolsCfg.pin.bubbleTail,
+        labelStyle: toolsCfg.pin.labelStyle,
       };
       add(a);
       void useSettings.getState().update("pins", { lastUsedNumber: n });
@@ -3041,9 +3044,15 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
     return () => ctx.setRef(null);
   });
   const r = a.size / 2;
-  const label = String(a.number);
+  const label = formatPinLabel(a.number, a.labelStyle ?? "numeric");
   const shape = a.shape ?? "circle";
-  const fontSize = Math.max(10, a.size * (shape === "mappin" ? 0.46 : 0.55));
+  // Alpha labels (and 3-digit numbers) need more room than a single glyph, so
+  // shrink the font by label length. `wrap="none"` on the <Text> below keeps
+  // them on one line — Konva's default word-wrap would otherwise stack "AA"
+  // into two rows inside the circle.
+  const fontBase = a.size * (shape === "mappin" ? 0.46 : 0.55);
+  const fontFit = label.length <= 1 ? 1 : label.length === 2 ? 0.78 : 0.6;
+  const fontSize = Math.max(8, fontBase * fontFit);
   const textW = a.size;
   const rot = a.rotation ?? 0;
   const borderColor = a.borderColor ?? "#ffffff";
@@ -3194,6 +3203,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
       )}
       <Text
         text={label}
+        wrap="none"
         fontSize={fontSize}
         fontStyle="bold"
         fill={a.labelColor ?? "#ffffff"}

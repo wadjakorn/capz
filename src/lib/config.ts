@@ -1,5 +1,6 @@
 import type {
   PinShapeKind,
+  PinLabelStyle,
   PinTailDir,
   RectShapeKind,
   FreehandMode,
@@ -86,6 +87,7 @@ export type AppConfig = {
     defaultBorderWidth: number;
     defaultShape: PinShapeKind;
     defaultBubbleTail: PinTailDir;
+    defaultLabelStyle: PinLabelStyle;
   };
   general: {
     theme: "light" | "dark" | "system";
@@ -181,6 +183,7 @@ export type AppConfig = {
       borderWidth?: number;
       shape?: PinShapeKind;
       bubbleTail?: PinTailDir;
+      labelStyle?: PinLabelStyle;
     };
   };
   tools: {
@@ -284,6 +287,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     defaultBorderWidth: 2,
     defaultShape: "circle",
     defaultBubbleTail: "down",
+    defaultLabelStyle: "numeric",
   },
   general: {
     theme: "dark",
@@ -749,6 +753,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     borderWidth: isNum,
     shape: inSet("circle", "bubble", "mappin"),
     bubbleTail: inSet("down", "up", "left", "right"),
+    labelStyle: inSet("numeric", "alpha"),
   });
   return Object.keys(out).length ? out : undefined;
 }
@@ -798,6 +803,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       defaultBorderWidth: isNum,
       defaultShape: inSet("circle", "bubble", "mappin"),
       defaultBubbleTail: inSet("down", "up", "left", "right"),
+      defaultLabelStyle: inSet("numeric", "alpha"),
     }, issues),
     general: vGeneral(r.general, d.general, issues),
     tools: vTools(r.tools, d.tools, issues),
@@ -873,6 +879,7 @@ export type EffectiveTools = {
     borderWidth: number;
     shape: PinShapeKind;
     bubbleTail: PinTailDir;
+    labelStyle: PinLabelStyle;
   };
 };
 
@@ -944,6 +951,7 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       borderWidth: lu?.pin?.borderWidth ?? cfg.pins.defaultBorderWidth,
       shape: lu?.pin?.shape ?? cfg.pins.defaultShape,
       bubbleTail: lu?.pin?.bubbleTail ?? cfg.pins.defaultBubbleTail,
+      labelStyle: lu?.pin?.labelStyle ?? cfg.pins.defaultLabelStyle,
     },
   };
 }

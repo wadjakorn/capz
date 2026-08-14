@@ -248,3 +248,37 @@ describe("validateConfig commandRingV2 hotkey (CP-0038)", () => {
     expect(config.hotkeys.commandRingV2).toBe("CmdOrCtrl+Alt+Space");
   });
 });
+
+describe("validateConfig pins.defaultLabelStyle (CP-0045)", () => {
+  it("fills in numeric for configs saved before the field existed, without warning", () => {
+    const { defaultLabelStyle: _omitted, ...legacyPins } = DEFAULT_CONFIG.pins;
+    const { config, issues } = validateConfig({ ...DEFAULT_CONFIG, pins: legacyPins });
+    expect(config.pins.defaultLabelStyle).toBe("numeric");
+    expect(issues).toEqual([]);
+  });
+
+  it("keeps a valid alpha value and rejects anything else", () => {
+    const alpha = validateConfig({
+      ...DEFAULT_CONFIG,
+      pins: { ...DEFAULT_CONFIG.pins, defaultLabelStyle: "alpha" },
+    });
+    expect(alpha.config.pins.defaultLabelStyle).toBe("alpha");
+    expect(alpha.issues).toEqual([]);
+
+    const bogus = validateConfig({
+      ...DEFAULT_CONFIG,
+      pins: { ...DEFAULT_CONFIG.pins, defaultLabelStyle: "roman" },
+    });
+    expect(bogus.config.pins.defaultLabelStyle).toBe("numeric");
+    expect(bogus.issues.length).toBeGreaterThan(0);
+  });
+
+  it("lets lastUsed.pin.labelStyle win over the config default", () => {
+    const t = effectiveTools({
+      ...DEFAULT_CONFIG,
+      pins: { ...DEFAULT_CONFIG.pins, defaultLabelStyle: "numeric" },
+      lastUsed: { pin: { labelStyle: "alpha" } },
+    });
+    expect(t.pin.labelStyle).toBe("alpha");
+  });
+});
