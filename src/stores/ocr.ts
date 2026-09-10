@@ -22,7 +22,7 @@ type State = {
 const isWindows = () =>
   typeof navigator !== "undefined" && /Win/i.test(navigator.platform);
 
-const THAI_OCR_GUIDE_URL =
+const THAI_OCR_NOTE_URL =
   "https://github.com/wadjakorn/capz/blob/main/docs/OCR-THAI-WINDOWS.th.md";
 
 export const useOcr = create<State>((set, get) => ({
@@ -60,16 +60,19 @@ export const useOcr = create<State>((set, get) => ({
       } else {
         toast("No text found");
       }
-      if (!result.thaiAvailable && !get().thaiNoticeShown) {
+      // Only worth mentioning when we found nothing at all: on a screenshot that
+      // did contain readable text, a "Thai isn't available" toast is pure noise.
+      // We cannot detect Thai in the image directly — the engine that would have
+      // to read it is the one that is missing.
+      if (!result.thaiAvailable && lineCount === 0 && !get().thaiNoticeShown) {
         set({ thaiNoticeShown: true });
         toast("Thai text recognition isn't available on this system", {
           description: isWindows()
-            ? "ติดตั้งชุดภาษาไทยของ Windows เพื่ออ่านภาษาไทยได้: Settings → Time & language → " +
-              "Language & region → Add a language → เลือก “ไทย / Thai” → ติ๊ก " +
-              "“Optical character recognition” → Install แล้วเปิด capz ใหม่ · " +
-              `คู่มือฉบับเต็ม: ${THAI_OCR_GUIDE_URL}`
+            ? "Windows ไม่มีชุด OCR ภาษาไทยให้ติดตั้ง (ไม่ว่าเวอร์ชันใด) จึงยังอ่านภาษาไทย" +
+              "ไม่ได้ — ไม่ต้องไปหาติดตั้งเพิ่ม ภาษาอังกฤษยังใช้ได้ตามปกติ · " +
+              `รายละเอียด: ${THAI_OCR_NOTE_URL}`
             : "It requires a newer macOS version.",
-          duration: isWindows() ? 15_000 : 8_000,
+          duration: isWindows() ? 12_000 : 8_000,
         });
       }
     } catch (e) {
