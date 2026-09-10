@@ -107,4 +107,4 @@ This program will not transfer any information to other networked systems unless
 
 - [PLAN.md](PLAN.md) — phased build spec (source of truth)
 - [CLAUDE.md](CLAUDE.md) — guidance for Claude Code
-- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 enabling Windows Thai OCR language pack (plain-Thai, for non-tech users)
+- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 why Thai OCR does not work on Windows (plain-Thai, for non-tech users)

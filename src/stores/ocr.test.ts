@@ -21,6 +21,12 @@ const fake = (text: string, thai = true) => ({
   languagesUsed: ["en-US"], thaiAvailable: thai,
 });
 
+// The Thai notice only fires when nothing was read at all — a screenshot that
+// yielded lines is not evidence of a missing Thai engine.
+const fakeEmpty = (thai = true) => ({
+  width: 10, height: 10, lines: [] as never[], languagesUsed: ["en-US"], thaiAvailable: thai,
+});
+
 beforeEach(() => {
   detectText.mockReset();
   toast.mockReset();
@@ -62,7 +68,7 @@ describe("useOcr", () => {
   });
 
   it("reset preserves thaiNoticeShown (once-per-session notice)", async () => {
-    detectText.mockResolvedValue(fake("x", false)); // thaiAvailable=false → sets the flag
+    detectText.mockResolvedValue(fakeEmpty(false)); // no lines + no Thai → sets the flag
     useOcr.getState().setKey("/img/a.png");
     await useOcr.getState().detect();
     expect(useOcr.getState().thaiNoticeShown).toBe(true);
@@ -70,8 +76,8 @@ describe("useOcr", () => {
     expect(useOcr.getState().thaiNoticeShown).toBe(true); // survives reset
   });
 
-  it("shows the Thai notice once when Thai is unavailable", async () => {
-    detectText.mockResolvedValue(fake("x", false));
+  it("shows the Thai notice once when Thai is unavailable and nothing was read", async () => {
+    detectText.mockResolvedValue(fakeEmpty(false));
     useOcr.getState().setKey("/img/a.png");
     await useOcr.getState().detect();
     useOcr.getState().setKey("/img/b.png");
@@ -82,15 +88,25 @@ describe("useOcr", () => {
     expect(thaiCalls).toHaveLength(1);
   });
 
-  it("points Windows users to the Thai OCR language-pack guide", async () => {
+  it("stays quiet when text was read, even if Thai is unavailable", async () => {
+    detectText.mockResolvedValue(fake("hello", false));
+    useOcr.getState().setKey("/img/a.png");
+    await useOcr.getState().detect();
+    expect(toast.mock.calls.filter((c) => String(c[0]).includes("Thai"))).toHaveLength(0);
+    expect(useOcr.getState().thaiNoticeShown).toBe(false);
+  });
+
+  it("tells Windows users there is nothing to install, and links the note", async () => {
     vi.stubGlobal("navigator", { platform: "Win32" });
     try {
-      detectText.mockResolvedValue(fake("x", false));
+      detectText.mockResolvedValue(fakeEmpty(false));
       useOcr.getState().setKey("/img/a.png");
       await useOcr.getState().detect();
       const call = toast.mock.calls.find((c) => String(c[0]).includes("Thai"));
       expect(call?.[1]?.description).toContain("OCR-THAI-WINDOWS.th.md");
-      expect(call?.[1]?.description).toContain("Language & region");
+      // Must NOT resurrect the impossible install instructions.
+      expect(call?.[1]?.description).not.toContain("Language & region");
+      expect(call?.[1]?.description).not.toContain("Optical character recognition");
     } finally {
       vi.unstubAllGlobals();
     }
