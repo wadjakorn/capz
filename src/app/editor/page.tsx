@@ -15,6 +15,9 @@ import { useHistory } from "@/stores/history";
 import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
 import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
 import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
+import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
+import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
+import { useSidebar } from "@/stores/sidebar";
 import { routeIncomingCapture } from "@/lib/captureRouting";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
@@ -47,6 +50,33 @@ export default function EditorPage() {
   const configReady = useSettings((s) => s.ready);
   const resetSettings = useSettings((s) => s.reset);
   const issueToastShown = useRef(false);
+
+  // Sidebar panel selection. `remembered` is the last panel the user chose on
+  // purpose; the tool panel never becomes that, so deselecting a tool returns
+  // to where they actually were rather than to wherever they started.
+  const toolPanel = useSidebar((s) => s.toolPanel);
+  const [rememberedTab, setRememberedTab] = useState<"canvas" | "history">("canvas");
+  const [showingTool, setShowingTool] = useState(false);
+  const hadToolPanel = useRef(false);
+  useEffect(() => {
+    const has = toolPanel !== null;
+    // Auto-open a panel the moment it appears; forget it the moment it goes.
+    if (has !== hadToolPanel.current) {
+      hadToolPanel.current = has;
+      setShowingTool(has);
+    }
+  }, [toolPanel]);
+  const activeTab: SidebarTab = showingTool && toolPanel ? "tool" : rememberedTab;
+  const onSelectTab = useCallback((tab: SidebarTab) => {
+    if (tab === "tool") {
+      setShowingTool(true);
+      return;
+    }
+    // Leaving for a permanent panel does NOT drop the tool — you can adjust the
+    // backdrop while still holding the pen.
+    setShowingTool(false);
+    setRememberedTab(tab);
+  }, []);
 
   const wsConfig = useSettings((s) => s.config.workspaces);
   const historyConfig = useSettings((s) => s.config.history);
@@ -571,7 +601,6 @@ export default function EditorPage() {
               ? () => useWorkspaces.getState().createEmpty(wsConfig.max)
               : undefined
           }
-          onHistoryDrop={historyConfig.enabled ? onHistoryDrop : undefined}
         />
       )}
       <main
@@ -591,14 +620,57 @@ export default function EditorPage() {
           </div>
           {view === "editor" && <CanvasDropHint />}
         </div>
-        {/* Tool-options panel — always docked on the right. The Toolbar portals
-            contextual controls into it when a tool/selection has options;
-            otherwise it stays empty, reserving the column for future content. */}
+        {/* Right sidebar. Three panels live here at once, each in its own
+            container, and the tab bar decides which is on screen — they are
+            hidden rather than unmounted so a half-dragged slider or a scrolled
+            history list survives a trip to another tab. Toolbar and EditorStage
+            portal into the canvas and tool containers respectively. */}
         <aside
-          id="tool-options-slot"
-          aria-label="Tool options"
-          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
-        />
+          aria-label="Sidebar"
+          className="flex h-full w-60 flex-none flex-col border-l border-[var(--border)] bg-[var(--surface-overlay)]"
+        >
+          {/* The hairline lives on this wrapper, not the tablist, so it spans
+              the full sidebar width and reads as a divider rather than an
+              underline that stops short at the padding. */}
+          <div className="flex-none border-b border-[var(--border)] px-3 pt-1">
+            <SidebarTabs
+              active={activeTab}
+              toolPanel={toolPanel}
+              onSelect={onSelectTab}
+            />
+          </div>
+          <div
+            id="sidebar-panel-canvas"
+            role="tabpanel"
+            hidden={activeTab !== "canvas"}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
+            <div id="sidebar-canvas-slot" />
+          </div>
+          <div
+            id="sidebar-panel-history"
+            role="tabpanel"
+            hidden={activeTab !== "history"}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
+            {historyConfig.enabled ? (
+              <CaptureHistorySection
+                hasImage={!!file}
+                onDropFile={onHistoryDrop}
+              />
+            ) : (
+              <HistoryOffNotice onOpenSettings={() => setView("settings")} />
+            )}
+          </div>
+          <div
+            id="sidebar-panel-tool"
+            role="tabpanel"
+            hidden={activeTab !== "tool"}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
+            <div id="tool-options-slot" />
+          </div>
+        </aside>
         {view === "settings" && (
           <div className="absolute inset-0 overflow-auto">
             <SettingsView onOpenInertRecovery={openRecovery} />
@@ -629,6 +701,37 @@ export default function EditorPage() {
         open={recoveryOpen}
         onClose={() => setRecoveryOpen(false)}
       />
+    </div>
+  );
+}
+
+/**
+ * What the History tab shows when the feature is switched off.
+ *
+ * The tab is present either way on purpose: capture history ships off, and a
+ * setting nobody can see is a setting nobody turns on. This is where they find
+ * out it exists.
+ */
+function HistoryOffNotice({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <div className="grid justify-items-center gap-2 px-2 py-6 text-center">
+      <span className="text-xs text-[var(--fg-2)]">History is off</span>
+      <span className="text-[11px] leading-relaxed text-[var(--fg-4)]">
+        Turn it on to keep a list of the screenshots you export, and optionally a
+        copy of every capture.
+      </span>
+      <button
+        type="button"
+        className="btn btn--secondary btn--sm mt-1"
+        onClick={() => {
+          onOpenSettings();
+          void import("@tauri-apps/api/event").then(({ emit }) =>
+            emit("settings:focus-tab", "general"),
+          );
+        }}
+      >
+        Open history settings
+      </button>
     </div>
   );
 }

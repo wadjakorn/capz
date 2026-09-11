@@ -10,6 +10,7 @@ import {
   Droplet,
   Smile,
   Crop,
+  SlidersHorizontal,
   Pencil,
   Highlighter,
   Search,
@@ -28,6 +29,7 @@ import {
   type Tool,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { useSidebar } from "@/stores/sidebar";
 import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
@@ -120,12 +122,16 @@ const TOOLS: ToolDef[] = [
   { id: "crop", label: "Crop", hint: "C", icon: Crop },
 ];
 
+/** Title for a panel kind that has no matching tool (a selected image, say). */
+function panelTitle(kind: string): string {
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
 export function Toolbar({
   onOpenSettings,
   onWebCapture,
   onWebClear,
   onNewWorkspace,
-  onHistoryDrop,
 }: {
   onOpenSettings?: () => void;
   /** Web build: capture the screen in-browser (getDisplayMedia). */
@@ -138,8 +144,6 @@ export function Toolbar({
    * only way to ever reach a second.
    */
   onNewWorkspace?: () => void;
-  /** Capture history on: a history file was dropped onto the canvas. */
-  onHistoryDrop?: (path: string) => void;
 } = {}) {
   // Desktop-only chrome (capture, OCR, clear-workspace, settings) hides on
   // the web build. Defaults true so the prerendered HTML matches the desktop
@@ -197,8 +201,12 @@ export function Toolbar({
   const [lastBgColor, setLastBgColor] = useState("#ffffff");
   const colorInputRef = useRef<HTMLInputElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  // Present only in the tabbed sidebar (the editor window). The web build has
+  // one slot, so the global panel falls back to sharing it.
+  const [globalTarget, setGlobalTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
     setPortalTarget(document.getElementById("tool-options-slot"));
+    setGlobalTarget(document.getElementById("sidebar-canvas-slot"));
   }, []);
 
   const selected = selectedId
@@ -1350,6 +1358,30 @@ export function Toolbar({
   // (editing an element shows that element's controls).
   const panelKind = selected ? selected.type : tool;
 
+  // Tell the sidebar whether a contextual panel exists and what it is called,
+  // so it can offer a tab for it. Crop is included even though it renders from
+  // EditorStage: from the sidebar's point of view it is the same thing — a
+  // panel that exists only while a tool is active — and having one publisher
+  // keeps the two from fighting over the slot.
+  const cropPanel = tool === "crop" && hasImage;
+  const setToolPanel = useSidebar((s) => s.setToolPanel);
+  useEffect(() => {
+    if (cropPanel) {
+      setToolPanel({ key: "crop", label: "Crop", icon: Crop });
+      return;
+    }
+    if (!hasContext) {
+      setToolPanel(null);
+      return;
+    }
+    const meta = TOOLS.find((t) => t.id === panelKind);
+    setToolPanel({
+      key: panelKind,
+      label: meta?.label ?? panelTitle(panelKind),
+      icon: meta?.icon ?? SlidersHorizontal,
+    });
+  }, [cropPanel, hasContext, panelKind, setToolPanel]);
+
   return (
     <div className="relative z-20 flex flex-col border-b border-[var(--border)] bg-[var(--surface-overlay)] px-2 py-1.5">
       <div className="flex items-center gap-1">
@@ -1456,7 +1488,12 @@ export function Toolbar({
           portals its own crop UI into this same node — but only when an image
           is loaded, so keep the global tools (incl. "Open image file") when
           crop has nothing to show. */}
-      {!hasContext && !(tool === "crop" && hasImage) && portalTarget && createPortal(
+      {/* Tabbed sidebar: the global panel always renders, into its own
+          container, and the tab bar decides what is on screen. Without that
+          container (the web build) it shares the single slot and yields to a
+          contextual panel exactly as before. */}
+      {(globalTarget || (!hasContext && !(tool === "crop" && hasImage))) &&
+        (globalTarget ?? portalTarget) && createPortal(
         <GlobalToolsPanel
           tauriUi={tauriUi}
           hasImage={hasImage}
@@ -1470,7 +1507,6 @@ export function Toolbar({
           onImportImage={importImageFile}
           onClearWorkspace={onClearWorkspace}
           onWebClear={onWebClear}
-          history={onHistoryDrop ? { onDropFile: onHistoryDrop } : null}
           ocr={
             tauriUi
               ? {
@@ -1481,7 +1517,7 @@ export function Toolbar({
               : null
           }
         />,
-        portalTarget,
+        (globalTarget ?? portalTarget)!,
       )}
       {hasContext && portalTarget && createPortal(
         <ToolOptionsPanel
