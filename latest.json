@@ -1,35 +1,35 @@
 {
-  "version": "0.11.0",
+  "version": "0.12.0",
   "notes": "",
-  "pub_date": "2026-08-14T09:56:01.795Z",
+  "pub_date": "2026-09-11T18:39:37.982Z",
   "platforms": {
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0hoN3lGV3k1dTRtMEk5bDZnQjBsOExlTmVCYUxCa3ZoZXpuekJjREsxL0dHT1VyaW9iS2hMSGlYMVA1UmlTWWhjWWM0Nks5cjRJOU5nTXJ4ci9lOHdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAwOTc3CWZpbGU6Y2Fwei5hcHAudGFyLmd6CmdLRDFuNVBmMzFtQkhRQ3A5MjJvT0hkVWp5cjBvU2lZK09CamNhdS9SbGU2WUkvemN1bjNHa09WcmEzeXoxV0lKZ0VQbGg0TjlCQ3FaSGhnd3k4RUNRPT0K",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0tzNVF5aXJSMXhEVkQ4RU9HNU5Na1lra1A5ampMR1UrOWQrcGNWS3g0M3J2VHBBR3dHc2l0N2Q1N0hyUWtOZGptNlNXcEZqbnVBRndNQ3ZqcGludFFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxNzM4CWZpbGU6Y2Fwei5hcHAudGFyLmd6CmRsbTBtMFVaNTJZWlZBZTJnTUxWZFAxQ05ob1ZXMjFlUmtmSVFSSyt4MzFOUms0K0xsa1FJTmtiYXJudWI0bVN1b0dKUzFKUUx0QTkrU2EwV1NQN0N3PT0K",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_x64.app.tar.gz"
     },
     "darwin-x86_64-app": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0hoN3lGV3k1dTRtMEk5bDZnQjBsOExlTmVCYUxCa3ZoZXpuekJjREsxL0dHT1VyaW9iS2hMSGlYMVA1UmlTWWhjWWM0Nks5cjRJOU5nTXJ4ci9lOHdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAwOTc3CWZpbGU6Y2Fwei5hcHAudGFyLmd6CmdLRDFuNVBmMzFtQkhRQ3A5MjJvT0hkVWp5cjBvU2lZK09CamNhdS9SbGU2WUkvemN1bjNHa09WcmEzeXoxV0lKZ0VQbGg0TjlCQ3FaSGhnd3k4RUNRPT0K",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0tzNVF5aXJSMXhEVkQ4RU9HNU5Na1lra1A5ampMR1UrOWQrcGNWS3g0M3J2VHBBR3dHc2l0N2Q1N0hyUWtOZGptNlNXcEZqbnVBRndNQ3ZqcGludFFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxNzM4CWZpbGU6Y2Fwei5hcHAudGFyLmd6CmRsbTBtMFVaNTJZWlZBZTJnTUxWZFAxQ05ob1ZXMjFlUmtmSVFSSyt4MzFOUms0K0xsa1FJTmtiYXJudWI0bVN1b0dKUzFKUUx0QTkrU2EwV1NQN0N3PT0K",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_x64.app.tar.gz"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0VmUTdMQW90dmpJdk44Rjc1Y2Irb0JGY1VkOVhJKzNkcENIVGFtMTMzMUtESnF5S2VHTVk3cDBkamc0WlBSYWhvdWgyRDBPSVdrMU1PWlVGNjBOWEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAxMTEyCWZpbGU6Y2Fwei5hcHAudGFyLmd6Cm1odEV0MGwweWpqeTVYdUY2eDhYUGVEVEg5L1FJMGlpWmNjT2FXdFN4ZitMM3JsU1A0QUR5RFpKN1lWS2xFOWZQenk1Z0orLy85d1ovdTVqY3c5dkNBPT0K",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0htTVA0a1prdnlpQjg0QXFzRGxZdDVNejlHS1BPTWZWYnVPYkMxWmN3QjNQNDNYK21USTFMR0NEbU5XU28xUjgxTjBmRTErSlYxdzFhdVVQZGVRRWdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxODIwCWZpbGU6Y2Fwei5hcHAudGFyLmd6CjExTVZnd3E4b3RnYUZsNmRtV3NBLzFCZlBNTEZiTlRHd2w2T0tjYUhvWkZRcGxMZjlIaEw2bUNGVGtJbjlhUGNkNjBuT2pRb0wxdW1QbUV6Y0xEZEN3PT0K",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_aarch64.app.tar.gz"
     },
     "darwin-aarch64-app": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0VmUTdMQW90dmpJdk44Rjc1Y2Irb0JGY1VkOVhJKzNkcENIVGFtMTMzMUtESnF5S2VHTVk3cDBkamc0WlBSYWhvdWgyRDBPSVdrMU1PWlVGNjBOWEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAxMTEyCWZpbGU6Y2Fwei5hcHAudGFyLmd6Cm1odEV0MGwweWpqeTVYdUY2eDhYUGVEVEg5L1FJMGlpWmNjT2FXdFN4ZitMM3JsU1A0QUR5RFpKN1lWS2xFOWZQenk1Z0orLy85d1ovdTVqY3c5dkNBPT0K",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0htTVA0a1prdnlpQjg0QXFzRGxZdDVNejlHS1BPTWZWYnVPYkMxWmN3QjNQNDNYK21USTFMR0NEbU5XU28xUjgxTjBmRTErSlYxdzFhdVVQZGVRRWdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxODIwCWZpbGU6Y2Fwei5hcHAudGFyLmd6CjExTVZnd3E4b3RnYUZsNmRtV3NBLzFCZlBNTEZiTlRHd2w2T0tjYUhvWkZRcGxMZjlIaEw2bUNGVGtJbjlhUGNkNjBuT2pRb0wxdW1QbUV6Y0xEZEN3PT0K",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_aarch64.app.tar.gz"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0pwSGo3S01QNC84bFB2blluVGVMdjlOOVk0YzllUldhMVhPbSs5QnBKVnpyZ3pnMzhsSzFieG9pTWw1Q1J0cTBaaGdpWVpBcEpnQnBQTXdEZ3lhMVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAxMzU4CWZpbGU6Y2Fwel8wLjExLjBfeDY0X2VuLVVTLm1zaQpkeUNHMzl2QlEzcm52MTJERHg4QWFSN2pacW1nMHM5VVlzemhuZEp1aTNNRWxERlBRRmY2amNtY0NCV25SNHVuamM1T3NJVFZpTVplWCsyVFgzYkVEdz09Cg==",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_0.11.0_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0lKbU5KTkxEWThGV2ZuWmhuWS9rQVpzSFBadkRSVnNiN3g1V2NPbFZUWlY2YzkreEdnTWlmR21QcDc3VVIrcStjVzN0dGVLYUFSTDFIVHRRWVNuY0FVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxOTc0CWZpbGU6Y2Fwel8wLjEyLjBfeDY0X2VuLVVTLm1zaQpCeXFiRWxsM2NUR0pGaFRNVVpzVnNudVJLUU9UQjVmQ3F0Vmx2VXlUOUI4YzFYU29MQVloTGp0cVc1RkllR1ptUVNIK3hTSlBtRituRnJGSWUrc2VEUT09Cg==",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_0.12.0_x64_en-US.msi"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0pwSGo3S01QNC84bFB2blluVGVMdjlOOVk0YzllUldhMVhPbSs5QnBKVnpyZ3pnMzhsSzFieG9pTWw1Q1J0cTBaaGdpWVpBcEpnQnBQTXdEZ3lhMVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAxMzU4CWZpbGU6Y2Fwel8wLjExLjBfeDY0X2VuLVVTLm1zaQpkeUNHMzl2QlEzcm52MTJERHg4QWFSN2pacW1nMHM5VVlzemhuZEp1aTNNRWxERlBRRmY2amNtY0NCV25SNHVuamM1T3NJVFZpTVplWCsyVFgzYkVEdz09Cg==",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_0.11.0_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0lKbU5KTkxEWThGV2ZuWmhuWS9rQVpzSFBadkRSVnNiN3g1V2NPbFZUWlY2YzkreEdnTWlmR21QcDc3VVIrcStjVzN0dGVLYUFSTDFIVHRRWVNuY0FVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxOTc0CWZpbGU6Y2Fwel8wLjEyLjBfeDY0X2VuLVVTLm1zaQpCeXFiRWxsM2NUR0pGaFRNVVpzVnNudVJLUU9UQjVmQ3F0Vmx2VXlUOUI4YzFYU29MQVloTGp0cVc1RkllR1ptUVNIK3hTSlBtRituRnJGSWUrc2VEUT09Cg==",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_0.12.0_x64_en-US.msi"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0Y4R2lrVjIweGdWb0loclYwc1BtZ0NkZHFDa05sdGtYK2NVRmE2U0tvNFF5WkFCbGxCcDlEc0Y3emNmRU5LWGxTNVQwMGQzUXZoeG9RNlBVM01VWEFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2NzAxMzU4CWZpbGU6Y2Fwel8wLjExLjBfeDY0LXNldHVwLmV4ZQpidkYvMi8wMHllbytNTmVQMUwxTmpsaXJvTDd0ZnZZWEZhRjdMTGJ0YjhTVFF1TCthWjhoN1hFcmhSY05oUjVaM25ZcjJtQWdEaXNEdXVINFRHdXVDdz09Cg==",
-      "url": "https://github.com/wadjakorn/capz/releases/download/v0.11.0/capz_0.11.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTT1Mvb0lsYjA3a0s1RjBkNDNGRGFBVHJ0VW16LzVaNXVGYVZWOU01dUU2TndMamhlUjdYdGQxZ2lHaHlFNlRGdjI0OVM1UndEZHdha3I4NVVRV0JHdk9oTThjc3lCVEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MTUxOTc0CWZpbGU6Y2Fwel8wLjEyLjBfeDY0LXNldHVwLmV4ZQpWQ2dKMktxTDd5Y0NyQ1hoam15T1RYdW5KcVNsbmdrUldsU3BDZ2ZNUXh0WnhaRmFsWXllS1M5dHZpa1U4OGF1K2xpNlNjUkJCOEhKL1lBREZheE1CZz09Cg==",
+      "url": "https://github.com/wadjakorn/capz/releases/download/v0.12.0/capz_0.12.0_x64-setup.exe"
     }
   }
 }
