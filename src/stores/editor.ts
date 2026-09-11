@@ -319,6 +319,44 @@ function cropEq(a: ImageCrop | null, b: ImageCrop | null): boolean {
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
+/**
+ * The serialisable half of the editor — everything that distinguishes one
+ * workspace's document from another's. Deliberately excludes `tool`,
+ * `stickerSelection` and `guides` (app-level or transient, shared across
+ * workspaces) and the undo stacks (`past`/`future`), which are session-only:
+ * see `hydrate` and src/stores/workspaces.ts.
+ */
+export type EditorDoc = {
+  annotations: Annotation[];
+  nextPinNumber: number;
+  imageCrop: ImageCrop | null;
+  backdropOn: boolean;
+  captureSource: CaptureSource;
+  displayScale: number;
+  userZoomed: boolean;
+};
+
+/** Read the current document out of the store, for snapshotting a workspace. */
+export function readEditorDoc(s: {
+  annotations: Annotation[];
+  nextPinNumber: number;
+  imageCrop: ImageCrop | null;
+  backdropOn: boolean;
+  captureSource: CaptureSource;
+  displayScale: number;
+  userZoomed: boolean;
+}): EditorDoc {
+  return {
+    annotations: s.annotations,
+    nextPinNumber: s.nextPinNumber,
+    imageCrop: s.imageCrop,
+    backdropOn: s.backdropOn,
+    captureSource: s.captureSource,
+    displayScale: s.displayScale,
+    userZoomed: s.userZoomed,
+  };
+}
+
 type State = {
   tool: Tool;
   annotations: Annotation[];
@@ -359,6 +397,13 @@ type State = {
   reorder: (id: string, mode: ReorderMode) => void;
   clear: () => void;
   reset: () => void;
+  /**
+   * Load a whole document at once — the counterpart to `reset()`, used when
+   * swapping workspaces. Undo history is NOT restored here: the caller owns
+   * the session-only stacks and re-applies them, so a fresh app launch starts
+   * every workspace with an empty history rather than a persisted one.
+   */
+  hydrate: (doc: EditorDoc) => void;
   /**
    * Apply a crop. `sel` is in current *displayed* image coordinates (relative
    * to the active crop); `src` is the source image's native size, used to seed
@@ -494,6 +539,23 @@ export const useEditor = create<State>((set, get) => ({
       imageCrop: null,
       displayScale: 0,
       userZoomed: false,
+      guides: { x: [], y: [] },
+    }),
+
+  hydrate: (doc) =>
+    set({
+      annotations: doc.annotations,
+      nextPinNumber: doc.nextPinNumber,
+      imageCrop: doc.imageCrop,
+      backdropOn: doc.backdropOn,
+      captureSource: doc.captureSource,
+      // A non-zero scale suppresses EditorStage's auto-fit (it only fits from
+      // the 0 sentinel), which is what preserves a workspace's zoom on return.
+      displayScale: doc.displayScale,
+      userZoomed: doc.userZoomed,
+      selectedId: null,
+      past: [],
+      future: [],
       guides: { x: [], y: [] },
     }),
 

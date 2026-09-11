@@ -10,3 +10,4 @@ pub mod sound;
 pub mod stitch;
 pub mod synthetic_scroll;
 pub mod window_service;
+pub mod workspace_store;

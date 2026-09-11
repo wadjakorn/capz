@@ -26,7 +26,8 @@
         { "path": "$DOCUMENT/**" },
         { "path": "$DOWNLOAD/**" },
         { "path": "$PICTURE/**" },
-        { "path": "$TEMP/**" }
+        { "path": "$TEMP/**" },
+        { "path": "$APPDATA/workspaces/**" }
       ]
     }
   ]

@@ -167,6 +167,45 @@ async function saveToFile(
     n++;
   }
   await writeFile(path, bytes);
+  recordInHistory(stage, path, bytes.byteLength);
   return path;
+}
+
+/**
+ * Add a just-written file to the capture history.
+ *
+ * This is the single choke point for "a file landed on disk": the Export
+ * button, the ⌘C shortcut and the close-action all funnel through
+ * `saveToFile`, so hooking here covers every path without three call sites to
+ * keep in sync. The web build returns above, before this line — a browser
+ * download has no path to record.
+ *
+ * Deliberately fire-and-forget and never throws: failing to remember a file
+ * must not fail the save the user actually asked for.
+ */
+function recordInHistory(stage: Konva.Stage, path: string, bytes: number) {
+  void (async () => {
+    try {
+      const { useSettings } = await import("@/stores/settings");
+      const cfg = useSettings.getState().config;
+      if (!cfg.history.enabled) return;
+      const { useHistory, baseName: fileBaseName } = await import("@/stores/history");
+      const { renderThumb } = await import("@/stores/workspaces");
+      const box = getStageExportBox();
+      useHistory.getState().record(
+        {
+          path,
+          fileName: fileBaseName(path),
+          savedAt: Date.now(),
+          bytes,
+          size: box ? { w: Math.round(box.w), h: Math.round(box.h) } : null,
+          thumb: renderThumb(128),
+        },
+        cfg.history.max,
+      );
+    } catch (e) {
+      console.warn("history record skipped", e);
+    }
+  })();
 }
 

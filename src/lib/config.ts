@@ -89,6 +89,34 @@ export type AppConfig = {
     defaultBubbleTail: PinTailDir;
     defaultLabelStyle: PinLabelStyle;
   };
+  /**
+   * Multiple editing workspaces (CP-0045). Off by default: with one workspace
+   * the app behaves exactly as it always has, and the bottom bar never renders.
+   */
+  workspaces: {
+    enabled: boolean;
+    /** How many workspaces may exist at once. Clamped to WORKSPACE_MAX_RANGE. */
+    max: number;
+    /**
+     * What an incoming capture does while `enabled`:
+     *  - "new"     → push a new workspace (evicting the oldest at `max`)
+     *  - "replace" → overwrite the active workspace, count stays fixed
+     * Both are undoable via the toast; "replace" is the opt-out for users who
+     * never want a workspace closed behind their back.
+     */
+    onCapture: "new" | "replace";
+  };
+  /**
+   * Capture history (CP-0045) — a list of files this app has written to disk.
+   * Desktop only: the web build has no path for a downloaded file, so nothing
+   * here is meaningful there.
+   */
+  history: {
+    enabled: boolean;
+    /** FIFO cap on remembered entries. Trimming a record never touches the file. */
+    max: number;
+    viewMode: "list" | "grid";
+  };
   general: {
     theme: "light" | "dark" | "system";
     autostart: boolean;
@@ -289,6 +317,16 @@ export const DEFAULT_CONFIG: AppConfig = {
     defaultBubbleTail: "down",
     defaultLabelStyle: "numeric",
   },
+  workspaces: {
+    enabled: false,
+    max: 5,
+    onCapture: "new",
+  },
+  history: {
+    enabled: false,
+    max: 50,
+    viewMode: "list",
+  },
   general: {
     theme: "dark",
     autostart: false,
@@ -428,6 +466,24 @@ const inSet =
   (...opts: unknown[]): Validator =>
   (v) =>
     opts.includes(v);
+
+/**
+ * Selectable workspace counts. A hand-edited store holding 1 would make the
+ * feature meaningless (the bar hides at one workspace) and a huge number would
+ * pin N full-resolution PNGs in the app data dir, so the range is enforced on
+ * read rather than only in the Settings dropdown.
+ */
+export const WORKSPACE_MAX_RANGE = { min: 2, max: 9 } as const;
+const isWorkspaceMax: Validator = (v) =>
+  typeof v === "number" &&
+  Number.isInteger(v) &&
+  v >= WORKSPACE_MAX_RANGE.min &&
+  v <= WORKSPACE_MAX_RANGE.max;
+
+/** Offered history sizes. Anything else on disk falls back to the default. */
+export const HISTORY_MAX_OPTIONS = [20, 50, 100, 200] as const;
+const isHistoryMax: Validator = (v) =>
+  typeof v === "number" && (HISTORY_MAX_OPTIONS as readonly number[]).includes(v);
 
 /**
  * Validate the `ring` section (CP-0038).
@@ -804,6 +860,16 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       defaultShape: inSet("circle", "bubble", "mappin"),
       defaultBubbleTail: inSet("down", "up", "left", "right"),
       defaultLabelStyle: inSet("numeric", "alpha"),
+    }, issues),
+    workspaces: vsec("workspaces", r.workspaces, d.workspaces, {
+      enabled: isBool,
+      max: isWorkspaceMax,
+      onCapture: inSet("new", "replace"),
+    }, issues),
+    history: vsec("history", r.history, d.history, {
+      enabled: isBool,
+      max: isHistoryMax,
+      viewMode: inSet("list", "grid"),
     }, issues),
     general: vGeneral(r.general, d.general, issues),
     tools: vTools(r.tools, d.tools, issues),

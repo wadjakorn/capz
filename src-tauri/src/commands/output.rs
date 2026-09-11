@@ -36,3 +36,23 @@ pub fn reveal_in_finder(path: String) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Move a file to the OS Trash / Recycle Bin.
+///
+/// Deliberately not `std::fs::remove_file`: this is driven by the capture
+/// history's Delete action, which acts on files the user chose to save. A
+/// recoverable delete is the only kind worth offering for those — the confirm
+/// dialog promises the file can be restored, and this is what keeps that true.
+///
+/// Errors (permission, a file already gone, no trash on the platform) surface
+/// to the caller so the row is kept rather than silently dropped from history.
+#[tauri::command]
+pub async fn trash_file(path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    if !p.is_file() {
+        return Err(format!("not a file: {path}"));
+    }
+    tauri::async_runtime::spawn_blocking(move || trash::delete(&p).map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| format!("join: {e}"))?
+}
