@@ -25,6 +25,12 @@ import {
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
+import { useHistory } from "@/stores/history";
+import {
+  ARCHIVE_BUDGET_OPTIONS_MB,
+  HISTORY_MAX_OPTIONS,
+  WORKSPACE_MAX_RANGE,
+} from "@/lib/config";
 import {
   MACOS_ONLY_RING_MODES,
   RING_MAX_MODES,
@@ -121,17 +127,51 @@ const TABS: TabDef[] = [
   { value: "updates", label: "Updates", icon: RefreshCw, tone: "cyan" },
 ];
 
+/** A specific setting to open on, rather than the default tab. */
+export type SettingsFocus = "history";
+
 type SettingsViewProps = {
   onOpenInertRecovery?: () => void;
+  /**
+   * Open straight at a particular setting.
+   *
+   * A prop rather than an event on purpose: the editor page renders this
+   * component, so it can simply say where to open. Routing that through
+   * `settings:focus-tab` meant emitting into a listener that had not been
+   * registered yet — the view mounts and then awaits two dynamic imports before
+   * it subscribes — so the message was dropped and the user landed on the
+   * default tab. The event listener stays for the tray/Rust deep link, which is
+   * genuinely cross-window.
+   */
+  focus?: SettingsFocus | null;
 };
 
 const IS_MAC = currentPlatform() === "mac";
 
-export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
+/** Which tab holds a given focus target. */
+const FOCUS_TAB: Record<SettingsFocus, TabValue> = { history: "general" };
+
+export function SettingsView({ onOpenInertRecovery, focus }: SettingsViewProps = {}) {
   const { config, ready, init, update, reset } = useSettings();
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
-  const [tab, setTab] = useState<TabValue>("shortcuts");
+  // Seeded from `focus` so the correct tab is on screen in the first render,
+  // with no flash of the default.
+  const [tab, setTab] = useState<TabValue>(() =>
+    focus ? FOCUS_TAB[focus] : "shortcuts",
+  );
+  const historyCardRef = useRef<HTMLDivElement>(null);
+
+  // Landing on the right tab is not enough: the history card is at the bottom
+  // of a long General tab, so without this the user arrives above the fold and
+  // has to go looking for what they asked for.
+  useEffect(() => {
+    if (focus !== "history" || !ready) return;
+    const id = requestAnimationFrame(() =>
+      historyCardRef.current?.scrollIntoView({ block: "center" }),
+    );
+    return () => cancelAnimationFrame(id);
+  }, [focus, ready]);
 
   useEffect(() => {
     init();
@@ -551,6 +591,9 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               </FieldRow>
               <AboutRow />
             </SectionCard>
+
+            <WorkspacesCard />
+            <CaptureHistoryCard cardRef={historyCardRef} />
           </TabsContent>
         </main>
       </TabsPrimitive.Root>
@@ -558,9 +601,19 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
   );
 }
 
-function SectionCard({ children }: { children: React.ReactNode }) {
+function SectionCard({
+  children,
+  ref,
+}: {
+  children: React.ReactNode;
+  /** Lets a caller scroll a specific card into view. */
+  ref?: React.Ref<HTMLDivElement>;
+}) {
   return (
-    <div className="grid gap-4 rounded-2xl border border-border bg-foreground/[0.03] p-5">
+    <div
+      ref={ref}
+      className="grid gap-4 rounded-2xl border border-border bg-foreground/[0.03] p-5"
+    >
       {children}
     </div>
   );
@@ -783,4 +836,281 @@ function RingModesField() {
       </span>
     </div>
   );
+}
+
+
+/**
+ * Multiple workspaces (CP-0045).
+ *
+ * The two detail rows stay visible but disabled while the feature is off:
+ * hiding them would make the eviction rule — the one genuinely surprising part
+ * — invisible until after the user has turned the feature on and lost a
+ * workspace to it.
+ */
+function WorkspacesCard() {
+  const { config, update } = useSettings();
+  const w = config.workspaces;
+  const sizes: number[] = [];
+  for (let n = WORKSPACE_MAX_RANGE.min; n <= WORKSPACE_MAX_RANGE.max; n++) sizes.push(n);
+
+  return (
+    <SectionCard>
+      <ToggleRow
+        label="Multiple workspaces"
+        checked={w.enabled}
+        onChange={(enabled) => update("workspaces", { enabled })}
+      />
+      <span className="-mt-2 text-xs text-muted-foreground">
+        Keep several captures open at once and switch between them from the bar
+        at the bottom of the editor. Each keeps its own annotations, crop and
+        zoom, and they survive a restart.
+      </span>
+      <div
+        className={w.enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
+        aria-disabled={!w.enabled}
+      >
+        <FieldRow label="Maximum workspaces">
+          <select
+            className="field"
+            disabled={!w.enabled}
+            value={w.max}
+            onChange={(e) => update("workspaces", { max: Number(e.target.value) })}
+          >
+            {sizes.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow
+          label="When a new capture arrives"
+          hint={
+            w.onCapture === "new"
+              ? `Once all ${w.max} are used, the oldest workspace is closed. You can undo that, or switch to "Replace the current workspace" so nothing is ever closed for you.`
+              : "The capture overwrites the workspace you're in. The count never changes and nothing is closed behind your back."
+          }
+        >
+          <select
+            className="field"
+            disabled={!w.enabled}
+            value={w.onCapture}
+            onChange={(e) =>
+              update("workspaces", {
+                onCapture: e.target.value as "new" | "replace",
+              })
+            }
+          >
+            <option value="new">Open in a new workspace</option>
+            <option value="replace">Replace the current workspace</option>
+          </select>
+        </FieldRow>
+      </div>
+    </SectionCard>
+  );
+}
+
+/** Capture history (CP-0045) — desktop only; the web build has no file paths. */
+function CaptureHistoryCard({
+  cardRef,
+}: {
+  cardRef?: React.Ref<HTMLDivElement>;
+}) {
+  const { config, update } = useSettings();
+  const h = config.history;
+
+  return (
+    <SectionCard ref={cardRef}>
+      <ToggleRow
+        label="Remember saved files"
+        checked={h.enabled}
+        onChange={(enabled) => update("history", { enabled })}
+      />
+      <span className="-mt-2 text-xs text-muted-foreground">
+        Keep a list of the screenshots you export, with a thumbnail, so you can
+        find, reuse or delete them from the editor sidebar later.
+      </span>
+      <div
+        className={h.enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
+        aria-disabled={!h.enabled}
+      >
+        <ArchiveRows enabled={h.enabled} />
+        <div className="h-px bg-border" />
+        <FieldRow
+          label="Keep the last"
+          hint="Older entries drop off the list. The files themselves stay on your disk."
+        >
+          <select
+            className="field"
+            disabled={!h.enabled}
+            value={h.max}
+            onChange={(e) => {
+              const max = Number(e.target.value);
+              void update("history", { max });
+              const dropped = useHistory.getState().trim(max);
+              if (dropped > 0) {
+                toast(
+                  `Removed ${dropped} older ${dropped === 1 ? "entry" : "entries"} from the list`,
+                  { description: "The files were not deleted." },
+                );
+              }
+            }}
+          >
+            {HISTORY_MAX_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow label="Show as">
+          <select
+            className="field"
+            disabled={!h.enabled}
+            value={h.viewMode}
+            onChange={(e) =>
+              update("history", { viewMode: e.target.value as "list" | "grid" })
+            }
+          >
+            <option value="list">List</option>
+            <option value="grid">Thumbnails</option>
+          </select>
+        </FieldRow>
+        <FieldRow label="Clear the list" hint="Removes every entry. No files are deleted.">
+          <button
+            type="button"
+            disabled={!h.enabled}
+            onClick={() => {
+              useHistory.getState().clear();
+              toast.success("History cleared", { duration: 1600 });
+            }}
+            className="btn btn--secondary text-rose-300 hover:text-rose-200"
+          >
+            Clear list
+          </button>
+        </FieldRow>
+      </div>
+    </SectionCard>
+  );
+}
+
+/**
+ * The capture archive (CP-0046).
+ *
+ * Reads the folder itself rather than trusting a stored number: the usage line
+ * is the only place a user finds out how much disk this costs, and a stale
+ * figure there would be worse than none.
+ */
+function ArchiveRows({ enabled }: { enabled: boolean }) {
+  const { config, update } = useSettings();
+  const h = config.history;
+  const [usage, setUsage] = useState<{ count: number; bytes: number } | null>(null);
+  const [wiping, setWiping] = useState(false);
+
+  const refresh = async () => {
+    const { resolveSaveDirPath } = await import("@/lib/exportImage");
+    const { listArchive, totalBytes } = await import("@/lib/captureArchive");
+    const dir = await resolveSaveDirPath();
+    if (!dir) return setUsage(null);
+    const files = await listArchive(dir);
+    setUsage({ count: files.length, bytes: totalBytes(files) });
+  };
+
+  useEffect(() => {
+    if (h.archiveCaptures) void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [h.archiveCaptures, h.archiveBudgetMb]);
+
+  return (
+    <>
+      <ToggleRow
+        label="Also keep every capture"
+        checked={h.archiveCaptures}
+        onChange={(archiveCaptures) => {
+          void update("history", { archiveCaptures });
+          if (archiveCaptures) void refresh();
+        }}
+      />
+      <span className="-mt-2 text-xs text-muted-foreground">
+        Copies each screen capture into a <code>Captures</code> folder next to
+        your saved files, so one you forgot to export is still there. Pasted
+        images and files you opened are not copied — you already have those.
+      </span>
+      <div
+        className={h.archiveCaptures && enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
+        aria-disabled={!h.archiveCaptures || !enabled}
+      >
+        <FieldRow
+          label="Archive limit"
+          hint="Once the folder passes this, the oldest captures are deleted. Files you exported yourself are never touched."
+        >
+          <select
+            className="field"
+            disabled={!h.archiveCaptures || !enabled}
+            value={h.archiveBudgetMb}
+            onChange={(e) => {
+              const mb = Number(e.target.value);
+              void (async () => {
+                await update("history", { archiveBudgetMb: mb });
+                const { resolveSaveDirPath } = await import("@/lib/exportImage");
+                const { enforceBudget } = await import("@/lib/captureArchive");
+                const dir = await resolveSaveDirPath();
+                if (!dir) return;
+                const gone = await enforceBudget(dir, mb);
+                if (gone.length > 0) {
+                  toast(
+                    `Removed ${gone.length} older ${gone.length === 1 ? "capture" : "captures"}`,
+                  );
+                }
+                await refresh();
+              })();
+            }}
+          >
+            {ARCHIVE_BUDGET_OPTIONS_MB.map((mb) => (
+              <option key={mb} value={mb}>
+                {mb >= 1024 ? `${mb / 1024} GB` : `${mb} MB`}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow
+          label="Currently using"
+          hint={
+            usage
+              ? `${usage.count} ${usage.count === 1 ? "capture" : "captures"} in the Captures folder.`
+              : "Nothing archived yet."
+          }
+        >
+          <button
+            type="button"
+            disabled={!usage?.count || wiping}
+            onClick={() => {
+              void (async () => {
+                setWiping(true);
+                try {
+                  const { resolveSaveDirPath } = await import("@/lib/exportImage");
+                  const { deleteArchive } = await import("@/lib/captureArchive");
+                  const dir = await resolveSaveDirPath();
+                  if (!dir) return;
+                  const n = await deleteArchive(dir);
+                  toast.success(`Deleted ${n} archived ${n === 1 ? "capture" : "captures"}`);
+                  await refresh();
+                } finally {
+                  setWiping(false);
+                }
+              })();
+            }}
+            className="btn btn--secondary text-rose-300 hover:text-rose-200"
+          >
+            {usage ? formatArchiveSize(usage.bytes) : "0 MB"} — Delete…
+          </button>
+        </FieldRow>
+      </div>
+    </>
+  );
+}
+
+function formatArchiveSize(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
 }

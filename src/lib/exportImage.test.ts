@@ -146,3 +146,58 @@ describe("exportImage on the web runtime (no Tauri)", () => {
     expect(calls[0]).toMatchObject({ x: 0, y: 0, width: 900 * 2, height: 700 * 2 });
   });
 });
+
+/**
+ * These lock in the property the capture-history feature leans on: pulling an
+ * image out of history, editing it and saving must never touch the original
+ * file. That holds because export always picks a FREE path — there is no
+ * overwrite path in the app at all. If someone later adds a "Save" that writes
+ * back to the opened file, these fail and the conversation happens.
+ */
+describe("nextFreePath — capz never overwrites", () => {
+  const join = async (...parts: string[]) => parts.join("/");
+  const existing = (paths: string[]) => async (p: string) => paths.includes(p);
+
+  it("uses the plain name when nothing is in the way", async () => {
+    const { nextFreePath } = await import("@/lib/exportImage");
+    const p = await nextFreePath("/save", "capz-20260911-1432", "png", join, existing([]));
+    expect(p).toBe("/save/capz-20260911-1432.png");
+  });
+
+  it("steps aside rather than replacing an existing file", async () => {
+    const { nextFreePath } = await import("@/lib/exportImage");
+    const taken = ["/save/shot.png"];
+    const p = await nextFreePath("/save", "shot", "png", join, existing(taken));
+    expect(p).toBe("/save/shot-1.png");
+    expect(taken).toContain("/save/shot.png");
+  });
+
+  it("keeps stepping until it finds a gap", async () => {
+    const { nextFreePath } = await import("@/lib/exportImage");
+    const taken = ["/save/shot.png", "/save/shot-1.png", "/save/shot-2.png"];
+    const p = await nextFreePath("/save", "shot", "png", join, existing(taken));
+    expect(p).toBe("/save/shot-3.png");
+  });
+
+  it("never returns a path that already exists", async () => {
+    const { nextFreePath } = await import("@/lib/exportImage");
+    const taken = ["/save/a.png", "/save/a-1.png"];
+    const p = await nextFreePath("/save", "a", "png", join, existing(taken));
+    expect(taken).not.toContain(p);
+  });
+
+  // An archived capture edited and re-exported must not land on the archive.
+  it("does not collide with an archived original of the same name", async () => {
+    const { nextFreePath } = await import("@/lib/exportImage");
+    const taken = ["/save/Captures/capz-capture-20260911-143012000.png"];
+    const p = await nextFreePath(
+      "/save",
+      "capz-capture-20260911-143012000",
+      "png",
+      join,
+      existing(taken),
+    );
+    expect(p).toBe("/save/capz-capture-20260911-143012000.png");
+    expect(p).not.toBe(taken[0]);
+  });
+});

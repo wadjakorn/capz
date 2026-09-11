@@ -6,6 +6,9 @@ import { Toaster, toast } from "sonner";
 import { ImageUp, Monitor, SlidersHorizontal } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
+import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
+import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
+import { useWorkspaces } from "@/stores/workspaces";
 import { useEditor } from "@/stores/editor";
 import { extractImageBlob, readClipboardPng } from "@/lib/webExport";
 import { getStage } from "@/lib/stageBridge";
@@ -26,6 +29,15 @@ const EditorStage = dynamic(
  * in-browser Screen Capture API (or the OS tool + paste), annotates, and
  * copies/downloads the result. No backend — the image never leaves the browser.
  */
+/**
+ * Web workspace cap — lower than the desktop's.
+ *
+ * Every workspace here pins a full-resolution Blob in the tab's memory (there
+ * is no filesystem to spill to), and none of it survives a reload, so the
+ * ceiling is deliberately modest.
+ */
+const WEB_WORKSPACE_MAX = 3;
+
 export default function PastePage() {
   const [src, setSrc] = useState("");
   const [capturing, setCapturing] = useState(false);
@@ -36,6 +48,23 @@ export default function PastePage() {
   const setHasImage = useEditor((s) => s.setHasImage);
 
   useEditorShortcuts();
+  // Workspaces are always on in the browser: there is no Settings view here,
+  // and the bar stays hidden until a second workspace exists anyway.
+  useWorkspaceSession({ enabled: true, setFile: () => {}, setSrc });
+  const wsCount = useWorkspaces((s) => s.order.length);
+  const tabOnlyNoticeShown = useRef(false);
+
+  // Say it once, the first time the bar appears: on the web these are tab-local
+  // and a reload loses them. The desktop build persists them, so the same UI
+  // would otherwise imply a durability the browser cannot deliver.
+  useEffect(() => {
+    if (wsCount < 2 || tabOnlyNoticeShown.current) return;
+    tabOnlyNoticeShown.current = true;
+    toast("Workspaces are kept in this tab only", {
+      description: "They're gone if you reload the page.",
+      duration: 6000,
+    });
+  }, [wsCount]);
 
   // Guard against losing unsaved work: once an image is loaded (nothing on
   // /paste is persisted), a tab close / reload / back-navigation triggers the
@@ -55,18 +84,26 @@ export default function PastePage() {
   // Only offer in-browser capture where the Screen Capture API exists.
   useEffect(() => setCanCapture(isWebCaptureSupported()), []);
 
+  // Switching workspaces changes `src` behind acceptBlob's back; mirror it so
+  // "is the canvas occupied?" stays true per workspace, not per session.
+  useEffect(() => {
+    srcRef.current = src;
+  }, [src]);
+
   useEffect(() => () => { if (srcRef.current) URL.revokeObjectURL(srcRef.current); }, []);
 
+  // The workspace store owns the image now, and useWorkspaceSession pushes it
+  // into `src` — writing `src` here too would give the canvas two masters.
+  // `srcRef` stays as the "is the canvas occupied?" flag acceptBlob branches on.
   const applyBlob = useCallback(
     (blob: Blob) => {
       const url = URL.createObjectURL(blob);
-      if (srcRef.current) URL.revokeObjectURL(srcRef.current);
       srcRef.current = url;
-      setSrc(url);
-      resetEditor();
-      setHasImage(true);
+      // Object URLs of replaced images are revoked by the store when it lets
+      // go of them, so the blob stays alive as long as a workspace points at it.
+      useWorkspaces.getState().setActiveImage({ kind: "blob", url });
     },
-    [resetEditor, setHasImage],
+    [],
   );
 
   // Base-vs-overlay router: an empty canvas takes the image as the base
@@ -93,11 +130,11 @@ export default function PastePage() {
     [applyBlob],
   );
 
-  // Drop the current image and annotations, back to the empty state.
+  // Drop the current image and annotations, back to the empty state. The
+  // workspace itself stays — closing one is the bar tile's ✕.
   const clearImage = useCallback(() => {
-    if (srcRef.current) URL.revokeObjectURL(srcRef.current);
     srcRef.current = "";
-    setSrc("");
+    useWorkspaces.getState().clearActive();
     resetEditor();
     setHasImage(false);
   }, [resetEditor, setHasImage]);
@@ -255,6 +292,7 @@ export default function PastePage() {
       <Toolbar
         onWebCapture={canCapture ? onCapture : undefined}
         onWebClear={clearImage}
+        onNewWorkspace={() => useWorkspaces.getState().createEmpty(WEB_WORKSPACE_MAX)}
       />
       <main
         className="relative flex min-h-0 flex-1 overflow-hidden"
@@ -295,6 +333,10 @@ export default function PastePage() {
           } absolute right-0 top-0 z-10 h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3 sm:static sm:flex`}
         />
       </main>
+      <WorkspaceBar
+        max={WEB_WORKSPACE_MAX}
+        onNew={() => useWorkspaces.getState().createEmpty(WEB_WORKSPACE_MAX)}
+      />
       <Toaster theme="dark" position="top-right" richColors closeButton />
       <input
         ref={importInputRef}

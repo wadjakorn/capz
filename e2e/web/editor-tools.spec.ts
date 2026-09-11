@@ -85,23 +85,53 @@ test("settings cog opens settings view", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("sidebar shows global tools when idle, swaps to tool options", async ({
+test("sidebar shows the Canvas panel when idle, swaps to tool options", async ({
   page,
 }) => {
   await page.goto("/editor");
   await page.waitForLoadState("networkidle");
 
-  const slot = page.locator("#tool-options-slot");
-  // Idle (Select tool, nothing selected) → global/workspace tools (CP-0044).
-  await expect(slot.getByText("Workspace", { exact: true })).toBeVisible();
-  await expect(slot.getByRole("button", { name: "Open image file" })).toBeVisible();
-  await expect(slot.getByText("Rulers", { exact: true })).toBeVisible();
+  // The editor sidebar is tabbed (CP-0047): the Canvas and tool panels are
+  // separate containers that are hidden rather than unmounted, so every
+  // assertion here is about VISIBILITY. Counting nodes would pass on a hidden
+  // panel and prove nothing.
+  const canvasPanel = page.locator("#sidebar-panel-canvas");
+  const toolPanel = page.locator("#sidebar-panel-tool");
 
-  // Picking a tool with options hands the slot to that tool's panel.
+  // Idle (Select tool, nothing selected) → the Canvas panel.
+  await expect(canvasPanel.getByText("Workspace", { exact: true })).toBeVisible();
+  await expect(
+    canvasPanel.getByRole("button", { name: "Open image file" }),
+  ).toBeVisible();
+  await expect(canvasPanel.getByText("Rulers", { exact: true })).toBeVisible();
+  await expect(toolPanel).toBeHidden();
+
+  // Picking a tool with options adds a third tab and opens it.
   await page.getByRole("button", { name: "Pin", exact: true }).click();
-  await expect(slot.getByText("Workspace", { exact: true })).toHaveCount(0);
+  await expect(toolPanel).toBeVisible();
+  await expect(canvasPanel).toBeHidden();
+  await expect(
+    page.getByRole("tab", { name: "Pin options" }),
+  ).toHaveAttribute("aria-selected", "true");
 
-  // Back to Select → global tools return.
+  // Back to Select → the tool tab goes and the Canvas panel returns.
   await page.getByRole("button", { name: "Select", exact: true }).click();
-  await expect(slot.getByText("Workspace", { exact: true })).toBeVisible();
+  await expect(canvasPanel.getByText("Workspace", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Pin options" })).toHaveCount(0);
+});
+
+test("the sidebar is not shown on the settings page", async ({ page }) => {
+  await page.goto("/editor");
+  await page.waitForLoadState("networkidle");
+
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" });
+  await expect(sidebar).toBeVisible();
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Settings", level: 1 }),
+  ).toBeVisible();
+  // It stays in the DOM so Toolbar's portal targets survive, but it must not
+  // be on screen or reachable.
+  await expect(sidebar).toBeHidden();
 });

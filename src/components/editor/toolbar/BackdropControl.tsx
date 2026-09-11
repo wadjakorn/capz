@@ -11,9 +11,15 @@ import { ActionRow } from "./panels/kit";
  * gradient/solid style, preset, padding, corner radius and shadow. On/off is
  * per-image editor state; the appearance is persisted in `general.backdrop`.
  *
- * Rendered inline inside the sidebar's global-tools panel — there is no popover
- * (CP-0044). The preset grid is `grid-cols-3`: the sidebar is `w-60` minus
- * `px-3`, ~13.5rem usable, so four columns of `h-8` swatches would overflow.
+ * Rendered inline inside the sidebar's Canvas panel — there is no popover
+ * (CP-0044).
+ *
+ * The preset grid is `grid-cols-4` with `h-7` swatches: eight presets in two
+ * rows instead of three. Expanded, this section is by far the tallest thing in
+ * the panel, and at three rows it pushed the panel past the sidebar's height at
+ * the default window size. Four columns of ~49px chips still read clearly — the
+ * swatches are gradients, not icons, so they lose nothing by being wider than
+ * they are tall.
  */
 export function BackdropSection() {
   const backdropOn = useEditor((s) => s.backdropOn);
@@ -63,7 +69,7 @@ export function BackdropSection() {
           </div>
 
           {backdrop.style === "gradient" ? (
-            <div className="mb-3 grid grid-cols-3 gap-1.5">
+            <div className="mb-2 grid grid-cols-4 gap-1.5">
               {GRADIENT_PRESETS.map((p) => (
                 <button
                   key={p.id}
@@ -71,7 +77,7 @@ export function BackdropSection() {
                   title={p.name}
                   onClick={() => patch({ presetId: p.id })}
                   className={[
-                    "h-8 rounded-md border transition-transform hover:scale-105",
+                    "h-7 rounded-md border transition-transform hover:scale-105",
                     backdrop.presetId === p.id
                       ? "border-[var(--accent)]"
                       : "border-transparent",

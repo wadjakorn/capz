@@ -220,6 +220,48 @@ pub async fn read_image_file_data_url(
     Ok(data_url)
 }
 
+/// Decode an image file and return a small JPEG `data:` URL for use as a
+/// thumbnail.
+///
+/// Exists so the capture-history sidebar can show pictures of files in the
+/// user's save directory. The alternative — `convertFileSrc` on those paths —
+/// would mean adding `$PICTURE/**` to `assetProtocol.scope`, handing the
+/// webview read access to the user's entire Pictures folder for the sake of a
+/// 40px thumbnail. Decoding here keeps the scope closed and sends ~5KB instead
+/// of a multi-megabyte base64 blob.
+#[tauri::command]
+pub async fn read_image_thumbnail(path: String, max_width: u32) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
+        use anyhow::anyhow;
+        use base64::Engine;
+        use image::{codecs::jpeg::JpegEncoder, ExtendedColorType, ImageEncoder};
+
+        let img = image::open(&path).map_err(|e| anyhow!("decode {path}: {e}"))?;
+        let (w, h) = (img.width(), img.height());
+        if w == 0 || h == 0 {
+            return Err(anyhow!("image has zero dimensions"));
+        }
+        let target = max_width.clamp(16, 512).min(w);
+        let scaled = img
+            .resize(target, (h * target).div_ceil(w).max(1), image::imageops::FilterType::Triangle)
+            .to_rgb8();
+        let mut out = Vec::new();
+        JpegEncoder::new_with_quality(&mut out, 70)
+            .write_image(
+                scaled.as_raw(),
+                scaled.width(),
+                scaled.height(),
+                ExtendedColorType::Rgb8,
+            )
+            .map_err(|e| anyhow!("jpeg encode: {e}"))?;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&out);
+        Ok(format!("data:image/jpeg;base64,{encoded}"))
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
 /// Read an image from the clipboard and return it as a `data:image/png;base64,…`
 /// URL, WITHOUT touching the workspace. Used by "Add image" mode to layer the
 /// clipboard image as an overlay object instead of replacing the base.

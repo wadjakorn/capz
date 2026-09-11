@@ -18,6 +18,9 @@
     "fs:allow-mkdir",
     "fs:allow-exists",
     "fs:allow-remove",
+    "fs:allow-copy-file",
+    "fs:allow-read-dir",
+    "fs:allow-stat",
     {
       "identifier": "fs:scope",
       "allow": [
@@ -26,7 +29,8 @@
         { "path": "$DOCUMENT/**" },
         { "path": "$DOWNLOAD/**" },
         { "path": "$PICTURE/**" },
-        { "path": "$TEMP/**" }
+        { "path": "$TEMP/**" },
+        { "path": "$APPDATA/workspaces/**" }
       ]
     }
   ]

@@ -5,11 +5,19 @@ import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
-import { SettingsView } from "@/components/settings/SettingsView";
+import { SettingsView, type SettingsFocus } from "@/components/settings/SettingsView";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor, type CaptureSource } from "@/stores/editor";
+import { useWorkspaces } from "@/stores/workspaces";
+import { useHistory } from "@/stores/history";
+import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
+import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
+import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
+import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
+import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
+import { useSidebar } from "@/stores/sidebar";
 import { routeIncomingCapture } from "@/lib/captureRouting";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
@@ -33,6 +41,8 @@ export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
   const [view, setView] = useState<View>("editor");
+  /** Which setting to open Settings at, when something deep-links into it. */
+  const [settingsFocus, setSettingsFocus] = useState<SettingsFocus | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
@@ -42,6 +52,110 @@ export default function EditorPage() {
   const configReady = useSettings((s) => s.ready);
   const resetSettings = useSettings((s) => s.reset);
   const issueToastShown = useRef(false);
+
+  // Sidebar panel selection. `remembered` is the last panel the user chose on
+  // purpose; the tool panel never becomes that, so deselecting a tool returns
+  // to where they actually were rather than to wherever they started.
+  const toolPanel = useSidebar((s) => s.toolPanel);
+  const [rememberedTab, setRememberedTab] = useState<"canvas" | "history">("canvas");
+  const [showingTool, setShowingTool] = useState(false);
+  const hadToolPanel = useRef(false);
+  useEffect(() => {
+    const has = toolPanel !== null;
+    // Auto-open a panel the moment it appears; forget it the moment it goes.
+    if (has !== hadToolPanel.current) {
+      hadToolPanel.current = has;
+      setShowingTool(has);
+    }
+  }, [toolPanel]);
+  const activeTab: SidebarTab = showingTool && toolPanel ? "tool" : rememberedTab;
+  const onSelectTab = useCallback((tab: SidebarTab) => {
+    if (tab === "tool") {
+      setShowingTool(true);
+      return;
+    }
+    // Leaving for a permanent panel does NOT drop the tool — you can adjust the
+    // backdrop while still holding the pen.
+    setShowingTool(false);
+    setRememberedTab(tab);
+  }, []);
+
+  const wsConfig = useSettings((s) => s.config.workspaces);
+  const historyConfig = useSettings((s) => s.config.history);
+  const reopenLastClosed = useWorkspaces((s) => s.reopenLastClosed);
+  useWorkspaceSession({ enabled: wsConfig.enabled, setFile, setSrc });
+
+  useEffect(() => {
+    void (async () => {
+      await useHistory.getState().init(historyConfig.enabled);
+      if (!historyConfig.enabled) return;
+      const { resolveSaveDirPath } = await import("@/lib/exportImage");
+      await useHistory.getState().refreshArchive(await resolveSaveDirPath());
+    })();
+  }, [historyConfig.enabled]);
+
+  /**
+   * Copy an arriving capture into the archive.
+   *
+   * Only real screen captures — a paste or an opened file is already a file the
+   * user has, so archiving it would just duplicate their own data.
+   */
+  const archiveIncoming = useCallback(
+    async (path: string, source: CaptureSource) => {
+      const cfg = useSettings.getState().config.history;
+      if (!cfg.enabled || !cfg.archiveCaptures) return;
+      if (source === "other") return;
+      const { archiveCapture } = await import("@/lib/captureArchive");
+      const { resolveSaveDirPath } = await import("@/lib/exportImage");
+      const dir = await resolveSaveDirPath();
+      if (!dir) return;
+      const res = await archiveCapture(path, dir, cfg.archiveBudgetMb);
+      if (!res) return;
+      await useHistory.getState().refreshArchive(dir);
+      if (res.evicted.length > 0) {
+        toast(
+          `Archive full — removed ${res.evicted.length} older ${
+            res.evicted.length === 1 ? "capture" : "captures"
+          }`,
+          { description: "Files you exported yourself are never removed." },
+        );
+      }
+    },
+    [],
+  );
+
+  /**
+   * A capture-history file was dropped on the canvas: base image on an empty
+   * canvas, overlay layer otherwise. Same split as paste and OS drag-drop, and
+   * it reuses their helper rather than repeating the branch.
+   */
+  const onHistoryDrop = useCallback((path: string) => {
+    void (async () => {
+      try {
+        const { importImagePathDesktop } = await import("@/lib/importImage");
+        const ok = await importImagePathDesktop(path);
+        if (!ok) toast.error("Couldn't add that image");
+      } catch (err) {
+        console.error("history drop failed", err);
+        useHistory.getState().markMissing(
+          useHistory.getState().items.find((i) => i.path === path)?.id ?? "",
+        );
+        toast.error("File no longer exists");
+      }
+    })();
+  }, []);
+
+  /** Toast with an Undo that survives being the only visible toast. */
+  const undoToast = useCallback(
+    (message: string) => {
+      toast(message, {
+        id: "workspace-undo",
+        duration: 6000,
+        action: { label: "Undo", onClick: () => reopenLastClosed() },
+      });
+    },
+    [reopenLastClosed],
+  );
 
   useEditorShortcuts();
   useNoticeListener();
@@ -124,28 +238,70 @@ export default function EditorPage() {
   const handleIncomingCapture = useCallback(
     (path: string | null, source: CaptureSource = "other", asLayer = false) => {
       if (path && asLayer && useEditor.getState().hasImage) {
-        void addCaptureAsOverlay(path);
+        // Archive BEFORE the overlay path: it reads the file with
+        // `consumeTemp: true`, after which Rust deletes the temp and there is
+        // nothing left to copy.
+        void archiveIncoming(path, source).finally(() => addCaptureAsOverlay(path));
         return;
       }
+      if (path) void archiveIncoming(path, source);
       switch (routeIncomingCapture(path)) {
         case "clear":
+          if (wsConfig.enabled) {
+            useWorkspaces.getState().clearActive();
+            return;
+          }
           void applyFile(null);
           return;
         case "base":
+          if (wsConfig.enabled && path) {
+            void (async () => {
+              const ws = useWorkspaces.getState();
+              const wasFull = ws.order.length >= wsConfig.max;
+              const hadActive = ws.activeId !== null;
+              await ws.adoptCapture(path, source, wsConfig.onCapture, wsConfig.max);
+              // Both paths discard a document; say so, with a way back. No
+              // modal — a capture has to stay a single keystroke.
+              if (wsConfig.onCapture === "replace" && hadActive) {
+                undoToast("Workspace replaced");
+              } else if (wasFull) {
+                undoToast("Oldest workspace closed to make room");
+              }
+            })();
+            return;
+          }
           void applyFile(path, source);
           return;
       }
     },
-    [applyFile, addCaptureAsOverlay],
+    [applyFile, addCaptureAsOverlay, wsConfig, undoToast, archiveIncoming],
   );
 
+  // Startup: two sources claim to know the current image — Rust's active temp
+  // path and workspaces.json. When the feature is on and has any workspace,
+  // the store wins and useWorkspaceSession does the loading; otherwise this is
+  // unchanged from the single-workspace behaviour.
+  const startupAdoptedRef = useRef(false);
   useEffect(() => {
+    if (!configReady || startupAdoptedRef.current) return;
+    startupAdoptedRef.current = true;
     (async () => {
+      if (wsConfig.enabled) {
+        await useWorkspaces.getState().init(true);
+        if (useWorkspaces.getState().order.length > 0) return;
+      }
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string | null>("editor_current_image");
-      if (path) await applyFile(path);
+      if (!path) return;
+      if (wsConfig.enabled) {
+        await useWorkspaces
+          .getState()
+          .adoptCapture(path, "other", "new", wsConfig.max);
+        return;
+      }
+      await applyFile(path);
     })();
-  }, [applyFile]);
+  }, [applyFile, configReady, wsConfig.enabled, wsConfig.max]);
 
   // Load settings on mount (even before an image) so config-validation issues
   // surface immediately. init() is idempotent.
@@ -180,11 +336,22 @@ export default function EditorPage() {
     });
   }, [configReady, configIssues, resetSettings]);
 
+  // Read through a ref so this subscribes exactly once. Depending on the
+  // callback would re-run the effect whenever settings load (validateConfig
+  // rebuilds every section, so `config.workspaces` gets a new identity) — and
+  // re-running it while `listen()` is still pending leaks the old listener,
+  // which is how one capture ended up creating two workspaces.
+  const captureHandlerRef = useRef(handleIncomingCapture);
+  useEffect(() => {
+    captureHandlerRef.current = handleIncomingCapture;
+  }, [handleIncomingCapture]);
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen<
+      const stop = await listen<
         string | { path: string; source?: CaptureSource; asLayer?: boolean }
       >(
         "editor:load-image",
@@ -192,71 +359,114 @@ export default function EditorPage() {
           // Payload is `{ path, source, asLayer }`; tolerate a bare string (legacy).
           const p = e.payload;
           if (typeof p === "string") {
-            handleIncomingCapture(p);
+            captureHandlerRef.current(p);
           } else {
-            handleIncomingCapture(p.path, p.source ?? "other", p.asLayer ?? false);
+            captureHandlerRef.current(p.path, p.source ?? "other", p.asLayer ?? false);
           }
           setView("editor");
         },
       );
+      // Unmounted while listen() was in flight: the cleanup below ran with
+      // nothing to call, so retire the listener here instead of leaking it.
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
-  }, [handleIncomingCapture]);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen("editor:clear", () => {
+      const stop = await listen("editor:clear", () => {
+        // "Clear workspace" empties the canvas but keeps the tile — closing a
+        // workspace is the tile's ✕. See docs/design/MULTI-WORKSPACE.md §6.2.
+        if (useSettings.getState().config.workspaces.enabled) {
+          useWorkspaces.getState().clearActive();
+          return;
+        }
         void applyFile(null);
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, [applyFile]);
 
   // Deep-link from tray/Rust/toast: open settings view, optionally focus a tab.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen, emit } = await import("@tauri-apps/api/event");
-      unlisten = await listen<string | null>("editor:show-settings", (e) => {
+      const stop = await listen<string | null>("editor:show-settings", (e) => {
         setView("settings");
         const tab = e.payload;
         if (typeof tab === "string" && tab.length > 0) {
           void emit("settings:focus-tab", tab);
         }
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   // Deep-link: open onboarding view (first launch + Settings "Re-run").
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen("editor:show-onboarding", () => {
+      const stop = await listen("editor:show-onboarding", () => {
         setView("onboarding");
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const win = getCurrentWindow();
-      unlisten = await win.onCloseRequested((e) => {
+      const stop = await win.onCloseRequested((e) => {
         e.preventDefault();
         void (async () => {
+          // Get the current workspace onto disk before anything else. The
+          // periodic commit is debounced, so without this the last strokes
+          // before a close can be lost.
+          const ws = useWorkspaces.getState();
+          ws.commitActive();
+          await ws.flushPersist();
           const { runPreCloseAction } = await import("@/lib/preClose");
           await runPreCloseAction();
           await win.hide();
         })();
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -342,9 +552,10 @@ export default function EditorPage() {
   // drag-drop events because the editor window has drag_drop_enabled.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-      unlisten = await getCurrentWebview().onDragDropEvent((event) => {
+      const stop = await getCurrentWebview().onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
         const paths = event.payload.paths ?? [];
         void (async () => {
@@ -365,8 +576,13 @@ export default function EditorPage() {
           }
         })();
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   // Tag the document with the OS for OS-specific behaviour.
@@ -382,17 +598,33 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col text-foreground">
       {view === "settings" ? (
-        <SubViewHeader title="Settings" onBack={() => setView("editor")} />
+        <SubViewHeader
+          title="Settings"
+          onBack={() => {
+            setSettingsFocus(null);
+            setView("editor");
+          }}
+        />
       ) : view === "onboarding" ? (
         <SubViewHeader title="Welcome" onBack={() => setView("editor")} />
       ) : (
-        <Toolbar onOpenSettings={() => setView("settings")} />
+        <Toolbar
+          onOpenSettings={() => {
+            setSettingsFocus(null);
+            setView("settings");
+          }}
+          onNewWorkspace={
+            wsConfig.enabled
+              ? () => useWorkspaces.getState().createEmpty(wsConfig.max)
+              : undefined
+          }
+        />
       )}
       <main
         className="relative flex min-h-0 flex-1 overflow-hidden"
         style={view === "editor" ? { backgroundColor: "var(--bg-canvas)" } : undefined}
       >
-        <div className="relative min-w-0 flex-1">
+        <div id="canvas-area" className="relative min-w-0 flex-1">
           <div
             className="absolute inset-0"
             style={{
@@ -403,22 +635,80 @@ export default function EditorPage() {
           >
             {file ? <EditorStage src={src} /> : <EmptyState />}
           </div>
+          {view === "editor" && <CanvasDropHint />}
         </div>
-        {/* Tool-options panel — always docked on the right. The Toolbar portals
-            contextual controls into it when a tool/selection has options;
-            otherwise it stays empty, reserving the column for future content. */}
+        {/* Right sidebar. Three panels live here at once, each in its own
+            container, and the tab bar decides which is on screen — they are
+            hidden rather than unmounted so a half-dragged slider or a scrolled
+            history list survives a trip to another tab. Toolbar and EditorStage
+            portal into the canvas and tool containers respectively. */}
+        {/* Hidden rather than unmounted off the editor view, the same way the
+            canvas column is: Toolbar captures the portal targets inside here
+            once, so unmounting would leave it holding detached nodes and the
+            panels would come back empty. */}
         <aside
-          id="tool-options-slot"
-          aria-label="Tool options"
-          className="flex h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3"
-        />
+          aria-label="Sidebar"
+          aria-hidden={view !== "editor"}
+          style={{
+            visibility: view === "editor" ? "visible" : "hidden",
+            pointerEvents: view === "editor" ? "auto" : "none",
+          }}
+          className="flex h-full w-60 flex-none flex-col border-l border-[var(--border)] bg-[var(--surface-overlay)]"
+        >
+          {/* The hairline lives on this wrapper, not the tablist, so it spans
+              the full sidebar width and reads as a divider rather than an
+              underline that stops short at the padding. */}
+          <div className="flex-none border-b border-[var(--border)] px-3 pt-1">
+            <SidebarTabs
+              active={activeTab}
+              toolPanel={toolPanel}
+              onSelect={onSelectTab}
+            />
+          </div>
+          <div
+            id="sidebar-panel-canvas"
+            role="tabpanel"
+            hidden={activeTab !== "canvas"}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
+            <div id="sidebar-canvas-slot" />
+          </div>
+          <div
+            id="sidebar-panel-history"
+            role="tabpanel"
+            hidden={activeTab !== "history"}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
+            {historyConfig.enabled ? (
+              <CaptureHistorySection
+                hasImage={!!file}
+                onDropFile={onHistoryDrop}
+              />
+            ) : (
+              <HistoryOffNotice
+                onOpenSettings={() => {
+                  setSettingsFocus("history");
+                  setView("settings");
+                }}
+              />
+            )}
+          </div>
+          <div
+            id="sidebar-panel-tool"
+            role="tabpanel"
+            hidden={activeTab !== "tool"}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
+            <div id="tool-options-slot" />
+          </div>
+        </aside>
         {view === "settings" && (
-          <div className="absolute inset-0 overflow-auto">
-            <SettingsView onOpenInertRecovery={openRecovery} />
+          <div className="absolute inset-0 overflow-auto bg-[var(--bg)]">
+            <SettingsView onOpenInertRecovery={openRecovery} focus={settingsFocus} />
           </div>
         )}
         {view === "onboarding" && (
-          <div className="absolute inset-0 overflow-auto">
+          <div className="absolute inset-0 overflow-auto bg-[var(--bg)]">
             <OnboardingView
               onDone={() => setView("editor")}
               onOpenInertRecovery={openRecovery}
@@ -426,6 +716,12 @@ export default function EditorPage() {
           </div>
         )}
       </main>
+      {wsConfig.enabled && view === "editor" && (
+        <WorkspaceBar
+          max={wsConfig.max}
+          onNew={() => useWorkspaces.getState().createEmpty(wsConfig.max)}
+        />
+      )}
       <Toaster
         theme="dark"
         position="bottom-center"
@@ -436,6 +732,32 @@ export default function EditorPage() {
         open={recoveryOpen}
         onClose={() => setRecoveryOpen(false)}
       />
+    </div>
+  );
+}
+
+/**
+ * What the History tab shows when the feature is switched off.
+ *
+ * The tab is present either way on purpose: capture history ships off, and a
+ * setting nobody can see is a setting nobody turns on. This is where they find
+ * out it exists.
+ */
+function HistoryOffNotice({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <div className="grid justify-items-center gap-2 px-2 py-6 text-center">
+      <span className="text-xs text-[var(--fg-2)]">History is off</span>
+      <span className="text-[11px] leading-relaxed text-[var(--fg-4)]">
+        Turn it on to keep a list of the screenshots you export, and optionally a
+        copy of every capture.
+      </span>
+      <button
+        type="button"
+        className="btn btn--secondary btn--sm mt-1"
+        onClick={onOpenSettings}
+      >
+        Open history settings
+      </button>
     </div>
   );
 }

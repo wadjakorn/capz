@@ -19,7 +19,8 @@
         "scope": [
           "$TEMP/**",
           "**/capz-temp-*.jpg",
-          "**/capz-temp-*.png"
+          "**/capz-temp-*.png",
+          "$APPDATA/workspaces/**"
         ]
       }
     }
