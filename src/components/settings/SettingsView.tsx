@@ -127,17 +127,51 @@ const TABS: TabDef[] = [
   { value: "updates", label: "Updates", icon: RefreshCw, tone: "cyan" },
 ];
 
+/** A specific setting to open on, rather than the default tab. */
+export type SettingsFocus = "history";
+
 type SettingsViewProps = {
   onOpenInertRecovery?: () => void;
+  /**
+   * Open straight at a particular setting.
+   *
+   * A prop rather than an event on purpose: the editor page renders this
+   * component, so it can simply say where to open. Routing that through
+   * `settings:focus-tab` meant emitting into a listener that had not been
+   * registered yet — the view mounts and then awaits two dynamic imports before
+   * it subscribes — so the message was dropped and the user landed on the
+   * default tab. The event listener stays for the tray/Rust deep link, which is
+   * genuinely cross-window.
+   */
+  focus?: SettingsFocus | null;
 };
 
 const IS_MAC = currentPlatform() === "mac";
 
-export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
+/** Which tab holds a given focus target. */
+const FOCUS_TAB: Record<SettingsFocus, TabValue> = { history: "general" };
+
+export function SettingsView({ onOpenInertRecovery, focus }: SettingsViewProps = {}) {
   const { config, ready, init, update, reset } = useSettings();
   const configSig = JSON.stringify(config);
   const firstSig = useRef<string | null>(null);
-  const [tab, setTab] = useState<TabValue>("shortcuts");
+  // Seeded from `focus` so the correct tab is on screen in the first render,
+  // with no flash of the default.
+  const [tab, setTab] = useState<TabValue>(() =>
+    focus ? FOCUS_TAB[focus] : "shortcuts",
+  );
+  const historyCardRef = useRef<HTMLDivElement>(null);
+
+  // Landing on the right tab is not enough: the history card is at the bottom
+  // of a long General tab, so without this the user arrives above the fold and
+  // has to go looking for what they asked for.
+  useEffect(() => {
+    if (focus !== "history" || !ready) return;
+    const id = requestAnimationFrame(() =>
+      historyCardRef.current?.scrollIntoView({ block: "center" }),
+    );
+    return () => cancelAnimationFrame(id);
+  }, [focus, ready]);
 
   useEffect(() => {
     init();
@@ -559,7 +593,7 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
             </SectionCard>
 
             <WorkspacesCard />
-            <CaptureHistoryCard />
+            <CaptureHistoryCard cardRef={historyCardRef} />
           </TabsContent>
         </main>
       </TabsPrimitive.Root>
@@ -567,9 +601,19 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
   );
 }
 
-function SectionCard({ children }: { children: React.ReactNode }) {
+function SectionCard({
+  children,
+  ref,
+}: {
+  children: React.ReactNode;
+  /** Lets a caller scroll a specific card into view. */
+  ref?: React.Ref<HTMLDivElement>;
+}) {
   return (
-    <div className="grid gap-4 rounded-2xl border border-border bg-foreground/[0.03] p-5">
+    <div
+      ref={ref}
+      className="grid gap-4 rounded-2xl border border-border bg-foreground/[0.03] p-5"
+    >
       {children}
     </div>
   );
@@ -867,12 +911,16 @@ function WorkspacesCard() {
 }
 
 /** Capture history (CP-0045) — desktop only; the web build has no file paths. */
-function CaptureHistoryCard() {
+function CaptureHistoryCard({
+  cardRef,
+}: {
+  cardRef?: React.Ref<HTMLDivElement>;
+}) {
   const { config, update } = useSettings();
   const h = config.history;
 
   return (
-    <SectionCard>
+    <SectionCard ref={cardRef}>
       <ToggleRow
         label="Remember saved files"
         checked={h.enabled}

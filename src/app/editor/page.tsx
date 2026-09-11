@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
-import { SettingsView } from "@/components/settings/SettingsView";
+import { SettingsView, type SettingsFocus } from "@/components/settings/SettingsView";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
@@ -41,6 +41,8 @@ export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
   const [view, setView] = useState<View>("editor");
+  /** Which setting to open Settings at, when something deep-links into it. */
+  const [settingsFocus, setSettingsFocus] = useState<SettingsFocus | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
@@ -596,12 +598,21 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col text-foreground">
       {view === "settings" ? (
-        <SubViewHeader title="Settings" onBack={() => setView("editor")} />
+        <SubViewHeader
+          title="Settings"
+          onBack={() => {
+            setSettingsFocus(null);
+            setView("editor");
+          }}
+        />
       ) : view === "onboarding" ? (
         <SubViewHeader title="Welcome" onBack={() => setView("editor")} />
       ) : (
         <Toolbar
-          onOpenSettings={() => setView("settings")}
+          onOpenSettings={() => {
+            setSettingsFocus(null);
+            setView("settings");
+          }}
           onNewWorkspace={
             wsConfig.enabled
               ? () => useWorkspaces.getState().createEmpty(wsConfig.max)
@@ -631,8 +642,17 @@ export default function EditorPage() {
             hidden rather than unmounted so a half-dragged slider or a scrolled
             history list survives a trip to another tab. Toolbar and EditorStage
             portal into the canvas and tool containers respectively. */}
+        {/* Hidden rather than unmounted off the editor view, the same way the
+            canvas column is: Toolbar captures the portal targets inside here
+            once, so unmounting would leave it holding detached nodes and the
+            panels would come back empty. */}
         <aside
           aria-label="Sidebar"
+          aria-hidden={view !== "editor"}
+          style={{
+            visibility: view === "editor" ? "visible" : "hidden",
+            pointerEvents: view === "editor" ? "auto" : "none",
+          }}
           className="flex h-full w-60 flex-none flex-col border-l border-[var(--border)] bg-[var(--surface-overlay)]"
         >
           {/* The hairline lives on this wrapper, not the tablist, so it spans
@@ -665,7 +685,12 @@ export default function EditorPage() {
                 onDropFile={onHistoryDrop}
               />
             ) : (
-              <HistoryOffNotice onOpenSettings={() => setView("settings")} />
+              <HistoryOffNotice
+                onOpenSettings={() => {
+                  setSettingsFocus("history");
+                  setView("settings");
+                }}
+              />
             )}
           </div>
           <div
@@ -678,12 +703,12 @@ export default function EditorPage() {
           </div>
         </aside>
         {view === "settings" && (
-          <div className="absolute inset-0 overflow-auto">
-            <SettingsView onOpenInertRecovery={openRecovery} />
+          <div className="absolute inset-0 overflow-auto bg-[var(--bg)]">
+            <SettingsView onOpenInertRecovery={openRecovery} focus={settingsFocus} />
           </div>
         )}
         {view === "onboarding" && (
-          <div className="absolute inset-0 overflow-auto">
+          <div className="absolute inset-0 overflow-auto bg-[var(--bg)]">
             <OnboardingView
               onDone={() => setView("editor")}
               onOpenInertRecovery={openRecovery}
@@ -729,12 +754,7 @@ function HistoryOffNotice({ onOpenSettings }: { onOpenSettings: () => void }) {
       <button
         type="button"
         className="btn btn--secondary btn--sm mt-1"
-        onClick={() => {
-          onOpenSettings();
-          void import("@tauri-apps/api/event").then(({ emit }) =>
-            emit("settings:focus-tab", "general"),
-          );
-        }}
+        onClick={onOpenSettings}
       >
         Open history settings
       </button>

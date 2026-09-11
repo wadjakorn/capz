@@ -170,16 +170,88 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
 
   const drag = usePointerDrag(openItem, hasImage);
 
+  // Two lines. A single row held the title, the count, three filter pills, the
+  // view switch and the kebab — roughly 286px of content in a 216px column, so
+  // it spilled past the sidebar's right edge. The title is gone entirely: the
+  // sidebar tab directly above already says History.
   const header = (
-    <div className="flex items-center gap-1.5 px-2 pb-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-2)] opacity-60">
-        History
-      </span>
-      <span className="text-[10px] text-[var(--fg-4)]">{items.length}</span>
-      <span className="flex-1" />
-      {archived.length > 0 && (
+    <div className="flex flex-col gap-1 px-2 pb-1">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-[var(--fg-4)]">
+          {items.length} {items.length === 1 ? "file" : "files"}
+        </span>
+        <span className="flex-1" />
         <div
           className="inline-flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5"
+          role="group"
+          aria-label="History view"
+        >
+          {([["list", List], ["grid", LayoutGrid]] as const).map(([v, Icon]) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              title={v === "list" ? "List" : "Thumbnails"}
+              onClick={() => setView(v)}
+              className={`grid h-[18px] w-5 place-items-center rounded transition-colors ${
+                view === v
+                  ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                  : "text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+              }`}
+            >
+              <Icon className="h-[11px] w-[11px]" aria-hidden />
+            </button>
+          ))}
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className="grid h-[18px] w-5 place-items-center rounded text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                title="History actions"
+                aria-label="History actions"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            }
+          />
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={!items.length}
+              onClick={() => {
+                const dir = dirName(items[0]?.path ?? "");
+                if (!dir) return;
+                void import("@tauri-apps/api/core").then(({ invoke }) =>
+                  invoke("reveal_in_finder", { path: dir }),
+                );
+              }}
+            >
+              <FolderOpen className="h-4 w-4" aria-hidden />
+              Open save folder
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!saved.length} onClick={() => clear()}>
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Clear list
+            </DropdownMenuItem>
+            {/* Separate from "Clear list" on purpose: that one only forgets
+                rows, this one deletes files the app owns. */}
+            <DropdownMenuItem
+              disabled={!archived.length}
+              onClick={() => setPendingArchiveWipe(true)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Delete archived captures…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Second line, and only when there is an archive to filter. With the
+          archive off this stays a single compact row. */}
+      {archived.length > 0 && (
+        <div
+          className="flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5"
           role="group"
           aria-label="History filter"
         >
@@ -195,7 +267,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               type="button"
               aria-pressed={filter === v}
               onClick={() => setFilter(v as HistoryFilter)}
-              className={`h-[18px] rounded px-1.5 text-[9px] font-medium transition-colors ${
+              className={`h-[18px] flex-1 rounded text-[9px] font-medium transition-colors ${
                 filter === v
                   ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                   : "text-[var(--fg-3)] hover:text-[var(--fg-2)]"
@@ -206,66 +278,6 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
           ))}
         </div>
       )}
-      <div className="inline-flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5" role="group" aria-label="History view">
-        {([["list", List], ["grid", LayoutGrid]] as const).map(([v, Icon]) => (
-          <button
-            key={v}
-            type="button"
-            aria-pressed={view === v}
-            title={v === "list" ? "List" : "Thumbnails"}
-            onClick={() => setView(v)}
-            className={`grid h-[18px] w-5 place-items-center rounded transition-colors ${
-              view === v
-                ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                : "text-[var(--fg-3)] hover:text-[var(--fg-2)]"
-            }`}
-          >
-            <Icon className="h-[11px] w-[11px]" aria-hidden />
-          </button>
-        ))}
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <button
-              type="button"
-              className="grid h-[18px] w-5 place-items-center rounded text-[var(--fg-3)] hover:text-[var(--fg-2)]"
-              title="History actions"
-              aria-label="History actions"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          }
-        />
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            disabled={!items.length}
-            onClick={() => {
-              const dir = dirName(items[0]?.path ?? "");
-              if (!dir) return;
-              void import("@tauri-apps/api/core").then(({ invoke }) =>
-                invoke("reveal_in_finder", { path: dir }),
-              );
-            }}
-          >
-            <FolderOpen className="h-4 w-4" aria-hidden />
-            Open save folder
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!saved.length} onClick={() => clear()}>
-            <Trash2 className="h-4 w-4" aria-hidden />
-            Clear list
-          </DropdownMenuItem>
-          {/* Separate from "Clear list" on purpose: that one only forgets rows,
-              this one deletes files the app owns. */}
-          <DropdownMenuItem
-            disabled={!archived.length}
-            onClick={() => setPendingArchiveWipe(true)}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden />
-            Delete archived captures…
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 
@@ -446,12 +458,14 @@ function HistoryRow({
       <div
         onPointerDown={onPointerDown}
         onDoubleClick={onDoubleClick}
-        className={`relative flex cursor-grab items-center gap-2 rounded-md px-1.5 py-1 transition-colors ${
-          selected ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-raised)]"
+        className={`relative flex cursor-grab items-center gap-2 px-1.5 py-1 transition-colors ${
+          selected
+            ? "rounded-t-md bg-[var(--accent-soft)]"
+            : "rounded-md hover:bg-[var(--surface-raised)]"
         }`}
       >
         {selected && (
-          <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-[var(--accent)]" aria-hidden />
+          <span className="absolute bottom-0 left-0 top-1 w-0.5 rounded-full bg-[var(--accent)]" aria-hidden />
         )}
         <span
           className={`h-[26px] w-10 flex-none overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-canvas)] ${
@@ -484,7 +498,19 @@ function HistoryRow({
           <AlertTriangle className="h-3 w-3 flex-none text-[var(--warning)]" aria-hidden />
         )}
       </div>
-      {selected && <div className="flex gap-0.5 pb-1.5 pl-[54px] pr-1.5 pt-0.5">{actions}</div>}
+      {/* Part of the selected row, not a separate tray: same background, same
+          left edge as the thumbnail, and the accent bar runs down both. It used
+          to be indented to the text column, which read as another column
+          entirely. */}
+      {selected && (
+        <div className="relative flex gap-0.5 rounded-b-md bg-[var(--accent-soft)] px-1.5 pb-1.5 pt-0.5">
+          <span
+            className="absolute bottom-1 left-0 top-0 w-0.5 rounded-full bg-[var(--accent)]"
+            aria-hidden
+          />
+          {actions}
+        </div>
+      )}
     </>
   );
 }
