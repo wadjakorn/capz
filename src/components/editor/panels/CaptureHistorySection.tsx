@@ -331,7 +331,9 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               onPointerDown={(e) => drag.start(e, item)}
               onDoubleClick={() => openItem(item)}
               title={item.fileName}
-              className={`relative aspect-[108/68] cursor-grab overflow-hidden rounded-md border bg-[var(--bg-canvas)] ${
+              // select-none, not preventDefault on pointerdown: suppressing the
+              // compatibility mouse events would take the dblclick with them.
+              className={`relative aspect-[108/68] cursor-grab select-none overflow-hidden rounded-md border bg-[var(--bg-canvas)] ${
                 selectedId === item.id
                   ? "border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]"
                   : "border-[var(--border)] hover:border-[var(--border-strong)]"
@@ -339,7 +341,12 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
             >
               {item.thumb ? (
                 // eslint-disable-next-line @next/next/no-img-element -- data URL thumbnail
-                <img src={item.thumb} alt="" className="h-full w-full object-contain" />
+                <img
+              src={item.thumb}
+              alt=""
+              draggable={false}
+              className="h-full w-full object-contain"
+            />
               ) : null}
               {item.missing ? (
                 <AlertTriangle className="absolute right-1 top-1 h-3 w-3 text-[var(--warning)]" aria-hidden />
@@ -458,7 +465,7 @@ function HistoryRow({
       <div
         onPointerDown={onPointerDown}
         onDoubleClick={onDoubleClick}
-        className={`relative flex cursor-grab items-center gap-2 px-1.5 py-1 transition-colors ${
+        className={`relative flex cursor-grab select-none items-center gap-2 px-1.5 py-1 transition-colors ${
           selected
             ? "rounded-t-md bg-[var(--accent-soft)]"
             : "rounded-md hover:bg-[var(--surface-raised)]"
@@ -474,7 +481,12 @@ function HistoryRow({
         >
           {item.thumb ? (
             // eslint-disable-next-line @next/next/no-img-element -- data URL thumbnail
-            <img src={item.thumb} alt="" className="h-full w-full object-contain" />
+            <img
+              src={item.thumb}
+              alt=""
+              draggable={false}
+              className="h-full w-full object-contain"
+            />
           ) : null}
         </span>
         <span className="min-w-0 flex-1">
@@ -532,6 +544,9 @@ function usePointerDrag(onDrop: (item: HistoryItem) => void, hasImage: boolean) 
     ghostRef.current?.remove();
     ghostRef.current = null;
     document.getElementById("canvas-drop-hint")?.setAttribute("data-on", "false");
+    // Release the document-wide selection lock taken while dragging.
+    document.body.style.removeProperty("user-select");
+    document.body.style.removeProperty("-webkit-user-select");
   }, []);
 
   useEffect(() => teardown, [teardown]);
@@ -548,12 +563,20 @@ function usePointerDrag(onDrop: (item: HistoryItem) => void, hasImage: boolean) 
         if (!st.live) {
           if (Math.hypot(ev.clientX - st.x, ev.clientY - st.y) < DRAG_THRESHOLD_PX) return;
           st.live = true;
+          // The row itself is select-none, but the pointer is about to travel
+          // over the canvas and toolbar, which are not. Without this the drag
+          // paints a selection highlight across whatever it passes over.
+          document.body.style.setProperty("user-select", "none");
+          document.body.style.setProperty("-webkit-user-select", "none");
+          // Any selection already begun before the threshold was crossed.
+          window.getSelection()?.removeAllRanges();
           const ghost = document.createElement("div");
           ghost.style.cssText =
             "position:fixed;z-index:9999;pointer-events:none;width:96px;height:60px;border-radius:8px;overflow:hidden;border:1px solid var(--accent);box-shadow:var(--elev-3);opacity:.9;background:var(--bg-canvas)";
           if (st.item.thumb) {
             const img = document.createElement("img");
             img.src = st.item.thumb;
+            img.draggable = false;
             img.style.cssText = "width:100%;height:100%;object-fit:contain";
             ghost.appendChild(img);
           }

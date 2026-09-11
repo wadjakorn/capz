@@ -335,7 +335,7 @@ function WorkspaceTile({
           }
         }}
         data-ws-control
-        className={`relative h-[62px] w-[100px] cursor-pointer overflow-hidden rounded-md border bg-[var(--bg-canvas)] transition-[opacity,transform,border-color] duration-150 focus-visible:outline-none ${
+        className={`relative h-[62px] w-[100px] cursor-pointer select-none overflow-hidden rounded-md border bg-[var(--bg-canvas)] transition-[opacity,transform,border-color] duration-150 focus-visible:outline-none ${
           active
             ? "translate-y-[-2px] border-[var(--accent)] opacity-100 shadow-[0_0_0_1px_var(--accent)]"
             : "border-[var(--border)] opacity-[.62] group-hover:border-[var(--border-strong)] group-hover:opacity-100"
@@ -343,7 +343,12 @@ function WorkspaceTile({
       >
         {doc.thumb ? (
           // eslint-disable-next-line @next/next/no-img-element -- data URL thumbnail
-          <img src={doc.thumb} alt="" className="h-full w-full object-contain" />
+          <img
+            src={doc.thumb}
+            alt=""
+            draggable={false}
+            className="h-full w-full object-contain"
+          />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 border border-dashed border-transparent text-[var(--fg-4)]">
             <ImageOff className="h-3.5 w-3.5" aria-hidden />
