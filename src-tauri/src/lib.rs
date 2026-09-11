@@ -164,6 +164,7 @@ pub fn run() {
             commands::pickers::capture_window_command,
             commands::output::default_save_dir,
             commands::output::reveal_in_finder,
+            commands::output::reveal_file_in_finder,
             commands::output::trash_file,
             commands::workspaces::persist_workspace_image,
             commands::workspaces::delete_workspace_image,

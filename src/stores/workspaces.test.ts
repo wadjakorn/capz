@@ -65,6 +65,36 @@ describe("workspace ordering", () => {
   });
 });
 
+describe("adoptCapture dedupe", () => {
+  beforeEach(reset);
+
+  // Regression: one capture used to produce two workspaces. Two code paths can
+  // deliver the same capture almost simultaneously — the `editor:load-image`
+  // event and the startup `editor_current_image` probe — so the store has to be
+  // the thing that refuses the second one.
+  it("adopts a given source path only once", async () => {
+    const first = await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "window", "new", MAX);
+    const second = await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "window", "new", MAX);
+    expect(first).toBeTruthy();
+    expect(second).toBeNull();
+    expect(useWorkspaces.getState().order).toHaveLength(1);
+  });
+
+  it("still accepts a different capture", async () => {
+    await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "window", "new", MAX);
+    await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-2.png", "window", "new", MAX);
+    expect(useWorkspaces.getState().order).toHaveLength(2);
+  });
+
+  it("does not block a repeat once the first workspace is closed", async () => {
+    const id = await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "area", "new", MAX);
+    useWorkspaces.getState().close(id as string);
+    const again = await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "area", "new", MAX);
+    expect(again).toBeTruthy();
+    expect(useWorkspaces.getState().order).toHaveLength(1);
+  });
+});
+
 describe("closing", () => {
   beforeEach(reset);
 

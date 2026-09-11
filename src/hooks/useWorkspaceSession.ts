@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useEditor } from "@/stores/editor";
 import { useOcr } from "@/stores/ocr";
 import { isTauriRuntime } from "@/lib/platform";
-import { onStageImageSize } from "@/lib/stageBridge";
+import { onStageImageReady } from "@/lib/stageBridge";
 import {
   renderThumb,
   restoreHistory,
@@ -122,17 +122,34 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
       // user can return to.
       if (path) useOcr.getState().setKey(path);
 
-      const off = onStageImageSize(() => {
+      let settled = false;
+      const settle = (ready: boolean) => {
+        if (settled) return;
+        settled = true;
         off();
-        restoreScroll(doc.scroll);
+        clearTimeout(timer);
         useWorkspaces.getState().setSwapping(false);
-      });
-      // Safety net: if the image fails to decode the listener never fires and
-      // the editor would stay stuck in `swapping` (no thumbnails, no export).
-      const timer = setTimeout(() => {
-        off();
-        useWorkspaces.getState().setSwapping(false);
-      }, 4000);
+        if (!ready) return;
+        // EditorStage resets displayScale to the 0 sentinel on every new image
+        // (it has to — the fit effect keys off that), and the fit runs on the
+        // following render. Wait a frame, then put this workspace's own view
+        // back over the top of the fit.
+        requestAnimationFrame(() => {
+          if (doc.userZoomed && doc.displayScale > 0) {
+            useEditor.getState().setDisplayScale(doc.displayScale);
+          }
+          restoreScroll(doc.scroll);
+          // Give the workspace a tile picture straight away. Without this a
+          // workspace you capture into and leave without editing has no
+          // thumbnail until you come back to it.
+          useWorkspaces.getState().setThumb(doc.id, renderThumb());
+        });
+      };
+
+      const off = onStageImageReady(() => settle(true));
+      // Safety net: if the image fails to decode the signal never fires and the
+      // editor would stay stuck in `swapping` (no thumbnails, no export).
+      const timer = setTimeout(() => settle(false), 4000);
       cleanupRef.current = () => {
         off();
         clearTimeout(timer);
@@ -154,6 +171,11 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
         timer = null;
         const { activeId: id, swapping, setThumb } = useWorkspaces.getState();
         if (!id || swapping) return;
+        // Skip while something is selected: the Transformer's handles live in
+        // the exported layer, so they would be baked into the tile. The
+        // selection always clears eventually, and the image-ready thumbnail
+        // above is taken with nothing selected.
+        if (useEditor.getState().selectedId) return;
         setThumb(id, renderThumb());
       }, THUMB_DEBOUNCE_MS);
     };

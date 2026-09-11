@@ -35,25 +35,34 @@ export function runPrepareExport(): void {
 }
 
 /**
- * Fires whenever the stage publishes a base-image size — i.e. a new image has
- * finished decoding. Workspace swapping needs this: EditorStage is not
- * remounted when `src` changes, so until the new bitmap lands `imageSize` and
- * `exportBox` still describe the PREVIOUS workspace's image. Anything that
- * measures the stage (scroll restore, thumbnails, export) has to wait for it.
+ * Fires when the stage has finished decoding a NEW base image.
+ *
+ * Workspace swapping needs this: EditorStage is not remounted when `src`
+ * changes, so until the new bitmap lands `imageSize` and `exportBox` still
+ * describe the PREVIOUS workspace's image. Anything that measures the stage
+ * (scroll restore, thumbnails, export) has to wait for it.
+ *
+ * Keyed off the image object, NOT its dimensions — two captures of the same
+ * window are the same pixel size, and a size-keyed signal simply never fires
+ * for them, leaving a swap stuck "in progress".
  */
-type ImageSizeListener = (size: { w: number; h: number }) => void;
-const imageSizeListeners = new Set<ImageSizeListener>();
+type ImageReadyListener = () => void;
+const imageReadyListeners = new Set<ImageReadyListener>();
 
-export function onStageImageSize(fn: ImageSizeListener): () => void {
-  imageSizeListeners.add(fn);
+export function onStageImageReady(fn: ImageReadyListener): () => void {
+  imageReadyListeners.add(fn);
   return () => {
-    imageSizeListeners.delete(fn);
+    imageReadyListeners.delete(fn);
   };
+}
+
+/** Called by EditorStage once a new base image has decoded. */
+export function notifyStageImageReady() {
+  for (const fn of [...imageReadyListeners]) fn();
 }
 
 export function setStageImageSize(w: number, h: number) {
   imageSize = { w, h };
-  for (const fn of imageSizeListeners) fn({ w, h });
 }
 
 export function clearStageImageSize() {

@@ -210,8 +210,10 @@ export default function EditorPage() {
   // path and workspaces.json. When the feature is on and has any workspace,
   // the store wins and useWorkspaceSession does the loading; otherwise this is
   // unchanged from the single-workspace behaviour.
+  const startupAdoptedRef = useRef(false);
   useEffect(() => {
-    if (!configReady) return;
+    if (!configReady || startupAdoptedRef.current) return;
+    startupAdoptedRef.current = true;
     (async () => {
       if (wsConfig.enabled) {
         await useWorkspaces.getState().init(true);
@@ -263,11 +265,22 @@ export default function EditorPage() {
     });
   }, [configReady, configIssues, resetSettings]);
 
+  // Read through a ref so this subscribes exactly once. Depending on the
+  // callback would re-run the effect whenever settings load (validateConfig
+  // rebuilds every section, so `config.workspaces` gets a new identity) — and
+  // re-running it while `listen()` is still pending leaks the old listener,
+  // which is how one capture ended up creating two workspaces.
+  const captureHandlerRef = useRef(handleIncomingCapture);
+  useEffect(() => {
+    captureHandlerRef.current = handleIncomingCapture;
+  }, [handleIncomingCapture]);
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen<
+      const stop = await listen<
         string | { path: string; source?: CaptureSource; asLayer?: boolean }
       >(
         "editor:load-image",
@@ -275,22 +288,30 @@ export default function EditorPage() {
           // Payload is `{ path, source, asLayer }`; tolerate a bare string (legacy).
           const p = e.payload;
           if (typeof p === "string") {
-            handleIncomingCapture(p);
+            captureHandlerRef.current(p);
           } else {
-            handleIncomingCapture(p.path, p.source ?? "other", p.asLayer ?? false);
+            captureHandlerRef.current(p.path, p.source ?? "other", p.asLayer ?? false);
           }
           setView("editor");
         },
       );
+      // Unmounted while listen() was in flight: the cleanup below ran with
+      // nothing to call, so retire the listener here instead of leaking it.
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
-  }, [handleIncomingCapture]);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen("editor:clear", () => {
+      const stop = await listen("editor:clear", () => {
         // "Clear workspace" empties the canvas but keeps the tile — closing a
         // workspace is the tile's ✕. See docs/design/MULTI-WORKSPACE.md §6.2.
         if (useSettings.getState().config.workspaces.enabled) {
@@ -299,44 +320,62 @@ export default function EditorPage() {
         }
         void applyFile(null);
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, [applyFile]);
 
   // Deep-link from tray/Rust/toast: open settings view, optionally focus a tab.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen, emit } = await import("@tauri-apps/api/event");
-      unlisten = await listen<string | null>("editor:show-settings", (e) => {
+      const stop = await listen<string | null>("editor:show-settings", (e) => {
         setView("settings");
         const tab = e.payload;
         if (typeof tab === "string" && tab.length > 0) {
           void emit("settings:focus-tab", tab);
         }
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   // Deep-link: open onboarding view (first launch + Settings "Re-run").
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen("editor:show-onboarding", () => {
+      const stop = await listen("editor:show-onboarding", () => {
         setView("onboarding");
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const win = getCurrentWindow();
-      unlisten = await win.onCloseRequested((e) => {
+      const stop = await win.onCloseRequested((e) => {
         e.preventDefault();
         void (async () => {
           const { runPreCloseAction } = await import("@/lib/preClose");
@@ -344,8 +383,13 @@ export default function EditorPage() {
           await win.hide();
         })();
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -431,9 +475,10 @@ export default function EditorPage() {
   // drag-drop events because the editor window has drag_drop_enabled.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-      unlisten = await getCurrentWebview().onDragDropEvent((event) => {
+      const stop = await getCurrentWebview().onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
         const paths = event.payload.paths ?? [];
         void (async () => {
@@ -454,8 +499,13 @@ export default function EditorPage() {
           }
         })();
       });
+      if (cancelled) stop();
+      else unlisten = stop;
     })();
-    return () => unlisten?.();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   // Tag the document with the OS for OS-specific behaviour.

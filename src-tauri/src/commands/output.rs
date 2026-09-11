@@ -11,7 +11,9 @@ pub fn default_save_dir(app: AppHandle) -> Result<String, String> {
     Ok(dir.to_string_lossy().to_string())
 }
 
-/// Open the given directory in Finder (macOS) or Explorer (Windows).
+/// Open the given DIRECTORY in Finder (macOS) or Explorer (Windows), showing
+/// its contents. For a file, use `reveal_file_in_finder` instead — plain `open`
+/// on a file hands it to the default app (Preview) rather than revealing it.
 #[tauri::command]
 pub fn reveal_in_finder(path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
@@ -26,6 +28,41 @@ pub fn reveal_in_finder(path: String) -> Result<(), String> {
     {
         std::process::Command::new("explorer")
             .arg(&p)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = p;
+        return Err("unsupported platform".into());
+    }
+    Ok(())
+}
+
+/// Reveal a FILE in Finder / Explorer with the file itself selected.
+///
+/// Deliberately a separate command from `reveal_in_finder` rather than a flag:
+/// the two are not interchangeable. `open -R` on a *directory* reveals it inside
+/// its parent, which is the opposite of what the settings rows and the history
+/// menu's "Open save folder" want.
+#[tauri::command]
+pub fn reveal_file_in_finder(path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&p)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // `/select,<path>` must be one argument with no space after the comma;
+        // Explorer parses it as a single switch and silently opens the user's
+        // Documents folder if the path is passed separately.
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", p.display()))
             .spawn()
             .map_err(|e| e.to_string())?;
     }

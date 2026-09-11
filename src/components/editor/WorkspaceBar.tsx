@@ -139,7 +139,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
         role="tablist"
         aria-label="Workspaces"
         className={`flex flex-none items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-overlay)] transition-[height,padding] duration-150 ${
-          full ? "h-[84px] px-2.5 py-2" : "h-[30px] px-2.5"
+          full ? "h-[84px] px-2.5" : "h-[30px] px-2.5"
         }`}
         style={{ touchAction: "pan-x" }}
         onDoubleClick={(e) => {
@@ -147,7 +147,11 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
           toggle();
         }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          className={`flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+            full ? "py-1.5" : ""
+          }`}
+        >
           {tiles.map(({ id, i, doc }) =>
             full ? (
               <WorkspaceTile
@@ -313,8 +317,12 @@ function WorkspaceTile({
   onSelect: () => void;
   onClose: () => void;
 }) {
+  // One flex child, exactly 62px tall — the same height as the New tile. The
+  // caption used to sit below the tile in a column wrapper, which made this
+  // item ~77px while New stayed 62px; `items-center` then centred the two at
+  // different offsets and the taller one spilled out of the strip's scroll box.
   return (
-    <div className="group flex flex-none flex-col items-center gap-0.5">
+    <div className="group relative flex-none">
       <div
         role="tab"
         tabIndex={active ? 0 : -1}
@@ -355,10 +363,20 @@ function WorkspaceTile({
 
         {edited && (
           <span
-            className="absolute bottom-1.5 right-1.5 h-[5px] w-[5px] rounded-full bg-[var(--accent)] shadow-[0_0_0_2px_rgba(0,0,0,.35)]"
+            className="absolute bottom-1.5 right-1.5 z-10 h-[5px] w-[5px] rounded-full bg-[var(--accent)] shadow-[0_0_0_2px_rgba(0,0,0,.35)]"
             aria-hidden
           />
         )}
+
+        {/* Caption rides inside the tile on a scrim, so it costs no layout
+            height. `pr-5` keeps it clear of the edit dot. */}
+        <span
+          className={`absolute inset-x-0 bottom-0 block truncate bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-0.5 pt-2 text-[9px] text-white/85 transition-opacity ${
+            active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          } ${edited ? "pr-5" : ""}`}
+        >
+          {caption(doc)}
+        </span>
 
         <button
           type="button"
@@ -374,13 +392,6 @@ function WorkspaceTile({
           <X className="h-2.5 w-2.5" aria-hidden />
         </button>
       </div>
-      <span
-        className={`whitespace-nowrap text-[10px] text-[var(--fg-4)] transition-opacity ${
-          active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}
-      >
-        {caption(doc)}
-      </span>
     </div>
   );
 }

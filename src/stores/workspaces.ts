@@ -37,6 +37,12 @@ export type WorkspaceDoc = EditorDoc & {
   updatedAt: number;
   /** Absent while the workspace is empty (created by hand, or cleared). */
   image: WorkspaceImage | null;
+  /**
+   * The temp path the capture arrived on, before it was copied somewhere
+   * durable. Kept solely so the same capture cannot be adopted twice — the
+   * durable copy gets a fresh name per workspace, so it cannot serve as the key.
+   */
+  sourcePath?: string;
   /** Data URL, ~160px wide. Empty until the first thumbnail is rendered. */
   thumb: string;
   /**
@@ -207,6 +213,7 @@ function reviveDoc(raw: unknown): WorkspaceDoc | null {
     updatedAt: typeof o.updatedAt === "number" ? o.updatedAt : Date.now(),
     image,
     thumb: typeof o.thumb === "string" ? o.thumb : "",
+    sourcePath: typeof o.sourcePath === "string" ? o.sourcePath : undefined,
     annotations: Array.isArray(o.annotations) ? (o.annotations as Annotation[]) : [],
     nextPinNumber: typeof o.nextPinNumber === "number" ? o.nextPinNumber : 1,
     imageCrop: validCrop,
@@ -239,12 +246,19 @@ export function renderThumb(maxWidth = 160): string {
   const box = getStageExportBox();
   if (!stage || !box || box.w <= 0 || box.h <= 0) return "";
   try {
+    // Same geometry as exportRegion() in lib/exportImage.ts, and for the same
+    // reason: the stage's offsetX/Y pin the content box to stage-local (0, 0),
+    // so the region is (0, 0, w*scale, h*scale) — NOT the box's image-space
+    // origin. Passing box.x/box.y here crops the wrong part of the canvas at
+    // any zoom other than 100%.
+    const scale = stage.scaleX() || 1;
     return stage.toDataURL({
-      x: box.x,
-      y: box.y,
-      width: box.w,
-      height: box.h,
-      pixelRatio: Math.min(1, maxWidth / box.w),
+      x: 0,
+      y: 0,
+      width: box.w * scale,
+      height: box.h * scale,
+      // Output lands at `maxWidth` px wide: (box.w * scale) * pixelRatio.
+      pixelRatio: maxWidth / box.w / scale,
       mimeType: "image/jpeg",
       quality: 0.6,
     });
@@ -332,6 +346,11 @@ export const useWorkspaces = create<State>((set, get) => ({
   },
 
   adoptCapture: async (path, source, mode, max) => {
+    // Adopt-once. Two independent paths can deliver the same capture almost
+    // simultaneously — the `editor:load-image` event and the startup
+    // `editor_current_image` probe — and each one used to mint a workspace.
+    const { order, docs } = get();
+    if (order.some((wid) => docs[wid]?.sourcePath === path)) return null;
     const id = uid();
     let image: WorkspaceImage = { kind: "file", path };
     if (isTauriRuntime()) {
@@ -347,8 +366,14 @@ export const useWorkspaces = create<State>((set, get) => ({
         console.error("persist_workspace_image failed", e);
       }
     }
-    if (mode === "replace" && get().activeId) return replaceActive(set, get, image, source);
-    return addWorkspace(set, get, { image, captureSource: source, id }, max);
+    if (mode === "replace" && get().activeId)
+      return replaceActive(set, get, image, source, path);
+    return addWorkspace(
+      set,
+      get,
+      { image, captureSource: source, id, sourcePath: path },
+      max,
+    );
   },
 
   adoptBlob: (url, max) =>
@@ -474,7 +499,9 @@ export const useWorkspaces = create<State>((set, get) => ({
 // helpers used by the actions above
 // ---------------------------------------------------------------------------
 
-type NewDocSeed = Partial<Pick<WorkspaceDoc, "image" | "captureSource">> & { id?: string };
+type NewDocSeed = Partial<
+  Pick<WorkspaceDoc, "image" | "captureSource" | "sourcePath">
+> & { id?: string };
 
 /**
  * Append a workspace, evicting the oldest when `max` is reached.
@@ -498,6 +525,7 @@ function addWorkspace(
     ...emptyDoc(id),
     image: seed.image ?? null,
     captureSource: seed.captureSource ?? "other",
+    sourcePath: seed.sourcePath,
   };
   let nextOrder = [...order, id];
   const nextDocs = { ...docs, [id]: doc };
@@ -522,6 +550,7 @@ function replaceActive(
   get: () => State,
   image: WorkspaceImage,
   source: CaptureSource,
+  sourcePath?: string,
 ): string | null {
   const { activeId, docs } = get();
   if (!activeId || !docs[activeId]) return null;
@@ -537,6 +566,7 @@ function replaceActive(
         createdAt: prev.createdAt,
         image,
         captureSource: source,
+        sourcePath,
       },
     },
     swapping: true,

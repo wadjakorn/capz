@@ -58,7 +58,9 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
   const reveal = useCallback(async (item: HistoryItem) => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("reveal_in_finder", { path: item.path });
+      // reveal_file_in_finder, not reveal_in_finder: the latter OPENS its
+      // argument, which for a file means handing it to Preview.
+      await invoke("reveal_file_in_finder", { path: item.path });
     } catch (e) {
       console.error("reveal failed", e);
       toast.error("Couldn't open the folder");

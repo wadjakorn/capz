@@ -45,6 +45,7 @@ import {
   runPrepareExport,
   setPrepareExport,
   setStageImageSize,
+  notifyStageImageReady,
   clearStageImageSize,
   setStageExportBox,
   setScrollContainer,
@@ -765,6 +766,10 @@ export function EditorStage({ src }: Props) {
     if (prevImageRef.current === image) return;
     prevImageRef.current = image;
     setDisplayScale(0);
+    // Tell the workspace layer a NEW bitmap has landed. Keyed off the image
+    // object, not its size: two captures of the same window share dimensions,
+    // and a size-keyed signal would never fire for the second one.
+    notifyStageImageReady();
   }, [image, setDisplayScale]);
 
   // Publish the native image size for the export pipeline.
