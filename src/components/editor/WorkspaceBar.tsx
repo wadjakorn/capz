@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useEditor } from "@/stores/editor";
 import {
   barModeFor,
   hasEdits,
@@ -72,6 +73,14 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
   const closeOthers = useWorkspaces((s) => s.closeOthers);
   const reopenLastClosed = useWorkspaces((s) => s.reopenLastClosed);
   const lastClosed = useWorkspaces((s) => s.lastClosed);
+  /**
+   * The active workspace's doc is only refreshed on commit (a swap or a window
+   * blur), so reading `hasEdits` from it would leave the active tile's dot
+   * stale until the user left. Read the live editor for that one tile instead.
+   */
+  const activeHasEdits = useEditor(
+    (s) => s.annotations.length > 0 || s.imageCrop !== null,
+  );
 
   const [pendingClose, setPendingClose] = useState<string | null>(null);
   const mode = barModeFor(order, barPref);
@@ -92,7 +101,11 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
 
   const requestClose = useCallback(
     (id: string) => {
-      if (hasEdits(docs[id])) {
+      // Commit first when closing the one being edited: the dialog quotes the
+      // annotation count from the stored doc, and the undo snapshot is taken
+      // from it too — both would otherwise be one edit behind.
+      if (id === activeId) useWorkspaces.getState().commitActive();
+      if (id === activeId ? activeHasEdits : hasEdits(docs[id])) {
         setPendingClose(id);
         return;
       }
@@ -103,7 +116,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
         action: { label: "Undo", onClick: () => reopenLastClosed() },
       });
     },
-    [close, docs, reopenLastClosed],
+    [close, docs, reopenLastClosed, activeId, activeHasEdits],
   );
 
   const pendingDoc = pendingClose ? docs[pendingClose] : undefined;
@@ -142,6 +155,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
                 doc={doc}
                 index={i}
                 active={id === activeId}
+                edited={id === activeId ? activeHasEdits : hasEdits(doc)}
                 onSelect={() => switchTo(id)}
                 onClose={() => requestClose(id)}
               />
@@ -287,12 +301,15 @@ function WorkspaceTile({
   doc,
   index,
   active,
+  edited,
   onSelect,
   onClose,
 }: {
   doc: WorkspaceDoc;
   index: number;
   active: boolean;
+  /** Whether this workspace holds work — live for the active tile. */
+  edited: boolean;
   onSelect: () => void;
   onClose: () => void;
 }) {
@@ -336,7 +353,7 @@ function WorkspaceTile({
           {index + 1}
         </span>
 
-        {hasEdits(doc) && (
+        {edited && (
           <span
             className="absolute bottom-1.5 right-1.5 h-[5px] w-[5px] rounded-full bg-[var(--accent)] shadow-[0_0_0_2px_rgba(0,0,0,.35)]"
             aria-hidden

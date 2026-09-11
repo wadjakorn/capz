@@ -39,6 +39,19 @@ export type WorkspaceSessionOptions = {
 export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessionOptions) {
   const activeId = useWorkspaces((s) => s.activeId);
   const ready = useWorkspaces((s) => s.ready);
+  /**
+   * Identity of the active workspace's image.
+   *
+   * Watching `activeId` alone is not enough: replacing a capture, clearing a
+   * workspace or the web build's paste all swap the image *within* the active
+   * workspace, and the canvas has to follow. Selecting a plain string keeps
+   * this from re-firing on every annotation.
+   */
+  const activeImageKey = useWorkspaces((s) => {
+    const doc = s.activeId ? s.docs[s.activeId] : undefined;
+    if (!doc?.image) return "";
+    return doc.image.kind === "file" ? doc.image.path : doc.image.url;
+  });
   const setHasImage = useEditor((s) => s.setHasImage);
   const loadedKeyRef = useRef<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -57,9 +70,7 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
 
     // Guard against re-running for the same (workspace, image) pair: the store
     // updates on every annotation, and reloading `src` would reset the stage.
-    const key = `${activeId ?? ""}|${
-      doc?.image ? (doc.image.kind === "file" ? doc.image.path : doc.image.url) : ""
-    }`;
+    const key = `${activeId ?? ""}|${activeImageKey}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
 
@@ -131,7 +142,7 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
     return () => {
       cancelled = true;
     };
-  }, [activeId, enabled, ready, setFile, setSrc, setHasImage]);
+  }, [activeId, activeImageKey, enabled, ready, setFile, setSrc, setHasImage]);
 
   // --- live tile thumbnails -------------------------------------------------
   useEffect(() => {
