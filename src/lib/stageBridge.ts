@@ -61,6 +61,38 @@ export function notifyStageImageReady() {
   for (const fn of [...imageReadyListeners]) fn();
 }
 
+/**
+ * The view a restored workspace should open at, handed to EditorStage before
+ * its `src` changes.
+ *
+ * Exists so exactly ONE piece of code decides where a newly-loaded image sits.
+ * EditorStage fits and centres a new image across two nested animation frames;
+ * restoring a workspace's own zoom and pan from outside meant writing the same
+ * scroll position a frame earlier and watching the centring overwrite it — the
+ * canvas visibly slid. Now the restore is an input to that decision rather than
+ * a competitor to it.
+ *
+ * Consumed once and cleared: a plain capture leaves it null and fits as always.
+ */
+export type PendingView = {
+  /** Zoom to open at. 0 means "fit", the same sentinel displayScale uses. */
+  scale: number;
+  scroll: { left: number; top: number };
+};
+
+let pendingView: PendingView | null = null;
+
+export function setPendingView(view: PendingView | null) {
+  pendingView = view;
+}
+
+/** Read and clear the pending view. */
+export function takePendingView(): PendingView | null {
+  const v = pendingView;
+  pendingView = null;
+  return v;
+}
+
 export function setStageImageSize(w: number, h: number) {
   imageSize = { w, h };
 }

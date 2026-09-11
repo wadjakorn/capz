@@ -191,6 +191,55 @@ describe("commitActive", () => {
   });
 });
 
+describe("persistence", () => {
+  beforeEach(reset);
+
+  // Regression: annotations used to reach the store only on a swap or a window
+  // blur, so drawing and then quitting lost them. The periodic commit is what
+  // closes that, and these pin the contract it relies on.
+  it("commitActive captures edits made since the last commit", () => {
+    const a = add();
+    expect(useWorkspaces.getState().docs[a].annotations).toHaveLength(0);
+    useEditor.getState().add({
+      id: "r1",
+      type: "rect",
+      x: 0, y: 0, w: 1, h: 1,
+      stroke: "#fff",
+      strokeWidth: 1,
+    });
+    // Still nothing on the doc — the editor is the live copy.
+    expect(useWorkspaces.getState().docs[a].annotations).toHaveLength(0);
+    useWorkspaces.getState().commitActive();
+    expect(useWorkspaces.getState().docs[a].annotations).toHaveLength(1);
+  });
+
+  it("commitActive is idempotent", () => {
+    const a = add();
+    useEditor.getState().add({
+      id: "r1",
+      type: "rect",
+      x: 0, y: 0, w: 1, h: 1,
+      stroke: "#fff",
+      strokeWidth: 1,
+    });
+    useWorkspaces.getState().commitActive();
+    useWorkspaces.getState().commitActive();
+    expect(useWorkspaces.getState().docs[a].annotations).toHaveLength(1);
+  });
+
+  it("commitActive is a no-op with no active workspace", () => {
+    expect(() => useWorkspaces.getState().commitActive()).not.toThrow();
+    expect(useWorkspaces.getState().docs).toEqual({});
+  });
+
+  // isTauriRuntime() is false under vitest, so the write short-circuits — what
+  // matters here is that it resolves rather than hanging a close handler.
+  it("flushPersist resolves off the desktop", async () => {
+    add();
+    await expect(useWorkspaces.getState().flushPersist()).resolves.toBeUndefined();
+  });
+});
+
 describe("barModeFor", () => {
   it("hides the bar until there is something to switch between", () => {
     expect(barModeFor([], "full")).toBe("hidden");

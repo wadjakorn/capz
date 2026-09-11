@@ -46,10 +46,17 @@ export type WorkspaceDoc = EditorDoc & {
   /** Data URL, ~160px wide. Empty until the first thumbnail is rendered. */
   thumb: string;
   /**
-   * Pan position. Lives on the DOM scroll container rather than in `useEditor`,
-   * so it is captured and restored here instead of riding along in EditorDoc.
+   * Pan position, or null for a workspace that has never been on screen.
+   *
+   * The distinction matters: a fresh workspace's scroll is legitimately 0,0,
+   * and treating that as "restore to 0,0" pins a new capture to the top-left
+   * instead of letting EditorStage centre it. Null means "no opinion — fit and
+   * centre as usual".
+   *
+   * Lives on the DOM scroll container rather than in `useEditor`, so it is
+   * captured and restored here instead of riding along in EditorDoc.
    */
-  scroll: { left: number; top: number };
+  scroll: { left: number; top: number } | null;
 };
 
 /** Three heights, one value: `hidden` is derived, never chosen by the user. */
@@ -102,6 +109,13 @@ type State = {
   setThumb: (id: string, thumb: string) => void;
   setBarPref: (pref: Exclude<BarMode, "hidden">, userSet?: boolean) => void;
   setSwapping: (v: boolean) => void;
+  /**
+   * Write to disk immediately, cancelling any pending debounce.
+   *
+   * `schedulePersist` waits 800ms, which is fine while the app is running and
+   * useless when it is about to stop. Called on window blur and on close.
+   */
+  flushPersist: () => Promise<void>;
   /** Drop every workspace but the active one (turning the feature off). */
   collapseToActive: () => void;
 };
@@ -130,7 +144,7 @@ const emptyDoc = (id: string): WorkspaceDoc => ({
   captureSource: "other",
   displayScale: 0,
   userZoomed: false,
-  scroll: { left: 0, top: 0 },
+  scroll: null,
 });
 
 /** Whether a doc holds work the user would miss. Drives the confirm dialog. */
@@ -229,7 +243,7 @@ function reviveDoc(raw: unknown): WorkspaceDoc | null {
       typeof (o.scroll as Record<string, unknown>).left === "number" &&
       typeof (o.scroll as Record<string, unknown>).top === "number"
         ? (o.scroll as { left: number; top: number })
-        : { left: 0, top: 0 },
+        : null,
   };
 }
 
@@ -493,6 +507,14 @@ export const useWorkspaces = create<State>((set, get) => ({
   },
 
   setSwapping: (v) => set({ swapping: v }),
+
+  flushPersist: async () => {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    await persistNow();
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -634,11 +656,3 @@ export function barModeFor(order: string[], pref: Exclude<BarMode, "hidden">): B
   return order.length <= 1 ? "hidden" : pref;
 }
 
-/** Restore a workspace's scroll offset once its bitmap has actually decoded. */
-export function restoreScroll(scroll: { left: number; top: number } | undefined) {
-  if (!scroll) return;
-  const el = getScrollContainer();
-  if (!el) return;
-  el.scrollLeft = scroll.left;
-  el.scrollTop = scroll.top;
-}

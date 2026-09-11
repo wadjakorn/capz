@@ -5,13 +5,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { useEditor } from "@/stores/editor";
 import { useOcr } from "@/stores/ocr";
 import { isTauriRuntime } from "@/lib/platform";
-import { onStageImageReady } from "@/lib/stageBridge";
-import {
-  renderThumb,
-  restoreHistory,
-  restoreScroll,
-  useWorkspaces,
-} from "@/stores/workspaces";
+import { onStageImageReady, setPendingView } from "@/lib/stageBridge";
+import { restoreHistory, useWorkspaces } from "@/stores/workspaces";
 
 /** How long after the last edit a workspace's tile thumbnail is re-rendered. */
 const THUMB_DEBOUNCE_MS = 500;
@@ -89,6 +84,20 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
       // Hydrate first so the restored zoom is in place before the image lands.
       useEditor.getState().hydrate(doc);
       restoreHistory(doc.id);
+      // Hand EditorStage the view this workspace was left at. It decides where
+      // a new image opens; writing the scroll ourselves afterwards raced its
+      // centring and the canvas visibly slid.
+      // Only when this workspace has actually been on screen. A never-viewed
+      // one has no scroll to restore and should fit and centre like any new
+      // capture.
+      setPendingView(
+        doc.image && doc.scroll
+          ? {
+              scale: doc.userZoomed ? doc.displayScale : 0,
+              scroll: doc.scroll,
+            }
+          : null,
+      );
 
       if (!doc.image) {
         setFile(null);
@@ -130,20 +139,10 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
         clearTimeout(timer);
         useWorkspaces.getState().setSwapping(false);
         if (!ready) return;
-        // EditorStage resets displayScale to the 0 sentinel on every new image
-        // (it has to — the fit effect keys off that), and the fit runs on the
-        // following render. Wait a frame, then put this workspace's own view
-        // back over the top of the fit.
-        requestAnimationFrame(() => {
-          if (doc.userZoomed && doc.displayScale > 0) {
-            useEditor.getState().setDisplayScale(doc.displayScale);
-          }
-          restoreScroll(doc.scroll);
-          // Give the workspace a tile picture straight away. Without this a
-          // workspace you capture into and leave without editing has no
-          // thumbnail until you come back to it.
-          useWorkspaces.getState().setThumb(doc.id, renderThumb());
-        });
+        // Give the workspace a tile picture straight away. Without this a
+        // workspace you capture into and leave without editing has no
+        // thumbnail until you come back to it.
+        useWorkspaces.getState().commitActive();
       };
 
       const off = onStageImageReady(() => settle(true));
@@ -169,21 +168,27 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
-        const { activeId: id, swapping, setThumb } = useWorkspaces.getState();
+        const { activeId: id, swapping } = useWorkspaces.getState();
         if (!id || swapping) return;
         // Skip while something is selected: the Transformer's handles live in
         // the exported layer, so they would be baked into the tile. The
-        // selection always clears eventually, and the image-ready thumbnail
-        // above is taken with nothing selected.
+        // selection always clears eventually, and the image-ready commit above
+        // is taken with nothing selected.
         if (useEditor.getState().selectedId) return;
-        setThumb(id, renderThumb());
+        // Commit, not just the thumbnail. Annotations used to reach the store
+        // only on a swap or a window blur, so drawing and then quitting lost
+        // them; commitActive renders the thumbnail on its way through, so this
+        // costs nothing over the setThumb it replaces.
+        useWorkspaces.getState().commitActive();
       }, THUMB_DEBOUNCE_MS);
     };
     const unsub = useEditor.subscribe(schedule);
     const onBlur = () => {
-      // Commit on blur so a workspace the user tabs away from keeps an
-      // up-to-date tile and its edits reach disk without waiting for a swap.
+      // Commit AND flush on blur. ⌘Q does not reliably deliver a window close
+      // event, but it does blur the window on the way out, so this is the last
+      // guaranteed moment to get the current workspace onto disk.
       useWorkspaces.getState().commitActive();
+      void useWorkspaces.getState().flushPersist();
     };
     window.addEventListener("blur", onBlur);
     return () => {

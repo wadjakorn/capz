@@ -447,6 +447,12 @@ export default function EditorPage() {
       const stop = await win.onCloseRequested((e) => {
         e.preventDefault();
         void (async () => {
+          // Get the current workspace onto disk before anything else. The
+          // periodic commit is debounced, so without this the last strokes
+          // before a close can be lost.
+          const ws = useWorkspaces.getState();
+          ws.commitActive();
+          await ws.flushPersist();
           const { runPreCloseAction } = await import("@/lib/preClose");
           await runPreCloseAction();
           await win.hide();

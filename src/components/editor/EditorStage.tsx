@@ -46,6 +46,7 @@ import {
   setPrepareExport,
   setStageImageSize,
   notifyStageImageReady,
+  takePendingView,
   clearStageImageSize,
   setStageExportBox,
   setScrollContainer,
@@ -761,11 +762,18 @@ export function EditorStage({ src }: Props) {
   // reset displayScale to the 0 sentinel so the fit effect re-runs with the
   // new dimensions and the centering effect re-fires.
   const prevImageRef = useRef<HTMLImageElement | null>(null);
+  // Scroll offset a restoring workspace asked for, handed to the centring
+  // effect below so the two never write the scroll position in competition.
+  const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
   useEffect(() => {
     if (!image) return;
     if (prevImageRef.current === image) return;
     prevImageRef.current = image;
-    setDisplayScale(0);
+    // A workspace being restored already knows where it was; anything else
+    // (a capture, a paste) gets the 0 sentinel and the usual fit-and-centre.
+    const pending = takePendingView();
+    pendingScrollRef.current = pending?.scroll ?? null;
+    setDisplayScale(pending && pending.scale > 0 ? pending.scale : 0);
     // Tell the workspace layer a NEW bitmap has landed. Keyed off the image
     // object, not its size: two captures of the same window share dimensions,
     // and a size-keyed signal would never fire for the second one.
@@ -998,15 +1006,21 @@ export function EditorStage({ src }: Props) {
     if (displayScale === 0) centerOnNextFitRef.current = true;
   }, [displayScale]);
   useEffect(() => {
-    if (!centerOnNextFitRef.current) return;
+    // A restored workspace arrives with a non-zero scale, so the arm-on-zero
+    // effect above never fires for it — take the pending scroll as its own
+    // trigger.
+    const restore = pendingScrollRef.current;
+    if (!centerOnNextFitRef.current && !restore) return;
     if (stageW <= 0 || stageH <= 0) return;
     if (container.w <= 0 || container.h <= 0) return;
     if (displayScale === 0) return;
     centerOnNextFitRef.current = false;
+    pendingScrollRef.current = null;
     const el = containerRef.current;
     if (!el) return;
-    const left = padX + stageW / 2 - container.w / 2;
-    const top = padY + stageH / 2 - container.h / 2;
+    // Where a workspace left off, or the centre of a fresh image.
+    const left = restore ? restore.left : padX + stageW / 2 - container.w / 2;
+    const top = restore ? restore.top : padY + stageH / 2 - container.h / 2;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         el.scrollTo({ left, top, behavior: "instant" as ScrollBehavior });
