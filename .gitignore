@@ -51,3 +51,8 @@ hud-default.png
 
 # Agent scratch workspace (SDD ledger, briefs, review packages)
 .superpowers/
+
+# Local-only pnpm shim used when building on the Mac over mac-sync
+# (verifyDepsBeforeRun:false). It must never reach the repo: committing it turns
+# the project into a pnpm workspace and breaks the Cloudflare Pages install.
+pnpm-workspace.yaml
