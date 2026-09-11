@@ -17,6 +17,7 @@ import {
   Undo2,
   Redo2,
   Settings as SettingsIcon,
+  SquarePlus,
   Monitor,
   type LucideIcon,
 } from "lucide-react";
@@ -123,12 +124,22 @@ export function Toolbar({
   onOpenSettings,
   onWebCapture,
   onWebClear,
+  onNewWorkspace,
+  onHistoryDrop,
 }: {
   onOpenSettings?: () => void;
   /** Web build: capture the screen in-browser (getDisplayMedia). */
   onWebCapture?: () => void;
   /** Web build: drop the current image and annotations, back to empty state. */
   onWebClear?: () => void;
+  /**
+   * Multi-workspace on: open a new, empty workspace. Present regardless of how
+   * many workspaces exist — the bottom bar hides at one, so this button is the
+   * only way to ever reach a second.
+   */
+  onNewWorkspace?: () => void;
+  /** Capture history on: a history file was dropped onto the canvas. */
+  onHistoryDrop?: (path: string) => void;
 } = {}) {
   // Desktop-only chrome (capture, OCR, clear-workspace, settings) hides on
   // the web build. Defaults true so the prerendered HTML matches the desktop
@@ -1422,6 +1433,14 @@ export function Toolbar({
           ))}
           <OverflowMenu items={overflowItems} />
         </div>
+        {onNewWorkspace && (
+          <ToolButton
+            icon={SquarePlus}
+            label="New workspace"
+            hint="⇧⌘N"
+            onClick={onNewWorkspace}
+          />
+        )}
         {/* Settings — far right (desktop only) */}
         {tauriUi && (
           <ToolButton
@@ -1451,6 +1470,7 @@ export function Toolbar({
           onImportImage={importImageFile}
           onClearWorkspace={onClearWorkspace}
           onWebClear={onWebClear}
+          history={onHistoryDrop ? { onDropFile: onHistoryDrop } : null}
           ocr={
             tauriUi
               ? {

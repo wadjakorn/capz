@@ -5,6 +5,7 @@ import { ImageDown, Loader2, Ruler, ScanText, Trash2 } from "lucide-react";
 import { ActionRow } from "./kit";
 import { BackdropSection } from "../BackdropControl";
 import { ZoomMenuButton } from "../ZoomMenuButton";
+import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -33,6 +34,14 @@ export type GlobalToolsPanelProps = {
     mode: boolean;
     scanning: boolean;
     onToggle: () => void;
+  } | null;
+  /**
+   * Capture history, when the setting is on and we're on the desktop. Null on
+   * the web build, where a "saved" file is a browser download with no path to
+   * reveal, copy back, or trash.
+   */
+  history: {
+    onDropFile: (path: string) => void;
   } | null;
 };
 
@@ -110,6 +119,15 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
         <Section title="Backdrop">
           <BackdropSection />
         </Section>
+      )}
+
+      {/* Last on purpose (CP-0045): history is a browsing aid, not a tool, so
+          it sits after everything that acts on the current image. */}
+      {p.history && (
+        <CaptureHistorySection
+          hasImage={p.hasImage}
+          onDropFile={p.history.onDropFile}
+        />
       )}
     </div>
   );

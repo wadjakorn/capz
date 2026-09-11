@@ -25,6 +25,8 @@ import {
 import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
+import { useHistory } from "@/stores/history";
+import { HISTORY_MAX_OPTIONS, WORKSPACE_MAX_RANGE } from "@/lib/config";
 import {
   MACOS_ONLY_RING_MODES,
   RING_MAX_MODES,
@@ -551,6 +553,9 @@ export function SettingsView({ onOpenInertRecovery }: SettingsViewProps = {}) {
               </FieldRow>
               <AboutRow />
             </SectionCard>
+
+            <WorkspacesCard />
+            <CaptureHistoryCard />
           </TabsContent>
         </main>
       </TabsPrimitive.Root>
@@ -782,5 +787,155 @@ function RingModesField() {
         {visible.length >= RING_MAX_MODES && " — uncheck one to swap in another"}
       </span>
     </div>
+  );
+}
+
+
+/**
+ * Multiple workspaces (CP-0045).
+ *
+ * The two detail rows stay visible but disabled while the feature is off:
+ * hiding them would make the eviction rule — the one genuinely surprising part
+ * — invisible until after the user has turned the feature on and lost a
+ * workspace to it.
+ */
+function WorkspacesCard() {
+  const { config, update } = useSettings();
+  const w = config.workspaces;
+  const sizes: number[] = [];
+  for (let n = WORKSPACE_MAX_RANGE.min; n <= WORKSPACE_MAX_RANGE.max; n++) sizes.push(n);
+
+  return (
+    <SectionCard>
+      <ToggleRow
+        label="Multiple workspaces"
+        checked={w.enabled}
+        onChange={(enabled) => update("workspaces", { enabled })}
+      />
+      <span className="-mt-2 text-xs text-muted-foreground">
+        Keep several captures open at once and switch between them from the bar
+        at the bottom of the editor. Each keeps its own annotations, crop and
+        zoom, and they survive a restart.
+      </span>
+      <div
+        className={w.enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
+        aria-disabled={!w.enabled}
+      >
+        <FieldRow label="Maximum workspaces">
+          <select
+            className="field"
+            disabled={!w.enabled}
+            value={w.max}
+            onChange={(e) => update("workspaces", { max: Number(e.target.value) })}
+          >
+            {sizes.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow
+          label="When a new capture arrives"
+          hint={
+            w.onCapture === "new"
+              ? `Once all ${w.max} are used, the oldest workspace is closed. You can undo that, or switch to "Replace the current workspace" so nothing is ever closed for you.`
+              : "The capture overwrites the workspace you're in. The count never changes and nothing is closed behind your back."
+          }
+        >
+          <select
+            className="field"
+            disabled={!w.enabled}
+            value={w.onCapture}
+            onChange={(e) =>
+              update("workspaces", {
+                onCapture: e.target.value as "new" | "replace",
+              })
+            }
+          >
+            <option value="new">Open in a new workspace</option>
+            <option value="replace">Replace the current workspace</option>
+          </select>
+        </FieldRow>
+      </div>
+    </SectionCard>
+  );
+}
+
+/** Capture history (CP-0045) — desktop only; the web build has no file paths. */
+function CaptureHistoryCard() {
+  const { config, update } = useSettings();
+  const h = config.history;
+
+  return (
+    <SectionCard>
+      <ToggleRow
+        label="Remember saved files"
+        checked={h.enabled}
+        onChange={(enabled) => update("history", { enabled })}
+      />
+      <span className="-mt-2 text-xs text-muted-foreground">
+        Keep a list of the screenshots you export, with a thumbnail, so you can
+        find, reuse or delete them from the editor sidebar later.
+      </span>
+      <div
+        className={h.enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
+        aria-disabled={!h.enabled}
+      >
+        <FieldRow
+          label="Keep the last"
+          hint="Older entries drop off the list. The files themselves stay on your disk."
+        >
+          <select
+            className="field"
+            disabled={!h.enabled}
+            value={h.max}
+            onChange={(e) => {
+              const max = Number(e.target.value);
+              void update("history", { max });
+              const dropped = useHistory.getState().trim(max);
+              if (dropped > 0) {
+                toast(
+                  `Removed ${dropped} older ${dropped === 1 ? "entry" : "entries"} from the list`,
+                  { description: "The files were not deleted." },
+                );
+              }
+            }}
+          >
+            {HISTORY_MAX_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow label="Show as">
+          <select
+            className="field"
+            disabled={!h.enabled}
+            value={h.viewMode}
+            onChange={(e) =>
+              update("history", { viewMode: e.target.value as "list" | "grid" })
+            }
+          >
+            <option value="list">List</option>
+            <option value="grid">Thumbnails</option>
+          </select>
+        </FieldRow>
+        <FieldRow label="Clear the list" hint="Removes every entry. No files are deleted.">
+          <button
+            type="button"
+            disabled={!h.enabled}
+            onClick={() => {
+              useHistory.getState().clear();
+              toast.success("History cleared", { duration: 1600 });
+            }}
+            className="btn btn--secondary text-rose-300 hover:text-rose-200"
+          >
+            Clear list
+          </button>
+        </FieldRow>
+      </div>
+    </SectionCard>
   );
 }

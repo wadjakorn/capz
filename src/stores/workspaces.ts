@@ -80,8 +80,14 @@ type State = {
     mode: "new" | "replace",
     max: number,
   ) => Promise<string | null>;
-  adoptBlob: (url: string, max: number) => string | null;
-  createEmpty: (max: number) => string | null;
+  adoptBlob: (url: string, max: number) => string;
+  /**
+   * Point the active workspace at an image, creating a first workspace if
+   * there is none. Used by the web build, where an image arrives as a Blob
+   * from paste/drop/capture rather than as a capture event from Rust.
+   */
+  setActiveImage: (image: WorkspaceImage) => string;
+  createEmpty: (max: number) => string;
   switchTo: (id: string) => void;
   close: (id: string) => void;
   reopenLastClosed: () => void;
@@ -349,6 +355,26 @@ export const useWorkspaces = create<State>((set, get) => ({
     addWorkspace(set, get, { image: { kind: "blob", url }, captureSource: "other" }, max),
 
   createEmpty: (max) => addWorkspace(set, get, {}, max),
+
+  setActiveImage: (image) => {
+    const { activeId, docs } = get();
+    if (!activeId || !docs[activeId]) {
+      // First image in the session: seed workspace 1 rather than asking the
+      // caller to create one. `max` is irrelevant — there is nothing to evict.
+      return addWorkspace(set, get, { image }, Number.MAX_SAFE_INTEGER);
+    }
+    const prev = docs[activeId];
+    void deleteImage(prev);
+    set({
+      docs: {
+        ...docs,
+        [activeId]: { ...prev, image, updatedAt: Date.now() },
+      },
+      swapping: true,
+    });
+    schedulePersist();
+    return activeId;
+  },
 
   switchTo: (id) => {
     const { activeId, docs } = get();

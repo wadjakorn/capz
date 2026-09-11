@@ -10,6 +10,11 @@ import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useEditor, type CaptureSource } from "@/stores/editor";
+import { useWorkspaces } from "@/stores/workspaces";
+import { useHistory } from "@/stores/history";
+import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
+import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
+import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
 import { routeIncomingCapture } from "@/lib/captureRouting";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
@@ -42,6 +47,48 @@ export default function EditorPage() {
   const configReady = useSettings((s) => s.ready);
   const resetSettings = useSettings((s) => s.reset);
   const issueToastShown = useRef(false);
+
+  const wsConfig = useSettings((s) => s.config.workspaces);
+  const historyConfig = useSettings((s) => s.config.history);
+  const reopenLastClosed = useWorkspaces((s) => s.reopenLastClosed);
+  useWorkspaceSession({ enabled: wsConfig.enabled, setFile, setSrc });
+
+  useEffect(() => {
+    void useHistory.getState().init(historyConfig.enabled);
+  }, [historyConfig.enabled]);
+
+  /**
+   * A capture-history file was dropped on the canvas: base image on an empty
+   * canvas, overlay layer otherwise. Same split as paste and OS drag-drop, and
+   * it reuses their helper rather than repeating the branch.
+   */
+  const onHistoryDrop = useCallback((path: string) => {
+    void (async () => {
+      try {
+        const { importImagePathDesktop } = await import("@/lib/importImage");
+        const ok = await importImagePathDesktop(path);
+        if (!ok) toast.error("Couldn't add that image");
+      } catch (err) {
+        console.error("history drop failed", err);
+        useHistory.getState().markMissing(
+          useHistory.getState().items.find((i) => i.path === path)?.id ?? "",
+        );
+        toast.error("File no longer exists");
+      }
+    })();
+  }, []);
+
+  /** Toast with an Undo that survives being the only visible toast. */
+  const undoToast = useCallback(
+    (message: string) => {
+      toast(message, {
+        id: "workspace-undo",
+        duration: 6000,
+        action: { label: "Undo", onClick: () => reopenLastClosed() },
+      });
+    },
+    [reopenLastClosed],
+  );
 
   useEditorShortcuts();
   useNoticeListener();
@@ -129,23 +176,59 @@ export default function EditorPage() {
       }
       switch (routeIncomingCapture(path)) {
         case "clear":
+          if (wsConfig.enabled) {
+            useWorkspaces.getState().clearActive();
+            return;
+          }
           void applyFile(null);
           return;
         case "base":
+          if (wsConfig.enabled && path) {
+            void (async () => {
+              const ws = useWorkspaces.getState();
+              const wasFull = ws.order.length >= wsConfig.max;
+              const hadActive = ws.activeId !== null;
+              await ws.adoptCapture(path, source, wsConfig.onCapture, wsConfig.max);
+              // Both paths discard a document; say so, with a way back. No
+              // modal — a capture has to stay a single keystroke.
+              if (wsConfig.onCapture === "replace" && hadActive) {
+                undoToast("Workspace replaced");
+              } else if (wasFull) {
+                undoToast("Oldest workspace closed to make room");
+              }
+            })();
+            return;
+          }
           void applyFile(path, source);
           return;
       }
     },
-    [applyFile, addCaptureAsOverlay],
+    [applyFile, addCaptureAsOverlay, wsConfig, undoToast],
   );
 
+  // Startup: two sources claim to know the current image — Rust's active temp
+  // path and workspaces.json. When the feature is on and has any workspace,
+  // the store wins and useWorkspaceSession does the loading; otherwise this is
+  // unchanged from the single-workspace behaviour.
   useEffect(() => {
+    if (!configReady) return;
     (async () => {
+      if (wsConfig.enabled) {
+        await useWorkspaces.getState().init(true);
+        if (useWorkspaces.getState().order.length > 0) return;
+      }
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string | null>("editor_current_image");
-      if (path) await applyFile(path);
+      if (!path) return;
+      if (wsConfig.enabled) {
+        await useWorkspaces
+          .getState()
+          .adoptCapture(path, "other", "new", wsConfig.max);
+        return;
+      }
+      await applyFile(path);
     })();
-  }, [applyFile]);
+  }, [applyFile, configReady, wsConfig.enabled, wsConfig.max]);
 
   // Load settings on mount (even before an image) so config-validation issues
   // surface immediately. init() is idempotent.
@@ -208,6 +291,12 @@ export default function EditorPage() {
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen("editor:clear", () => {
+        // "Clear workspace" empties the canvas but keeps the tile — closing a
+        // workspace is the tile's ✕. See docs/design/MULTI-WORKSPACE.md §6.2.
+        if (useSettings.getState().config.workspaces.enabled) {
+          useWorkspaces.getState().clearActive();
+          return;
+        }
         void applyFile(null);
       });
     })();
@@ -386,13 +475,21 @@ export default function EditorPage() {
       ) : view === "onboarding" ? (
         <SubViewHeader title="Welcome" onBack={() => setView("editor")} />
       ) : (
-        <Toolbar onOpenSettings={() => setView("settings")} />
+        <Toolbar
+          onOpenSettings={() => setView("settings")}
+          onNewWorkspace={
+            wsConfig.enabled
+              ? () => useWorkspaces.getState().createEmpty(wsConfig.max)
+              : undefined
+          }
+          onHistoryDrop={historyConfig.enabled ? onHistoryDrop : undefined}
+        />
       )}
       <main
         className="relative flex min-h-0 flex-1 overflow-hidden"
         style={view === "editor" ? { backgroundColor: "var(--bg-canvas)" } : undefined}
       >
-        <div className="relative min-w-0 flex-1">
+        <div id="canvas-area" className="relative min-w-0 flex-1">
           <div
             className="absolute inset-0"
             style={{
@@ -403,6 +500,7 @@ export default function EditorPage() {
           >
             {file ? <EditorStage src={src} /> : <EmptyState />}
           </div>
+          {view === "editor" && <CanvasDropHint />}
         </div>
         {/* Tool-options panel — always docked on the right. The Toolbar portals
             contextual controls into it when a tool/selection has options;
@@ -426,6 +524,12 @@ export default function EditorPage() {
           </div>
         )}
       </main>
+      {wsConfig.enabled && view === "editor" && (
+        <WorkspaceBar
+          max={wsConfig.max}
+          onNew={() => useWorkspaces.getState().createEmpty(wsConfig.max)}
+        />
+      )}
       <Toaster
         theme="dark"
         position="bottom-center"
