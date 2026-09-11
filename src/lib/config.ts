@@ -116,6 +116,18 @@ export type AppConfig = {
     /** FIFO cap on remembered entries. Trimming a record never touches the file. */
     max: number;
     viewMode: "list" | "grid";
+    /**
+     * Copy every screen capture into `<saveDir>/Captures/` as it arrives, so a
+     * capture you never got round to exporting is still recoverable.
+     * Independent of `max`, which only ever bounded the list of SAVED files.
+     */
+    archiveCaptures: boolean;
+    /**
+     * Size ceiling for that folder, in MB. A byte budget rather than a row
+     * count: one full-screen retina PNG is 10-20MB, so "200 captures" says
+     * nothing useful about how much disk this costs.
+     */
+    archiveBudgetMb: number;
   };
   general: {
     theme: "light" | "dark" | "system";
@@ -326,6 +338,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     enabled: false,
     max: 50,
     viewMode: "list",
+    archiveCaptures: false,
+    archiveBudgetMb: 500,
   },
   general: {
     theme: "dark",
@@ -484,6 +498,16 @@ const isWorkspaceMax: Validator = (v) =>
 export const HISTORY_MAX_OPTIONS = [20, 50, 100, 200] as const;
 const isHistoryMax: Validator = (v) =>
   typeof v === "number" && (HISTORY_MAX_OPTIONS as readonly number[]).includes(v);
+
+/**
+ * Offered archive budgets, MB. Enforced on read as well as in the dropdown: a
+ * hand-edited store could otherwise name a budget that deletes the folder on
+ * sight (0) or never evicts at all.
+ */
+export const ARCHIVE_BUDGET_OPTIONS_MB = [250, 500, 1024, 2048] as const;
+const isArchiveBudget: Validator = (v) =>
+  typeof v === "number" &&
+  (ARCHIVE_BUDGET_OPTIONS_MB as readonly number[]).includes(v);
 
 /**
  * Validate the `ring` section (CP-0038).
@@ -870,6 +894,8 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       enabled: isBool,
       max: isHistoryMax,
       viewMode: inSet("list", "grid"),
+      archiveCaptures: isBool,
+      archiveBudgetMb: isArchiveBudget,
     }, issues),
     general: vGeneral(r.general, d.general, issues),
     tools: vTools(r.tools, d.tools, issues),

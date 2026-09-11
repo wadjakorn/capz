@@ -124,10 +124,50 @@ export async function saveAndCopy(
   return { saved, copied };
 }
 
+/**
+ * The configured save directory, or null off the desktop. Exported for the
+ * capture archive, which needs the same directory export writes into.
+ */
+export async function resolveSaveDirPath(): Promise<string | null> {
+  if (!isTauriRuntime()) return null;
+  try {
+    const { useSettings } = await import("@/stores/settings");
+    return await resolveSaveDir(useSettings.getState().config.output);
+  } catch (e) {
+    console.warn("save dir resolution failed", e);
+    return null;
+  }
+}
+
 async function resolveSaveDir(output: AppConfig["output"]): Promise<string> {
   if (output.defaultSavePath) return output.defaultSavePath;
   const { invoke } = await import("@tauri-apps/api/core");
   return await invoke<string>("default_save_dir");
+}
+
+/**
+ * The first filename in `dir` that is not already taken, walking `-1`, `-2`, …
+ *
+ * Extracted and exported so the rule it encodes is testable: **capz never
+ * overwrites a file.** There is no "open a file and save over it" anywhere in
+ * the app — every export is a new file — which is what makes it safe to pull an
+ * image out of capture history, edit it, and save, without the original
+ * changing. Anything that ever adds a real "Save" must not route through here.
+ */
+export async function nextFreePath(
+  dir: string,
+  baseName: string,
+  ext: string,
+  join: (...parts: string[]) => Promise<string>,
+  exists: (path: string) => Promise<boolean>,
+): Promise<string> {
+  let path = await join(dir, `${baseName}.${ext}`);
+  let n = 1;
+  while (await exists(path)) {
+    path = await join(dir, `${baseName}-${n}.${ext}`);
+    n++;
+  }
+  return path;
 }
 
 async function saveToFile(
@@ -160,12 +200,7 @@ async function saveToFile(
     await mkdir(dir, { recursive: true });
   }
 
-  let path = await join(dir, `${baseName}.${ext}`);
-  let n = 1;
-  while (await exists(path)) {
-    path = await join(dir, `${baseName}-${n}.${ext}`);
-    n++;
-  }
+  const path = await nextFreePath(dir, baseName, ext, join, exists);
   await writeFile(path, bytes);
   recordInHistory(stage, path, bytes.byteLength);
   return path;

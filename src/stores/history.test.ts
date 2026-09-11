@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyCap,
+  visibleItems,
   baseName,
   dirName,
   formatBytes,
@@ -11,6 +12,7 @@ import {
 
 const item = (path: string, savedAt = 0): HistoryItem => ({
   id: path,
+  kind: "saved",
   path,
   fileName: baseName(path),
   savedAt,
@@ -66,6 +68,42 @@ describe("applyCap", () => {
 
   it("empties the list for a cap of zero rather than throwing", () => {
     expect(applyCap([item("/a.png")], 0)).toEqual([]);
+  });
+});
+
+describe("visibleItems", () => {
+  const saved = [item("/s1.png", 30), item("/s2.png", 10)];
+  const archived = [
+    { ...item("/a1.png", 20), kind: "capture" as const },
+    { ...item("/a2.png", 40), kind: "capture" as const },
+  ];
+
+  it("interleaves both kinds newest-first under 'all'", () => {
+    expect(visibleItems(saved, archived, "all").map((i) => i.path)).toEqual([
+      "/a2.png", "/s1.png", "/a1.png", "/s2.png",
+    ]);
+  });
+
+  it("narrows to one kind without reordering", () => {
+    expect(visibleItems(saved, archived, "saved").map((i) => i.path)).toEqual([
+      "/s1.png", "/s2.png",
+    ]);
+    expect(visibleItems(saved, archived, "capture").map((i) => i.path)).toEqual([
+      "/a2.png", "/a1.png",
+    ]);
+  });
+
+  // The two failures a user would actually notice.
+  it("loses nothing and doubles nothing", () => {
+    const all = visibleItems(saved, archived, "all");
+    expect(all).toHaveLength(saved.length + archived.length);
+    expect(new Set(all.map((i) => i.path)).size).toBe(all.length);
+  });
+
+  it("survives either side being empty", () => {
+    expect(visibleItems([], archived, "all")).toHaveLength(2);
+    expect(visibleItems(saved, [], "all")).toHaveLength(2);
+    expect(visibleItems([], [], "all")).toEqual([]);
   });
 });
 

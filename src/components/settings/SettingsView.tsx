@@ -26,7 +26,11 @@ import { OutputPrefsForm } from "@/components/settings/OutputPrefsForm";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
 import { useHistory } from "@/stores/history";
-import { HISTORY_MAX_OPTIONS, WORKSPACE_MAX_RANGE } from "@/lib/config";
+import {
+  ARCHIVE_BUDGET_OPTIONS_MB,
+  HISTORY_MAX_OPTIONS,
+  WORKSPACE_MAX_RANGE,
+} from "@/lib/config";
 import {
   MACOS_ONLY_RING_MODES,
   RING_MAX_MODES,
@@ -882,6 +886,8 @@ function CaptureHistoryCard() {
         className={h.enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
         aria-disabled={!h.enabled}
       >
+        <ArchiveRows enabled={h.enabled} />
+        <div className="h-px bg-border" />
         <FieldRow
           label="Keep the last"
           hint="Older entries drop off the list. The files themselves stay on your disk."
@@ -938,4 +944,125 @@ function CaptureHistoryCard() {
       </div>
     </SectionCard>
   );
+}
+
+/**
+ * The capture archive (CP-0046).
+ *
+ * Reads the folder itself rather than trusting a stored number: the usage line
+ * is the only place a user finds out how much disk this costs, and a stale
+ * figure there would be worse than none.
+ */
+function ArchiveRows({ enabled }: { enabled: boolean }) {
+  const { config, update } = useSettings();
+  const h = config.history;
+  const [usage, setUsage] = useState<{ count: number; bytes: number } | null>(null);
+  const [wiping, setWiping] = useState(false);
+
+  const refresh = async () => {
+    const { resolveSaveDirPath } = await import("@/lib/exportImage");
+    const { listArchive, totalBytes } = await import("@/lib/captureArchive");
+    const dir = await resolveSaveDirPath();
+    if (!dir) return setUsage(null);
+    const files = await listArchive(dir);
+    setUsage({ count: files.length, bytes: totalBytes(files) });
+  };
+
+  useEffect(() => {
+    if (h.archiveCaptures) void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [h.archiveCaptures, h.archiveBudgetMb]);
+
+  return (
+    <>
+      <ToggleRow
+        label="Also keep every capture"
+        checked={h.archiveCaptures}
+        onChange={(archiveCaptures) => {
+          void update("history", { archiveCaptures });
+          if (archiveCaptures) void refresh();
+        }}
+      />
+      <span className="-mt-2 text-xs text-muted-foreground">
+        Copies each screen capture into a <code>Captures</code> folder next to
+        your saved files, so one you forgot to export is still there. Pasted
+        images and files you opened are not copied — you already have those.
+      </span>
+      <div
+        className={h.archiveCaptures && enabled ? "grid gap-4" : "grid gap-4 opacity-45"}
+        aria-disabled={!h.archiveCaptures || !enabled}
+      >
+        <FieldRow
+          label="Archive limit"
+          hint="Once the folder passes this, the oldest captures are deleted. Files you exported yourself are never touched."
+        >
+          <select
+            className="field"
+            disabled={!h.archiveCaptures || !enabled}
+            value={h.archiveBudgetMb}
+            onChange={(e) => {
+              const mb = Number(e.target.value);
+              void (async () => {
+                await update("history", { archiveBudgetMb: mb });
+                const { resolveSaveDirPath } = await import("@/lib/exportImage");
+                const { enforceBudget } = await import("@/lib/captureArchive");
+                const dir = await resolveSaveDirPath();
+                if (!dir) return;
+                const gone = await enforceBudget(dir, mb);
+                if (gone.length > 0) {
+                  toast(
+                    `Removed ${gone.length} older ${gone.length === 1 ? "capture" : "captures"}`,
+                  );
+                }
+                await refresh();
+              })();
+            }}
+          >
+            {ARCHIVE_BUDGET_OPTIONS_MB.map((mb) => (
+              <option key={mb} value={mb}>
+                {mb >= 1024 ? `${mb / 1024} GB` : `${mb} MB`}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow
+          label="Currently using"
+          hint={
+            usage
+              ? `${usage.count} ${usage.count === 1 ? "capture" : "captures"} in the Captures folder.`
+              : "Nothing archived yet."
+          }
+        >
+          <button
+            type="button"
+            disabled={!usage?.count || wiping}
+            onClick={() => {
+              void (async () => {
+                setWiping(true);
+                try {
+                  const { resolveSaveDirPath } = await import("@/lib/exportImage");
+                  const { deleteArchive } = await import("@/lib/captureArchive");
+                  const dir = await resolveSaveDirPath();
+                  if (!dir) return;
+                  const n = await deleteArchive(dir);
+                  toast.success(`Deleted ${n} archived ${n === 1 ? "capture" : "captures"}`);
+                  await refresh();
+                } finally {
+                  setWiping(false);
+                }
+              })();
+            }}
+            className="btn btn--secondary text-rose-300 hover:text-rose-200"
+          >
+            {usage ? formatArchiveSize(usage.bytes) : "0 MB"} — Delete…
+          </button>
+        </FieldRow>
+      </div>
+    </>
+  );
+}
+
+function formatArchiveSize(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
 }

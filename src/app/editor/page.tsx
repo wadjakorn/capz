@@ -54,8 +54,43 @@ export default function EditorPage() {
   useWorkspaceSession({ enabled: wsConfig.enabled, setFile, setSrc });
 
   useEffect(() => {
-    void useHistory.getState().init(historyConfig.enabled);
+    void (async () => {
+      await useHistory.getState().init(historyConfig.enabled);
+      if (!historyConfig.enabled) return;
+      const { resolveSaveDirPath } = await import("@/lib/exportImage");
+      await useHistory.getState().refreshArchive(await resolveSaveDirPath());
+    })();
   }, [historyConfig.enabled]);
+
+  /**
+   * Copy an arriving capture into the archive.
+   *
+   * Only real screen captures — a paste or an opened file is already a file the
+   * user has, so archiving it would just duplicate their own data.
+   */
+  const archiveIncoming = useCallback(
+    async (path: string, source: CaptureSource) => {
+      const cfg = useSettings.getState().config.history;
+      if (!cfg.enabled || !cfg.archiveCaptures) return;
+      if (source === "other") return;
+      const { archiveCapture } = await import("@/lib/captureArchive");
+      const { resolveSaveDirPath } = await import("@/lib/exportImage");
+      const dir = await resolveSaveDirPath();
+      if (!dir) return;
+      const res = await archiveCapture(path, dir, cfg.archiveBudgetMb);
+      if (!res) return;
+      await useHistory.getState().refreshArchive(dir);
+      if (res.evicted.length > 0) {
+        toast(
+          `Archive full — removed ${res.evicted.length} older ${
+            res.evicted.length === 1 ? "capture" : "captures"
+          }`,
+          { description: "Files you exported yourself are never removed." },
+        );
+      }
+    },
+    [],
+  );
 
   /**
    * A capture-history file was dropped on the canvas: base image on an empty
@@ -171,9 +206,13 @@ export default function EditorPage() {
   const handleIncomingCapture = useCallback(
     (path: string | null, source: CaptureSource = "other", asLayer = false) => {
       if (path && asLayer && useEditor.getState().hasImage) {
-        void addCaptureAsOverlay(path);
+        // Archive BEFORE the overlay path: it reads the file with
+        // `consumeTemp: true`, after which Rust deletes the temp and there is
+        // nothing left to copy.
+        void archiveIncoming(path, source).finally(() => addCaptureAsOverlay(path));
         return;
       }
+      if (path) void archiveIncoming(path, source);
       switch (routeIncomingCapture(path)) {
         case "clear":
           if (wsConfig.enabled) {
@@ -203,7 +242,7 @@ export default function EditorPage() {
           return;
       }
     },
-    [applyFile, addCaptureAsOverlay, wsConfig, undoToast],
+    [applyFile, addCaptureAsOverlay, wsConfig, undoToast, archiveIncoming],
   );
 
   // Startup: two sources claim to know the current image — Rust's active temp

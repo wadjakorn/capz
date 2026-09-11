@@ -19,7 +19,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { dirName, formatBytes, useHistory, type HistoryItem } from "@/stores/history";
+import {
+  dirName,
+  formatBytes,
+  useHistory,
+  visibleItems,
+  type HistoryFilter,
+  type HistoryItem,
+} from "@/stores/history";
+import { deleteArchive } from "@/lib/captureArchive";
+import { resolveSaveDirPath } from "@/lib/exportImage";
 import { useSettings } from "@/stores/settings";
 
 /** Pointer travel before a press becomes a drag rather than a click. */
@@ -39,7 +48,16 @@ export type CaptureHistorySectionProps = {
  * BackdropSection uses, and the reason GlobalToolsPanel can stay presentational.
  */
 export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySectionProps) {
-  const items = useHistory((s) => s.items);
+  const saved = useHistory((s) => s.items);
+  const archived = useHistory((s) => s.archived);
+  const filter = useHistory((s) => s.filter);
+  const setFilter = useHistory((s) => s.setFilter);
+  const refreshArchive = useHistory((s) => s.refreshArchive);
+  const items = useMemo(
+    () => visibleItems(saved, archived, filter),
+    [saved, archived, filter],
+  );
+  const [pendingArchiveWipe, setPendingArchiveWipe] = useState(false);
   const selectedId = useHistory((s) => s.selectedId);
   const select = useHistory((s) => s.select);
   const forget = useHistory((s) => s.forget);
@@ -111,6 +129,45 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
     [markMissing, onDropFile],
   );
 
+  // Archive rows arrive from a directory listing with no picture. Fill them in
+  // a few at a time, only for rows actually on screen, so opening the sidebar
+  // with 150 archived captures doesn't decode 150 images at once.
+  const setArchiveThumb = useHistory((s) => s.setArchiveThumb);
+  // Paths already attempted. Storing the file's thumbnail changes `items`,
+  // which re-runs this effect; without this the loop would restart from the
+  // top every time and make one useful request per run.
+  const attemptedThumbs = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const pending = items.filter(
+      (i) =>
+        i.kind === "capture" &&
+        !i.thumb &&
+        !i.missing &&
+        !attemptedThumbs.current.has(i.path),
+    );
+    if (!pending.length) return;
+    let cancelled = false;
+    void (async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      for (const item of pending) {
+        if (cancelled) return;
+        attemptedThumbs.current.add(item.path);
+        try {
+          const thumb = await invoke<string>("read_image_thumbnail", {
+            path: item.path,
+            maxWidth: 128,
+          });
+          if (!cancelled) setArchiveThumb(item.path, thumb);
+        } catch {
+          // Unreadable or already gone — leave the placeholder and move on.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [items, setArchiveThumb]);
+
   const drag = usePointerDrag(openItem, hasImage);
 
   const header = (
@@ -120,6 +177,35 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
       </span>
       <span className="text-[10px] text-[var(--fg-4)]">{items.length}</span>
       <span className="flex-1" />
+      {archived.length > 0 && (
+        <div
+          className="inline-flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5"
+          role="group"
+          aria-label="History filter"
+        >
+          {(
+            [
+              ["all", "All"],
+              ["saved", "Saved"],
+              ["capture", "Captures"],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={filter === v}
+              onClick={() => setFilter(v as HistoryFilter)}
+              className={`h-[18px] rounded px-1.5 text-[9px] font-medium transition-colors ${
+                filter === v
+                  ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                  : "text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="inline-flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5" role="group" aria-label="History view">
         {([["list", List], ["grid", LayoutGrid]] as const).map(([v, Icon]) => (
           <button
@@ -165,9 +251,18 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
             <FolderOpen className="h-4 w-4" aria-hidden />
             Open save folder
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={!items.length} onClick={() => clear()}>
+          <DropdownMenuItem disabled={!saved.length} onClick={() => clear()}>
             <Trash2 className="h-4 w-4" aria-hidden />
             Clear list
+          </DropdownMenuItem>
+          {/* Separate from "Clear list" on purpose: that one only forgets rows,
+              this one deletes files the app owns. */}
+          <DropdownMenuItem
+            disabled={!archived.length}
+            onClick={() => setPendingArchiveWipe(true)}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+            Delete archived captures…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -266,6 +361,29 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
       )}
 
       <ConfirmDialog
+        open={pendingArchiveWipe}
+        title="Delete archived captures?"
+        body={`${archived.length} automatically kept ${
+          archived.length === 1 ? "capture" : "captures"
+        } (${formatBytes(
+          archived.reduce((n, a) => n + a.bytes, 0),
+        )}) will be deleted from the Captures folder. Files you exported yourself are not touched.`}
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setPendingArchiveWipe(false)}
+        onConfirm={() => {
+          setPendingArchiveWipe(false);
+          void (async () => {
+            const dir = await resolveSaveDirPath();
+            if (!dir) return;
+            const n = await deleteArchive(dir);
+            await refreshArchive(dir);
+            toast(`Deleted ${n} archived ${n === 1 ? "capture" : "captures"}`);
+          })();
+        }}
+      />
+
+      <ConfirmDialog
         open={pendingTrash !== null}
         title="Move to Trash?"
         preview={
@@ -354,6 +472,7 @@ function HistoryRow({
             {item.fileName}
           </span>
           <span className="block truncate text-[10px] text-[var(--fg-4)]">
+            {item.kind === "capture" && !item.missing ? "Auto · " : ""}
             {item.missing
               ? `${dayLabel(item.savedAt)} · File not found`
               : [timeOf(item.savedAt), formatBytes(item.bytes), item.size && `${item.size.w}×${item.size.h}`]
