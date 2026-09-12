@@ -54,6 +54,7 @@ export const dict = {
 
     "footer.copyright": "© {year} capz",
     "footer.oss": "ฟรี โอเพนซอร์ส",
+    "footer.feedback": "แจ้งบั๊ก / ขอฟีเจอร์",
 
     "meta.title": "capz — แอปแคปหน้าจอ ฟรี สำหรับ macOS และ Windows",
     "meta.desc":
@@ -112,6 +113,7 @@ export const dict = {
 
     "footer.copyright": "© {year} capz",
     "footer.oss": "Free & open source",
+    "footer.feedback": "Report a bug / request a feature",
 
     "meta.title": "capz — Free screen capture for macOS & Windows",
     "meta.desc":

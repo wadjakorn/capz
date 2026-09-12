@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useSettings } from "@/stores/settings";
+import { installIdHeaders } from "@/lib/installId";
 
 export type UpdateCheckResult =
   | { kind: "none" }
@@ -14,7 +15,11 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
   const now = Date.now();
   try {
     const { check } = await import("@tauri-apps/plugin-updater");
-    const update = await check();
+    // Opt-in only: `installIdHeaders()` is undefined unless the user enabled
+    // "Share anonymous install ID". Version/target/arch ride on the endpoint
+    // URL template configured in tauri.conf.json.
+    const headers = await installIdHeaders();
+    const update = await check(headers ? { headers } : undefined);
     await useSettings.getState().update("updates", { lastCheckedAt: now });
     if (!update?.available) return { kind: "none" };
     return {

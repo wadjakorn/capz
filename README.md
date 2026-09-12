@@ -82,7 +82,7 @@ Deploy: Cloudflare Pages Git integration builds `pnpm build` → `out/` on every
 
 ## Auto-update
 
-Background updater polls `https://wadjakorn.github.io/capz/latest.json` (signed via Ed25519 minisign — independent of OS code-signing). Manual: Settings → Updates → Check now.
+Background updater polls `https://capz-api.banana3339.workers.dev/latest.json` — a thin Cloudflare Worker that proxies the signed manifest from `https://wadjakorn.github.io/capz/latest.json` (Ed25519 minisign, independent of OS code-signing) and counts the check; if the Worker is unreachable the app falls back to the GitHub Pages URL directly. Manual: Settings → Updates → Check now. Worker source: [`worker/`](worker/README.md).
 
 Homebrew-installed users get auto-updates seamlessly. Manual-install macOS users may need to re-run the `xattr` command above after an update if Gatekeeper re-quarantines the replaced bundle.
 
@@ -97,7 +97,16 @@ Signed binaries are built from this repository's source by the GitHub Actions [r
 
 ### Privacy policy
 
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The only automatic network access is the update check against `https://wadjakorn.github.io/capz/latest.json` (static file on GitHub Pages; no telemetry, no personal data sent). See [Auto-update](#auto-update).
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+The only automatic network access is the update check (see [Auto-update](#auto-update)). By default that request carries the app version, OS name and CPU architecture in the URL and nothing else; the server counts it but cannot tell one machine from another.
+
+Two things are sent **only when you ask for them**:
+
+- **Anonymous install ID** (Settings → Updates → "Share anonymous install ID", off by default). When enabled, the update check also carries a random UUID generated on your machine. The server stores a salted hash of it once per day so active installs can be counted. It is not derived from anything about you or your computer, it is deleted from your machine the moment you turn the option off, and re-enabling mints a new one.
+- **Feedback** (Settings → Feedback). Sends the text you typed, the kind (bug/feature), the app version, OS name and CPU architecture to the developer, who receives it as an issue in a private repository. It never includes the install ID, your name, email, logs or screenshots, so there is no way to reply.
+
+No IP addresses, hostnames, user names or OS versions are stored. Server code and schema: [`worker/`](worker/README.md).
 
 ## License
 

@@ -1704,7 +1704,7 @@ The Ed25519 update-signing key is a **single point of failure for the entire use
 3. **Filename template:** Default to `shotr-{yyyy}{MM}{dd}-{HHmmss}` or user-chosen?
 4. **Sticker library:** Bundle a built-in set, or only allow user-uploaded PNGs? (recommend: small built-in set + paste from clipboard)
 5. **Update channel:** GitHub Releases public, or self-hosted CDN?
-6. **Telemetry:** Confirm "no telemetry in v1" — Sentry crash reporting OK with opt-in?
+6. **Telemetry:** ~~Confirm "no telemetry in v1" — Sentry crash reporting OK with opt-in?~~ **Resolved 2026-09-12:** no crash reporting. Only an opt-in random install id on the existing update check (default off) plus a user-initiated anonymous feedback form; both served by `worker/`. See README → Privacy policy.
 
 ---
 

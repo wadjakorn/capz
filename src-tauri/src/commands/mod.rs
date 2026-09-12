@@ -8,4 +8,5 @@ pub mod permissions;
 pub mod pickers;
 pub mod scroll;
 pub mod stickers;
+pub mod system;
 pub mod workspaces;
