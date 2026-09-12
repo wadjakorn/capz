@@ -40,7 +40,9 @@ One long-lived editor window plus transient helper windows, all driven by the Ru
 
 Capture pipeline: hotkey → Rust enumerates monitors via `xcap` → captures buffer → `image_service` encodes PNG (or JPEG, per the user's intermediate-format setting) → writes to the OS temp dir as **`capz-temp-<unix_millis>.{png,jpg}`** → `windows::load_editor_image` shows the editor and emits `editor:load-image` carrying the path; the webview loads it via `convertFileSrc` (it is **not** a URL param). Loading a new image deletes the prior temp file; on startup `image_service::sweep_stale_temp` removes `capz-temp-*` files older than 24h.
 
-Output is either file (via `tauri-plugin-fs` + `tauri-plugin-dialog`) or clipboard PNG (via `tauri-plugin-clipboard-manager.writeImage`). No backend API, no telemetry, no cloud in v1.
+Output is either file (via `tauri-plugin-fs` + `tauri-plugin-dialog`) or clipboard PNG (via `tauri-plugin-clipboard-manager.writeImage`).
+
+**Backend (`worker/`):** the only server component is a Cloudflare Worker + D1 (`capz-api`, see [worker/README.md](worker/README.md)). It (1) proxies the updater's `latest.json` from gh-pages and counts update checks — an **opt-in** random install id (`updates.shareInstallId`, default off; stored in `telemetry.json`, `src/lib/installId.ts`) is sent as `X-Capz-Install` and stored only as a salted hash; (2) receives anonymous bug/feature reports from Settings → Feedback (`src/lib/feedback.ts`) and mirrors them into the private `wadjakorn/capz-inbox` repo. The install id must never be attached to feedback. The updater has two endpoints in `tauri.conf.json`: Worker first, gh-pages as fallback. The privacy policy in README.md must be kept truthful when any of this changes (SignPath Foundation requirement: nothing is transferred unless the user asked for it).
 
 ## Cross-Cutting Rules (PLAN.md §5 — read before Phase 4+)
 

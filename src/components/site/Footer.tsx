@@ -13,15 +13,26 @@ export function Footer() {
           <span className="hidden sm:inline">·</span>
           <p>{t("footer.oss")}</p>
         </div>
-        <a
-          href="https://github.com/wadjakorn/capz"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
-        >
-          <GithubIcon className="h-3.5 w-3.5" />
-          github.com/wadjakorn/capz
-        </a>
+        <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-3">
+          <a
+            href="https://github.com/wadjakorn/capz/issues"
+            target="_blank"
+            rel="noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            {t("footer.feedback")}
+          </a>
+          <span className="hidden sm:inline">·</span>
+          <a
+            href="https://github.com/wadjakorn/capz"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
+          >
+            <GithubIcon className="h-3.5 w-3.5" />
+            github.com/wadjakorn/capz
+          </a>
+        </div>
       </div>
     </footer>
   );

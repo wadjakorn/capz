@@ -29,6 +29,7 @@ import {
   useScreenRecordingHealthCheck,
 } from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
+import { useInstallIdNudge } from "@/hooks/use-install-id-nudge";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -164,6 +165,7 @@ export default function EditorPage() {
   useInertGrantAfterUpdateListener(openRecovery);
   useScreenRecordingHealthCheck(openRecovery);
   useUpdateCheckListener();
+  useInstallIdNudge();
 
   const applyFile = useCallback(async (
     path: string | null,

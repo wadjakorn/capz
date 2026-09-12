@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "editor-capability",
   "description": "permissions for editor windows",
-  "windows": ["editor"],
+  "windows": [
+    "editor"
+  ],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -24,14 +26,29 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$PICTURE/**" },
-        { "path": "$TEMP/**" },
-        { "path": "$APPDATA/workspaces/**" }
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DESKTOP/**"
+        },
+        {
+          "path": "$DOCUMENT/**"
+        },
+        {
+          "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$PICTURE/**"
+        },
+        {
+          "path": "$TEMP/**"
+        },
+        {
+          "path": "$APPDATA/workspaces/**"
+        }
       ]
-    }
+    },
+    "opener:default"
   ]
 }
