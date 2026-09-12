@@ -1,0 +1,29 @@
+name = "capz-api"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[observability]
+enabled = true
+
+[vars]
+GITHUB_REPO = "wadjakorn/capz-inbox"
+ISSUE_CREATION_ENABLED = "true"
+DAILY_ISSUE_CAP = "50"
+PER_IP_DAILY_CAP = "10"
+UPSTREAM_LATEST = "https://wadjakorn.github.io/capz/latest.json"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "capz-telemetry"
+database_id = "41d4afa1-bf0c-4448-bba2-1b8a159ca7a0"
+migrations_dir = "migrations"
+
+# Per-IP burst limit for POST /feedback. The binding only supports 10s / 60s
+# periods; the per-day cap is enforced in D1 (PER_IP_DAILY_CAP).
+[[ratelimits]]
+name = "FEEDBACK_RL"
+namespace_id = "1001"
+simple = { limit = 2, period = 60 }
+
+[triggers]
+crons = ["17 3 * * *"]
