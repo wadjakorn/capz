@@ -278,6 +278,11 @@ export type AppConfig = {
   };
   updates: {
     autoCheck: boolean;
+    /**
+     * Opt-in: send a random install id with the update check so active
+     * installs can be counted. Off by default (SignPath privacy terms).
+     */
+    shareInstallId: boolean;
     checkIntervalHours: number;
     channel: "stable" | "beta";
     skippedVersion: string | null;
@@ -412,6 +417,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   updates: {
     autoCheck: true,
+    shareInstallId: false,
     checkIntervalHours: 24,
     channel: "stable",
     skippedVersion: null,
@@ -906,6 +912,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
     }, issues),
     updates: vsec("updates", r.updates, d.updates, {
       autoCheck: isBool,
+      shareInstallId: isBool,
       checkIntervalHours: isNum,
       channel: inSet("stable", "beta"),
       skippedVersion: isStrOrNull,

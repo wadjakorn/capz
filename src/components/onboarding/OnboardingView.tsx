@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Camera, Check, Clock, MousePointerClick, ShieldCheck, Sparkles } from "lucide-react";
 import { GlowTile } from "@/components/design/tiles/GlowTile";
+import { ToggleRow } from "@/components/settings/ToggleRow";
+import { setShareInstallId } from "@/lib/installId";
 import { useSettings } from "@/stores/settings";
 
 type Step = "welcome" | "permission" | "accessibility" | "done";
@@ -17,7 +19,7 @@ type Props = {
 };
 
 export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
-  const { ready, init, update } = useSettings();
+  const { ready, init, update, config } = useSettings();
   const [step, setStep] = useState<Step>("welcome");
   const [granted, setGranted] = useState<boolean | null>(null);
   const [requested, setRequested] = useState(false);
@@ -216,7 +218,13 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
               onNext={() => setStep("done")}
             />
           )}
-          {step === "done" && <Done onFinish={finish} />}
+          {step === "done" && (
+            <Done
+              shareInstallId={config.updates.shareInstallId}
+              onShareInstallId={(v) => void setShareInstallId(v)}
+              onFinish={finish}
+            />
+          )}
         </div>
       </div>
     </main>
@@ -680,7 +688,15 @@ function Accessibility({
   );
 }
 
-function Done({ onFinish }: { onFinish: () => void }) {
+function Done({
+  shareInstallId,
+  onShareInstallId,
+  onFinish,
+}: {
+  shareInstallId: boolean;
+  onShareInstallId: (v: boolean) => void;
+  onFinish: () => void;
+}) {
   return (
     <div className="grid gap-4">
       <h2 className="headline">You&apos;re all set</h2>
@@ -688,6 +704,14 @@ function Done({ onFinish }: { onFinish: () => void }) {
         capz lives in your menu bar / system tray. Use the hotkeys, or click
         the tray icon for capture options.
       </p>
+      <div className="rounded-lg border border-border p-3">
+        <ToggleRow
+          label="Help count active installs"
+          hint="Optional. Sends a random ID with the daily update check so the developer can see how many machines use capz. No personal data, nothing about your machine. You can change this any time in Settings → Updates."
+          checked={shareInstallId}
+          onChange={onShareInstallId}
+        />
+      </div>
       <p className="text-xs text-muted-foreground">
         Tweak everything later from the Settings view.
       </p>
