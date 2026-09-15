@@ -90,6 +90,15 @@ describe("installId on the desktop runtime", () => {
     expect(await getOrCreateInstallId()).not.toBe(first);
   });
 
+  it("an explicit toggle choice retires the nudge either way", async () => {
+    const { setShareInstallId, wasNudgeShown } = await import("./installId");
+    const { useSettings } = await import("@/stores/settings");
+    await useSettings.getState().init();
+    expect(await wasNudgeShown()).toBe(false);
+    await setShareInstallId(false);
+    expect(await wasNudgeShown()).toBe(true);
+  });
+
   it("nudge flag starts false and sticks once marked", async () => {
     const { wasNudgeShown, markNudgeShown } = await import("./installId");
     expect(await wasNudgeShown()).toBe(false);

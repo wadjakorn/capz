@@ -18,12 +18,15 @@ import { useSettings } from "@/stores/settings";
  */
 export function useInstallIdNudge() {
   const ready = useSettings((s) => s.ready);
-  const onboardingCompleted = useSettings((s) => s.config.general.onboardingCompleted);
-  const shareInstallId = useSettings((s) => s.config.updates.shareInstallId);
 
+  // Evaluated once per window, when settings become ready. Deliberately NOT
+  // re-run when the user flips the toggle later: turning it off must not
+  // immediately produce a prompt asking to turn it back on.
   useEffect(() => {
-    if (!ready || !onboardingCompleted || shareInstallId) return;
+    if (!ready) return;
     if (!isTauriRuntime()) return;
+    const { general, updates } = useSettings.getState().config;
+    if (!general.onboardingCompleted || updates.shareInstallId) return;
     let cancelled = false;
     let unhook: (() => void) | undefined;
 
@@ -68,5 +71,5 @@ export function useInstallIdNudge() {
       cancelled = true;
       unhook?.();
     };
-  }, [ready, onboardingCompleted, shareInstallId]);
+  }, [ready]);
 }

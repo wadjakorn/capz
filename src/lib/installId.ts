@@ -61,8 +61,13 @@ export async function installIdHeaders(): Promise<Record<string, string> | undef
   return id ? { [INSTALL_ID_HEADER]: id } : undefined;
 }
 
-/** Flip the setting and keep the stored id consistent with it. */
+/**
+ * Flip the setting and keep the stored id consistent with it. An explicit
+ * choice either way also retires the one-time nudge: the user has seen the
+ * option, so we never ask again.
+ */
 export async function setShareInstallId(enabled: boolean): Promise<void> {
+  await markNudgeShown();
   if (enabled) {
     // Always start from a fresh id so "off then on" cannot be linked to the
     // previous identity.
