@@ -11,11 +11,14 @@ import {
   Settings as SettingsIcon,
   RefreshCw,
   Smile,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
+import { ToggleRow } from "@/components/settings/ToggleRow";
+import { FeedbackTab } from "@/components/settings/FeedbackTab";
+import { setShareInstallId } from "@/lib/installId";
 import {
   statusMessage,
   currentPlatform,
@@ -109,7 +112,7 @@ async function applyHotkey(
   }
 }
 
-const TAB_VALUES = ["shortcuts", "output", "stickers", "general", "updates"] as const;
+const TAB_VALUES = ["shortcuts", "output", "stickers", "general", "updates", "feedback"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 type TabDef = {
@@ -125,6 +128,7 @@ const TABS: TabDef[] = [
   { value: "stickers", label: "Stickers", icon: Smile, tone: "amber" },
   { value: "general", label: "General", icon: SettingsIcon, tone: "sky" },
   { value: "updates", label: "Updates", icon: RefreshCw, tone: "cyan" },
+  { value: "feedback", label: "Feedback", icon: MessageSquare, tone: "rose" },
 ];
 
 /** A specific setting to open on, rather than the default tab. */
@@ -369,6 +373,12 @@ export function SettingsView({ onOpenInertRecovery, focus }: SettingsViewProps =
           <TabsContent value="updates" className="grid gap-4">
             <SectionCard>
               <UpdatesTab />
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="feedback" className="grid gap-4">
+            <SectionCard>
+              <FeedbackTab />
             </SectionCard>
           </TabsContent>
 
@@ -668,6 +678,12 @@ function UpdatesTab() {
         checked={u.autoCheck}
         onChange={(v) => update("updates", { autoCheck: v })}
       />
+      <ToggleRow
+        label="Share anonymous install ID"
+        hint="Sends a random ID with the update check so active installs can be counted. No personal data, nothing about your machine. Off by default; turning it off deletes the ID."
+        checked={u.shareInstallId}
+        onChange={(v) => void setShareInstallId(v)}
+      />
       <FieldRow label="Check interval">
         <select
           className="field"
@@ -732,23 +748,6 @@ function AboutRow() {
             : "loading…"}
         </span>
       </div>
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <Label className="text-foreground">{label}</Label>
-      <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   );
 }

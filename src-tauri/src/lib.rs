@@ -108,6 +108,7 @@ fn is_onboarding_completed<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         // MUST be the first plugin registered (Tauri requirement) so it runs
         // before any other plugin can interfere. Second launch while the
         // tray-resident instance is alive surfaces the existing instance's
@@ -171,6 +172,7 @@ pub fn run() {
             commands::workspaces::delete_workspace_image,
             commands::workspaces::sweep_workspace_images,
             commands::stickers::list_stickers,
+            commands::system::platform_info,
             commands::permissions::has_screen_recording_permission,
             commands::permissions::probe_capture_command,
             commands::permissions::request_screen_recording_permission,
