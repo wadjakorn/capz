@@ -38,6 +38,17 @@
 4. **`tha.traineddata` ของ Ubuntu = `tessdata_fast` เป๊ะ** (SHA ตรงกัน) ผลวัด §8 จึงใช้แทนสิ่งที่จะ ship ได้
 5. **การ publish GitHub Release จะยิง `update-cask.yml`** (`on: release: published`) ต้องใส่ guard ก่อนอัปโหลด asset ไม่งั้น Homebrew cask จะพัง
 6. **UB-Mannheim ship แค่ LICENSE ของ Tesseract** ไม่มี license ของ DLL ภายนอก (OpenSSL, libarchive, libstdc++ ฯลฯ) — ดู Task 8
+7. **(เพิ่มหลัง rebase บน v0.13.0, 16 ก.ย.) ปุ่ม Download บนหน้าเว็บ capz อ่าน `api.github.com/repos/wadjakorn/capz/releases/latest`** (`src/hooks/use-latest-release.ts`) ถ้า release ของ Tesseract ถูกนับเป็น "latest" ปุ่ม Download Windows บนเว็บจะชี้ไปที่ zip ของ Tesseract แทนตัวติดตั้ง capz — Task 2 จึง publish เป็น `--prerelease --latest=false` (prerelease ไม่มีวันถูกเลือกเป็น latest)
+8. **(เพิ่มหลัง rebase) README ประกาศ Code signing policy ของ SignPath Foundation ว่า "Signed binaries are built from this repository's source"** plan นี้ใส่ binary สำเร็จรูปของบุคคลที่สาม (UB-Mannheim) 27 ไฟล์ลงใน installer ที่จะถูกเซ็น ซึ่งอาจขัดกับข้อความนั้นหรือเงื่อนไขของ SignPath Foundation — **ยังไม่ได้ตรวจเงื่อนไขจริง** ดูด่าน "ก่อนเริ่ม" ข้างล่าง
+9. **(เพิ่มหลัง rebase) CLAUDE.md ไม่มีข้อ "no cloud in v1" แล้ว** เปลี่ยนเป็น "privacy policy ใน README ต้องจริงเสมอ" Tesseract ทำงานในเครื่องทั้งหมด ไม่ส่งข้อมูลออก privacy policy จึงไม่ต้องแก้ แต่ Task 7 ต้องยืนยันซ้ำ
+
+upstream ที่ rebase ทับ (v0.13.0: `worker/`, `tauri-plugin-opener`, install id, Feedback tab) **ไม่แตะไฟล์ OCR เลย** จุดที่ plan แก้ร่วมกับ upstream (`Cargo.toml`, `.gitignore`, `README.md`, `PROGRESS-FEATURE.md`) เป็นคนละบรรทัด ไม่ชนกัน
+
+---
+
+## ⛔ ด่านก่อนเริ่ม — ต้องตอบก่อน Task 2
+
+**SignPath:** ต้องยืนยันว่าเงื่อนไขของ SignPath Foundation อนุญาตให้ installer ที่เซ็นมี binary open source ของบุคคลที่สามที่ไม่ได้ build จาก source ในรีโปนี้ ถ้า**ไม่อนุญาต** Task 2 ทั้งหมด (repackage binary สำเร็จรูป) ใช้ไม่ได้ ต้องกลับไปออกแบบใหม่ เช่น build Tesseract จาก source ใน CI หรือไม่เซ็นเฉพาะไฟล์เหล่านั้น — Task 1 ทำได้ก่อนเพราะไม่ขึ้นกับคำตอบนี้ Task 3–4 ก็ทำได้ (ไม่ขึ้นกับว่า binary มาจากไหน)
 
 ---
 
@@ -331,8 +342,18 @@ gh release create tesseract-win64-5.4.0.20240606-capz1 \
   dist/tesseract-win64-5.4.0.20240606-capz1.zip \
   --title "Tesseract 5.4.0 bundle for capz Windows (capz1)" \
   --notes "Build input, not an app release. Repackaged from UB-Mannheim tesseract-ocr-w64-setup-5.4.0.20240606.exe by scripts/package-tesseract-windows.sh: 26-DLL closure, debug-stripped, tessdata_fast tha+eng @ 8741641. Apache-2.0." \
-  --latest=false
+  --prerelease --latest=false
 ```
+
+`--prerelease` สำคัญ: หน้าเว็บ capz หาไฟล์ Windows จาก `releases/latest` (ข้อเท็จจริงข้อ 7) prerelease ไม่มีวันถูกเลือกเป็น latest ส่วน `release: published` ยังยิงกับ prerelease อยู่ guard ใน Step 3 จึงยังจำเป็น
+
+- [ ] **Step 9b: ยืนยันว่าหน้าเว็บยังชี้ไปที่ capz**
+
+```bash
+gh api repos/wadjakorn/capz/releases/latest -q .tag_name
+```
+
+Expected: `v0.13.0` หรือเวอร์ชันแอปล่าสุด — **ห้ามเป็น** `tesseract-win64-*`
 
 - [ ] **Step 10: ตรวจว่า fetch ทำงานจริง**
 
@@ -1178,6 +1199,16 @@ capz เคยใช้ระบบอ่านตัวอักษรที่
 
 `PROGRESS-FEATURE.md` — ในรายการ `**OCR text reader**` แทน `(macOS Vision + Windows.Media.Ocr)` ด้วย `(macOS Vision; Windows: bundled Tesseract subprocess, see docs/superpowers/specs/2026-09-14-tesseract-windows-ocr-design.md)`
 
+- [ ] **Step 4b: ยืนยัน privacy policy ใน README ยังจริง**
+
+CLAUDE.md กำหนดให้ privacy policy ต้องจริงเสมอ (เงื่อนไข SignPath) Tesseract รันในเครื่อง ไม่มี network — ตรวจว่าโค้ด backend ไม่มีการเรียกเครือข่าย:
+
+```bash
+grep -nE "http|reqwest|TcpStream|ureq" src-tauri/src/services/ocr/tesseract.rs || echo "no network"
+```
+
+Expected: `no network` → ไม่ต้องแก้หัวข้อ Privacy policy ใน README
+
 - [ ] **Step 5: แก้ตัวเลขขนาดใน spec §3**
 
 ในตาราง "ขนาดที่ต้องจ่าย" ของ spec แทนทั้งตารางและบล็อก `⚠️` ถัดไปด้วยตัวเลขที่วัดแล้ว (26 DLL + exe หลัง strip 22.7 MB, traineddata 5.2 MB, zip บีบอัด และขนาด `.msi` ที่เพิ่มขึ้นจริงจาก Task 6) และหมายเหตุว่าตัวเลข ~11 MB เดิมประเมินจาก Linux ซึ่งใช้ shared lib ของระบบ
@@ -1201,6 +1232,7 @@ git commit -m "docs(ocr): Thai OCR now works on Windows; set expectations on acc
 - [ ] **Step 4: English regression** — เอาภาพภาษาอังกฤษ 3 ภาพ (เว็บ, เอกสาร, โค้ด) Detect text บน v0.12.0 (WinRT) และบน build นี้ บันทึกผลเทียบกันใน PR — เป็นความเสี่ยงที่ spec §4 ระบุว่ายังไม่ได้วัด
 - [ ] **Step 5: เวลา** — จับเวลา Detect text บนสกรีนช็อตเต็มจอ ถ้าเกิน ~3 วินาที บันทึกไว้ (spec §6: เหตุผลที่จะย้ายไป `leptess`)
 - [ ] **Step 6: license ของ DLL** — UB-Mannheim ship แค่ LICENSE ของ Tesseract DLL อีก 25 ตัวมี license ของตัวเอง (OpenSSL: Apache-2.0, libarchive: BSD, libstdc++/libgcc: GPL + runtime exception ฯลฯ) ผู้ใช้ต้องตัดสินใจว่าจะเพิ่มไฟล์ third-party notices ก่อน ship หรือไม่ — **plan นี้ไม่ได้ตัดสินแทน**
+- [ ] **Step 7: SignPath + README** — ถ้าด่านก่อนเริ่มยืนยันว่าเซ็นได้ ให้แก้ประโยค "Signed binaries are built from this repository's source" ใน README หัวข้อ Code signing policy ให้ตรงความจริง (installer มี Tesseract binary ที่ repackage จาก UB-Mannheim ด้วย) ถ้อยคำให้ผู้ใช้อนุมัติ
 
 ---
 
