@@ -7,9 +7,10 @@ import { markNudgeShown, setShareInstallId, wasNudgeShown } from "@/lib/installI
 import { useSettings } from "@/stores/settings";
 
 /**
- * One-time toast for installs that finished onboarding before the opt-in
- * existed. Shown once per machine, whatever the user picks. New installs see
- * the same choice on the onboarding Done screen instead.
+ * Opt-in toast for installs that have not enabled the anonymous install id.
+ * Shown once per app version: a user who declined is asked again after the
+ * next update, never twice on the same version. New installs see the same
+ * choice on the onboarding Done screen, which settles it for that version.
  *
  * The editor window can be created hidden (tray-resident launch), so the
  * toast is deferred until the document is actually visible; otherwise it

@@ -19,6 +19,8 @@ const loadMock = vi.fn(async (file: string) => {
 
 vi.mock("@tauri-apps/plugin-store", () => ({ load: loadMock }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
+let appVersion = "0.13.0";
+vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn(async () => appVersion) }));
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,6 +29,7 @@ describe("installId on the desktop runtime", () => {
     vi.resetModules();
     files.clear();
     saveMock.mockClear();
+    appVersion = "0.13.0";
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -99,8 +102,14 @@ describe("installId on the desktop runtime", () => {
     expect(await wasNudgeShown()).toBe(true);
   });
 
-  it("nudge flag starts false and sticks once marked", async () => {
-    const { wasNudgeShown, markNudgeShown } = await import("./installId");
+  it("nudge starts unshown, sticks once marked, and re-arms on a new app version", async () => {
+    const { wasNudgeShown, markNudgeShown, TELEMETRY_STORE_FILE } = await import("./installId");
+    expect(await wasNudgeShown()).toBe(false);
+    await markNudgeShown();
+    expect(await wasNudgeShown()).toBe(true);
+    expect(files.get(TELEMETRY_STORE_FILE)?.get("nudgeVersion")).toBe("0.13.0");
+
+    appVersion = "0.14.0"; // user updated
     expect(await wasNudgeShown()).toBe(false);
     await markNudgeShown();
     expect(await wasNudgeShown()).toBe(true);

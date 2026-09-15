@@ -15,7 +15,8 @@ export const TELEMETRY_STORE_FILE = "telemetry.json";
 export const INSTALL_ID_HEADER = "X-Capz-Install";
 
 const KEY_ID = "installId";
-const KEY_NUDGE = "nudgeShown";
+/** App version at which the opt-in nudge was last shown (or explicitly answered). */
+const KEY_NUDGE_VERSION = "nudgeVersion";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -63,8 +64,8 @@ export async function installIdHeaders(): Promise<Record<string, string> | undef
 
 /**
  * Flip the setting and keep the stored id consistent with it. An explicit
- * choice either way also retires the one-time nudge: the user has seen the
- * option, so we never ask again.
+ * choice either way also settles the nudge for this app version: the user has
+ * seen the option, so we do not ask again until the next update.
  */
 export async function setShareInstallId(enabled: boolean): Promise<void> {
   await markNudgeShown();
@@ -79,16 +80,25 @@ export async function setShareInstallId(enabled: boolean): Promise<void> {
   await useSettings.getState().update("updates", { shareInstallId: enabled });
 }
 
-/** One-time nudge bookkeeping for users who finished onboarding before this existed. */
+export async function currentAppVersion(): Promise<string> {
+  const { getVersion } = await import("@tauri-apps/api/app");
+  return getVersion();
+}
+
+/**
+ * Nudge bookkeeping. The opt-in toast is shown at most once per app version
+ * while sharing is off, so every update re-asks users who never opted in.
+ * `true` here means "already asked (or answered) on this version".
+ */
 export async function wasNudgeShown(): Promise<boolean> {
   if (!isTauriRuntime()) return true;
-  const store = await openStore();
-  return (await store.get<boolean>(KEY_NUDGE)) === true;
+  const [store, version] = await Promise.all([openStore(), currentAppVersion()]);
+  return (await store.get<string>(KEY_NUDGE_VERSION)) === version;
 }
 
 export async function markNudgeShown(): Promise<void> {
   if (!isTauriRuntime()) return;
-  const store = await openStore();
-  await store.set(KEY_NUDGE, true);
+  const [store, version] = await Promise.all([openStore(), currentAppVersion()]);
+  await store.set(KEY_NUDGE_VERSION, version);
   await store.save();
 }
