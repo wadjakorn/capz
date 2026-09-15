@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Camera, Check, Clock, MousePointerClick, ShieldCheck, Sparkles } from "lucide-react";
 import { GlowTile } from "@/components/design/tiles/GlowTile";
 import { ToggleRow } from "@/components/settings/ToggleRow";
-import { setShareInstallId } from "@/lib/installId";
+import { markNudgeShown, setShareInstallId } from "@/lib/installId";
 import { useSettings } from "@/stores/settings";
 
 type Step = "welcome" | "permission" | "accessibility" | "done";
@@ -153,6 +153,8 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
   }
 
   async function finish() {
+    // The Done screen already offered the install-id choice; never nudge again.
+    await markNudgeShown();
     await update("general", { onboardingCompleted: true });
     onDone();
   }
