@@ -39,16 +39,31 @@
 5. **การ publish GitHub Release จะยิง `update-cask.yml`** (`on: release: published`) ต้องใส่ guard ก่อนอัปโหลด asset ไม่งั้น Homebrew cask จะพัง
 6. **UB-Mannheim ship แค่ LICENSE ของ Tesseract** ไม่มี license ของ DLL ภายนอก (OpenSSL, libarchive, libstdc++ ฯลฯ) — ดู Task 8
 7. **(เพิ่มหลัง rebase บน v0.13.0, 16 ก.ย.) ปุ่ม Download บนหน้าเว็บ capz อ่าน `api.github.com/repos/wadjakorn/capz/releases/latest`** (`src/hooks/use-latest-release.ts`) ถ้า release ของ Tesseract ถูกนับเป็น "latest" ปุ่ม Download Windows บนเว็บจะชี้ไปที่ zip ของ Tesseract แทนตัวติดตั้ง capz — Task 2 จึง publish เป็น `--prerelease --latest=false` (prerelease ไม่มีวันถูกเลือกเป็น latest)
-8. **(เพิ่มหลัง rebase) README ประกาศ Code signing policy ของ SignPath Foundation ว่า "Signed binaries are built from this repository's source"** plan นี้ใส่ binary สำเร็จรูปของบุคคลที่สาม (UB-Mannheim) 27 ไฟล์ลงใน installer ที่จะถูกเซ็น ซึ่งอาจขัดกับข้อความนั้นหรือเงื่อนไขของ SignPath Foundation — **ยังไม่ได้ตรวจเงื่อนไขจริง** ดูด่าน "ก่อนเริ่ม" ข้างล่าง
+8. **(เพิ่มหลัง rebase) README ประกาศ Code signing policy ของ SignPath Foundation ว่า "Signed binaries are built from this repository's source"** plan นี้ใส่ binary สำเร็จรูปของบุคคลที่สาม (UB-Mannheim) 27 ไฟล์ลงใน installer ที่จะถูกเซ็น — ตรวจเงื่อนไขแล้ว ดู "ด่าน SignPath" ข้างล่าง
 9. **(เพิ่มหลัง rebase) CLAUDE.md ไม่มีข้อ "no cloud in v1" แล้ว** เปลี่ยนเป็น "privacy policy ใน README ต้องจริงเสมอ" Tesseract ทำงานในเครื่องทั้งหมด ไม่ส่งข้อมูลออก privacy policy จึงไม่ต้องแก้ แต่ Task 7 ต้องยืนยันซ้ำ
 
 upstream ที่ rebase ทับ (v0.13.0: `worker/`, `tauri-plugin-opener`, install id, Feedback tab) **ไม่แตะไฟล์ OCR เลย** จุดที่ plan แก้ร่วมกับ upstream (`Cargo.toml`, `.gitignore`, `README.md`, `PROGRESS-FEATURE.md`) เป็นคนละบรรทัด ไม่ชนกัน
 
 ---
 
-## ⛔ ด่านก่อนเริ่ม — ต้องตอบก่อน Task 2
+## ด่าน SignPath — ตรวจแล้ว 16 ก.ย. 2026: ผ่านแบบมีเงื่อนไข
 
-**SignPath:** ต้องยืนยันว่าเงื่อนไขของ SignPath Foundation อนุญาตให้ installer ที่เซ็นมี binary open source ของบุคคลที่สามที่ไม่ได้ build จาก source ในรีโปนี้ ถ้า**ไม่อนุญาต** Task 2 ทั้งหมด (repackage binary สำเร็จรูป) ใช้ไม่ได้ ต้องกลับไปออกแบบใหม่ เช่น build Tesseract จาก source ใน CI หรือไม่เซ็นเฉพาะไฟล์เหล่านั้น — Task 1 ทำได้ก่อนเพราะไม่ขึ้นกับคำตอบนี้ Task 3–4 ก็ทำได้ (ไม่ขึ้นกับว่า binary มาจากไหน)
+แหล่ง: SignPath Foundation Code of Conduct, https://signpath.org/terms
+
+**อนุญาต** — อ้างตรง: *"You may include unsigned binaries of upstream OSS projects, e.g. DLL files, in your signed packages, e.g. MSI installers."* แนวทางของ Task 2 (ใส่ binary ของ Tesseract ใน `.msi`) จึงใช้ได้
+
+**เงื่อนไขที่ plan ต้องทำตาม:**
+
+1. **ห้ามเซ็นไฟล์ Tesseract ด้วยใบรับรองของ capz** — *"upstream OSS projects' binaries must not be signed using your subscription, but may be included in signed packages and installers."* ตอนนี้รีโปยังไม่มี config ของ SignPath (README บอกว่า "in progress") เมื่อตั้งค่า ต้อง**ยกเว้น `vendor/tesseract/**`** จาก deep signing — บันทึกไว้ใน Task 8 Step 7
+2. **ทุก component ต้องเป็น OSI-approved license** — *"The project must use an OSI-approved Open Source license without commercial dual-licensing for all components."* ต้องตรวจ license ของ DLL ทั้ง 26 ตัวจริง ไม่ใช่แค่ Tesseract — Task 8 Step 6 เปลี่ยนจาก "ตัดสินใจเรื่อง notices" เป็น**ด่านบังคับ**
+3. **ความเสี่ยงอนาคต** — *"we reserve the right to require that signed packages only include signed program and library files in the future."* ถ้า SignPath บังคับข้อนี้ในอนาคต แนวทาง bundle binary ของ UB-Mannheim จะใช้ไม่ได้
+
+**ข้อที่เงื่อนไขไม่ได้พูดถึง — ต้องตัดสินใจ:** Task 2 **แก้ไข** binary (`strip --strip-debug`) ก่อนใส่ ข้อความของ SignPath พูดถึง "unsigned binaries of upstream OSS projects" เท่านั้น ไม่ได้บอกว่าแก้ไขก่อนได้หรือไม่ ทางเลือก:
+- **ถาม SignPath ก่อน (แนะนำ)** — การเซ็นทุกครั้งต้องได้รับอนุมัติด้วยมืออยู่แล้ว ถามไว้ก่อนดีกว่าโดนปฏิเสธตอน release
+- ใส่แบบไม่ strip — ตรงตัวอักษรที่สุด แต่ installer ใหญ่ขึ้นมาก (ดิบ 121 MB)
+- ยอมรับความเสี่ยงและ strip ต่อ
+
+Task 1, 3, 4 ไม่ขึ้นกับคำตอบนี้ ทำได้เลย
 
 ---
 
@@ -1231,8 +1246,8 @@ git commit -m "docs(ocr): Thai OCR now works on Windows; set expectations on acc
 - [ ] **Step 3: resource path** — ถ้า Step 2 ได้ error ให้ดูข้อความ: path ที่ขึ้นมาคือที่ `resolve("vendor/tesseract")` ชี้ไป เทียบกับ `C:\Program Files\capz\` ว่าไฟล์อยู่ตรงไหนจริง
 - [ ] **Step 4: English regression** — เอาภาพภาษาอังกฤษ 3 ภาพ (เว็บ, เอกสาร, โค้ด) Detect text บน v0.12.0 (WinRT) และบน build นี้ บันทึกผลเทียบกันใน PR — เป็นความเสี่ยงที่ spec §4 ระบุว่ายังไม่ได้วัด
 - [ ] **Step 5: เวลา** — จับเวลา Detect text บนสกรีนช็อตเต็มจอ ถ้าเกิน ~3 วินาที บันทึกไว้ (spec §6: เหตุผลที่จะย้ายไป `leptess`)
-- [ ] **Step 6: license ของ DLL** — UB-Mannheim ship แค่ LICENSE ของ Tesseract DLL อีก 25 ตัวมี license ของตัวเอง (OpenSSL: Apache-2.0, libarchive: BSD, libstdc++/libgcc: GPL + runtime exception ฯลฯ) ผู้ใช้ต้องตัดสินใจว่าจะเพิ่มไฟล์ third-party notices ก่อน ship หรือไม่ — **plan นี้ไม่ได้ตัดสินแทน**
-- [ ] **Step 7: SignPath + README** — ถ้าด่านก่อนเริ่มยืนยันว่าเซ็นได้ ให้แก้ประโยค "Signed binaries are built from this repository's source" ใน README หัวข้อ Code signing policy ให้ตรงความจริง (installer มี Tesseract binary ที่ repackage จาก UB-Mannheim ด้วย) ถ้อยคำให้ผู้ใช้อนุมัติ
+- [ ] **Step 6: license ของ DLL — ด่านบังคับของ SignPath** — SignPath กำหนดให้ *ทุก component* เป็น OSI-approved license UB-Mannheim ship แค่ LICENSE ของ Tesseract ต้องไล่ยืนยัน license ของ DLL ทั้ง 26 ตัวในรายการ `DLLS` ของ `scripts/package-tesseract-windows.sh` จากต้นทางของแต่ละโปรเจกต์ บันทึกเป็นตาราง (ไฟล์, โปรเจกต์, license) ไว้ใน PR ถ้าเจอตัวที่ไม่ใช่ OSI ต้องหยุด แล้วแนบ license ทั้งหมดเป็นไฟล์ `THIRD-PARTY-NOTICES` ไปใน zip
+- [ ] **Step 7: SignPath + README** — (ก) ตอนตั้งค่า SignPath artifact configuration ต้องยกเว้น `vendor/tesseract/**` จากการเซ็น (ห้ามเซ็น binary ของ upstream ด้วยใบรับรองของ capz) (ข) แก้ประโยค "Signed binaries are built from this repository's source" ใน README หัวข้อ Code signing policy ให้ตรงความจริง (installer มี Tesseract binary ที่ repackage จาก UB-Mannheim ด้วย) ถ้อยคำให้ผู้ใช้อนุมัติ
 
 ---
 
