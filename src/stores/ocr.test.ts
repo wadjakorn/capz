@@ -96,7 +96,7 @@ describe("useOcr", () => {
     expect(useOcr.getState().thaiNoticeShown).toBe(false);
   });
 
-  it("tells Windows users there is nothing to install, and links the note", async () => {
+  it("tells Windows users the bundled Thai data is broken, and links the note", async () => {
     vi.stubGlobal("navigator", { platform: "Win32" });
     try {
       detectText.mockResolvedValue(fakeEmpty(false));
@@ -104,7 +104,8 @@ describe("useOcr", () => {
       await useOcr.getState().detect();
       const call = toast.mock.calls.find((c) => String(c[0]).includes("Thai"));
       expect(call?.[1]?.description).toContain("OCR-THAI-WINDOWS.th.md");
-      // Must NOT resurrect the impossible install instructions.
+      expect(call?.[1]?.description).toContain("ติดตั้ง capz ใหม่");
+      // Must NOT resurrect the impossible install instructions (#79).
       expect(call?.[1]?.description).not.toContain("Language & region");
       expect(call?.[1]?.description).not.toContain("Optical character recognition");
     } finally {
