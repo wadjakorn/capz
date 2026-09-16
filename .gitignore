@@ -64,3 +64,8 @@ e2e/visual-out/
 
 # impeccable review captures
 .impeccable/review/
+
+# Tesseract bundle fetched by scripts/fetch-tesseract-windows.sh
+src-tauri/vendor/
+# scripts/package-tesseract-windows.sh output
+dist/
