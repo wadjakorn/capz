@@ -43,10 +43,23 @@ capture โดยตรง, และการไม่มีเครื่อ�
 | การกระจาย | bundle เข้า `.msi` | ผู้ใช้ได้ของครบตั้งแต่ติดตั้ง ไม่มี error path เรื่องเน็ต ไม่มีการเรียกเครือข่ายใหม่ privacy policy ใน README จึงยังจริง |
 | binding | spawn subprocess | ไม่มี native dependency ตอน build — ดู §6 |
 
-**ขนาดที่ต้องจ่าย** (วัดจาก Linux เป็นตัวประมาณ ฝั่ง Windows จะใหญ่กว่าเล็กน้อย):
+**ขนาดที่ต้องจ่าย** — วัดจริงจาก build ของ UB-Mannheim เมื่อ 15 ก.ย. 2026:
 
-| ไฟล์ | ขนาด |
-|---|---|
+| ส่วน | ดิบ | หลัง `strip --strip-debug` |
+|---|---|---|
+| `tesseract.exe` + DLL 26 ตัว | 121 MB | **22.7 MB** |
+| `tha` + `eng` traineddata (`tessdata_fast`) | 5.2 MB | 5.2 MB |
+| **zip ที่ ship จริง** | — | **12 MB** |
+
+> ⚠️ ตัวเลข ~11 MB ที่เคยประเมินไว้ตอนออกแบบ**ผิด** เพราะวัดจาก Linux ซึ่งใช้
+> shared library ของระบบร่วมกัน ส่วน build บน Windows เป็น MinGW ที่ลาก DLL มาเอง
+> ทั้งชุด (`libtesseract-5.dll` ตัวเดียว 101 MB เพราะมี debug symbols)
+
+> ⚠️ `createUpdaterArtifacts: true` แปลว่า Tauri updater โหลด bundle **ทั้งก้อน**
+> ทุกครั้งที่อัปเดต ไม่ใช่ delta ผู้ใช้ทุกคนจึงจ่ายส่วนที่เพิ่มนี้**ทุกครั้งที่อัปเดต**
+> รวมทั้งคนที่ไม่เคยแคปภาษาไทยเลย นี่คือต้นทุนที่ใหญ่ที่สุดของ design นี้
+
+---|---|
 | `libtesseract` + `libleptonica` | ~6 MB |
 | `tha.traineddata` | 1.0 MB |
 | `eng.traineddata` | 4.1 MB |

@@ -116,4 +116,4 @@ No IP addresses, hostnames, user names or OS versions are stored. Server code an
 
 - [PLAN.md](PLAN.md) — phased build spec (source of truth)
 - [CLAUDE.md](CLAUDE.md) — guidance for Claude Code
-- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 why Thai OCR does not work on Windows (plain-Thai, for non-tech users)
+- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 Thai OCR on Windows: what to expect (plain-Thai, for non-tech users)
