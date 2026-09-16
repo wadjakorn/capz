@@ -59,9 +59,7 @@ upstream ที่ rebase ทับ (v0.13.0: `worker/`, `tauri-plugin-opener`, 
 3. **ความเสี่ยงอนาคต** — *"we reserve the right to require that signed packages only include signed program and library files in the future."* ถ้า SignPath บังคับข้อนี้ในอนาคต แนวทาง bundle binary ของ UB-Mannheim จะใช้ไม่ได้
 
 **ข้อที่เงื่อนไขไม่ได้พูดถึง — ต้องตัดสินใจ:** Task 2 **แก้ไข** binary (`strip --strip-debug`) ก่อนใส่ ข้อความของ SignPath พูดถึง "unsigned binaries of upstream OSS projects" เท่านั้น ไม่ได้บอกว่าแก้ไขก่อนได้หรือไม่ ทางเลือก:
-- **ถาม SignPath ก่อน (แนะนำ)** — การเซ็นทุกครั้งต้องได้รับอนุมัติด้วยมืออยู่แล้ว ถามไว้ก่อนดีกว่าโดนปฏิเสธตอน release
-- ใส่แบบไม่ strip — ตรงตัวอักษรที่สุด แต่ installer ใหญ่ขึ้นมาก (ดิบ 121 MB)
-- ยอมรับความเสี่ยงและ strip ต่อ
+**✅ ตัดสินแล้ว 16 ก.ย. 2026 (ผู้ใช้): strip ต่อ ยอมรับความเสี่ยง** เหตุผลที่รับได้: `strip --strip-debug` ตัดเฉพาะ debug section ไม่แตะโค้ดที่ execute และผลต่างคือ 121 MB → 22.7 MB ต่อการอัปเดตหนึ่งครั้งของผู้ใช้ทุกคน ความเสี่ยงที่เหลือคือ SignPath อาจตีความว่าเป็น binary ที่ถูกแก้ไข — จะรู้ตอนขออนุมัติการเซ็นครั้งแรก ซึ่ง**ยังไม่ได้เริ่ม** (README: signing "in progress") ถ้าโดนปฏิเสธ ทางถอยคือเลิก strip แล้วรับขนาดที่ใหญ่ขึ้น
 
 Task 1, 3, 4 ไม่ขึ้นกับคำตอบนี้ ทำได้เลย
 
