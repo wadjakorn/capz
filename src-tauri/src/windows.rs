@@ -537,6 +537,10 @@ pub enum CaptureSource {
     /// macOS system area capture (`screencapture -i`). A separate mode from
     /// `Area`: it does not use the remembered-region template / continuous
     /// re-capture flow, so it is tagged distinctly end-to-end.
+    ///
+    /// Only ever constructed by the macOS dispatch path, but the variant and its
+    /// `as_str` arm stay on every platform so the wire tag has one definition.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     SystemArea,
     Other,
 }

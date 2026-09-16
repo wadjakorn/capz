@@ -90,6 +90,10 @@ pub fn run_detect<B: OcrBackend>(backend: &B, image_path: &str) -> anyhow::Resul
     })
 }
 
+// Compiled everywhere (not just Windows) so its parser and real-engine test
+// run on Linux; only the Windows build constructs the backend.
+pub mod tesseract;
+
 #[cfg(target_os = "macos")]
 pub mod macos;
 
