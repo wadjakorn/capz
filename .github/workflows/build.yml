@@ -91,6 +91,11 @@ jobs:
       # publish latest.json (consumed by tauri-plugin-updater).
       # On workflow_dispatch: tagName resolves to empty → build only,
       # no release side-effects.
+      - name: Fetch bundled Tesseract (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: scripts/fetch-tesseract-windows.sh
+
       - name: Build + release via tauri-action
         uses: tauri-apps/tauri-action@v0
         env:

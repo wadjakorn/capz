@@ -41,10 +41,17 @@ jobs:
       - name: Stub frontend dist
         run: mkdir -p out && echo '<!doctype html>' > out/index.html
 
+      # tauri.windows.conf.json bundles src-tauri/vendor/tesseract, so the build
+      # script needs it present; the tests run the real engine from it.
+      - name: Fetch bundled Tesseract
+        run: scripts/fetch-tesseract-windows.sh
+
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Unit tests
         working-directory: src-tauri
-        run: cargo test --lib
+        env:
+          CAPZ_TESSERACT_DIR: ${{ github.workspace }}/src-tauri/vendor/tesseract
+        run: cargo test --lib -- --nocapture
