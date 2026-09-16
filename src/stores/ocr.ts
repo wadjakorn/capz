@@ -68,8 +68,8 @@ export const useOcr = create<State>((set, get) => ({
         set({ thaiNoticeShown: true });
         toast("Thai text recognition isn't available on this system", {
           description: isWindows()
-            ? "Windows ไม่มีชุด OCR ภาษาไทยให้ติดตั้ง (ไม่ว่าเวอร์ชันใด) จึงยังอ่านภาษาไทย" +
-              "ไม่ได้ — ไม่ต้องไปหาติดตั้งเพิ่ม ภาษาอังกฤษยังใช้ได้ตามปกติ · " +
+            ? "ไฟล์อ่านภาษาไทยที่มากับ capz หายหรือเสียหาย — ลองติดตั้ง capz ใหม่ " +
+              "ถ้ายังไม่หาย กรุณาแจ้งปัญหา · " +
               `รายละเอียด: ${THAI_OCR_NOTE_URL}`
             : "It requires a newer macOS version.",
           duration: isWindows() ? 12_000 : 8_000,

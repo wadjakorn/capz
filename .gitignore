@@ -60,3 +60,8 @@ hud-default.png
 # (verifyDepsBeforeRun:false). It must never reach the repo: committing it turns
 # the project into a pnpm workspace and breaks the Cloudflare Pages install.
 pnpm-workspace.yaml
+
+# Tesseract bundle fetched by scripts/fetch-tesseract-windows.sh
+src-tauri/vendor/
+# scripts/package-tesseract-windows.sh output
+dist/
