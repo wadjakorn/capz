@@ -418,6 +418,12 @@ export function SettingsView({ onOpenInertRecovery, focus }: SettingsViewProps =
                 onChange={(v) => update("general", { rememberLastTool: v })}
               />
               <ToggleRow
+                label="Keep drawing tool active after use"
+                hint="Shapes, arrow, text, blur, magnifier and sticker stay selected until you pick another tool or press Esc. Pen, highlighter and pin always stay active."
+                checked={config.general.keepToolActive}
+                onChange={(v) => update("general", { keepToolActive: v })}
+              />
+              <ToggleRow
                 label="Show rulers in editor"
                 checked={config.general.showRulers}
                 onChange={(v) => update("general", { showRulers: v })}

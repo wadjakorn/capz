@@ -282,3 +282,16 @@ describe("validateConfig pins.defaultLabelStyle (CP-0045)", () => {
     expect(t.pin.labelStyle).toBe("alpha");
   });
 });
+
+describe("general.keepToolActive", () => {
+  it("defaults on when missing (upgrades) or invalid", () => {
+    expect(validateConfig({}).config.general.keepToolActive).toBe(true);
+    const bad = { general: { ...DEFAULT_CONFIG.general, keepToolActive: "yes" } };
+    expect(validateConfig(bad).config.general.keepToolActive).toBe(true);
+  });
+
+  it("keeps a persisted false", () => {
+    const off = { general: { ...DEFAULT_CONFIG.general, keepToolActive: false } };
+    expect(validateConfig(off).config.general.keepToolActive).toBe(false);
+  });
+});
