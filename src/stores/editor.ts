@@ -16,6 +16,18 @@ export type Tool =
   | "pin"
   | "crop";
 
+const ALWAYS_STICKY: readonly Tool[] = ["pen", "highlighter", "pin"];
+
+/**
+ * Whether `t` stays active after each use instead of snapping back to Select.
+ * Select/crop never do; freehand tools and pin always do; the rest follow the
+ * `general.keepToolActive` setting.
+ */
+export function isStickyTool(t: Tool, keepToolActive: boolean): boolean {
+  if (t === "select" || t === "crop") return false;
+  return keepToolActive || ALWAYS_STICKY.includes(t);
+}
+
 /**
  * Source-relative crop rectangle in the loaded image's native pixels.
  * `null` = no crop (full image). When set, the editor treats this rect as the

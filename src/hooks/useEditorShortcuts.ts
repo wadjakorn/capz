@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { useEditor, type Tool } from "@/stores/editor";
+import { isStickyTool, useEditor, type Tool } from "@/stores/editor";
 import {
   zoomAtViewportCenter,
   zoomToFit,
@@ -128,8 +128,18 @@ export function useEditorShortcuts() {
           toast.dismiss(ESC_TOAST_ID);
           select(null);
           const { tool, setTool } = useEditor.getState();
-          if (tool !== "select" && tool !== "pin") setTool("select");
+          const keep = useSettings.getState().config.general.keepToolActive;
+          if (tool !== "select" && !isStickyTool(tool, keep)) setTool("select");
           return;
+        }
+        // No selection on a sticky tool → Esc drops back to Select.
+        {
+          const { tool, setTool } = useEditor.getState();
+          const keep = useSettings.getState().config.general.keepToolActive;
+          if (isStickyTool(tool, keep)) {
+            setTool("select");
+            return;
+          }
         }
         // No selection → double-Esc hides window (desktop only; a browser
         // tab has no window to hide).

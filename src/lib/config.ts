@@ -134,6 +134,8 @@ export type AppConfig = {
     autostart: boolean;
     playSoundOnCapture: boolean;
     rememberLastTool: boolean;
+    /** Drawing tools stay active after each use until another tool is picked or Esc. */
+    keepToolActive: boolean;
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
@@ -351,6 +353,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     autostart: false,
     playSoundOnCapture: false,
     rememberLastTool: true,
+    keepToolActive: true,
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
     closeAction: "copy",
@@ -633,6 +636,7 @@ function vGeneral(
       autostart: isBool,
       playSoundOnCapture: isBool,
       rememberLastTool: isBool,
+      keepToolActive: isBool,
       onboardingCompleted: isBool,
       alwaysOnTopEditor: isBool,
       closeAction: inSet("none", "copy", "file", "both"),

@@ -33,6 +33,7 @@ import {
   type StickerAnnotation,
   type PinAnnotation,
   type ImageAnnotation,
+  isStickyTool,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
 import { formatPinLabel } from "@/lib/pinLabel";
@@ -1053,10 +1054,12 @@ export function EditorStage({ src }: Props) {
 
     if (empty) {
       const hadSelection = useEditor.getState().selectedId !== null;
-      // Freehand tools stay active for repeated strokes (like pin) until Esc or
-      // another tool is chosen, instead of snapping back to select after one.
-      const continuable =
-        tool === "pin" || tool === "pen" || tool === "highlighter";
+      // Sticky tools stay active for repeated use until Esc or another tool is
+      // chosen, instead of snapping back to select after one (see isStickyTool).
+      const continuable = isStickyTool(
+        tool,
+        useSettings.getState().config.general.keepToolActive,
+      );
       if (hadSelection && !continuable) {
         select(null);
         if (tool !== "select") setTool("select");
