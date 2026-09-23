@@ -1327,6 +1327,24 @@ export function Toolbar({
     [overflowTools, tool, setTool],
   );
 
+  // Sticky-mode row shown in whichever sidebar panel is on screen (the two are
+  // mutually exclusive). Always describes the ACTIVE tool, never a selected
+  // annotation's type. Select/crop can't be sticky, so they get no row.
+  const keepActiveCtx =
+    tool === "select" || tool === "crop"
+      ? null
+      : {
+          label: stickyToolLabel(tool),
+          on: fullConfig.general.keepToolActive[tool] !== false,
+          onToggle: () =>
+            void updateSettings("general", {
+              keepToolActive: {
+                ...fullConfig.general.keepToolActive,
+                [tool]: fullConfig.general.keepToolActive[tool] === false,
+              },
+            }),
+        };
+
   const hasContext =
     // Crop owns the sidebar via EditorStage's own portal; don't also fill it
     // from here (a selected image would otherwise stack z-order controls).
@@ -1505,21 +1523,7 @@ export function Toolbar({
               showRulers: !fullConfig.general.showRulers,
             })
           }
-          keepActive={
-            tool === "select" || tool === "crop"
-              ? null
-              : {
-                  label: stickyToolLabel(tool),
-                  on: fullConfig.general.keepToolActive[tool] !== false,
-                  onToggle: () =>
-                    void updateSettings("general", {
-                      keepToolActive: {
-                        ...fullConfig.general.keepToolActive,
-                        [tool]: fullConfig.general.keepToolActive[tool] === false,
-                      },
-                    }),
-                }
-          }
+          keepActive={keepActiveCtx}
           onImportImage={importImageFile}
           onClearWorkspace={onClearWorkspace}
           onWebClear={onWebClear}
@@ -1538,6 +1542,7 @@ export function Toolbar({
       {hasContext && portalTarget && createPortal(
         <ToolOptionsPanel
           kind={panelKind}
+          keepActive={keepActiveCtx}
           colorCtx={colorCtx}
           widthCtx={widthCtx}
           sizeCtx={sizeCtx}

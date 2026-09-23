@@ -4,8 +4,10 @@ import {
   BringToFront,
   ChevronsDown,
   ChevronsUp,
+  Pointer,
   SendToBack,
 } from "lucide-react";
+import { ActionRow } from "./kit";
 import type { RefObject } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { StickerSelection } from "@/stores/editor";
@@ -68,6 +70,11 @@ function ReorderButton({
 export type ToolOptionsPanelProps = {
   /** Resolved panel kind: the selected annotation's type, else the active tool. */
   kind: string;
+  /**
+   * Sticky-mode row for the ACTIVE tool (not `kind`, which may come from a
+   * selected annotation). Null when the active tool can't be sticky.
+   */
+  keepActive: { label: string; on: boolean; onToggle: () => void } | null;
   colorCtx: ColorCtx | null;
   widthCtx: NumCtx | null;
   sizeCtx: NumCtx | null;
@@ -229,6 +236,17 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
   return (
     <div className="flex flex-col items-stretch gap-2.5">
       {panel}
+      {p.keepActive && (
+        <>
+          <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
+          <ActionRow
+            Icon={Pointer}
+            label={`Keep ${p.keepActive.label} active (K)`}
+            pressed={p.keepActive.on}
+            onClick={p.keepActive.onToggle}
+          />
+        </>
+      )}
       {p.reorder && (
         <>
           <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
