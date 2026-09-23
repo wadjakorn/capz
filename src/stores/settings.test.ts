@@ -35,4 +35,17 @@ describe("settings store on the web runtime (no Tauri)", () => {
     expect(useSettings.getState().config.output.fileFormat).toBe("png");
     expect(loadMock).not.toHaveBeenCalled();
   });
+
+  it("flips one tool's keepToolActive flag without touching the others", async () => {
+    const { useSettings } = await import("./settings");
+    await useSettings.getState().init();
+    const cur = useSettings.getState().config.general.keepToolActive;
+    await useSettings
+      .getState()
+      .update("general", { keepToolActive: { ...cur, rect: false } });
+    const next = useSettings.getState().config.general.keepToolActive;
+    expect(next.rect).toBe(false);
+    expect(next.text).toBe(true);
+    expect(loadMock).not.toHaveBeenCalled();
+  });
 });

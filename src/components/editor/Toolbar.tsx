@@ -60,6 +60,7 @@ import type {
   ArrowHeadsCtx,
 } from "./toolbar/panels/types";
 import { isTauriRuntime } from "@/lib/platform";
+import { stickyToolLabel } from "@/lib/stickyTools";
 
 // macOS-only: the system area capture mode delegates to `screencapture -i`,
 // which exists only on macOS. `currentPlatform` is prerender-safe (navigator is
@@ -1503,6 +1504,21 @@ export function Toolbar({
             void updateSettings("general", {
               showRulers: !fullConfig.general.showRulers,
             })
+          }
+          keepActive={
+            tool === "select" || tool === "crop"
+              ? null
+              : {
+                  label: stickyToolLabel(tool),
+                  on: fullConfig.general.keepToolActive[tool] !== false,
+                  onToggle: () =>
+                    void updateSettings("general", {
+                      keepToolActive: {
+                        ...fullConfig.general.keepToolActive,
+                        [tool]: fullConfig.general.keepToolActive[tool] === false,
+                      },
+                    }),
+                }
           }
           onImportImage={importImageFile}
           onClearWorkspace={onClearWorkspace}

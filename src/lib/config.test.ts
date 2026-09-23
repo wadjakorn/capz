@@ -284,14 +284,26 @@ describe("validateConfig pins.defaultLabelStyle (CP-0045)", () => {
 });
 
 describe("general.keepToolActive", () => {
-  it("defaults on when missing (upgrades) or invalid", () => {
-    expect(validateConfig({}).config.general.keepToolActive).toBe(true);
-    const bad = { general: { ...DEFAULT_CONFIG.general, keepToolActive: "yes" } };
-    expect(validateConfig(bad).config.general.keepToolActive).toBe(true);
+  it("defaults every sticky-capable tool to on", () => {
+    const keep = validateConfig({}).config.general.keepToolActive;
+    expect(keep).toEqual(DEFAULT_CONFIG.general.keepToolActive);
+    expect(Object.values(keep).every(Boolean)).toBe(true);
   });
 
-  it("keeps a persisted false", () => {
-    const off = { general: { ...DEFAULT_CONFIG.general, keepToolActive: false } };
-    expect(validateConfig(off).config.general.keepToolActive).toBe(false);
+  it("keeps given keys and defaults the rest", () => {
+    const keep = validateConfig({ general: { keepToolActive: { rect: false } } })
+      .config.general.keepToolActive;
+    expect(keep.rect).toBe(false);
+    expect(keep.text).toBe(true);
+  });
+
+  it("falls back to defaults on a non-object or invalid value", () => {
+    expect(
+      validateConfig({ general: { keepToolActive: true } }).config.general.keepToolActive,
+    ).toEqual(DEFAULT_CONFIG.general.keepToolActive);
+    expect(
+      validateConfig({ general: { keepToolActive: { rect: "yes" } } }).config.general
+        .keepToolActive.rect,
+    ).toBe(true);
   });
 });

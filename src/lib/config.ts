@@ -38,6 +38,11 @@ export type Tool =
   | "sticker"
   | "pin";
 
+/** Tools that can stay selected after each use (Select and Crop never can). */
+export type StickyCapableTool = Exclude<Tool, "select">;
+/** Per-tool sticky flags; a missing key means sticky. */
+export type KeepToolActive = Record<StickyCapableTool, boolean>;
+
 export type AppConfig = {
   schemaVersion: number;
   hotkeys: {
@@ -134,8 +139,12 @@ export type AppConfig = {
     autostart: boolean;
     playSoundOnCapture: boolean;
     rememberLastTool: boolean;
-    /** Drawing tools stay active after each use until another tool is picked or Esc. */
-    keepToolActive: boolean;
+    /**
+     * Per-tool: does the tool stay selected after each use, instead of
+     * snapping back to Select? Keyed by every tool that can be sticky
+     * (select/crop never are, so they have no key).
+     */
+    keepToolActive: KeepToolActive;
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
@@ -353,7 +362,17 @@ export const DEFAULT_CONFIG: AppConfig = {
     autostart: false,
     playSoundOnCapture: false,
     rememberLastTool: true,
-    keepToolActive: true,
+    keepToolActive: {
+      rect: true,
+      arrow: true,
+      text: true,
+      blur: true,
+      magnify: true,
+      sticker: true,
+      pen: true,
+      highlighter: true,
+      pin: true,
+    },
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
     closeAction: "copy",
@@ -636,7 +655,6 @@ function vGeneral(
       autostart: isBool,
       playSoundOnCapture: isBool,
       rememberLastTool: isBool,
-      keepToolActive: isBool,
       onboardingCompleted: isBool,
       alwaysOnTopEditor: isBool,
       closeAction: inSet("none", "copy", "file", "both"),
@@ -646,6 +664,19 @@ function vGeneral(
     },
     issues,
   );
+  const ktaDef = def.keepToolActive;
+  const keepToolActive = vsec(
+    "general.keepToolActive",
+    (raw && typeof raw === "object"
+      ? (raw as Record<string, unknown>).keepToolActive
+      : undefined),
+    ktaDef,
+    Object.fromEntries(Object.keys(ktaDef).map((k) => [k, isBool])) as {
+      [K in keyof KeepToolActive]?: Validator;
+    },
+    issues,
+  );
+  flat.keepToolActive = keepToolActive;
   const ewRaw =
     raw && typeof raw === "object"
       ? (raw as Record<string, unknown>).editorWindow

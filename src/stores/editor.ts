@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { PinLabelStyle } from "@/lib/pinLabel";
+import type { KeepToolActive } from "@/lib/config";
 
 export type Tool =
   | "select"
@@ -16,16 +17,15 @@ export type Tool =
   | "pin"
   | "crop";
 
-const ALWAYS_STICKY: readonly Tool[] = ["pen", "highlighter", "pin"];
-
 /**
  * Whether `t` stays active after each use instead of snapping back to Select.
- * Select/crop never do; freehand tools and pin always do; the rest follow the
- * `general.keepToolActive` setting.
+ * Select and crop never do; every other tool carries its own flag in
+ * `general.keepToolActive`. A missing key (config written by an older build)
+ * counts as sticky, matching the defaults.
  */
-export function isStickyTool(t: Tool, keepToolActive: boolean): boolean {
+export function isStickyTool(t: Tool, keepToolActive: KeepToolActive): boolean {
   if (t === "select" || t === "crop") return false;
-  return keepToolActive || ALWAYS_STICKY.includes(t);
+  return keepToolActive[t] !== false;
 }
 
 /**

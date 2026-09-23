@@ -9,6 +9,7 @@ import {
   zoomTo100,
 } from "@/lib/zoom";
 import { isTauriRuntime } from "@/lib/platform";
+import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
 import { useWorkspaces } from "@/stores/workspaces";
 
@@ -170,6 +171,23 @@ export function useEditorShortcuts() {
           e.preventDefault();
           remove(id);
         }
+        return;
+      }
+
+      // K flips the active tool's sticky flag (no-op for Select/Crop, which
+      // can never stay active). Mirrors the sidebar's "Keep <tool> active" row.
+      if (key === "k") {
+        e.preventDefault();
+        const { tool } = useEditor.getState();
+        if (tool === "select" || tool === "crop") return;
+        const { config, update } = useSettings.getState();
+        const cur = config.general.keepToolActive;
+        const next = cur[tool] === false;
+        void update("general", { keepToolActive: { ...cur, [tool]: next } });
+        const label = stickyToolLabel(tool);
+        toast(next ? `${label} stays active` : `${label} returns to Select`, {
+          id: "capz-keep-tool-active",
+        });
         return;
       }
 
