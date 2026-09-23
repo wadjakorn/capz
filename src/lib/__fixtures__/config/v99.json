@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 99,
+  "hotkeys": { "captureFull": "CmdOrCtrl+Alt+Shift+7", "captureMagic": "CmdOrCtrl+Alt+Shift+M" },
+  "output": { "defaultMode": "file", "fileFormat": "png", "defaultSavePath": "/Users/someone/Shots", "watermark": { "text": "(c) me" } },
+  "general": { "theme": "light", "onboardingCompleted": true, "closeAction": "ask" },
+  "cloudSync": { "enabled": true, "provider": "icloud" }
+}

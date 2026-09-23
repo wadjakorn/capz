@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "hotkeys": {
+    "captureFull": "CmdOrCtrl+Alt+Shift+7",
+    "captureArea": "CmdOrCtrl+Alt+Shift+8",
+    "captureWindow": "CmdOrCtrl+Alt+Shift+9",
+    "captureScroll": "CmdOrCtrl+Alt+Shift+6",
+    "showEditor": "CmdOrCtrl+Alt+Shift+1",
+    "commandRing": "CmdOrCtrl+Alt+Space"
+  },
+  "output": {
+    "defaultMode": "both",
+    "fileFormat": "webp",
+    "jpegQuality": 60,
+    "defaultSavePath": "/Users/someone/Shots",
+    "filenameTemplate": "shot-{yyyy}"
+  },
+  "pins": {
+    "continuityMode": "reset",
+    "lastUsedNumber": 7,
+    "defaultStartNumber": 3,
+    "defaultColor": "#00AA00",
+    "defaultSize": 40,
+    "defaultLabelColor": "#000000",
+    "defaultShape": "bubble"
+  },
+  "general": {
+    "theme": "light",
+    "autostart": true,
+    "playSoundOnCapture": true,
+    "rememberLastTool": false,
+    "onboardingCompleted": true,
+    "alwaysOnTopEditor": true,
+    "closeAction": "file",
+    "editorWindow": { "width": 1400, "height": 900 },
+    "showRulers": true,
+    "snapEnabled": false,
+    "canvasBackground": "#222222",
+    "backdrop": { "style": "solid", "solidColor": "#101010", "padding": 48 }
+  },
+  "tools": {
+    "rect": { "strokeColor": "#123456", "strokeWidth": 5 },
+    "blur": { "blurRadius": 22 }
+  },
+  "updates": { "autoCheck": false, "checkIntervalHours": 48 },
+  "lastUsed": { "tool": "arrow", "region": { "monitorId": 2, "x": 10, "y": 20, "w": 300, "h": 200 } }
+}

@@ -431,31 +431,117 @@ export const DEFAULT_CONFIG: AppConfig = {
 export const CONFIG_STORE_FILE = "config.json";
 export const CONFIG_STORE_KEY = "app";
 
-// Forward-compatible migration entry point. Transforms `raw` to the latest
-// shape before validateConfig() fills in defaults.
+/** Separate store file holding the persisted config as it was before any
+ * migration / self-heal rewrite (CP-0055). For support and manual recovery. */
+export const CONFIG_BACKUP_STORE_FILE = "config.backup.json";
+
+// ---------------------------------------------------------------------------
+// Schema migrations (CP-0055).
 //
-// v1 → v2 (CP-0038) needs no transform: it only ADDED keys
-// (`hotkeys.commandRingV2`, `ring`), and absent keys already fall back to
-// their defaults in vsec/vRing. A v1 store therefore loads with v2 ring
-// defaults and is rewritten on the schemaVersion mismatch (see the self-heal
-// in useSettings.init). This case exists to document that, so a later
-// migration doesn't assume v1 stores were ever rewritten in place.
-export function migrateConfig(raw: unknown): Partial<AppConfig> | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const obj = raw as Record<string, unknown>;
-  const v = typeof obj.schemaVersion === "number" ? obj.schemaVersion : 0;
-  if (v > CONFIG_SCHEMA_VERSION) {
+// CONFIG_MIGRATIONS[n] turns a v`n` object into a v`n+1` object. migrateConfig
+// runs every step from the stored version up to CONFIG_SCHEMA_VERSION, so a
+// user who skipped releases still gets each transform in order. Bumping
+// CONFIG_SCHEMA_VERSION without adding the step throws at import time
+// (assertMigrationChain), which fails `pnpm test:unit`.
+//
+// A step must carry the user's value across when it renames, moves or retypes
+// a key — never leave it to fall back to the default.
+//
+// Rust reads these paths straight from config.json at startup, BEFORE the
+// webview has migrated the file (first launch after an update). A step that
+// renames or moves one of them must update the Rust reader too, or make it
+// accept both the old and the new path:
+//   hotkeys.*                                  src-tauri/src/shortcuts.rs
+//   updates.autoCheck, updates.checkIntervalHours  src-tauri/src/lib.rs
+//   general.onboardingCompleted                src-tauri/src/lib.rs
+//   general.editorWindow.{width,height}        src-tauri/src/windows.rs
+//   general.alwaysOnTopEditor                  src-tauri/src/windows.rs
+//   lastUsed.region.monitorId                  src-tauri/src/windows.rs
+// ---------------------------------------------------------------------------
+
+type ConfigObject = Record<string, unknown>;
+export type ConfigMigration = (o: ConfigObject) => ConfigObject;
+
+export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
+  // v0 → v1: stores written before v0.5.1 carry no schemaVersion. The shape is
+  // otherwise the same; keys added since fall back to their defaults.
+  0: (o) => o,
+  // v1 → v2 (CP-0038): only ADDED keys (`hotkeys.commandRingV2`, `ring`), and
+  // absent keys already fall back to their defaults in vsec/vRing.
+  1: (o) => o,
+};
+
+/** Throws when a version between 0 and `version - 1` has no migration step. */
+export function assertMigrationChain(
+  migrations: Record<number, ConfigMigration>,
+  version: number,
+): void {
+  for (let v = 0; v < version; v++) {
+    if (typeof migrations[v] !== "function") {
+      throw new Error(
+        `config: no migration from schemaVersion ${v} to ${v + 1}; add CONFIG_MIGRATIONS[${v}]`,
+      );
+    }
+  }
+}
+assertMigrationChain(CONFIG_MIGRATIONS, CONFIG_SCHEMA_VERSION);
+
+export type MigratedConfig = {
+  /** The migrated object, or undefined when nothing usable was persisted. */
+  value: ConfigObject | undefined;
+  /** schemaVersion found on disk (0 when absent). */
+  fromVersion: number;
+  /** Written by a newer capz than this build. Returned untouched: this build
+   * must not rewrite it into its own (older) shape. */
+  future: boolean;
+};
+
+/** Is `v` a plain object (not an array / null)? */
+export function isPlainObject(v: unknown): v is ConfigObject {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Recursive merge: plain objects merge key by key, anything else (arrays,
+ * primitives, null) in `patch` replaces the value in `base`. Returns a new
+ * object; neither input is mutated. */
+export function deepMerge(base: unknown, patch: unknown): unknown {
+  if (!isPlainObject(base) || !isPlainObject(patch)) return patch;
+  const out: ConfigObject = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    out[k] = deepMerge(base[k], v);
+  }
+  return out;
+}
+
+// Forward-compatible migration entry point. Transforms `raw` to the latest
+// shape before validateConfig() fills in defaults. Never mutates `raw`.
+export function migrateConfig(
+  raw: unknown,
+  migrations: Record<number, ConfigMigration> = CONFIG_MIGRATIONS,
+  version: number = CONFIG_SCHEMA_VERSION,
+): MigratedConfig {
+  if (!isPlainObject(raw)) return { value: undefined, fromVersion: 0, future: false };
+  let obj = structuredClone(raw);
+  // A corrupt (non-integer / negative) version is treated like a missing one.
+  const sv = obj.schemaVersion;
+  const v = typeof sv === "number" && Number.isInteger(sv) && sv >= 0 ? sv : 0;
+  if (v > version) {
     console.warn(
-      `config schemaVersion ${v} newer than supported ${CONFIG_SCHEMA_VERSION}; loading as-is`,
+      `config schemaVersion ${v} newer than supported ${version}; keeping unknown settings`,
     );
+    return { value: obj, fromVersion: v, future: true };
+  }
+  for (let step = v; step < version; step++) {
+    obj = migrations[step](obj);
+    obj.schemaVersion = step + 1;
   }
   // Retired in the area-capture revamp: region persistence is now unconditional,
   // so `general.rememberLastRegion` no longer exists. Strip it here so upgraded
   // stores validate cleanly instead of tripping the unknown-key warning.
-  if (obj.general && typeof obj.general === "object") {
-    delete (obj.general as Record<string, unknown>).rememberLastRegion;
+  if (isPlainObject(obj.general)) {
+    delete obj.general.rememberLastRegion;
   }
-  return obj as Partial<AppConfig>;
+  return { value: obj, fromVersion: v, future: false };
 }
 
 // ---------------------------------------------------------------------------

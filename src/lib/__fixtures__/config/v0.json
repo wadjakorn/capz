@@ -1,0 +1,58 @@
+{
+  "hotkeys": {
+    "captureFull": "CmdOrCtrl+Alt+Shift+7",
+    "captureArea": "CmdOrCtrl+Alt+Shift+8",
+    "captureWindow": "CmdOrCtrl+Alt+Shift+9",
+    "showEditor": "CmdOrCtrl+Alt+Shift+1"
+  },
+  "output": {
+    "defaultMode": "file",
+    "fileFormat": "png",
+    "jpegQuality": 60,
+    "defaultSavePath": "/Users/someone/Shots",
+    "filenameTemplate": "shot-{yyyy}"
+  },
+  "pins": {
+    "continuityMode": "reset",
+    "lastUsedNumber": 7,
+    "defaultStartNumber": 3,
+    "defaultColor": "#00AA00",
+    "defaultSize": 40,
+    "defaultLabelColor": "#000000"
+  },
+  "general": {
+    "autostart": true,
+    "playSoundOnCapture": true,
+    "rememberLastTool": false,
+    "rememberLastRegion": true,
+    "onboardingCompleted": true,
+    "alwaysOnTopEditor": true,
+    "closeAction": "both",
+    "editorWindow": { "width": 1400, "height": 900 },
+    "showRulers": true,
+    "snapEnabled": false
+  },
+  "tools": {
+    "rect": { "strokeColor": "#123456", "strokeWidth": 5 },
+    "arrow": { "strokeColor": "#654321", "strokeWidth": 6 },
+    "text": {
+      "fontSize": 30,
+      "color": "#abcdef",
+      "fontStyle": "bold",
+      "textDecoration": "underline",
+      "fontFamily": "Menlo",
+      "backgroundColor": "#ffff00"
+    },
+    "blur": { "blurRadius": 22 },
+    "sticker": { "fontSize": 64 }
+  },
+  "capture": { "intermediateFormat": "jpeg", "intermediateMaxEdge": 4096, "tempJpegQuality": 70 },
+  "updates": {
+    "autoCheck": false,
+    "checkIntervalHours": 48,
+    "channel": "beta",
+    "skippedVersion": "0.4.0",
+    "lastCheckedAt": 1700000000000
+  },
+  "stickers": { "directory": "/Users/someone/Stickers" }
+}
