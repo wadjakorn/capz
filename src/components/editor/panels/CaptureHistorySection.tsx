@@ -324,7 +324,10 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
           <span className="text-[10px] text-[var(--fg-4)]">Files you export land here.</span>
         </div>
       ) : view === "grid" ? (
-        <div className="grid max-h-[270px] grid-cols-2 gap-2 overflow-y-auto p-0.5">
+        // auto-rows-max: the tiles are overflow-hidden, so their minimum height
+        // is 0, and WebKit shrinks the auto rows to fit the 270px cap. The
+        // tiles then overlap each other instead of scrolling.
+        <div className="grid max-h-[270px] auto-rows-max grid-cols-2 gap-2 overflow-y-auto p-0.5">
           {items.map((item) => (
             <div
               key={item.id}
