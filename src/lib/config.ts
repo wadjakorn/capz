@@ -152,6 +152,14 @@ export type AppConfig = {
     showRulers: boolean;
     snapEnabled: boolean;
     canvasBackground: string;
+    /**
+     * App version whose settings the user has already been shown. Anything
+     * added in a later version wears a "New" badge until its page is opened.
+     * Empty on a fresh install, which is then treated as "seen".
+     */
+    lastSeenSettingsVersion: string;
+    /** Ids of one-off setting suggestions the user dismissed. */
+    dismissedSuggestions: string[];
     /** Optional padded gradient/solid backdrop behind the capture. */
     backdrop: {
       style: "gradient" | "solid";
@@ -380,6 +388,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     showRulers: false,
     snapEnabled: true,
     canvasBackground: "#ffffff",
+    lastSeenSettingsVersion: "",
+    dismissedSuggestions: [],
     backdrop: {
       style: "gradient",
       presetId: "slate",
@@ -661,9 +671,20 @@ function vGeneral(
       showRulers: isBool,
       snapEnabled: isBool,
       canvasBackground: isStr,
+      lastSeenSettingsVersion: isStr,
     },
     issues,
   );
+  const dsRaw =
+    raw && typeof raw === "object"
+      ? (raw as Record<string, unknown>).dismissedSuggestions
+      : undefined;
+  // Optional and additive: a config written by an older build simply has no
+  // key here, which is why no schema bump is needed.
+  flat.dismissedSuggestions =
+    Array.isArray(dsRaw) && dsRaw.every((v) => typeof v === "string")
+      ? (dsRaw as string[])
+      : def.dismissedSuggestions;
   const ktaDef = def.keepToolActive;
   const keepToolActive = vsec(
     "general.keepToolActive",

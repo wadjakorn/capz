@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { currentPlatform } from "@/lib/shortcuts";
 import { useSettingsNav } from "@/lib/settingsNav";
+import { isNewSetting } from "@/lib/settingNews";
+import { useSettings } from "@/stores/settings";
 import { settingDef, type SettingId } from "./registry";
 
 /** How long a row stays highlighted after being jumped to. */
@@ -42,6 +44,8 @@ export function SettingRow({
   const target = useSettingsNav((s) => s.target);
   const nonce = useSettingsNav((s) => s.nonce);
   const hidden = def.platform !== undefined && def.platform !== currentPlatform();
+  const lastSeen = useSettings((s) => s.config.general.lastSeenSettingsVersion);
+  const isNew = isNewSetting(id, lastSeen);
   /** Nonce already acted on, so one request never reveals the row twice. */
   const handled = useRef<number | null>(null);
 
@@ -87,7 +91,14 @@ export function SettingRow({
       className="setting-row flex flex-wrap items-start justify-between gap-3 rounded-lg px-2 py-2 transition-colors data-[flash]:bg-accent-soft data-[flash]:shadow-[inset_3px_0_0_var(--accent)]"
     >
       <div className="grid max-w-md gap-0.5">
-        <Label className="text-foreground">{def.label}</Label>
+        <span className="flex items-center gap-2">
+          <Label className="text-foreground">{def.label}</Label>
+          {isNew && (
+            <span className="rounded-full bg-emerald-400/15 px-1.5 text-[11px] font-semibold text-emerald-300">
+              New
+            </span>
+          )}
+        </span>
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       </div>
       <div className="flex items-center">{children}</div>

@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { openSettings, useSettingsNav } from "@/lib/settingsNav";
 import { currentPlatform } from "@/lib/shortcuts";
+import { pagesWithNewSettings, useSeenSettings } from "@/lib/settingNews";
+import { useSettings } from "@/stores/settings";
 import { VersionFooter } from "./VersionFooter";
 import {
   PAGES,
@@ -50,6 +52,9 @@ export function SettingsSidebar({
   const input = searchRef ?? ownRef;
 
   const platform = currentPlatform();
+  const lastSeen = useSettings((s) => s.config.general.lastSeenSettingsVersion);
+  const seen = useSeenSettings((s) => s.seen);
+  const pagesWithNews = pagesWithNewSettings(lastSeen, platform, seen);
   const results: SettingId[] = searchSettings(query, platform);
   const searching = query.trim().length > 0;
 
@@ -129,6 +134,12 @@ export function SettingsSidebar({
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               <span className="max-[720px]:sr-only">{p.label}</span>
+              {pagesWithNews.has(p.id) && (
+                <span
+                  className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 max-[720px]:hidden"
+                  aria-label="Has new settings"
+                />
+              )}
             </button>
           );
         })

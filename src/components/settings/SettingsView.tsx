@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useSettings } from "@/stores/settings";
+import { useAppVersion } from "@/lib/appVersion";
+import { markPageSeen } from "@/lib/settingNews";
+import { currentPlatform } from "@/lib/shortcuts";
 import { useSettingsNav } from "@/lib/settingsNav";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { CapturePage } from "./pages/CapturePage";
@@ -25,11 +28,33 @@ export function SettingsView({
   /** Opens the macOS screen-recording recovery flow, owned by the editor. */
   onOpenInertRecovery?: () => void;
 } = {}) {
-  const { config, ready, init } = useSettings();
-  const configSig = JSON.stringify(config);
+  const { config, ready, init, update } = useSettings();
+  // The autosave toast reacts to this signature. Bookkeeping the user never
+  // asked for — which settings they have seen, which tips they dismissed —
+  // is left out, so opening a page never announces "Saved".
+  const configSig = JSON.stringify({
+    ...config,
+    general: {
+      ...config.general,
+      lastSeenSettingsVersion: null,
+      dismissedSuggestions: null,
+    },
+  });
   const firstSig = useRef<string | null>(null);
   const page = useSettingsNav((s) => s.page);
   const searchRef = useRef<HTMLInputElement>(null);
+  const appVersion = useAppVersion();
+  const lastSeen = config.general.lastSeenSettingsVersion;
+
+  // Looking at a page is what clears its "New" badges.
+  useEffect(() => {
+    if (!ready) return;
+    void markPageSeen(page, currentPlatform(), {
+      lastSeen,
+      appVersion,
+      update: (patch) => update("general", patch),
+    });
+  }, [page, ready, lastSeen, appVersion, update]);
 
   useEffect(() => {
     init();
