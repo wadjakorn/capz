@@ -75,6 +75,11 @@ export const defaultHandlers: InvokeHandlers = {
   // tauri-plugin-updater
   "plugin:updater|check": () => null,
 
+  // @tauri-apps/api/app — the Settings sidebar shows the running version.
+  "plugin:app|version": () => "0.13.0",
+  "plugin:app|tauri_version": () => "2.8.0",
+  "plugin:app|name": () => "capz",
+
   // tauri-plugin-dialog
   "plugin:dialog|save": () => null,
   "plugin:dialog|open": () => null,
