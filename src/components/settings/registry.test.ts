@@ -34,7 +34,7 @@ describe("settings registry", () => {
 
   it("keeps each page within the visible-row budget, shortcuts aside", () => {
     for (const page of PAGE_IDS) {
-      for (const platform of ["mac", "windows"] as const) {
+      for (const platform of ["mac", "win"] as const) {
         const rows = settingsForPage(page, platform, { advanced: false }).filter(
           (id) => settingDef(id).group !== SHORTCUTS_GROUP,
         );
@@ -49,12 +49,12 @@ describe("settings registry", () => {
   it("only uses platforms the app runs on", () => {
     for (const id of SETTING_IDS) {
       const platform = settingDef(id).platform;
-      if (platform) expect(["mac", "windows"]).toContain(platform);
+      if (platform) expect(["mac", "win"]).toContain(platform);
     }
   });
 
   it("hides platform-specific rows elsewhere", () => {
-    const onWindows = settingsForPage("capture", "windows");
+    const onWindows = settingsForPage("capture", "win");
     expect(onWindows).not.toContain("capture.sysArea");
     expect(settingsForPage("capture", "mac")).toContain("capture.sysArea");
   });
@@ -96,7 +96,7 @@ describe("settings registry", () => {
     });
 
     it("does not offer settings from another platform", () => {
-      expect(searchSettings("tcc", "windows")).toEqual([]);
+      expect(searchSettings("tcc", "win")).toEqual([]);
       expect(searchSettings("tcc", "mac")).toContain("app.tcc");
     });
   });

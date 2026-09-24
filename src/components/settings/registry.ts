@@ -9,6 +9,8 @@
  * match this table exactly, which is what keeps the two from drifting.
  */
 
+import type { Platform } from "@/lib/shortcuts";
+
 export const PAGES = [
   {
     id: "capture",
@@ -49,8 +51,8 @@ export type SettingDef = {
   advanced?: boolean;
   /** Extra search terms that are not in the label. */
   keywords?: string[];
-  /** Row only exists on this platform. */
-  platform?: "mac" | "windows";
+  /** Row only exists on this platform (matches `currentPlatform()`). */
+  platform?: Platform;
   /**
    * App version this setting first shipped in. Drives the "New" badge; leave
    * unset for settings that already existed.
@@ -398,7 +400,7 @@ export function pageDef(id: PageId) {
 /** Ids on a page, in registry order, filtered to the platform in use. */
 export function settingsForPage(
   page: PageId,
-  platform: "mac" | "windows" | "linux",
+  platform: Platform,
   opts: { advanced?: boolean } = {},
 ): SettingId[] {
   return SETTING_IDS.filter((id) => {
@@ -415,7 +417,7 @@ export function settingsForPage(
 /** Case-insensitive match over label, keywords and the page's own label. */
 export function searchSettings(
   query: string,
-  platform: "mac" | "windows" | "linux",
+  platform: Platform,
 ): SettingId[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
