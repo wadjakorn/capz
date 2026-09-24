@@ -452,9 +452,9 @@ export const CONFIG_BACKUP_STORE_FILE = "config.backup.json";
 // step). Downgrade protection keys off schemaVersion: an older build treats a
 // same-version store as its own, so it strips keys it doesn't know and resets
 // enum values it doesn't know on its next write. Bumping makes it see the
-// store as newer and leave those alone. config.shape.test.ts fails when
-// DEFAULT_CONFIG's key set changes without a bump; enum values are not
-// checked mechanically, so they rely on this rule.
+// store as newer and leave those alone. config.shape.test.ts enforces it:
+// it pins DEFAULT_CONFIG's keys plus every validated leaf (lastUsed included)
+// and its enum values (persistedShape()) to shape.v<N>.json.
 //
 // Rust reads these paths straight from config.json at startup, BEFORE the
 // webview has migrated the file (first launch after an update). A step that
@@ -580,10 +580,19 @@ const isValidOrEmptyAccelerator: Validator = (v) =>
   v === "" || (typeof v === "string" && validateAccelerator(v).ok);
 const isNumOrNull: Validator = (v) =>
   v === null || (typeof v === "number" && Number.isFinite(v));
-const inSet =
-  (...opts: unknown[]): Validator =>
-  (v) =>
-    opts.includes(v);
+type SetValidator = Validator & { options: readonly unknown[] };
+const inSet = (...opts: unknown[]): SetValidator =>
+  Object.assign((v: unknown) => opts.includes(v), { options: opts });
+
+// Shape recorder for the schema guard (config.shape.test.ts). While
+// persistedShape() runs, every validated leaf path is recorded along with its
+// allowed enum values (null when it is not an enum). A no-op otherwise.
+let shapeCollector: Map<string, readonly unknown[] | null> | null = null;
+function recordLeaf(path: string, spec: Validator | undefined) {
+  if (!shapeCollector || !spec) return;
+  const options = (spec as Partial<SetValidator>).options;
+  shapeCollector.set(path, options ? [...options] : null);
+}
 
 /**
  * Selectable workspace counts. A hand-edited store holding 1 would make the
@@ -630,6 +639,7 @@ const isArchiveBudget: Validator = (v) =>
  * one slot instead of their whole ring layout.
  */
 function vRing(raw: unknown, def: AppConfig["ring"], issues: string[]): AppConfig["ring"] {
+  recordLeaf("ring.modes", inSet(...RING_MODE_IDS));
   if (raw === undefined) return { modes: [...def.modes] };
   if (!raw || typeof raw !== "object") {
     note(issues, "invalid ring (not an object), using defaults");
@@ -696,6 +706,7 @@ function vsec<T extends Record<string, unknown>>(
   issues: string[],
 ): T {
   const out = { ...def };
+  for (const key of Object.keys(def)) recordLeaf(`${path}.${key}`, specs[key]);
   if (raw === undefined) return out;
   if (!raw || typeof raw !== "object") {
     note(issues, `invalid ${path} (not an object), using defaults`);
@@ -840,8 +851,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;
   const out: NonNullable<AppConfig["lastUsed"]> = {};
-  if (
-    inSet(
+  const scalars: Record<string, Validator> = {
+    tool: inSet(
       "select",
       "arrow",
       "rect",
@@ -852,16 +863,17 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
       "magnify",
       "sticker",
       "pin",
-    )(o.tool)
-  )
-    out.tool = o.tool as Tool;
-  if (isStr(o.stickerEmoji)) out.stickerEmoji = o.stickerEmoji as string;
-  if (inSet("full", "area", "window")(o.lastCaptureKind))
-    out.lastCaptureKind = o.lastCaptureKind as "full" | "area" | "window";
-  if (inSet("full", "area", "window")(o.lastLayerCaptureKind))
-    out.lastLayerCaptureKind = o.lastLayerCaptureKind as "full" | "area" | "window";
-  if (inSet("copy", "file", "both")(o.lastExportAction))
-    out.lastExportAction = o.lastExportAction as "copy" | "file" | "both";
+    ),
+    stickerEmoji: isStr,
+    lastCaptureKind: inSet("full", "area", "window"),
+    lastLayerCaptureKind: inSet("full", "area", "window"),
+    lastExportAction: inSet("copy", "file", "both"),
+  };
+  for (const [k, ok] of Object.entries(scalars)) {
+    recordLeaf(`lastUsed.${k}`, ok);
+    if (ok(o[k])) (out as Record<string, unknown>)[k] = o[k];
+  }
+  for (const k of ["monitorId", "x", "y", "w", "h"]) recordLeaf(`lastUsed.region.${k}`, isNum);
   const reg = o.region;
   if (reg && typeof reg === "object") {
     const rr = reg as Record<string, unknown>;
@@ -879,6 +891,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     key: keyof NonNullable<AppConfig["lastUsed"]>,
     specs: Record<string, Validator>,
   ) => {
+    for (const [k, ok] of Object.entries(specs)) recordLeaf(`lastUsed.${key}.${k}`, ok);
     const sub = o[key];
     if (!sub || typeof sub !== "object") return;
     const s = sub as Record<string, unknown>;
@@ -943,6 +956,25 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
 }
 
 export type ValidatedConfig = { config: AppConfig; issues: string[] };
+
+/**
+ * Every persisted leaf path validateConfig knows, mapped to its allowed enum
+ * values (sorted) or null. Pinned per schema version by config.shape.test.ts:
+ * a new key or enum value without a CONFIG_SCHEMA_VERSION bump fails there.
+ */
+export function persistedShape(): Record<string, unknown[] | null> {
+  shapeCollector = new Map();
+  try {
+    validateConfig({ ...DEFAULT_CONFIG, lastUsed: {} });
+    return Object.fromEntries(
+      [...shapeCollector.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => [k, v ? [...v].sort() : null]),
+    );
+  } finally {
+    shapeCollector = null;
+  }
+}
 
 export function validateConfig(raw: unknown): ValidatedConfig {
   const d = DEFAULT_CONFIG;
