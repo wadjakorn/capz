@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { PinLabelStyle } from "@/lib/pinLabel";
+import type { KeepToolActive } from "@/lib/config";
 
 export type Tool =
   | "select"
@@ -15,6 +16,17 @@ export type Tool =
   | "sticker"
   | "pin"
   | "crop";
+
+/**
+ * Whether `t` stays active after each use instead of snapping back to Select.
+ * Select and crop never do; every other tool carries its own flag in
+ * `general.keepToolActive`. A missing key (config written by an older build)
+ * counts as sticky, matching the defaults.
+ */
+export function isStickyTool(t: Tool, keepToolActive: KeepToolActive): boolean {
+  if (t === "select" || t === "crop") return false;
+  return keepToolActive[t] !== false;
+}
 
 /**
  * Source-relative crop rectangle in the loaded image's native pixels.

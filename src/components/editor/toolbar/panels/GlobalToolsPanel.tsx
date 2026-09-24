@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ImageDown, Loader2, Ruler, ScanText, Trash2 } from "lucide-react";
+import { ImageDown, Loader2, Pointer, Ruler, ScanText, Trash2 } from "lucide-react";
 import { ActionRow } from "./kit";
 import { BackdropSection } from "../BackdropControl";
 import { ZoomMenuButton } from "../ZoomMenuButton";
@@ -24,6 +24,11 @@ export type GlobalToolsPanelProps = {
   displayScale: number;
   showRulers: boolean;
   onToggleRulers: () => void;
+  /**
+   * Sticky-mode row for the ACTIVE tool — null when the active tool can't be
+   * sticky (Select, Crop). `label` is that tool's toolbar name.
+   */
+  keepActive: { label: string; on: boolean; onToggle: () => void } | null;
   onImportImage: () => void;
   /** Desktop: clear the whole workspace. */
   onClearWorkspace: () => void;
@@ -58,6 +63,14 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
           pressed={p.showRulers}
           onClick={p.onToggleRulers}
         />
+        {p.keepActive && (
+          <ActionRow
+            Icon={Pointer}
+            label={`Keep ${p.keepActive.label} active (K)`}
+            pressed={p.keepActive.on}
+            onClick={p.keepActive.onToggle}
+          />
+        )}
       </Section>
 
       <Section title="Workspace">

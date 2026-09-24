@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { useEditor, type Tool } from "@/stores/editor";
+import { isStickyTool, useEditor, type Tool } from "@/stores/editor";
 import {
   zoomAtViewportCenter,
   zoomToFit,
   zoomTo100,
 } from "@/lib/zoom";
 import { isTauriRuntime } from "@/lib/platform";
+import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
 import { useWorkspaces } from "@/stores/workspaces";
 
@@ -128,8 +129,18 @@ export function useEditorShortcuts() {
           toast.dismiss(ESC_TOAST_ID);
           select(null);
           const { tool, setTool } = useEditor.getState();
-          if (tool !== "select" && tool !== "pin") setTool("select");
+          const keep = useSettings.getState().config.general.keepToolActive;
+          if (tool !== "select" && !isStickyTool(tool, keep)) setTool("select");
           return;
+        }
+        // No selection on a sticky tool → Esc drops back to Select.
+        {
+          const { tool, setTool } = useEditor.getState();
+          const keep = useSettings.getState().config.general.keepToolActive;
+          if (isStickyTool(tool, keep)) {
+            setTool("select");
+            return;
+          }
         }
         // No selection → double-Esc hides window (desktop only; a browser
         // tab has no window to hide).
@@ -160,6 +171,23 @@ export function useEditorShortcuts() {
           e.preventDefault();
           remove(id);
         }
+        return;
+      }
+
+      // K flips the active tool's sticky flag (no-op for Select/Crop, which
+      // can never stay active). Mirrors the sidebar's "Keep <tool> active" row.
+      if (key === "k") {
+        e.preventDefault();
+        const { tool } = useEditor.getState();
+        if (tool === "select" || tool === "crop") return;
+        const { config, update } = useSettings.getState();
+        const cur = config.general.keepToolActive;
+        const next = cur[tool] === false;
+        void update("general", { keepToolActive: { ...cur, [tool]: next } });
+        const label = stickyToolLabel(tool);
+        toast(next ? `${label} stays active` : `${label} returns to Select`, {
+          id: "capz-keep-tool-active",
+        });
         return;
       }
 

@@ -17,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { ToggleRow } from "@/components/settings/ToggleRow";
+import { STICKY_TOOLS } from "@/lib/stickyTools";
 import { FeedbackTab } from "@/components/settings/FeedbackTab";
 import { setShareInstallId } from "@/lib/installId";
 import {
@@ -417,6 +418,30 @@ export function SettingsView({ onOpenInertRecovery, focus }: SettingsViewProps =
                 checked={config.general.rememberLastTool}
                 onChange={(v) => update("general", { rememberLastTool: v })}
               />
+              <div className="grid gap-2">
+                <div className="grid max-w-md gap-0.5">
+                  <Label className="text-foreground">Keep tool active after use</Label>
+                  <span className="text-xs text-muted-foreground">
+                    Each tool remembers its own setting. When off, the tool returns to
+                    Select after one use. Also on the editor sidebar, or press K while the
+                    tool is selected.
+                  </span>
+                </div>
+                <div className="grid gap-2 pl-3">
+                  {STICKY_TOOLS.map((t) => (
+                    <ToggleRow
+                      key={t.id}
+                      label={t.label}
+                      checked={config.general.keepToolActive[t.id] !== false}
+                      onChange={(v) =>
+                        update("general", {
+                          keepToolActive: { ...config.general.keepToolActive, [t.id]: v },
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
               <ToggleRow
                 label="Show rulers in editor"
                 checked={config.general.showRulers}
