@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 3,
+  "hotkeys": {
+    "captureFull": "CmdOrCtrl+Alt+Shift+7",
+    "captureArea": "CmdOrCtrl+Alt+Shift+4",
+    "captureWindow": "CmdOrCtrl+Alt+Shift+5",
+    "captureScroll": "",
+    "captureSystemArea": "",
+    "showEditor": "CmdOrCtrl+Alt+Shift+0",
+    "commandRing": "CmdOrCtrl+Shift+Space",
+    "commandRingV2": "CmdOrCtrl+Alt+Tab"
+  },
+  "ring": {
+    "modes": [
+      "area",
+      "full"
+    ]
+  },
+  "output": {
+    "defaultMode": "file",
+    "fileFormat": "png",
+    "jpegQuality": 80,
+    "defaultSavePath": "/Users/someone/Shots",
+    "filenameTemplate": "capz-{yyyy}{MM}{dd}-{HHmmss}"
+  },
+  "pins": {
+    "continuityMode": "continue",
+    "lastUsedNumber": 0,
+    "defaultStartNumber": 1,
+    "defaultColor": "#E5342B",
+    "defaultSize": 36,
+    "defaultLabelColor": "#ffffff",
+    "defaultBorderColor": "#ffffff",
+    "defaultBorderWidth": 2,
+    "defaultShape": "circle",
+    "defaultBubbleTail": "down",
+    "defaultLabelStyle": "numeric"
+  },
+  "workspaces": {
+    "enabled": true,
+    "max": 5,
+    "onCapture": "new"
+  },
+  "history": {
+    "enabled": true,
+    "max": 50,
+    "viewMode": "list",
+    "archiveCaptures": false,
+    "archiveBudgetMb": 500
+  },
+  "general": {
+    "theme": "light",
+    "autostart": false,
+    "playSoundOnCapture": false,
+    "rememberLastTool": true,
+    "keepToolActive": {
+      "rect": true,
+      "arrow": true,
+      "text": true,
+      "blur": true,
+      "magnify": true,
+      "sticker": true,
+      "pen": true,
+      "highlighter": true,
+      "pin": true
+    },
+    "onboardingCompleted": true,
+    "alwaysOnTopEditor": false,
+    "closeAction": "none",
+    "editorWindow": {
+      "width": 1024,
+      "height": 680
+    },
+    "showRulers": false,
+    "snapEnabled": true,
+    "canvasBackground": "#ffffff",
+    "lastSeenSettingsVersion": "",
+    "dismissedSuggestions": [],
+    "backdrop": {
+      "style": "gradient",
+      "presetId": "slate",
+      "solidColor": "#1b1f2a",
+      "padding": 64,
+      "cornerRadius": 12,
+      "shadow": true,
+      "autoForFull": false,
+      "autoForArea": false,
+      "autoForWindow": true
+    }
+  },
+  "tools": {
+    "rect": {
+      "strokeColor": "#ef4444",
+      "strokeWidth": 3,
+      "shape": "rect",
+      "cornerRadius": 8
+    },
+    "arrow": {
+      "strokeColor": "#ef4444",
+      "strokeWidth": 4,
+      "heads": "end",
+      "dash": false
+    },
+    "pen": {
+      "strokeColor": "#ef4444",
+      "strokeWidth": 4,
+      "mode": "raw",
+      "polygonEpsilon": 8,
+      "curveSmoothing": 6
+    },
+    "highlighter": {
+      "strokeColor": "#facc15",
+      "strokeWidth": 28,
+      "opacity": 0.5
+    },
+    "magnify": {
+      "strokeColor": "#facc15",
+      "strokeWidth": 3,
+      "sourceStrokeWidth": 2,
+      "borderLinked": true,
+      "shape": "circle",
+      "zoom": 2,
+      "areaOpacity": 0.15,
+      "linkDash": true
+    },
+    "text": {
+      "fontSize": 24,
+      "color": "#000000",
+      "fontStyle": "normal",
+      "textDecoration": "",
+      "fontFamily": "\"Noto Sans Thai\", system-ui, -apple-system, sans-serif",
+      "backgroundColor": "#ffffff",
+      "backgroundPadding": 14,
+      "align": "left",
+      "lineHeight": 1.35
+    },
+    "blur": {
+      "blurRadius": 16
+    },
+    "sticker": {
+      "fontSize": 48
+    }
+  },
+  "capture": {
+    "intermediateFormat": "png",
+    "intermediateMaxEdge": null,
+    "tempJpegQuality": 85
+  },
+  "updates": {
+    "autoCheck": true,
+    "shareInstallId": false,
+    "checkIntervalHours": 24,
+    "channel": "stable",
+    "skippedVersion": null,
+    "lastCheckedAt": null
+  },
+  "stickers": {
+    "directory": null
+  }
+}

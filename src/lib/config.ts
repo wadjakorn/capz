@@ -313,7 +313,7 @@ export type AppConfig = {
 };
 
 // v2 (CP-0038): added `hotkeys.commandRingV2` and the `ring` section.
-export const CONFIG_SCHEMA_VERSION = 2;
+export const CONFIG_SCHEMA_VERSION = 3;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -510,6 +510,13 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
   // v1 → v2 (CP-0038): only ADDED keys (`hotkeys.commandRingV2`, `ring`), and
   // absent keys already fall back to their defaults in vsec/vRing.
   1: (o) => o,
+  // v2 → v3: only ADDED keys, from two features that landed either side of the
+  // shape pin — `general.keepToolActive.*` (per-tool sticky tools) and
+  // `general.lastSeenSettingsVersion` / `general.dismissedSuggestions` (the
+  // settings revamp). All fall back to their defaults, so this is identity;
+  // the bump exists so an older build sees the store as newer and stops
+  // stripping keys it does not know.
+  2: (o) => o,
 };
 
 /** Throws when a version between 0 and `version - 1` has no migration step. */

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import v1 from "@/lib/__fixtures__/config/v1.json";
 import v2 from "@/lib/__fixtures__/config/v2.json";
+import current from "@/lib/__fixtures__/config/v3.json";
+import { CONFIG_SCHEMA_VERSION } from "@/lib/config";
 import v99 from "@/lib/__fixtures__/config/v99.json";
 
 // In-memory stand-in for tauri-plugin-store, keyed by file name (same shape as
@@ -60,7 +62,7 @@ describe("settings store on the desktop runtime (CP-0055)", () => {
     seed(v1);
     const s = await freshStore();
     expect(s.getState().issues).toEqual([]);
-    expect(onDisk().schemaVersion).toBe(2);
+    expect(onDisk().schemaVersion).toBe(CONFIG_SCHEMA_VERSION);
     expect(onDisk().output).toEqual(v1.output);
     expect(onDisk().hotkeys).toMatchObject(v1.hotkeys);
     expect(backup()?.get("app@v1")).toEqual(v1);
@@ -74,17 +76,19 @@ describe("settings store on the desktop runtime (CP-0055)", () => {
   });
 
   it("does not rewrite or back up a clean current-version store", async () => {
-    seed(v2);
+    // Seeded from the fixture for the CURRENT schema version — pinning v2 here
+    // meant this test started failing the moment the version moved on.
+    seed(current);
     await freshStore();
     expect(setCalls).toEqual([]);
-    expect(onDisk()).toEqual(v2);
+    expect(onDisk()).toEqual(current);
     expect(backup()).toBeUndefined();
   });
 
   it("writes defaults without a backup on a fresh install", async () => {
     seed(undefined);
     await freshStore();
-    expect(onDisk().schemaVersion).toBe(2);
+    expect(onDisk().schemaVersion).toBe(CONFIG_SCHEMA_VERSION);
     expect(onDisk().output.defaultSavePath).toBe("/default/dir");
     expect(backup()).toBeUndefined();
   });
