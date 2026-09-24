@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "hotkeys": { "captureFull": "CmdOrCtrl+Alt+Shift+7", "commandRingV2": "CmdOrCtrl+Alt+Tab" },
+  "ring": { "modes": ["area", "full"] },
+  "output": { "defaultMode": "file", "fileFormat": "png", "defaultSavePath": "/Users/someone/Shots" },
+  "general": { "theme": "light", "onboardingCompleted": true, "closeAction": "none" },
+  "workspaces": { "enabled": true },
+  "history": { "enabled": true }
+}

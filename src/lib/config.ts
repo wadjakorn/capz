@@ -453,31 +453,129 @@ export const DEFAULT_CONFIG: AppConfig = {
 export const CONFIG_STORE_FILE = "config.json";
 export const CONFIG_STORE_KEY = "app";
 
-// Forward-compatible migration entry point. Transforms `raw` to the latest
-// shape before validateConfig() fills in defaults.
+/** Separate store file holding the persisted config as it was before any
+ * migration / self-heal rewrite (CP-0055). For support and manual recovery. */
+export const CONFIG_BACKUP_STORE_FILE = "config.backup.json";
+
+// ---------------------------------------------------------------------------
+// Schema migrations (CP-0055).
 //
-// v1 → v2 (CP-0038) needs no transform: it only ADDED keys
-// (`hotkeys.commandRingV2`, `ring`), and absent keys already fall back to
-// their defaults in vsec/vRing. A v1 store therefore loads with v2 ring
-// defaults and is rewritten on the schemaVersion mismatch (see the self-heal
-// in useSettings.init). This case exists to document that, so a later
-// migration doesn't assume v1 stores were ever rewritten in place.
-export function migrateConfig(raw: unknown): Partial<AppConfig> | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const obj = raw as Record<string, unknown>;
-  const v = typeof obj.schemaVersion === "number" ? obj.schemaVersion : 0;
-  if (v > CONFIG_SCHEMA_VERSION) {
+// CONFIG_MIGRATIONS[n] turns a v`n` object into a v`n+1` object. migrateConfig
+// runs every step from the stored version up to CONFIG_SCHEMA_VERSION, so a
+// user who skipped releases still gets each transform in order. Bumping
+// CONFIG_SCHEMA_VERSION without adding the step throws at import time
+// (assertMigrationChain), which fails `pnpm test:unit`.
+//
+// A step must carry the user's value across when it renames, moves or retypes
+// a key — never leave it to fall back to the default.
+//
+// ANY change to what is persisted needs a bump — adding a key or an enum
+// value included, even though validation would absorb it (use an identity
+// step). Downgrade protection keys off schemaVersion: an older build treats a
+// same-version store as its own, so it strips keys it doesn't know and resets
+// enum values it doesn't know on its next write. Bumping makes it see the
+// store as newer and leave those alone. config.shape.test.ts enforces it:
+// it pins DEFAULT_CONFIG's keys plus every validated leaf (lastUsed included)
+// and its enum values (persistedShape()) to shape.v<N>.json.
+//
+// Rust reads these paths straight from config.json at startup, BEFORE the
+// webview has migrated the file (first launch after an update). A step that
+// renames or moves one of them must update the Rust reader too, or make it
+// accept both the old and the new path:
+//   hotkeys.*                                  src-tauri/src/shortcuts.rs
+//   updates.autoCheck, updates.checkIntervalHours  src-tauri/src/lib.rs
+//   general.onboardingCompleted                src-tauri/src/lib.rs
+//   general.editorWindow.{width,height}        src-tauri/src/windows.rs
+//   general.alwaysOnTopEditor                  src-tauri/src/windows.rs
+//   lastUsed.region.monitorId                  src-tauri/src/windows.rs
+// ---------------------------------------------------------------------------
+
+type ConfigObject = Record<string, unknown>;
+export type ConfigMigration = (o: ConfigObject) => ConfigObject;
+
+export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
+  // v0 → v1: stores written before v0.5.1 carry no schemaVersion. The shape is
+  // otherwise the same; keys added since fall back to their defaults.
+  0: (o) => o,
+  // v1 → v2 (CP-0038): only ADDED keys (`hotkeys.commandRingV2`, `ring`), and
+  // absent keys already fall back to their defaults in vsec/vRing.
+  1: (o) => o,
+};
+
+/** Throws when a version between 0 and `version - 1` has no migration step. */
+export function assertMigrationChain(
+  migrations: Record<number, ConfigMigration>,
+  version: number,
+): void {
+  for (let v = 0; v < version; v++) {
+    if (typeof migrations[v] !== "function") {
+      throw new Error(
+        `config: no migration from schemaVersion ${v} to ${v + 1}; add CONFIG_MIGRATIONS[${v}]`,
+      );
+    }
+  }
+}
+assertMigrationChain(CONFIG_MIGRATIONS, CONFIG_SCHEMA_VERSION);
+
+export type MigratedConfig = {
+  /** The migrated object, or undefined when nothing usable was persisted. */
+  value: ConfigObject | undefined;
+  /** schemaVersion found on disk (0 when absent). */
+  fromVersion: number;
+  /** Written by a newer capz than this build. Returned untouched: this build
+   * must not rewrite it into its own (older) shape. */
+  future: boolean;
+};
+
+/** Is `v` a plain object (not an array / null)? */
+export function isPlainObject(v: unknown): v is ConfigObject {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Recursive merge: plain objects merge key by key, anything else (arrays,
+ * primitives, null) in `patch` replaces the value in `base`. Returns a new
+ * object; neither input is mutated. An `undefined` in `patch` is kept as an
+ * `undefined` value, which JSON serialization then drops — i.e. it deletes
+ * the key on disk. That is intended: it matches what writing the full config
+ * does with an `undefined` field. */
+export function deepMerge(base: unknown, patch: unknown): unknown {
+  if (!isPlainObject(base) || !isPlainObject(patch)) return patch;
+  const out: ConfigObject = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    out[k] = deepMerge(base[k], v);
+  }
+  return out;
+}
+
+// Forward-compatible migration entry point. Transforms `raw` to the latest
+// shape before validateConfig() fills in defaults. Never mutates `raw`.
+export function migrateConfig(
+  raw: unknown,
+  migrations: Record<number, ConfigMigration> = CONFIG_MIGRATIONS,
+  version: number = CONFIG_SCHEMA_VERSION,
+): MigratedConfig {
+  if (!isPlainObject(raw)) return { value: undefined, fromVersion: 0, future: false };
+  let obj = structuredClone(raw);
+  // A corrupt (non-integer / negative) version is treated like a missing one.
+  const sv = obj.schemaVersion;
+  const v = typeof sv === "number" && Number.isInteger(sv) && sv >= 0 ? sv : 0;
+  if (v > version) {
     console.warn(
-      `config schemaVersion ${v} newer than supported ${CONFIG_SCHEMA_VERSION}; loading as-is`,
+      `config schemaVersion ${v} newer than supported ${version}; keeping unknown settings`,
     );
+    return { value: obj, fromVersion: v, future: true };
+  }
+  for (let step = v; step < version; step++) {
+    obj = migrations[step](obj);
+    obj.schemaVersion = step + 1;
   }
   // Retired in the area-capture revamp: region persistence is now unconditional,
   // so `general.rememberLastRegion` no longer exists. Strip it here so upgraded
   // stores validate cleanly instead of tripping the unknown-key warning.
-  if (obj.general && typeof obj.general === "object") {
-    delete (obj.general as Record<string, unknown>).rememberLastRegion;
+  if (isPlainObject(obj.general)) {
+    delete obj.general.rememberLastRegion;
   }
-  return obj as Partial<AppConfig>;
+  return { value: obj, fromVersion: v, future: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -504,10 +602,19 @@ const isValidOrEmptyAccelerator: Validator = (v) =>
   v === "" || (typeof v === "string" && validateAccelerator(v).ok);
 const isNumOrNull: Validator = (v) =>
   v === null || (typeof v === "number" && Number.isFinite(v));
-const inSet =
-  (...opts: unknown[]): Validator =>
-  (v) =>
-    opts.includes(v);
+type SetValidator = Validator & { options: readonly unknown[] };
+const inSet = (...opts: unknown[]): SetValidator =>
+  Object.assign((v: unknown) => opts.includes(v), { options: opts });
+
+// Shape recorder for the schema guard (config.shape.test.ts). While
+// persistedShape() runs, every validated leaf path is recorded along with its
+// allowed enum values (null when it is not an enum). A no-op otherwise.
+let shapeCollector: Map<string, readonly unknown[] | null> | null = null;
+function recordLeaf(path: string, spec: Validator | undefined) {
+  if (!shapeCollector || !spec) return;
+  const options = (spec as Partial<SetValidator>).options;
+  shapeCollector.set(path, options ? [...options] : null);
+}
 
 /**
  * Selectable workspace counts. A hand-edited store holding 1 would make the
@@ -554,6 +661,7 @@ const isArchiveBudget: Validator = (v) =>
  * one slot instead of their whole ring layout.
  */
 function vRing(raw: unknown, def: AppConfig["ring"], issues: string[]): AppConfig["ring"] {
+  recordLeaf("ring.modes", inSet(...RING_MODE_IDS));
   if (raw === undefined) return { modes: [...def.modes] };
   if (!raw || typeof raw !== "object") {
     note(issues, "invalid ring (not an object), using defaults");
@@ -620,6 +728,7 @@ function vsec<T extends Record<string, unknown>>(
   issues: string[],
 ): T {
   const out = { ...def };
+  for (const key of Object.keys(def)) recordLeaf(`${path}.${key}`, specs[key]);
   if (raw === undefined) return out;
   if (!raw || typeof raw !== "object") {
     note(issues, `invalid ${path} (not an object), using defaults`);
@@ -777,8 +886,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;
   const out: NonNullable<AppConfig["lastUsed"]> = {};
-  if (
-    inSet(
+  const scalars: Record<string, Validator> = {
+    tool: inSet(
       "select",
       "arrow",
       "rect",
@@ -789,16 +898,17 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
       "magnify",
       "sticker",
       "pin",
-    )(o.tool)
-  )
-    out.tool = o.tool as Tool;
-  if (isStr(o.stickerEmoji)) out.stickerEmoji = o.stickerEmoji as string;
-  if (inSet("full", "area", "window")(o.lastCaptureKind))
-    out.lastCaptureKind = o.lastCaptureKind as "full" | "area" | "window";
-  if (inSet("full", "area", "window")(o.lastLayerCaptureKind))
-    out.lastLayerCaptureKind = o.lastLayerCaptureKind as "full" | "area" | "window";
-  if (inSet("copy", "file", "both")(o.lastExportAction))
-    out.lastExportAction = o.lastExportAction as "copy" | "file" | "both";
+    ),
+    stickerEmoji: isStr,
+    lastCaptureKind: inSet("full", "area", "window"),
+    lastLayerCaptureKind: inSet("full", "area", "window"),
+    lastExportAction: inSet("copy", "file", "both"),
+  };
+  for (const [k, ok] of Object.entries(scalars)) {
+    recordLeaf(`lastUsed.${k}`, ok);
+    if (ok(o[k])) (out as Record<string, unknown>)[k] = o[k];
+  }
+  for (const k of ["monitorId", "x", "y", "w", "h"]) recordLeaf(`lastUsed.region.${k}`, isNum);
   const reg = o.region;
   if (reg && typeof reg === "object") {
     const rr = reg as Record<string, unknown>;
@@ -816,6 +926,7 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     key: keyof NonNullable<AppConfig["lastUsed"]>,
     specs: Record<string, Validator>,
   ) => {
+    for (const [k, ok] of Object.entries(specs)) recordLeaf(`lastUsed.${key}.${k}`, ok);
     const sub = o[key];
     if (!sub || typeof sub !== "object") return;
     const s = sub as Record<string, unknown>;
@@ -880,6 +991,25 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
 }
 
 export type ValidatedConfig = { config: AppConfig; issues: string[] };
+
+/**
+ * Every persisted leaf path validateConfig knows, mapped to its allowed enum
+ * values (sorted) or null. Pinned per schema version by config.shape.test.ts:
+ * a new key or enum value without a CONFIG_SCHEMA_VERSION bump fails there.
+ */
+export function persistedShape(): Record<string, unknown[] | null> {
+  shapeCollector = new Map();
+  try {
+    validateConfig({ ...DEFAULT_CONFIG, lastUsed: {} });
+    return Object.fromEntries(
+      [...shapeCollector.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => [k, v ? [...v].sort() : null]),
+    );
+  } finally {
+    shapeCollector = null;
+  }
+}
 
 export function validateConfig(raw: unknown): ValidatedConfig {
   const d = DEFAULT_CONFIG;
