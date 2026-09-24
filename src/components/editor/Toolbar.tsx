@@ -29,6 +29,7 @@ import {
   type Tool,
 } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
+import { openSettings } from "@/lib/settingsNav";
 import { useSidebar } from "@/stores/sidebar";
 import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
@@ -1195,11 +1196,8 @@ export function Toolbar({
           ? {
               label: "Pick folder",
               onClick: () => {
+                openSettings("after.folder");
                 onOpenSettings?.();
-                void (async () => {
-                  const { emit } = await import("@tauri-apps/api/event");
-                  await emit("settings:focus-tab", "output");
-                })();
               },
             }
           : undefined,

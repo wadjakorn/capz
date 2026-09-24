@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useSettings } from "@/stores/settings";
 import { installIdHeaders } from "@/lib/installId";
+import { setUpdateStatus } from "@/lib/appVersion";
 
 export type UpdateCheckResult =
   | { kind: "none" }
@@ -13,6 +14,7 @@ export type UpdateCheckResult =
  */
 export async function checkForUpdates(): Promise<UpdateCheckResult> {
   const now = Date.now();
+  setUpdateStatus({ state: "checking" });
   try {
     const { check } = await import("@tauri-apps/plugin-updater");
     // Opt-in only: `installIdHeaders()` is undefined unless the user enabled
@@ -21,7 +23,11 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
     const headers = await installIdHeaders();
     const update = await check(headers ? { headers } : undefined);
     await useSettings.getState().update("updates", { lastCheckedAt: now });
-    if (!update?.available) return { kind: "none" };
+    if (!update?.available) {
+      setUpdateStatus({ state: "ok", at: now });
+      return { kind: "none" };
+    }
+    setUpdateStatus({ state: "available", version: update.version, at: now });
     return {
       kind: "available",
       version: update.version,
@@ -34,7 +40,11 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
     };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
+    // `lastCheckedAt` is written even here, so the timestamp alone cannot tell
+    // a successful check from a failed one — that is why the status store
+    // records the failure separately for the footer to show.
     await useSettings.getState().update("updates", { lastCheckedAt: now });
+    setUpdateStatus({ state: "error", error, at: now });
     return { kind: "error", error };
   }
 }

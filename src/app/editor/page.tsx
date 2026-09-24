@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import { Toaster, toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { Toolbar } from "@/components/editor/Toolbar";
-import { SettingsView, type SettingsFocus } from "@/components/settings/SettingsView";
+import { SettingsView } from "@/components/settings/SettingsView";
+import { openSettings, openSettingsFromPayload } from "@/lib/settingsNav";
 import { OnboardingView } from "@/components/onboarding/OnboardingView";
 import { InertGrantRecoveryDialog } from "@/components/onboarding/InertGrantRecoveryDialog";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
@@ -43,7 +44,6 @@ export default function EditorPage() {
   const [src, setSrc] = useState("");
   const [view, setView] = useState<View>("editor");
   /** Which setting to open Settings at, when something deep-links into it. */
-  const [settingsFocus, setSettingsFocus] = useState<SettingsFocus | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
@@ -402,18 +402,17 @@ export default function EditorPage() {
     };
   }, [applyFile]);
 
-  // Deep-link from tray/Rust/toast: open settings view, optionally focus a tab.
+  // Deep-link from Rust: show settings, optionally at one specific setting.
+  // The payload is a setting id (see components/settings/registry); an unknown
+  // one simply opens settings where it was.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     (async () => {
-      const { listen, emit } = await import("@tauri-apps/api/event");
+      const { listen } = await import("@tauri-apps/api/event");
       const stop = await listen<string | null>("editor:show-settings", (e) => {
         setView("settings");
-        const tab = e.payload;
-        if (typeof tab === "string" && tab.length > 0) {
-          void emit("settings:focus-tab", tab);
-        }
+        openSettingsFromPayload(e.payload);
       });
       if (cancelled) stop();
       else unlisten = stop;
@@ -504,11 +503,8 @@ export default function EditorPage() {
             ? {
                 label: "Pick folder",
                 onClick: () => {
+                  openSettings("after.folder");
                   setView("settings");
-                  void (async () => {
-                    const { emit } = await import("@tauri-apps/api/event");
-                    await emit("settings:focus-tab", "output");
-                  })();
                 },
               }
             : undefined,
@@ -602,19 +598,13 @@ export default function EditorPage() {
       {view === "settings" ? (
         <SubViewHeader
           title="Settings"
-          onBack={() => {
-            setSettingsFocus(null);
-            setView("editor");
-          }}
+          onBack={() => setView("editor")}
         />
       ) : view === "onboarding" ? (
         <SubViewHeader title="Welcome" onBack={() => setView("editor")} />
       ) : (
         <Toolbar
-          onOpenSettings={() => {
-            setSettingsFocus(null);
-            setView("settings");
-          }}
+          onOpenSettings={() => setView("settings")}
           onNewWorkspace={
             wsConfig.enabled
               ? () => useWorkspaces.getState().createEmpty(wsConfig.max)
@@ -689,7 +679,7 @@ export default function EditorPage() {
             ) : (
               <HistoryOffNotice
                 onOpenSettings={() => {
-                  setSettingsFocus("history");
+                  openSettings("library.history");
                   setView("settings");
                 }}
               />
@@ -706,7 +696,7 @@ export default function EditorPage() {
         </aside>
         {view === "settings" && (
           <div className="absolute inset-0 overflow-auto bg-[var(--bg)]">
-            <SettingsView onOpenInertRecovery={openRecovery} focus={settingsFocus} />
+            <SettingsView onOpenInertRecovery={openRecovery} />
           </div>
         )}
         {view === "onboarding" && (
