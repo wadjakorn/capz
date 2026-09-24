@@ -181,6 +181,15 @@ flowchart LR
 ```
 One PR, reviewable per commit. Split point if it grows too large: T0–T4 + T8 (plumbing, no visual change) / T5–T7 + T10 (the visible revamp) / T9 (badges).
 
+## What actually happened (build log)
+
+- **T2 merged into T5.** A "pure move" of the old tab bodies followed by a regroup meant rewriting the same JSX twice; the split and the regroup landed in one commit, with the drift test as the safety net instead.
+- **Vitest needed `esbuild: { jsx: "automatic" }`** on top of jsdom + RTL, and RTL does not auto-clean without Vitest globals — component tests call `cleanup()` themselves.
+- **The component test found a real bug:** consuming the nav target re-ran `SettingRow`'s effect, whose cleanup cancelled the scroll frame it had just queued. Fixed with a handled-nonce guard.
+- **`RingModesField` read the platform at module scope**, which no test could vary; it now reads it per render.
+- **The e2e mock had no `plugin:app|version`** (the review predicted this) — added, along with `tauri_version` and `name`.
+- **Not verified on this box:** `pnpm test:e2e:web` cannot run (Playwright ships no browser for Ubuntu 26.04 and none is cached), and `pnpm build` needs network for Google Fonts. Both run in CI; the Mac build is a separate pass.
+
 ## Remaining risks
 
 | Risk | Mitigation |
