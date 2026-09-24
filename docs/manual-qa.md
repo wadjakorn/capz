@@ -69,6 +69,21 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 
+## Settings (CP-0053)
+
+- [ ] Sidebar lists Capture / Editor / After capture / Library / App with labels; selected page is highlighted
+- [ ] Each page opens showing only its everyday rows; `Advanced (n)` counts what is inside and folds open
+- [ ] ⌘F focuses the search field; typing filters; Enter opens the first result; Esc clears
+- [ ] Searching an advanced row (e.g. "filename") jumps to it, unfolds Advanced, focuses and flashes the row
+- [ ] Editor → save failure toast → "Pick folder" lands on After capture › Save folder
+- [ ] Editor → history off notice → opens Library › Remember saved files
+- [ ] Version footer shows `capz <version>`; clicking it opens App › Check for updates automatically
+- [ ] Footer states: "Checking for updates…" while a check runs, "Up to date", "Update available: x.y.z", "Last check failed" after a failure, "Automatic checks are off" when auto-check is off
+- [ ] No "Saved" toast appears from merely switching pages
+- [ ] macOS only: System area capture (Capture) and Fix screen permission (App › Troubleshooting) are present; absent on Windows
+- [ ] Reduced motion: jumping to a row does not smooth-scroll
+- [ ] Narrow editor window (<720px): sidebar collapses to icons, page still usable
+
 ## Windows (sanity, multi-window)
 
 - [ ] Open editor + settings simultaneously — both render, no label clash
