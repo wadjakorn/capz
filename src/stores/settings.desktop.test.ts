@@ -7,7 +7,9 @@ import v99 from "@/lib/__fixtures__/config/v99.json";
 // the mock in src/lib/installId.test.ts).
 const files = new Map<string, Map<string, unknown>>();
 const setCalls: { file: string; key: string }[] = [];
+let failBackup = false;
 const loadMock = vi.fn(async (file: string) => {
+  if (failBackup && file === "config.backup.json") throw new Error("disk full");
   if (!files.has(file)) files.set(file, new Map());
   const m = files.get(file)!;
   return {
@@ -49,6 +51,7 @@ describe("settings store on the desktop runtime (CP-0055)", () => {
     vi.resetModules();
     files.clear();
     setCalls.length = 0;
+    failBackup = false;
     vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -86,6 +89,19 @@ describe("settings store on the desktop runtime (CP-0055)", () => {
     expect(backup()).toBeUndefined();
   });
 
+  it("leaves config.json alone when the backup fails, even with no save dir yet", async () => {
+    failBackup = true;
+    const { defaultSavePath: _unset, ...output } = v1.output;
+    const stored = { ...v1, output };
+    seed(stored);
+    const s = await freshStore();
+    expect(setCalls.filter((c) => c.file === CONFIG)).toEqual([]);
+    expect(onDisk()).toEqual(stored);
+    // Still usable this session: values load and the save dir resolves in memory.
+    expect(s.getState().config.output.fileFormat).toBe("webp");
+    expect(s.getState().config.output.defaultSavePath).toBe("/default/dir");
+  });
+
   describe("store written by a newer capz (downgrade)", () => {
     it("does not rewrite it on load, and raises no reset-inviting issues", async () => {
       seed(v99);
@@ -116,6 +132,14 @@ describe("settings store on the desktop runtime (CP-0055)", () => {
       expect(d.lastUsed).toEqual({ tool: "arrow" });
       expect(s.getState().config.output.fileFormat).toBe("jpeg");
     });
+  });
+
+  it("replaces lastUsed wholesale on a newer store, like the normal path", async () => {
+    seed({ ...v99, lastUsed: { tool: "pen", region: { monitorId: 1, x: 0, y: 0, w: 5, h: 5 } } });
+    const s = await freshStore();
+    await s.getState().setLastUsed({ tool: "arrow" });
+    expect(onDisk().lastUsed).toEqual({ tool: "arrow" });
+    expect(onDisk().cloudSync).toEqual(v99.cloudSync);
   });
 
   it("reset keeps the permissions bookkeeping", async () => {

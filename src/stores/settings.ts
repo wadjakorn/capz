@@ -55,10 +55,19 @@ function isFutureOnDisk(): boolean {
  * on-disk object and everything else is left exactly as the newer build wrote
  * it (CP-0055).
  */
-async function persist(full: AppConfig, patch: Partial<AppConfig>) {
+async function persist(
+  full: AppConfig,
+  patch: Partial<AppConfig>,
+  { replace = false }: { replace?: boolean } = {},
+) {
   const store = await getStore();
+  // `replace` swaps the patched top-level keys wholesale instead of merging
+  // into them — for values like `lastUsed` that are always written complete,
+  // so a sub-key dropped in memory must drop on disk too.
   const next = isFutureOnDisk()
-    ? (deepMerge(onDisk, patch) as Record<string, unknown>)
+    ? replace
+      ? { ...onDisk, ...(patch as Record<string, unknown>) }
+      : (deepMerge(onDisk, patch) as Record<string, unknown>)
     : (full as unknown as Record<string, unknown>);
   await store.set(CONFIG_STORE_KEY, next);
   await store.save();
@@ -124,6 +133,9 @@ export const useSettings = create<State>((set, get) => ({
     let merged = validated.config;
     let issues = validated.issues;
     onDisk = value;
+    // False when the pre-rewrite backup failed: then nothing on this launch
+    // may rewrite config.json in full (see the defaultSavePath write below).
+    let mayRewrite = true;
     if (future) {
       // Written by a newer capz. Its extra keys and values are expected, not
       // corruption: don't self-heal (that would strip them) and don't surface
@@ -139,9 +151,9 @@ export const useSettings = create<State>((set, get) => ({
       // and the previous file is backed up first.
       const persistedVersion = isPlainObject(raw) ? raw.schemaVersion : undefined;
       if (persistedVersion !== CONFIG_SCHEMA_VERSION || issues.length > 0) {
-        const backedUp =
+        mayRewrite =
           raw === undefined || (await backupBeforeRewrite(raw, fromVersion, issues));
-        if (backedUp) {
+        if (mayRewrite) {
           try {
             await store.set(CONFIG_STORE_KEY, merged);
             await store.save();
@@ -157,7 +169,11 @@ export const useSettings = create<State>((set, get) => ({
         const { invoke } = await import("@tauri-apps/api/core");
         const dir = await invoke<string>("default_save_dir");
         merged = { ...merged, output: { ...merged.output, defaultSavePath: dir } };
-        await persist(merged, { output: { defaultSavePath: dir } } as Partial<AppConfig>);
+        // A future store only gets this one field merged in, so it is safe
+        // either way; a full rewrite waits for a launch whose backup worked.
+        if (mayRewrite || isFutureOnDisk()) {
+          await persist(merged, { output: { defaultSavePath: dir } } as Partial<AppConfig>);
+        }
       } catch (e) {
         console.warn("default_save_dir resolution failed", e);
       }
@@ -193,7 +209,7 @@ export const useSettings = create<State>((set, get) => ({
     const next = { ...get().config, lastUsed: v };
     set({ config: next });
     if (!isTauriRuntime()) return;
-    await persist(next, { lastUsed: v });
+    await persist(next, { lastUsed: v }, { replace: true });
   },
   reset: async () => {
     // Wipe the whole store file (drops any stray root-level keys too), write a
@@ -215,8 +231,14 @@ export const useSettings = create<State>((set, get) => ({
     } catch (e) {
       console.warn("config store clear failed (continuing with set)", e);
     }
-    if (permissions !== undefined) await store.set("permissions", permissions);
     await store.set(CONFIG_STORE_KEY, DEFAULT_CONFIG);
+    if (permissions !== undefined) {
+      try {
+        await store.set("permissions", permissions);
+      } catch (e) {
+        console.warn("config store restore of permissions failed", e);
+      }
+    }
     await store.save();
     onDisk = structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>;
   },

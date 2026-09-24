@@ -447,6 +447,15 @@ export const CONFIG_BACKUP_STORE_FILE = "config.backup.json";
 // A step must carry the user's value across when it renames, moves or retypes
 // a key — never leave it to fall back to the default.
 //
+// ANY change to what is persisted needs a bump — adding a key or an enum
+// value included, even though validation would absorb it (use an identity
+// step). Downgrade protection keys off schemaVersion: an older build treats a
+// same-version store as its own, so it strips keys it doesn't know and resets
+// enum values it doesn't know on its next write. Bumping makes it see the
+// store as newer and leave those alone. config.shape.test.ts fails when
+// DEFAULT_CONFIG's key set changes without a bump; enum values are not
+// checked mechanically, so they rely on this rule.
+//
 // Rust reads these paths straight from config.json at startup, BEFORE the
 // webview has migrated the file (first launch after an update). A step that
 // renames or moves one of them must update the Rust reader too, or make it
@@ -503,7 +512,10 @@ export function isPlainObject(v: unknown): v is ConfigObject {
 
 /** Recursive merge: plain objects merge key by key, anything else (arrays,
  * primitives, null) in `patch` replaces the value in `base`. Returns a new
- * object; neither input is mutated. */
+ * object; neither input is mutated. An `undefined` in `patch` is kept as an
+ * `undefined` value, which JSON serialization then drops — i.e. it deletes
+ * the key on disk. That is intended: it matches what writing the full config
+ * does with an `undefined` field. */
 export function deepMerge(base: unknown, patch: unknown): unknown {
   if (!isPlainObject(base) || !isPlainObject(patch)) return patch;
   const out: ConfigObject = { ...base };
