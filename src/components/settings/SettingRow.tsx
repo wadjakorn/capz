@@ -30,6 +30,7 @@ export function SettingRow({
   id,
   hint,
   ready = true,
+  aligned = false,
   children,
 }: {
   id: SettingId;
@@ -37,6 +38,11 @@ export function SettingRow({
   hint?: string;
   /** Settings are still loading — don't try to scroll to this row yet. */
   ready?: boolean;
+  /**
+   * Two-column grid with the control vertically centred and never wrapping
+   * under the label — for runs of same-width controls (the shortcut list).
+   */
+  aligned?: boolean;
   children: React.ReactNode;
 }) {
   const def = settingDef(id);
@@ -88,7 +94,11 @@ export function SettingRow({
     <div
       ref={rowRef}
       data-setting-id={id}
-      className="setting-row flex flex-wrap items-start justify-between gap-3 rounded-lg px-2 py-2 transition-colors data-[flash]:bg-accent-soft data-[flash]:shadow-[inset_3px_0_0_var(--accent)]"
+      className={`setting-row gap-3 rounded-lg px-2 py-2 transition-colors data-[flash]:bg-accent-soft data-[flash]:shadow-[inset_3px_0_0_var(--accent)] ${
+        aligned
+          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center"
+          : "flex flex-wrap items-start justify-between"
+      }`}
     >
       <div className="grid max-w-md gap-0.5">
         <span className="flex items-center gap-2">

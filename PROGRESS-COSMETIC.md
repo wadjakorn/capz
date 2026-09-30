@@ -13,6 +13,8 @@ Open items first (actionable for agents). Landed history archived — see below.
 
 ## Landed
 
+- **Settings revamp follow-ups** (2026-09-30) — after CP-0053: the Settings sidebar stays pinned while the page scrolls; the dead "After capturing" row (`output.defaultMode`, read by nothing) is gone and "When you close the editor" (`general.closeAction`, the only real auto-export) leads the page, renamed "After capture" → "Saving" (page id `after` kept for deep links); shortcut rows use a fixed-width keycap recorder with an always-reserved clear slot so bound and unbound rows line up. Orphaned `OutputPrefsForm.tsx` removed.
+
 - **Graphite design-system v2 revamp** (2026-06-26) — Full migration from liquid-glass aesthetics to the flat Graphite token system across all app surfaces (home, editor, overlay, settings, onboarding) and Ladle storybook. Old `glass-*`/`glow-tile*`/`rail-button*`/`headline-xl` class definitions deleted from `@layer components`; old `--lg-*/--depth-*/--blur-*` CSS variables removed; new Graphite component classes (`.btn`, `.btn-icon`, `.surface`, `.toolbar`, `.field`, `.switch`, `.segmented`, `.tile`, `.menu`, `.badge`, `.headline`) remain. Spec: [docs/superpowers/specs/2026-06-25-design-system-v2-design.md](docs/superpowers/specs/2026-06-25-design-system-v2-design.md). Plan: [docs/superpowers/plans/2026-06-25-design-system-v2-graphite.md](docs/superpowers/plans/2026-06-25-design-system-v2-graphite.md).
 
 Archived: [docs/archive/PROGRESS-COSMETIC-LANDED.md](docs/archive/PROGRESS-COSMETIC-LANDED.md).

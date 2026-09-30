@@ -25,16 +25,17 @@ export function CapturePage() {
   return (
     <div className="grid gap-4">
       <SectionCard title="Shortcuts">
-        <SettingRow id="capture.full">{hotkey("captureFull")}</SettingRow>
-        <SettingRow id="capture.area">{hotkey("captureArea")}</SettingRow>
+        <SettingRow aligned id="capture.full">{hotkey("captureFull")}</SettingRow>
+        <SettingRow aligned id="capture.area">{hotkey("captureArea")}</SettingRow>
         {isMac && (
-          <SettingRow id="capture.sysArea" hint="Hands off to the macOS screenshot tool.">
+          <SettingRow aligned id="capture.sysArea" hint="Hands off to the macOS screenshot tool.">
             {hotkey("captureSystemArea")}
           </SettingRow>
         )}
-        <SettingRow id="capture.window">{hotkey("captureWindow")}</SettingRow>
-        <SettingRow id="capture.scroll">{hotkey("captureScroll")}</SettingRow>
+        <SettingRow aligned id="capture.window">{hotkey("captureWindow")}</SettingRow>
+        <SettingRow aligned id="capture.scroll">{hotkey("captureScroll")}</SettingRow>
         <SettingRow
+          aligned
           id="capture.ring"
           hint="Press once — the ring opens and takes focus; click a mode."
         >
@@ -51,8 +52,9 @@ export function CapturePage() {
       </SectionCard>
 
       <AdvancedSection page="capture">
-        <SettingRow id="capture.showEditor">{hotkey("showEditor")}</SettingRow>
+        <SettingRow aligned id="capture.showEditor">{hotkey("showEditor")}</SettingRow>
         <SettingRow
+          aligned
           id="capture.ringHold"
           hint="Hold the modifiers and tap to cycle, release to capture."
         >

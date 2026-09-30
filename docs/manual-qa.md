@@ -71,11 +71,11 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 
 ## Settings (CP-0053)
 
-- [ ] Sidebar lists Capture / Editor / After capture / Library / App with labels; selected page is highlighted
+- [ ] Sidebar lists Capture / Editor / Saving / Library / App with labels; selected page is highlighted
 - [ ] Each page opens showing only its everyday rows; `Advanced (n)` counts what is inside and folds open
 - [ ] ⌘F focuses the search field; typing filters; Enter opens the first result; Esc clears
 - [ ] Searching an advanced row (e.g. "filename") jumps to it, unfolds Advanced, focuses and flashes the row
-- [ ] Editor → save failure toast → "Pick folder" lands on After capture › Save folder
+- [ ] Editor → save failure toast → "Pick folder" lands on Saving › Save folder
 - [ ] Editor → history off notice → opens Library › Remember saved files
 - [ ] Version footer shows `capz <version>`; clicking it opens App › Check for updates automatically
 - [ ] Footer states: "Checking for updates…" while a check runs, "Up to date", "Update available: x.y.z", "Last check failed" after a failure, "Automatic checks are off" when auto-check is off

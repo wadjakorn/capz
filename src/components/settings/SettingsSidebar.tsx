@@ -66,7 +66,10 @@ export function SettingsSidebar({
   return (
     <nav
       aria-label="Settings sections"
-      className="flex w-56 shrink-0 flex-col gap-1 border-r border-border pr-3 max-[720px]:w-14"
+      // Pinned while the page scrolls. `self-start` matters: a stretched flex
+      // item is as tall as the page, so `sticky` would have nowhere to stick.
+      // `top-8` matches SettingsView's `py-8`.
+      className="sticky top-8 flex max-h-[calc(100vh-4rem)] w-56 shrink-0 flex-col gap-1 self-start overflow-y-auto max-[720px]:w-14"
     >
       <div className="relative mb-2 max-[720px]:hidden">
         <Search

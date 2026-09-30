@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Input } from "@/components/ui/input";
+import { X } from "lucide-react";
 import {
   eventToAccelerator,
   formatShortcut,
+  shortcutKeys,
   validateAccelerator,
   statusMessage,
   type HotkeyProbe,
@@ -20,7 +21,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const ref = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const suspended = useRef(false);
 
   async function suspend() {
@@ -43,7 +44,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     }
   }
 
-  async function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
+  async function handleKey(e: React.KeyboardEvent<HTMLDivElement>) {
     if (!recording) return;
     e.preventDefault();
     e.stopPropagation();
@@ -100,17 +101,26 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     ref.current?.blur();
   }
 
-  const display = recording
-    ? "Press keys…"
-    : formatShortcut(value) || "Not set — click to record";
+  const keys = shortcutKeys(value);
 
+  // Fixed width, and the clear button always takes its slot (hidden when there
+  // is nothing to clear), so bound and unbound rows line up in one column.
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <Input
+    <div className="flex w-60 flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        {/* A focusable div, not a <button>: WebKit does not focus buttons on
+            click, and focus is what starts recording. */}
+        <div
           ref={ref}
-          readOnly
-          value={display}
+          role="button"
+          tabIndex={0}
+          data-hotkey-recorder
+          aria-label={
+            recording
+              ? "Recording shortcut — press keys"
+              : `${formatShortcut(value) || "No shortcut"} — click to record`
+          }
+          title="Click, then press the new shortcut"
           onFocus={() => {
             setRecording(true);
             setError(null);
@@ -122,24 +132,44 @@ export function HotkeyRecorder({ value, onChange }: Props) {
             void resume();
           }}
           onKeyDown={(e) => void handleKey(e)}
-          className="font-mono cursor-pointer"
-        />
-        {value && (
-          <button
-            type="button"
-            // Prevent the input's blur/record cycle from swallowing the click.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              setError(null);
-              setWarning(null);
-              onChange("");
-            }}
-            className="shrink-0 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-            title="Remove this shortcut"
-          >
-            Clear
-          </button>
-        )}
+          // `.field:focus` supplies the accent ring while recording.
+          className="field flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-1 overflow-hidden py-0 hover:border-[var(--fg-4)]"
+        >
+          {recording ? (
+            <span className="text-[var(--accent)]">Press keys…</span>
+          ) : keys.length > 0 ? (
+            keys.map((k, i) => (
+              <kbd
+                key={i}
+                className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-border bg-foreground/[0.06] px-1.5 font-sans text-xs font-medium text-foreground shadow-[inset_0_-1px_0_var(--border)]"
+              >
+                {k}
+              </kbd>
+            ))
+          ) : (
+            <span className="italic text-muted-foreground">Not set</span>
+          )}
+        </div>
+        <button
+          type="button"
+          // Prevent the recorder's blur/record cycle from swallowing the click.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setError(null);
+            setWarning(null);
+            onChange("");
+          }}
+          disabled={!value}
+          aria-hidden={!value}
+          tabIndex={value ? 0 : -1}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground ${
+            value ? "" : "invisible"
+          }`}
+          title="Remove this shortcut"
+          aria-label="Remove this shortcut"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
       </div>
       {error && <span className="text-xs text-destructive">{error}</span>}
       {!error && warning && <span className="text-xs text-amber-600">{warning}</span>}
