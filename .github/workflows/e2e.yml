@@ -69,7 +69,9 @@ jobs:
             libpipewire-0.3-dev libxcb1-dev libxrandr-dev libdbus-1-dev libwayland-dev libegl-dev libgbm-dev
       - run: cargo install tauri-driver --locked
       - run: pnpm install --frozen-lockfile
-      - run: pnpm tauri build --debug
+      # --no-bundle: smoke only needs the binary; bundling would try to sign
+      # updater artifacts (no TAURI_SIGNING_PRIVATE_KEY here, by design).
+      - run: pnpm tauri build --debug --no-bundle
       - name: Tier 2 smoke under xvfb
         run: xvfb-run --auto-servernum pnpm test:e2e:tauri
       - if: failure()
