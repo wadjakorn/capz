@@ -19,7 +19,7 @@ describe("openSettings", () => {
   });
 
   it("unfolds Advanced when the row is filed there", () => {
-    openSettings("after.onClose");
+    openSettings("after.filename");
     expect(useSettingsNav.getState().advOpen.after).toBe(true);
   });
 
@@ -29,7 +29,7 @@ describe("openSettings", () => {
   });
 
   it("does not fold Advanced back up on another page", () => {
-    openSettings("after.onClose");
+    openSettings("after.filename");
     openSettings("library.workspaces");
     expect(useSettingsNav.getState().advOpen.after).toBe(true);
   });

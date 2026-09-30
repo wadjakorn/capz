@@ -26,8 +26,8 @@ test("hotkey rebind invokes reregister_shortcuts + persists accelerator", async 
     page.getByRole("heading", { name: "Settings", level: 1 }),
   ).toBeVisible();
 
-  // HotkeyRecorder renders a readOnly Input per binding (4 total).
-  const recorder = page.locator("input[readonly]").first();
+  // One recorder per binding; focusing it starts recording.
+  const recorder = page.locator("[data-hotkey-recorder]").first();
   await expect(recorder).toBeVisible({ timeout: 10_000 });
 
   await recorder.focus();

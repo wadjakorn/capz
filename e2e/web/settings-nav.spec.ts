@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test("sidebar pages are named, not just icons", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "Settings sections" });
-  for (const label of ["Capture", "Editor", "After capture", "Library", "App"]) {
+  for (const label of ["Capture", "Editor", "Saving", "Library", "App"]) {
     await expect(nav.getByRole("button", { name: label, exact: true })).toBeVisible();
   }
 });
@@ -27,16 +27,16 @@ test("sidebar pages are named, not just icons", async ({ page }) => {
 test("switching page swaps the heading and its one-line description", async ({ page }) => {
   await page
     .getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "After capture", exact: true })
+    .getByRole("button", { name: "Saving", exact: true })
     .click();
-  await expect(page.getByRole("heading", { name: "After capture", level: 2 })).toBeVisible();
-  await expect(page.getByText("Where your screenshot goes.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Saving", level: 2 })).toBeVisible();
+  await expect(page.getByText("What happens to a screenshot when you leave the editor, and where files go.")).toBeVisible();
 });
 
 test("everyday rows are visible and the rest sit behind Advanced", async ({ page }) => {
   await page
     .getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "After capture", exact: true })
+    .getByRole("button", { name: "Saving", exact: true })
     .click();
 
   await expect(page.locator('[data-setting-id="after.folder"]')).toBeVisible();
@@ -54,7 +54,7 @@ test("search jumps to a row, opening Advanced on the way", async ({ page }) => {
 
   const row = page.locator('[data-setting-id="after.filename"]');
   await expect(row).toBeVisible();
-  await expect(page.getByRole("heading", { name: "After capture", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Saving", level: 2 })).toBeVisible();
   await expect(row.locator("input")).toBeFocused();
 });
 

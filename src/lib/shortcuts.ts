@@ -106,10 +106,15 @@ const OS_OWNED_WIN = new Set([
 ]);
 
 export function formatShortcut(accel: string, platform: Platform = currentPlatform()): string {
-  if (!accel) return "";
-  const map = platform === "mac" ? KEY_DISPLAY_MAC : KEY_DISPLAY_WIN;
-  const parts = accel.split("+").map((p) => map[p] ?? p);
+  const parts = shortcutKeys(accel, platform);
   return platform === "mac" ? parts.join("") : parts.join("+");
+}
+
+// The same keys as `formatShortcut`, one per entry — for rendering keycaps.
+export function shortcutKeys(accel: string, platform: Platform = currentPlatform()): string[] {
+  if (!accel) return [];
+  const map = platform === "mac" ? KEY_DISPLAY_MAC : KEY_DISPLAY_WIN;
+  return accel.split("+").map((p) => map[p] ?? p);
 }
 
 // True when the OS shell usually owns this combo. Advisory only — callers

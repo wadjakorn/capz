@@ -24,8 +24,8 @@ export const PAGES = [
   },
   {
     id: "after",
-    label: "After capture",
-    lede: "Where your screenshot goes.",
+    label: "Saving",
+    lede: "What happens to a screenshot when you leave the editor, and where files go.",
   },
   {
     id: "library",
@@ -184,11 +184,11 @@ export const SETTINGS = {
     keywords: ["width", "height", "px"],
   },
 
-  // ── After capture ────────────────────────────────────────────────────────
-  "after.output": {
+  // ── Saving (page id "after") ─────────────────────────────────────────────
+  "after.onClose": {
     page: "after",
-    label: "After capturing",
-    keywords: ["clipboard", "copy", "save", "default output"],
+    label: "When you close the editor",
+    keywords: ["esc", "escape", "hide", "export", "auto", "after capture", "clipboard", "copy", "save"],
   },
   "after.folder": {
     page: "after",
@@ -217,12 +217,6 @@ export const SETTINGS = {
     label: "Shrink large images",
     advanced: true,
     keywords: ["longest edge", "resize", "downscale", "px"],
-  },
-  "after.onClose": {
-    page: "after",
-    label: "On closing the editor",
-    advanced: true,
-    keywords: ["hide", "esc", "export"],
   },
   "after.temp": {
     page: "after",

@@ -31,7 +31,7 @@ async function openFolder(path: string | null): Promise<void> {
   await invoke("reveal_in_finder", { path });
 }
 
-/** Where a finished screenshot goes. */
+/** What happens to a screenshot when you leave the editor, and where files go. */
 export function AfterCapturePage() {
   const output = useSettings((s) => s.config.output);
   const capture = useSettings((s) => s.config.capture);
@@ -46,18 +46,24 @@ export function AfterCapturePage() {
   return (
     <div className="grid gap-4">
       <SectionCard>
-        <SettingRow id="after.output">
+        <SettingRow
+          id="after.onClose"
+          hint="Runs when you press Esc or close the editor."
+        >
           <Select
-            value={output.defaultMode}
+            value={general.closeAction}
             onValueChange={(v) =>
-              update("output", { defaultMode: v as typeof output.defaultMode })
+              update("general", {
+                closeAction: v as "none" | "copy" | "file" | "both",
+              })
             }
           >
             <SelectTrigger className="w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="clipboard">Copy to clipboard</SelectItem>
+              <SelectItem value="none">Do nothing</SelectItem>
+              <SelectItem value="copy">Copy to clipboard</SelectItem>
               <SelectItem value="file">Save to file</SelectItem>
               <SelectItem value="both">Save and copy</SelectItem>
             </SelectContent>
@@ -157,30 +163,6 @@ export function AfterCapturePage() {
             className="w-28"
             aria-label="Longest edge in pixels"
           />
-        </SettingRow>
-
-        <SettingRow
-          id="after.onClose"
-          hint="Exports once more when the editor is closed or hidden with Esc."
-        >
-          <Select
-            value={general.closeAction}
-            onValueChange={(v) =>
-              update("general", {
-                closeAction: v as "none" | "copy" | "file" | "both",
-              })
-            }
-          >
-            <SelectTrigger className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Do nothing</SelectItem>
-              <SelectItem value="copy">Copy to clipboard</SelectItem>
-              <SelectItem value="file">Save to file</SelectItem>
-              <SelectItem value="both">Save and copy</SelectItem>
-            </SelectContent>
-          </Select>
         </SettingRow>
 
         <SettingRow
