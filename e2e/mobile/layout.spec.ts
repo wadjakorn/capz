@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 
 test("the tool-options panel is off-canvas until opened on a phone", async ({
   page,

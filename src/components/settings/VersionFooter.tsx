@@ -3,14 +3,16 @@
 import { openSettings } from "@/lib/settingsNav";
 import { useAppVersion, useUpdateStatus } from "@/lib/appVersion";
 import { useSettings } from "@/stores/settings";
+import type { TKey, TVars } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
-function relative(at: number): string {
+function relative(at: number, t: (key: TKey, vars?: TVars) => string): string {
   const mins = Math.round((Date.now() - at) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t("settings.footer.justNow");
+  if (mins < 60) return t("settings.footer.minutesAgo", { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return t("settings.footer.hoursAgo", { n: hours });
+  return t("settings.footer.daysAgo", { n: Math.round(hours / 24) });
 }
 
 /**
@@ -22,6 +24,7 @@ function relative(at: number): string {
  * actually knows instead of implying a check is in progress.
  */
 export function VersionFooter() {
+  const { t } = useT();
   const version = useAppVersion();
   const status = useUpdateStatus();
   const auto = useSettings((s) => s.config.updates.autoCheck);
@@ -33,27 +36,27 @@ export function VersionFooter() {
 
   switch (status.state) {
     case "checking":
-      line = "Checking for updates…";
+      line = t("settings.footer.checking");
       break;
     case "ok":
-      line = "Up to date";
+      line = t("settings.footer.upToDate");
       dot = "bg-emerald-400";
       break;
     case "available":
-      line = `Update available: ${status.version}`;
+      line = t("settings.footer.available", { version: status.version });
       tone = "text-[var(--accent)]";
       dot = "bg-[var(--accent)]";
       break;
     case "error":
-      line = "Last check failed";
+      line = t("settings.footer.failed");
       dot = "bg-rose-400";
       break;
     default:
       line = !auto
-        ? "Automatic checks are off"
+        ? t("settings.footer.autoOff")
         : lastCheckedAt
-          ? `Checked ${relative(lastCheckedAt)}`
-          : "Not checked yet";
+          ? t("settings.footer.checked", { when: relative(lastCheckedAt, t) })
+          : t("settings.footer.notChecked");
   }
 
   return (

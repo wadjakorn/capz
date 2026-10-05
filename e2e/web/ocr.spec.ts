@@ -18,7 +18,7 @@
  *  - The OcrLayer renders as <div data-ocr-layer> only when mode=true and a
  *    result exists for the current key.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { installTauriMock, getInvokeCalls } from "../fixtures/tauri-mock";
 
 test.describe("OCR Text Reader", () => {

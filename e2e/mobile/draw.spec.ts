@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { selectShapesTool } from "./gestures";
 
 test("one-finger drag with the rect tool creates a shape", async ({ page }) => {

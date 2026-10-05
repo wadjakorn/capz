@@ -6,6 +6,7 @@ import { currentPlatform } from "@/lib/shortcuts";
 import { useSettingsNav } from "@/lib/settingsNav";
 import { isNewSetting } from "@/lib/settingNews";
 import { useSettings } from "@/stores/settings";
+import { useT } from "@/i18n/useT";
 import { settingDef, type SettingId } from "./registry";
 
 /** How long a row stays highlighted after being jumped to. */
@@ -46,6 +47,7 @@ export function SettingRow({
   children: React.ReactNode;
 }) {
   const def = settingDef(id);
+  const { t } = useT();
   const rowRef = useRef<HTMLDivElement>(null);
   const target = useSettingsNav((s) => s.target);
   const nonce = useSettingsNav((s) => s.nonce);
@@ -102,10 +104,10 @@ export function SettingRow({
     >
       <div className="grid max-w-md gap-0.5">
         <span className="flex items-center gap-2">
-          <Label className="text-foreground">{def.label}</Label>
+          <Label className="text-foreground">{t(def.labelKey)}</Label>
           {isNew && (
-            <span className="rounded-full bg-emerald-400/15 px-1.5 text-[11px] font-semibold text-emerald-300">
-              New
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-400/15 px-1.5 text-[11px] font-semibold text-emerald-300">
+              {t("settings.new")}
             </span>
           )}
         </span>

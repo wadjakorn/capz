@@ -8,7 +8,7 @@
  * (useImage anonymous fetch), which Konva can't satisfy under a headless mock —
  * covered manually in docs/manual-qa.md.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { installTauriMock } from "../fixtures/tauri-mock";
 
 const TOOLS = [

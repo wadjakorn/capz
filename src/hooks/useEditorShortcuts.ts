@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+// Aliased: `t` is a local (the tool for a key) further down in onKey.
+import { t as tr } from "@/i18n/store";
 import { isStickyTool, useEditor, type Tool } from "@/stores/editor";
 import {
   zoomAtViewportCenter,
@@ -161,7 +163,7 @@ export function useEditorShortcuts() {
           return;
         }
         escArmedAt.current = now;
-        toast("Press Esc again to hide editor", {
+        toast(tr("app.shortcuts.escAgain"), {
           id: ESC_TOAST_ID,
           duration: ESC_HIDE_WINDOW_MS,
         });
@@ -188,7 +190,7 @@ export function useEditorShortcuts() {
         const next = cur[tool] === false;
         void update("general", { keepToolActive: { ...cur, [tool]: next } });
         const label = stickyToolLabel(tool);
-        toast(next ? `${label} stays active` : `${label} returns to Select`, {
+        toast(tr(next ? "app.shortcuts.toolStays" : "app.shortcuts.toolReturns", { tool: label }), {
           id: "capz-keep-tool-active",
         });
         return;

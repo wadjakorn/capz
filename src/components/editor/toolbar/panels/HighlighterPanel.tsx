@@ -5,6 +5,7 @@ import { OpacityGlyph, StrokeGlyph } from "./glyphs";
 import { ColorField, Group, NumericField } from "./kit";
 import type { ColorCtx, NumCtx } from "./types";
 import type { RefObject } from "react";
+import { useT } from "@/i18n/useT";
 
 /** Highlighter tool: color, width (4–100), and opacity (10–100%). */
 export function HighlighterPanel({
@@ -20,14 +21,15 @@ export function HighlighterPanel({
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
 }) {
+  const { t } = useT();
   return (
     <Group>
-      <SectionLabel>Highlighter</SectionLabel>
+      <SectionLabel>{t("editor.panel.highlighter")}</SectionLabel>
       {colorCtx && (
         <ColorField
           ctx={colorCtx}
           inputRef={colorInputRef}
-          title={selected ? "Edit selected element color" : "Default color for next element"}
+          title={selected ? t("editor.panel.colorSelected") : t("editor.panel.colorDefault")}
         />
       )}
       {widthCtx && (

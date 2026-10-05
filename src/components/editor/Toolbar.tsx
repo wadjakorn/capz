@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { useT } from "@/i18n/useT";
+import type { TKey } from "@/i18n/store";
 import {
   MousePointer2,
   ArrowUpRight,
@@ -108,23 +110,28 @@ function useIsBelowSmBreakpoint(): boolean {
   return isMobile;
 }
 
-type ToolDef = { id: Tool; label: string; hint: string; icon: LucideIcon };
+type ToolDef = { id: Tool; labelKey: TKey; hint: string; icon: LucideIcon };
 
 const TOOLS: ToolDef[] = [
-  { id: "select", label: "Select", hint: "V", icon: MousePointer2 },
-  { id: "arrow", label: "Arrow", hint: "A", icon: ArrowUpRight },
-  { id: "rect", label: "Shapes", hint: "R", icon: ShapesIcon },
-  { id: "text", label: "Text", hint: "T", icon: Type },
-  { id: "blur", label: "Blur", hint: "B", icon: Droplet },
-  { id: "pen", label: "Pen", hint: "D", icon: Pencil },
-  { id: "highlighter", label: "Highlighter", hint: "H", icon: Highlighter },
-  { id: "magnify", label: "Magnify", hint: "M", icon: Search },
-  { id: "sticker", label: "Sticker", hint: "S", icon: Smile },
-  { id: "pin", label: "Pin", hint: "P", icon: NumberedPinIcon as LucideIcon },
-  { id: "crop", label: "Crop", hint: "C", icon: Crop },
+  { id: "select", labelKey: "editor.tool.select", hint: "V", icon: MousePointer2 },
+  { id: "arrow", labelKey: "editor.tool.arrow", hint: "A", icon: ArrowUpRight },
+  { id: "rect", labelKey: "editor.tool.shapes", hint: "R", icon: ShapesIcon },
+  { id: "text", labelKey: "editor.tool.text", hint: "T", icon: Type },
+  { id: "blur", labelKey: "editor.tool.blur", hint: "B", icon: Droplet },
+  { id: "pen", labelKey: "editor.tool.pen", hint: "D", icon: Pencil },
+  { id: "highlighter", labelKey: "editor.tool.highlighter", hint: "H", icon: Highlighter },
+  { id: "magnify", labelKey: "editor.tool.magnify", hint: "M", icon: Search },
+  { id: "sticker", labelKey: "editor.tool.sticker", hint: "S", icon: Smile },
+  { id: "pin", labelKey: "editor.tool.pin", hint: "P", icon: NumberedPinIcon as LucideIcon },
+  { id: "crop", labelKey: "editor.tool.crop", hint: "C", icon: Crop },
 ];
 
-/** Title for a panel kind that has no matching tool (a selected image, say). */
+/** Title key for a panel kind that has no matching tool (a selected image). */
+function panelTitleKey(kind: string): TKey | null {
+  return kind === "image" ? "editor.tool.image" : null;
+}
+
+/** Fallback title for an unknown panel kind. */
 function panelTitle(kind: string): string {
   return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
@@ -152,6 +159,7 @@ export function Toolbar({
   // webview; the web build flips it after hydration.
   const [tauriUi, setTauriUi] = useState(true);
   useEffect(() => setTauriUi(isTauriRuntime()), []);
+  const { t: tr } = useT();
   const tool = useEditor((s) => s.tool);
   const setTool = useEditor((s) => s.setTool);
   const undo = useEditor((s) => s.undo);
@@ -246,7 +254,7 @@ export function Toolbar({
           ? "rect"
           : selected.type;
       colorCtx = {
-        label: "Stroke",
+        label: tr("editor.ctl.stroke"),
         value: selected.stroke,
         onChange: (v) => {
           updateAnnotation(selected.id, { stroke: v });
@@ -255,7 +263,7 @@ export function Toolbar({
         },
       };
       widthCtx = {
-        label: "Width",
+        label: tr("editor.ctl.width"),
         value: selected.strokeWidth,
         min: 1,
         max: 20,
@@ -277,7 +285,7 @@ export function Toolbar({
         // shape is selected — pick the shape before drawing the next one.
         if (curShape === "rect") {
           cornerCtx = {
-            label: "Radius",
+            label: tr("editor.ctl.radius"),
             value: rectSel.cornerRadius ?? toolsCfg.rect.cornerRadius,
             min: 0,
             max: 60,
@@ -324,7 +332,7 @@ export function Toolbar({
     } else if (selected.type === "pen") {
       const penSel = selected;
       colorCtx = {
-        label: "Stroke",
+        label: tr("editor.ctl.stroke"),
         value: penSel.stroke,
         onChange: (v) => {
           updateAnnotation(penSel.id, { stroke: v });
@@ -333,7 +341,7 @@ export function Toolbar({
         },
       };
       widthCtx = {
-        label: "Width",
+        label: tr("editor.ctl.width"),
         value: penSel.strokeWidth,
         min: 1,
         max: 40,
@@ -354,7 +362,7 @@ export function Toolbar({
       };
       if (penSel.mode === "polygon") {
         penLevelCtx = {
-          label: "Straighten",
+          label: tr("editor.ctl.straighten"),
           value: penSel.polygonEpsilon ?? toolsCfg.pen.polygonEpsilon,
           min: 2,
           max: 40,
@@ -367,7 +375,7 @@ export function Toolbar({
         };
       } else if (penSel.mode === "curve") {
         penLevelCtx = {
-          label: "Curve",
+          label: tr("editor.ctl.curve"),
           value: penSel.curveSmoothing ?? toolsCfg.pen.curveSmoothing,
           min: 0,
           max: 30,
@@ -382,7 +390,7 @@ export function Toolbar({
     } else if (selected.type === "highlighter") {
       const hSel = selected;
       colorCtx = {
-        label: "Color",
+        label: tr("editor.ctl.color"),
         value: hSel.stroke,
         onChange: (v) => {
           updateAnnotation(hSel.id, { stroke: v });
@@ -391,7 +399,7 @@ export function Toolbar({
         },
       };
       widthCtx = {
-        label: "Width",
+        label: tr("editor.ctl.width"),
         value: hSel.strokeWidth,
         min: 4,
         max: 100,
@@ -403,7 +411,7 @@ export function Toolbar({
         },
       };
       sizeCtx = {
-        label: "Opacity",
+        label: tr("editor.ctl.opacity"),
         value: Math.round((hSel.opacity ?? toolsCfg.highlighter.opacity) * 100),
         min: 10,
         max: 100,
@@ -417,7 +425,7 @@ export function Toolbar({
     } else if (selected.type === "magnify") {
       const mSel = selected;
       colorCtx = {
-        label: "Border",
+        label: tr("editor.ctl.border"),
         value: mSel.stroke,
         onChange: (v) => {
           updateAnnotation(mSel.id, { stroke: v });
@@ -434,7 +442,7 @@ export function Toolbar({
         },
       };
       sizeCtx = {
-        label: "Zoom",
+        label: tr("editor.ctl.zoom"),
         value: mSel.zoom,
         min: 2,
         max: 8,
@@ -446,7 +454,7 @@ export function Toolbar({
         },
       };
       widthCtx = {
-        label: "Area",
+        label: tr("editor.ctl.area"),
         value: Math.round((mSel.areaOpacity ?? toolsCfg.magnify.areaOpacity) * 100),
         min: 0,
         max: 100,
@@ -461,7 +469,7 @@ export function Toolbar({
       // 0.6×), or independent "Out"/"Src" sliders when unlinked.
       const mLinked = mSel.borderLinked ?? true;
       cornerCtx = {
-        label: mLinked ? "Border" : "Out",
+        label: mLinked ? tr("editor.ctl.border") : tr("editor.ctl.out"),
         value: mSel.strokeWidth,
         min: 1,
         max: 20,
@@ -477,7 +485,7 @@ export function Toolbar({
       };
       if (!mLinked) {
         penLevelCtx = {
-          label: "Src",
+          label: tr("editor.ctl.src"),
           value: mSel.sourceStrokeWidth ?? srcFromOut(mSel.strokeWidth),
           min: 1,
           max: 20,
@@ -522,7 +530,7 @@ export function Toolbar({
         lineHeight: toolsCfg.text.lineHeight,
       });
       colorCtx = {
-        label: "Color",
+        label: tr("editor.ctl.color"),
         value: selected.fill,
         onChange: (v) => {
           updateAnnotation(selected.id, { fill: v });
@@ -531,7 +539,7 @@ export function Toolbar({
         },
       };
       sizeCtx = {
-        label: "Size",
+        label: tr("editor.ctl.size"),
         value: selected.fontSize,
         min: 8,
         max: 96,
@@ -594,7 +602,7 @@ export function Toolbar({
       };
     } else if (selected.type === "pin") {
       colorCtx = {
-        label: "Color",
+        label: tr("editor.ctl.color"),
         value: selected.color,
         onChange: (v) => {
           updateAnnotation(selected.id, { color: v });
@@ -603,7 +611,7 @@ export function Toolbar({
         },
       };
       sizeCtx = {
-        label: "Size",
+        label: tr("editor.ctl.size"),
         value: selected.size,
         min: 12,
         max: 120,
@@ -615,7 +623,7 @@ export function Toolbar({
         },
       };
       pinLabelCtx = {
-        label: "Label",
+        label: tr("editor.ctl.label"),
         value: selected.labelColor ?? toolsCfg.pin.labelColor,
         onChange: (v) => {
           updateAnnotation(selected.id, { labelColor: v });
@@ -624,7 +632,7 @@ export function Toolbar({
         },
       };
       pinBorderCtx = {
-        label: "Border",
+        label: tr("editor.ctl.border"),
         value: selected.borderColor ?? toolsCfg.pin.borderColor,
         onChange: (v) => {
           updateAnnotation(selected.id, { borderColor: v });
@@ -633,7 +641,7 @@ export function Toolbar({
         },
       };
       pinBorderWidthCtx = {
-        label: "Border W",
+        label: tr("editor.ctl.borderWidth"),
         value: selected.borderWidth ?? toolsCfg.pin.borderWidth,
         min: 0,
         max: 100,
@@ -670,7 +678,7 @@ export function Toolbar({
       };
     } else if (selected.type === "sticker") {
       sizeCtx = {
-        label: "Size",
+        label: tr("editor.ctl.size"),
         value: selected.fontSize,
         min: 12,
         max: 200,
@@ -683,7 +691,7 @@ export function Toolbar({
       };
     } else if (selected.type === "blur") {
       widthCtx = {
-        label: "Blur",
+        label: tr("editor.ctl.blur"),
         value: selected.blurRadius,
         min: 2,
         max: 60,
@@ -698,7 +706,7 @@ export function Toolbar({
   } else if (tool === "rect" || tool === "arrow") {
     const slot = tool;
     colorCtx = {
-      label: "Stroke",
+      label: tr("editor.ctl.stroke"),
       value: toolsCfg[slot].strokeColor,
       onChange: (v) => {
         if (remember) patchLastUsed({ [slot]: { strokeColor: v } });
@@ -706,7 +714,7 @@ export function Toolbar({
       },
     };
     widthCtx = {
-      label: "Width",
+      label: tr("editor.ctl.width"),
       value: toolsCfg[slot].strokeWidth,
       min: 1,
       max: 20,
@@ -726,7 +734,7 @@ export function Toolbar({
       };
       if (toolsCfg.rect.shape === "rect") {
         cornerCtx = {
-          label: "Radius",
+          label: tr("editor.ctl.radius"),
           value: toolsCfg.rect.cornerRadius,
           min: 0,
           max: 60,
@@ -758,7 +766,7 @@ export function Toolbar({
     }
   } else if (tool === "pen") {
     colorCtx = {
-      label: "Stroke",
+      label: tr("editor.ctl.stroke"),
       value: toolsCfg.pen.strokeColor,
       onChange: (v) => {
         if (remember) patchLastUsed({ pen: { strokeColor: v } });
@@ -766,7 +774,7 @@ export function Toolbar({
       },
     };
     widthCtx = {
-      label: "Width",
+      label: tr("editor.ctl.width"),
       value: toolsCfg.pen.strokeWidth,
       min: 1,
       max: 40,
@@ -785,7 +793,7 @@ export function Toolbar({
     };
     if (toolsCfg.pen.mode === "polygon") {
       penLevelCtx = {
-        label: "Straighten",
+        label: tr("editor.ctl.straighten"),
         value: toolsCfg.pen.polygonEpsilon,
         min: 2,
         max: 40,
@@ -797,7 +805,7 @@ export function Toolbar({
       };
     } else if (toolsCfg.pen.mode === "curve") {
       penLevelCtx = {
-        label: "Curve",
+        label: tr("editor.ctl.curve"),
         value: toolsCfg.pen.curveSmoothing,
         min: 0,
         max: 30,
@@ -810,7 +818,7 @@ export function Toolbar({
     }
   } else if (tool === "highlighter") {
     colorCtx = {
-      label: "Color",
+      label: tr("editor.ctl.color"),
       value: toolsCfg.highlighter.strokeColor,
       onChange: (v) => {
         if (remember) patchLastUsed({ highlighter: { strokeColor: v } });
@@ -818,7 +826,7 @@ export function Toolbar({
       },
     };
     widthCtx = {
-      label: "Width",
+      label: tr("editor.ctl.width"),
       value: toolsCfg.highlighter.strokeWidth,
       min: 4,
       max: 100,
@@ -829,7 +837,7 @@ export function Toolbar({
       },
     };
     sizeCtx = {
-      label: "Opacity",
+      label: tr("editor.ctl.opacity"),
       value: Math.round(toolsCfg.highlighter.opacity * 100),
       min: 10,
       max: 100,
@@ -841,7 +849,7 @@ export function Toolbar({
     };
   } else if (tool === "magnify") {
     colorCtx = {
-      label: "Border",
+      label: tr("editor.ctl.border"),
       value: toolsCfg.magnify.strokeColor,
       onChange: (v) => {
         if (remember) patchLastUsed({ magnify: { strokeColor: v } });
@@ -856,7 +864,7 @@ export function Toolbar({
       },
     };
     sizeCtx = {
-      label: "Zoom",
+      label: tr("editor.ctl.zoom"),
       value: toolsCfg.magnify.zoom,
       min: 2,
       max: 8,
@@ -867,7 +875,7 @@ export function Toolbar({
       },
     };
     widthCtx = {
-      label: "Area",
+      label: tr("editor.ctl.area"),
       value: Math.round(toolsCfg.magnify.areaOpacity * 100),
       min: 0,
       max: 100,
@@ -879,7 +887,7 @@ export function Toolbar({
     };
     const mLinked = toolsCfg.magnify.borderLinked;
     cornerCtx = {
-      label: mLinked ? "Border" : "Out",
+      label: mLinked ? tr("editor.ctl.border") : tr("editor.ctl.out"),
       value: toolsCfg.magnify.strokeWidth,
       min: 1,
       max: 20,
@@ -894,7 +902,7 @@ export function Toolbar({
     };
     if (!mLinked) {
       penLevelCtx = {
-        label: "Src",
+        label: tr("editor.ctl.src"),
         value: toolsCfg.magnify.sourceStrokeWidth,
         min: 1,
         max: 20,
@@ -935,7 +943,7 @@ export function Toolbar({
       lineHeight: toolsCfg.text.lineHeight,
     });
     colorCtx = {
-      label: "Color",
+      label: tr("editor.ctl.color"),
       value: toolsCfg.text.color,
       onChange: (v) => {
         if (remember) patchLastUsed({ text: { color: v } });
@@ -943,7 +951,7 @@ export function Toolbar({
       },
     };
     sizeCtx = {
-      label: "Size",
+      label: tr("editor.ctl.size"),
       value: toolsCfg.text.fontSize,
       min: 8,
       max: 96,
@@ -992,7 +1000,7 @@ export function Toolbar({
     };
   } else if (tool === "pin") {
     colorCtx = {
-      label: "Color",
+      label: tr("editor.ctl.color"),
       value: toolsCfg.pin.color,
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { color: v } });
@@ -1000,7 +1008,7 @@ export function Toolbar({
       },
     };
     sizeCtx = {
-      label: "Size",
+      label: tr("editor.ctl.size"),
       value: toolsCfg.pin.size,
       min: 12,
       max: 120,
@@ -1011,7 +1019,7 @@ export function Toolbar({
       },
     };
     pinLabelCtx = {
-      label: "Label",
+      label: tr("editor.ctl.label"),
       value: toolsCfg.pin.labelColor,
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { labelColor: v } });
@@ -1019,7 +1027,7 @@ export function Toolbar({
       },
     };
     pinBorderCtx = {
-      label: "Border",
+      label: tr("editor.ctl.border"),
       value: toolsCfg.pin.borderColor,
       onChange: (v) => {
         if (remember) patchLastUsed({ pin: { borderColor: v } });
@@ -1027,7 +1035,7 @@ export function Toolbar({
       },
     };
     pinBorderWidthCtx = {
-      label: "Border W",
+      label: tr("editor.ctl.borderWidth"),
       value: toolsCfg.pin.borderWidth,
       min: 0,
       max: 100,
@@ -1060,7 +1068,7 @@ export function Toolbar({
     };
   } else if (tool === "sticker") {
     sizeCtx = {
-      label: "Size",
+      label: tr("editor.ctl.size"),
       value: toolsCfg.sticker.fontSize,
       min: 12,
       max: 200,
@@ -1072,7 +1080,7 @@ export function Toolbar({
     };
   } else if (tool === "blur") {
     widthCtx = {
-      label: "Blur",
+      label: tr("editor.ctl.blur"),
       value: toolsCfg.blur.blurRadius,
       min: 2,
       max: 60,
@@ -1098,12 +1106,12 @@ export function Toolbar({
       continuityMode: "reset",
     });
     setNextPinNumber(start);
-    notify(`Cleared. Next capture starts at ${start}`);
+    notify(tr("editor.pin.toastCleared", { n: start }));
   };
   const savePersisted = () => {
     const lastUsed = Math.max(0, nextPinNumber - 1);
     void updateSettings("pins", { lastUsedNumber: lastUsed });
-    notify(`Saved. Latest = ${lastUsed}`);
+    notify(tr("editor.pin.toastSaved", { n: lastUsed }));
   };
   const toggleContinuity = () => {
     const mode = pinsCfg.continuityMode === "continue" ? "reset" : "continue";
@@ -1111,16 +1119,16 @@ export function Toolbar({
       const lastUsed = Math.max(canvasMaxPin, pinsCfg.lastUsedNumber, nextPinNumber - 1, 0);
       void updateSettings("pins", { continuityMode: mode, lastUsedNumber: lastUsed });
       setNextPinNumber(Math.max(lastUsed + 1, pinsCfg.defaultStartNumber));
-      notify(`Continue on. Latest = ${lastUsed}`);
+      notify(tr("editor.pin.toastContinueOn", { n: lastUsed }));
     } else {
       void updateSettings("pins", { continuityMode: mode });
       setNextPinNumber(pinsCfg.defaultStartNumber);
-      notify("Continue off");
+      notify(tr("editor.pin.toastContinueOff"));
     }
   };
   const onChangeNext = (v: number) => {
     setNextPinNumber(v);
-    notify(`Next = ${v}`);
+    notify(tr("editor.pin.toastNext", { n: v }));
   };
 
   const widthRef = useRef<NumCtx | null>(null);
@@ -1175,26 +1183,21 @@ export function Toolbar({
           : action === "file"
             ? await saveOnly(stage, fullConfig)
             : await saveAndCopy(stage, fullConfig);
-      if (r.saved && r.copied) notify("Saved & Copied");
-      else if (r.saved) notify("Saved");
-      else if (r.copied) notify("Copied");
+      if (r.saved && r.copied) notify(tr("editor.export.savedAndCopied"));
+      else if (r.saved) notify(tr("editor.export.saved"));
+      else if (r.copied) notify(tr("editor.history.copied"));
       else if (r.downloaded)
-        toast("Downloaded instead", {
-          description:
-            "This browser can't copy images to the clipboard — saved the PNG to your downloads.",
+        toast(tr("editor.export.downloaded"), {
+          description: tr("editor.export.downloadedHint"),
         });
     } catch (e) {
       console.error("export failed", e);
-      const { title, detail } = describeExportError(e);
-      const recoverable =
-        title === "Permission denied" ||
-        title === "Read-only volume" ||
-        title === "Disk full";
+      const { title, detail, recoverable } = describeExportError(e);
       toast.error(title, {
         description: detail,
         action: recoverable
           ? {
-              label: "Pick folder",
+              label: tr("editor.toast.pickFolder"),
               onClick: () => {
                 openSettings("after.folder");
                 onOpenSettings?.();
@@ -1232,7 +1235,7 @@ export function Toolbar({
         await invoke("trigger_capture_command", { kind, asLayer });
       } catch (err) {
         console.error(`trigger_capture_command(${kind}) failed`, err);
-        toast.error(`${what} failed`, { description: String(err) });
+        toast.error(tr("editor.toast.actionFailed", { what }), { description: String(err) });
       }
     })();
   };
@@ -1241,7 +1244,7 @@ export function Toolbar({
     patchLastUsed(
       asLayer ? { lastLayerCaptureKind: kind } : { lastCaptureKind: kind },
     );
-    dispatchCapture(kind, asLayer, "Capture");
+    dispatchCapture(kind, asLayer, tr("editor.toast.capture"));
   };
 
   const captureAccelerators: Record<CaptureKind, string> = {
@@ -1255,16 +1258,21 @@ export function Toolbar({
       try {
         const { ask } = await import("@tauri-apps/plugin-dialog");
         const ok = await ask(
-          "Drop the current image and all annotations? This cannot be undone.",
-          { title: "Clear workspace?", kind: "warning", okLabel: "Clear", cancelLabel: "Cancel" },
+          tr("editor.clear.body"),
+          {
+            title: tr("editor.clear.title"),
+            kind: "warning",
+            okLabel: tr("common.clear"),
+            cancelLabel: tr("common.cancel"),
+          },
         );
         if (!ok) return;
         const { invoke } = await import("@tauri-apps/api/core");
         await invoke("clear_editor_workspace");
-        toast("Workspace cleared");
+        toast(tr("editor.clear.done"));
       } catch (err) {
         console.error("clear_editor_workspace failed", err);
-        toast.error("Clear failed", { description: String(err) });
+        toast.error(tr("editor.clear.failed"), { description: String(err) });
       }
     })();
   };
@@ -1285,16 +1293,16 @@ export function Toolbar({
           multiple: false,
           directory: false,
           filters: [
-            { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] },
+            { name: tr("editor.import.filterName"), extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] },
           ],
         });
         if (typeof picked !== "string") return; // cancelled
         const { importImagePathDesktop } = await import("@/lib/importImage");
         const ok = await importImagePathDesktop(picked);
-        if (!ok) toast.error("Couldn't import image");
+        if (!ok) toast.error(tr("editor.toast.importFailedShort"));
       } catch (err) {
         console.error("import image failed", err);
-        toast.error("Import failed", { description: String(err) });
+        toast.error(tr("editor.toast.importFailed"), { description: String(err) });
       }
     })();
   };
@@ -1316,13 +1324,13 @@ export function Toolbar({
     () =>
       overflowTools.map((t) => ({
         key: t.id,
-        label: t.label,
+        label: tr(t.labelKey),
         icon: t.icon,
         hint: t.hint,
         active: tool === t.id,
         onSelect: () => setTool(t.id),
       })),
-    [overflowTools, tool, setTool],
+    [overflowTools, tool, setTool, tr],
   );
 
   // Sticky-mode row shown in whichever sidebar panel is on screen (the two are
@@ -1384,7 +1392,7 @@ export function Toolbar({
   const setToolPanel = useSidebar((s) => s.setToolPanel);
   useEffect(() => {
     if (cropPanel) {
-      setToolPanel({ key: "crop", label: "Crop", icon: Crop });
+      setToolPanel({ key: "crop", label: tr("editor.tool.crop"), icon: Crop });
       return;
     }
     if (!hasContext) {
@@ -1392,12 +1400,13 @@ export function Toolbar({
       return;
     }
     const meta = TOOLS.find((t) => t.id === panelKind);
+    const titleKey = meta?.labelKey ?? panelTitleKey(panelKind);
     setToolPanel({
       key: panelKind,
-      label: meta?.label ?? panelTitle(panelKind),
+      label: titleKey ? tr(titleKey) : panelTitle(panelKind),
       icon: meta?.icon ?? SlidersHorizontal,
     });
-  }, [cropPanel, hasContext, panelKind, setToolPanel]);
+  }, [cropPanel, hasContext, panelKind, setToolPanel, tr]);
 
   return (
     <div className="relative z-20 flex flex-col border-b border-[var(--border)] bg-[var(--surface-overlay)] px-2 py-1.5">
@@ -1418,12 +1427,12 @@ export function Toolbar({
               lastKind={lastCaptureKind}
               onCapture={(kind) => triggerCapture(kind)}
               onScrollCapture={() =>
-                dispatchCapture("scroll", false, "Scrolling capture")
+                dispatchCapture("scroll", false, tr("editor.capture.scrolling"))
               }
               onSystemAreaCapture={
                 IS_MAC
                   ? () =>
-                      dispatchCapture("systemArea", false, "System area capture")
+                      dispatchCapture("systemArea", false, tr("editor.capture.systemArea"))
                   : undefined
               }
               systemAreaAccelerator={fullConfig.hotkeys.captureSystemArea}
@@ -1435,16 +1444,16 @@ export function Toolbar({
             <CaptureSplitButton
               variant="layer"
               disabled={!hasImage}
-              disabledReason="Capture something first — a layer needs an image to sit on"
+              disabledReason={tr("editor.capture.layerNeedsImage")}
               lastKind={lastLayerCaptureKind}
               onCapture={(kind) => triggerCapture(kind, true)}
               onScrollCapture={() =>
-                dispatchCapture("scroll", true, "Scrolling capture")
+                dispatchCapture("scroll", true, tr("editor.capture.scrolling"))
               }
               onSystemAreaCapture={
                 IS_MAC
                   ? () =>
-                      dispatchCapture("systemArea", true, "System area capture")
+                      dispatchCapture("systemArea", true, tr("editor.capture.systemArea"))
                   : undefined
               }
               systemAreaAccelerator={fullConfig.hotkeys.captureSystemArea}
@@ -1457,13 +1466,13 @@ export function Toolbar({
             without leaving the editor. */}
         {!tauriUi && onWebCapture && (
           <>
-            <ToolButton icon={Monitor} label="Capture screen" onClick={onWebCapture} />
+            <ToolButton icon={Monitor} label={tr("editor.capture.screen")} onClick={onWebCapture} />
             <Divider />
           </>
         )}
         {/* History group */}
-        <ToolButton icon={Undo2} label="Undo" hint="⌘Z" disabled={!past} onClick={undo} />
-        <ToolButton icon={Redo2} label="Redo" hint="⇧⌘Z" disabled={!future} onClick={redo} />
+        <ToolButton icon={Undo2} label={tr("editor.toolbar.undo")} hint="⌘Z" disabled={!past} onClick={undo} />
+        <ToolButton icon={Redo2} label={tr("editor.toolbar.redo")} hint="⇧⌘Z" disabled={!future} onClick={redo} />
         <Divider />
         {/* Zoom, rulers, image import, backdrop, OCR and clear-workspace now
             live in the sidebar's GlobalToolsPanel (CP-0044). Undo/redo stay
@@ -1474,7 +1483,7 @@ export function Toolbar({
             <ToolButton
               key={t.id}
               icon={t.icon}
-              label={t.label}
+              label={tr(t.labelKey)}
               hint={t.hint}
               active={tool === t.id}
               onClick={() => setTool(t.id)}
@@ -1485,7 +1494,7 @@ export function Toolbar({
         {onNewWorkspace && (
           <ToolButton
             icon={SquarePlus}
-            label="New workspace"
+            label={tr("editor.ws.new")}
             hint="⇧⌘N"
             onClick={onNewWorkspace}
           />
@@ -1494,7 +1503,7 @@ export function Toolbar({
         {tauriUi && (
           <ToolButton
             icon={SettingsIcon}
-            label="Settings"
+            label={tr("editor.view.settings")}
             onClick={() => onOpenSettings?.()}
           />
         )}

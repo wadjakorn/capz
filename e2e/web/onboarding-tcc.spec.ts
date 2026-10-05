@@ -14,7 +14,7 @@
  * surface is the macOS-only branch — only run when navigator.platform reports
  * a Mac. On linux CI, this test verifies the welcome → done shortcut path.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { installTauriMock, getInvokeCalls, emitTauriEvent } from "../fixtures/tauri-mock";
 
 async function gotoOnboarding(page: import("@playwright/test").Page) {

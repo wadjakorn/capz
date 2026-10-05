@@ -18,29 +18,43 @@ import {
   useWorkspaces,
   type WorkspaceDoc,
 } from "@/stores/workspaces";
+import type { CaptureSource } from "@/stores/editor";
+import { t } from "@/i18n/store";
+import type { TKey } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
 /** Below this window height the bar starts collapsed (once — see barPrefUserSet). */
 const SHORT_WINDOW_PX = 600;
 
+const KIND_KEYS: Record<Exclude<CaptureSource, "other">, TKey> = {
+  full: "editor.ws.kind.full",
+  area: "editor.ws.kind.area",
+  systemArea: "editor.ws.kind.area",
+  window: "editor.ws.kind.window",
+  scroll: "editor.ws.kind.scroll",
+};
+
+// Plain functions called during render: the store `t` reads the current
+// language, and the components below subscribe via useT() so they re-render.
 function caption(doc: WorkspaceDoc): string {
   const kind =
-    doc.captureSource === "systemArea"
-      ? "Area"
-      : doc.captureSource === "other"
-        ? doc.image
-          ? "Image"
-          : "Empty"
-        : doc.captureSource[0].toUpperCase() + doc.captureSource.slice(1);
+    doc.captureSource === "other"
+      ? doc.image
+        ? t("editor.ws.kind.image")
+        : t("editor.ws.empty")
+      : t(KIND_KEYS[doc.captureSource]);
   return `${kind} · ${relTime(doc.createdAt)}`;
 }
 
 function relTime(at: number): string {
   const s = Math.max(0, Math.round((Date.now() - at) / 1000));
-  if (s < 60) return "now";
+  if (s < 60) return t("editor.ws.time.now");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return t("editor.ws.time.minutes", { n: m });
   const h = Math.round(m / 60);
-  return h < 24 ? `${h}h` : `${Math.round(h / 24)}d`;
+  return h < 24
+    ? t("editor.ws.time.hours", { n: h })
+    : t("editor.ws.time.days", { n: Math.round(h / 24) });
 }
 
 export type WorkspaceBarProps = {
@@ -62,6 +76,7 @@ export type WorkspaceBarProps = {
  * feature off.
  */
 export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
+  useT(); // re-render on language change; copy below uses the store `t`
   const order = useWorkspaces((s) => s.order);
   const activeId = useWorkspaces((s) => s.activeId);
   /**
@@ -116,10 +131,10 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
         return;
       }
       close(id);
-      toast("Workspace closed", {
+      toast(t("editor.ws.closed"), {
         id: "workspace-undo",
         duration: 6000,
-        action: { label: "Undo", onClick: () => reopenLastClosed() },
+        action: { label: t("editor.toolbar.undo"), onClick: () => reopenLastClosed() },
       });
     },
     [close, docs, reopenLastClosed, activeId, activeHasEdits],
@@ -143,7 +158,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
       <div
         id="workspace-bar"
         role="tablist"
-        aria-label="Workspaces"
+        aria-label={t("editor.ws.label")}
         className={`flex flex-none items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-overlay)] transition-[height,padding] duration-150 ${
           full ? "h-[84px] px-2.5" : "h-[30px] px-2.5"
         }`}
@@ -197,8 +212,8 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
             disabled={atMax}
             title={
               atMax
-                ? `Maximum ${max} workspaces — close one first`
-                : "New workspace (⌘⇧N)"
+                ? t("editor.ws.max", { max })
+                : `${t("editor.ws.new")} (⌘⇧N)`
             }
             className={
               full
@@ -215,7 +230,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
             {full ? (
               <>
                 <Plus className="h-4 w-4" aria-hidden />
-                <span className="text-[10px]">New</span>
+                <span className="text-[10px]">{t("editor.ws.newShort")}</span>
               </>
             ) : (
               "+"
@@ -233,7 +248,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
             className="btn-icon h-6 w-6"
             aria-expanded={full}
             aria-controls="workspace-bar"
-            title={full ? "Collapse workspace bar" : "Expand workspace bar"}
+            title={full ? t("editor.ws.collapse") : t("editor.ws.expand")}
             onClick={toggle}
           >
             {full ? (
@@ -249,8 +264,8 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
                   type="button"
                   data-ws-control
                   className="btn-icon h-6 w-6"
-                  title="Workspace actions"
-                  aria-label="Workspace actions"
+                  title={t("editor.ws.actions")}
+                  aria-label={t("editor.ws.actions")}
                 >
                   <MoreHorizontal className="h-4 w-4" aria-hidden />
                 </button>
@@ -261,13 +276,13 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
                 disabled={!lastClosed}
                 onClick={() => reopenLastClosed()}
               >
-                Reopen last closed workspace
+                {t("editor.ws.reopen")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={order.length < 2}
                 onClick={() => closeOthers()}
               >
-                Close others
+                {t("editor.ws.closeOthers")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -276,20 +291,27 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
 
       <ConfirmDialog
         open={pendingClose !== null}
-        title={`Close workspace ${pendingIndex + 1}?`}
+        title={t("editor.ws.confirmTitle", { n: pendingIndex + 1 })}
         preview={
           pendingDoc
             ? {
                 thumb: pendingDoc.thumb || undefined,
-                line1: `${pendingDoc.annotations.length} annotation${
-                  pendingDoc.annotations.length === 1 ? "" : "s"
-                }${pendingDoc.imageCrop ? " · cropped" : ""}`,
-                line2: `Captured ${relTime(pendingDoc.createdAt)} ago`,
+                line1: `${t(
+                  pendingDoc.annotations.length === 1
+                    ? "editor.ws.annotationOne"
+                    : "editor.ws.annotationMany",
+                  { n: pendingDoc.annotations.length },
+                )}${pendingDoc.imageCrop ? ` · ${t("editor.ws.cropped")}` : ""}`,
+                // "now" doesn't take "ago" in Thai, so it gets its own string.
+                line2:
+                  Date.now() - pendingDoc.createdAt < 59_500
+                    ? t("editor.ws.capturedJustNow")
+                    : t("editor.ws.capturedAgo", { time: relTime(pendingDoc.createdAt) }),
               }
             : undefined
         }
-        body="The edits in this workspace will be discarded. The screenshot file is not saved anywhere else."
-        confirmLabel="Close"
+        body={t("editor.ws.confirmBody")}
+        confirmLabel={t("common.close")}
         destructive
         onCancel={() => setPendingClose(null)}
         onConfirm={() => {
@@ -297,10 +319,10 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
           setPendingClose(null);
           if (!id) return;
           close(id);
-          toast("Workspace closed", {
+          toast(t("editor.ws.closed"), {
             id: "workspace-undo",
             duration: 6000,
-            action: { label: "Undo", onClick: () => reopenLastClosed() },
+            action: { label: t("editor.toolbar.undo"), onClick: () => reopenLastClosed() },
           });
         }}
       />
@@ -324,6 +346,7 @@ function WorkspaceTile({
   onSelect: () => void;
   onClose: () => void;
 }) {
+  useT(); // re-render on language change
   // One flex child, exactly 62px tall — the same height as the New tile. The
   // caption used to sit below the tile in a column wrapper, which made this
   // item ~77px while New stayed 62px; `items-center` then centred the two at
@@ -360,7 +383,7 @@ function WorkspaceTile({
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 border border-dashed border-transparent text-[var(--fg-4)]">
             <ImageOff className="h-3.5 w-3.5" aria-hidden />
-            <span className="text-[9px]">{doc.image ? "" : "Empty"}</span>
+            <span className="text-[9px]">{doc.image ? "" : t("editor.ws.empty")}</span>
           </div>
         )}
 
@@ -398,8 +421,8 @@ function WorkspaceTile({
             e.stopPropagation();
             onClose();
           }}
-          title={`Close workspace ${index + 1}`}
-          aria-label={`Close workspace ${index + 1}`}
+          title={t("editor.ws.close", { n: index + 1 })}
+          aria-label={t("editor.ws.close", { n: index + 1 })}
           className="absolute right-0.5 top-0.5 hidden h-4 w-4 place-items-center rounded bg-black/60 text-white hover:bg-[var(--danger)] group-hover:grid"
         >
           <X className="h-2.5 w-2.5" aria-hidden />

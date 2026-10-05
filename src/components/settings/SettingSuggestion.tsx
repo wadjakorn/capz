@@ -2,6 +2,7 @@
 
 import { openSettings } from "@/lib/settingsNav";
 import { useSettings } from "@/stores/settings";
+import { useT } from "@/i18n/useT";
 import { settingDef, type SettingId } from "./registry";
 
 /**
@@ -16,7 +17,7 @@ export function SettingSuggestion({
   id,
   title,
   body,
-  cta = "Set it up",
+  cta,
   onOpenSettings,
 }: {
   id: SettingId;
@@ -27,6 +28,7 @@ export function SettingSuggestion({
   /** Lets the host switch away from whatever it is showing. */
   onOpenSettings?: () => void;
 }) {
+  const { t } = useT();
   const dismissed = useSettings((s) => s.config.general.dismissedSuggestions);
   const update = useSettings((s) => s.update);
 
@@ -38,7 +40,7 @@ export function SettingSuggestion({
   return (
     <aside
       className="grid max-w-sm gap-2 rounded-xl border border-border bg-[var(--surface)] p-3.5 shadow-lg"
-      aria-label={`Suggestion: ${settingDef(id).label}`}
+      aria-label={t("settings.suggestion.label", { label: t(settingDef(id).labelKey) })}
     >
       <div className="grid gap-1">
         <strong className="text-sm text-foreground">{title}</strong>
@@ -46,7 +48,7 @@ export function SettingSuggestion({
       </div>
       <div className="flex justify-end gap-2">
         <button type="button" onClick={dismiss} className="btn btn--secondary">
-          Not now
+          {t("settings.suggestion.notNow")}
         </button>
         <button
           type="button"
@@ -57,7 +59,7 @@ export function SettingSuggestion({
             onOpenSettings?.();
           }}
         >
-          {cta}
+          {cta ?? t("settings.suggestion.cta")}
         </button>
       </div>
     </aside>

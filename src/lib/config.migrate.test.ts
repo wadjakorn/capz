@@ -114,6 +114,28 @@ describe("older stores load with every user value kept", () => {
   });
 });
 
+describe("v3 → v4: general.language", () => {
+  it("keeps upgrading users on English", () => {
+    const { config } = load({ schemaVersion: 3, general: { theme: "light" } });
+    expect(config.general.language).toBe("en");
+    expect(config.general.theme).toBe("light");
+  });
+
+  it("keeps an explicit language through the step", () => {
+    const { config } = load({ schemaVersion: 3, general: { language: "th" } });
+    expect(config.general.language).toBe("th");
+  });
+
+  it("older stores also land on English", () => {
+    expect(load(v0).config.general.language).toBe("en");
+    expect(load(v2).config.general.language).toBe("en");
+  });
+
+  it("a fresh install (nothing persisted) gets the Thai default", () => {
+    expect(load(undefined).config.general.language).toBe("th");
+  });
+});
+
 describe("deepMerge", () => {
   it("merges nested objects and keeps keys only the base has", () => {
     const base = { a: { keep: 1, x: 1 }, extra: { deep: true }, v: 99 };

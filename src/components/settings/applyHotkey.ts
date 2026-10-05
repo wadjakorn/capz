@@ -8,6 +8,7 @@ import {
   type HotkeyAction,
 } from "@/lib/shortcuts";
 import type { useSettings } from "@/stores/settings";
+import { t, type TKey } from "@/i18n/store";
 
 export type HotkeyPatch = {
   captureFull?: string;
@@ -20,15 +21,15 @@ export type HotkeyPatch = {
   commandRingV2?: string;
 };
 
-const HOTKEY_LABELS: Record<keyof HotkeyPatch, string> = {
-  captureFull: "Capture full screen",
-  captureArea: "Capture area",
-  captureWindow: "Capture window",
-  captureScroll: "Scrolling capture",
-  captureSystemArea: "System area capture (macOS)",
-  showEditor: "Show editor",
-  commandRing: "Command ring",
-  commandRingV2: "Command ring (hold)",
+const HOTKEY_LABELS: Record<keyof HotkeyPatch, TKey> = {
+  captureFull: "settings.hotkey.action.captureFull",
+  captureArea: "settings.hotkey.action.captureArea",
+  captureWindow: "settings.hotkey.action.captureWindow",
+  captureScroll: "settings.hotkey.action.captureScroll",
+  captureSystemArea: "settings.hotkey.action.captureSystemArea",
+  showEditor: "settings.hotkey.action.showEditor",
+  commandRing: "settings.hotkey.action.commandRing",
+  commandRingV2: "settings.hotkey.action.commandRingV2",
 };
 
 export async function applyHotkey(
@@ -46,7 +47,7 @@ export async function applyHotkey(
       (k) => k !== changedKey && next[k] === newAccel,
     );
     if (clash) {
-      toast.error(`${newAccel} already used by "${HOTKEY_LABELS[clash]}"`, {
+      toast.error(t("settings.hotkey.clash", { accel: newAccel, action: t(HOTKEY_LABELS[clash]) }), {
         id: "hotkey-clash",
       });
       return;
@@ -67,7 +68,7 @@ export async function applyHotkey(
     await invoke("reregister_shortcuts").catch((e) =>
       console.error("reregister_shortcuts (revert) failed", e),
     );
-    toast.error(statusMessage(mine.requested, mine.status) ?? "Could not register shortcut", {
+    toast.error(statusMessage(mine.requested, mine.status) ?? t("settings.hotkey.registerFailed"), {
       id: "hotkey-register-failed",
     });
   }

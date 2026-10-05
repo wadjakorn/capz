@@ -11,6 +11,7 @@ import {
   RING_MODE_LABELS,
   type RingWedge,
 } from "@/lib/commandRing";
+import { useT } from "@/i18n/useT";
 
 /**
  * Which capture modes occupy the hold-ring's slots (CP-0038).
@@ -22,6 +23,7 @@ import {
  * hand-edited store never passes through this UI.
  */
 export function RingModesField() {
+  const { t } = useT();
   const config = useSettings((s) => s.config);
   const update = useSettings((s) => s.update);
   const selected = config.ring.modes;
@@ -58,10 +60,9 @@ export function RingModesField() {
   return (
     <div className="grid gap-3">
       <div className="grid max-w-md gap-0.5">
-        <Label className="text-foreground">Ring slots</Label>
+        <Label className="text-foreground">{t("settings.ringModes.title")}</Label>
         <span className="text-xs text-muted-foreground">
-          Modes on the hold ring, clockwise from the top. Choose {RING_MIN_MODES}–
-          {RING_MAX_MODES}; a cancel slot is always added last.
+          {t("settings.ringModes.hint", { min: RING_MIN_MODES, max: RING_MAX_MODES })}
         </span>
       </div>
       <div className="grid gap-2">
@@ -91,8 +92,8 @@ export function RingModesField() {
         })}
       </div>
       <span className="text-xs text-muted-foreground">
-        {visible.length} of {RING_MAX_MODES} slots used
-        {visible.length >= RING_MAX_MODES && " — uncheck one to swap in another"}
+        {t("settings.ringModes.used", { used: visible.length, max: RING_MAX_MODES })}
+        {visible.length >= RING_MAX_MODES && t("settings.ringModes.full")}
       </span>
     </div>
   );

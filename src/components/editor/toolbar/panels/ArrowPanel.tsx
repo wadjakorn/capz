@@ -6,6 +6,7 @@ import { StrokeGlyph } from "./glyphs";
 import { ColorField, DashLineIcon, Group, NumericField, ToggleIconButton } from "./kit";
 import type { ColorCtx, ArrowHeadsCtx, NumCtx, ToggleCtx } from "./types";
 import type { RefObject } from "react";
+import { useT } from "@/i18n/useT";
 
 /** Arrow tool: stroke color + width (1–20), plus two-way/dash toggles. Also
  * serves a headless "line" (Shapes) where only color/width/dash are set. */
@@ -24,15 +25,16 @@ export function ArrowPanel({
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
 }) {
+  const { t } = useT();
   const twoWay = arrowHeadsCtx?.value === "both";
   return (
     <Group>
-      <SectionLabel>Line</SectionLabel>
+      <SectionLabel>{t("editor.panel.line")}</SectionLabel>
       {colorCtx && (
         <ColorField
           ctx={colorCtx}
           inputRef={colorInputRef}
-          title={selected ? "Edit selected element color" : "Default color for next element"}
+          title={selected ? t("editor.panel.colorSelected") : t("editor.panel.colorDefault")}
         />
       )}
       {widthCtx && (
@@ -53,7 +55,7 @@ export function ArrowPanel({
             <ToggleIconButton
               active={twoWay}
               onClick={() => arrowHeadsCtx.onChange(twoWay ? "end" : "both")}
-              title="Two-way arrowhead"
+              title={t("editor.panel.twoWayArrow")}
               Icon={ArrowLeftRight}
             />
           )}
@@ -61,8 +63,8 @@ export function ArrowPanel({
             <ToggleIconButton
               active={arrowDashCtx.value}
               onClick={() => arrowDashCtx.onChange(!arrowDashCtx.value)}
-              title="Dashed line"
-              ariaLabel="Dashed line"
+              title={t("editor.panel.dashedLine")}
+              ariaLabel={t("editor.panel.dashedLine")}
               Icon={DashLineIcon}
             />
           )}

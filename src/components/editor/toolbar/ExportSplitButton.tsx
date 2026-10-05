@@ -16,18 +16,20 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/useT";
+import type { TKey } from "@/i18n/store";
 
 export type ExportAction = "copy" | "file" | "both";
 
 const ACTIONS: {
   action: ExportAction;
-  label: string;
+  labelKey: TKey;
   icon: LucideIcon;
   shortcut?: string;
 }[] = [
-  { action: "copy", label: "Copy", icon: CopyIcon, shortcut: "CmdOrCtrl+C" },
-  { action: "file", label: "Save", icon: Save },
-  { action: "both", label: "Save & Copy", icon: SaveAll },
+  { action: "copy", labelKey: "common.copy", icon: CopyIcon, shortcut: "CmdOrCtrl+C" },
+  { action: "file", labelKey: "common.save", icon: Save },
+  { action: "both", labelKey: "editor.export.saveAndCopy", icon: SaveAll },
 ];
 
 /**
@@ -46,8 +48,10 @@ export function ExportSplitButton({
   onExport: (action: ExportAction) => void;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const primary = ACTIONS.find((a) => a.action === lastAction) ?? ACTIONS[0];
   const PrimaryIcon = primary.icon;
+  const primaryLabel = t(primary.labelKey);
 
   // Shortcut glyphs are platform-specific (⌘ vs Ctrl). navigator is absent
   // during prerender, so pin to the prerender value ("win") until mounted to
@@ -63,10 +67,10 @@ export function ExportSplitButton({
         disabled={disabled}
         title={
           primary.shortcut
-            ? `${primary.label} (${formatShortcut(primary.shortcut, platform)})`
-            : primary.label
+            ? `${primaryLabel} (${formatShortcut(primary.shortcut, platform)})`
+            : primaryLabel
         }
-        aria-label={primary.label}
+        aria-label={primaryLabel}
         className="flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/80 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <PrimaryIcon className="h-4 w-4" aria-hidden />
@@ -76,8 +80,8 @@ export function ExportSplitButton({
           render={
             <button
               type="button"
-              title="Output options"
-              aria-label="Output options"
+              title={t("editor.export.options")}
+              aria-label={t("editor.export.options")}
               disabled={disabled}
               className="flex h-8 w-4 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
             >
@@ -91,7 +95,7 @@ export function ExportSplitButton({
             return (
               <DropdownMenuItem key={a.action} onClick={() => onExport(a.action)}>
                 <Icon aria-hidden />
-                <span>{a.label}</span>
+                <span>{t(a.labelKey)}</span>
                 {a.shortcut ? (
                   <DropdownMenuShortcut>
                     {formatShortcut(a.shortcut, platform)}

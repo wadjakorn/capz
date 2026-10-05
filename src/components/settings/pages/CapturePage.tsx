@@ -9,9 +9,12 @@ import { RingModesField } from "@/components/settings/cards/RingModesField";
 import { applyHotkey } from "@/components/settings/applyHotkey";
 import { useSettings } from "@/stores/settings";
 import { currentPlatform } from "@/lib/shortcuts";
+import { useT } from "@/i18n/useT";
+import { SHORTCUTS_GROUP } from "@/components/settings/registry";
 
 /** Shortcuts, and what happens at the moment of capture. */
 export function CapturePage() {
+  const { t } = useT();
   const { config, update } = useSettings();
   const isMac = currentPlatform() === "mac";
 
@@ -24,11 +27,11 @@ export function CapturePage() {
 
   return (
     <div className="grid gap-4">
-      <SectionCard title="Shortcuts">
+      <SectionCard title={t(SHORTCUTS_GROUP)}>
         <SettingRow aligned id="capture.full">{hotkey("captureFull")}</SettingRow>
         <SettingRow aligned id="capture.area">{hotkey("captureArea")}</SettingRow>
         {isMac && (
-          <SettingRow aligned id="capture.sysArea" hint="Hands off to the macOS screenshot tool.">
+          <SettingRow aligned id="capture.sysArea" hint={t("settings.capture.sysArea.hint")}>
             {hotkey("captureSystemArea")}
           </SettingRow>
         )}
@@ -37,7 +40,7 @@ export function CapturePage() {
         <SettingRow
           aligned
           id="capture.ring"
-          hint="Press once — the ring opens and takes focus; click a mode."
+          hint={t("settings.capture.ring.hint")}
         >
           {hotkey("commandRing")}
         </SettingRow>
@@ -56,26 +59,27 @@ export function CapturePage() {
         <SettingRow
           aligned
           id="capture.ringHold"
-          hint="Hold the modifiers and tap to cycle, release to capture."
+          hint={t("settings.capture.ringHold.hint")}
         >
           {hotkey("commandRingV2")}
         </SettingRow>
         <SettingRow
           id="capture.ringModes"
-          hint="Which modes sit on the hold ring, clockwise from the top."
+          hint={t("settings.capture.ringModes.hint")}
         >
           <RingModesField />
         </SettingRow>
         <SettingRow
           id="capture.backdrop"
-          hint="Starts the padded backdrop on for these captures; still togglable per image."
+          hint={t("settings.capture.backdrop.hint")}
         >
           <div className="flex flex-col gap-1.5">
             {(
               [
-                ["autoForFull", "Full screen"],
-                ["autoForArea", "Area"],
-                ["autoForWindow", "Window"],
+                // Same words as the shortcut rows above.
+                ["autoForFull", "settings.capture.full"],
+                ["autoForArea", "settings.capture.area"],
+                ["autoForWindow", "settings.capture.window"],
               ] as const
             ).map(([key, label]) => (
               <label
@@ -91,7 +95,7 @@ export function CapturePage() {
                     })
                   }
                 />
-                {label}
+                {t(label)}
               </label>
             ))}
           </div>

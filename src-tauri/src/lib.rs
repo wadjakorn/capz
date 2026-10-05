@@ -1,6 +1,7 @@
 mod accel;
 mod capture_dispatch;
 mod commands;
+mod i18n;
 mod modifiers;
 mod notice;
 mod ring;
@@ -134,6 +135,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            i18n::set_ui_language,
             shortcuts::reregister_shortcuts,
             shortcuts::suspend_shortcuts,
             shortcuts::probe_hotkey,
@@ -186,6 +188,7 @@ pub fn run() {
             windows::set_editor_always_on_top,
         ])
         .manage(state::AppState::default())
+        .manage(i18n::TrayLabels::default())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -208,6 +211,7 @@ pub fn run() {
             )?;
             log_store_path_diagnostics(app.handle());
             services::image_service::sweep_stale_temp();
+            i18n::init_from_config(app.handle());
             tray::create_tray(app.handle())?;
             // Must precede registration: the v2 ring's accelerator can fire as
             // soon as it is registered, and the ready-handshake listener has to
@@ -225,10 +229,7 @@ pub fn run() {
                     log::error!("hotkeys inactive at launch: {inactive:?}");
                     notice::error(
                         app.handle(),
-                        format!(
-                            "Some shortcuts are inactive ({}). Open Settings to fix them.",
-                            inactive.join(", ")
-                        ),
+                        i18n::tr(i18n::Msg::ShortcutsInactive).replace("{}", &inactive.join(", ")),
                     );
                 }
                 let _ = app.handle().emit("shortcuts://registration-report", &report);

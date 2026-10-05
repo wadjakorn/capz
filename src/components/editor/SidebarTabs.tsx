@@ -3,6 +3,7 @@
 import { Clock, Image as ImageIcon } from "lucide-react";
 
 import type { ToolPanelInfo } from "@/stores/sidebar";
+import { useT } from "@/i18n/useT";
 
 /** The two panels that are always there, plus the transient tool panel. */
 export type SidebarTab = "canvas" | "history" | "tool";
@@ -29,11 +30,12 @@ export type SidebarTabsProps = {
  * it is the only one that comes and goes.
  */
 export function SidebarTabs({ active, toolPanel, onSelect }: SidebarTabsProps) {
+  const { t } = useT();
   const ToolIcon = toolPanel?.icon;
   return (
     <div
       role="tablist"
-      aria-label="Sidebar panels"
+      aria-label={t("editor.sidebar.panels")}
       className="flex flex-none items-stretch gap-3"
     >
       <Tab
@@ -41,14 +43,14 @@ export function SidebarTabs({ active, toolPanel, onSelect }: SidebarTabsProps) {
         active={active === "canvas"}
         onSelect={onSelect}
         icon={<ImageIcon className="h-3.5 w-3.5" aria-hidden />}
-        label="Canvas"
+        label={t("editor.sidebar.canvas")}
       />
       <Tab
         id="history"
         active={active === "history"}
         onSelect={onSelect}
         icon={<Clock className="h-3.5 w-3.5" aria-hidden />}
-        label="History"
+        label={t("editor.sidebar.history")}
       />
       <span className="flex-1" />
       {toolPanel && ToolIcon && (
@@ -80,16 +82,18 @@ function Tab({
   label: string;
   iconOnly?: boolean;
 }) {
+  const { t } = useT();
+  const optionsLabel = t("editor.sidebar.toolOptions", { tool: label });
   return (
     <button
       type="button"
       role="tab"
       aria-selected={active}
       aria-controls={`sidebar-panel-${id}`}
-      title={iconOnly ? `${label} options` : label}
-      aria-label={iconOnly ? `${label} options` : undefined}
+      title={iconOnly ? optionsLabel : label}
+      aria-label={iconOnly ? optionsLabel : undefined}
       onClick={() => onSelect(id)}
-      className={`relative -mb-px flex items-center gap-1.5 py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] ${
+      className={`relative -mb-px flex items-center gap-1.5 whitespace-nowrap py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] ${
         iconOnly ? "px-1.5" : "px-0.5"
       } ${
         active

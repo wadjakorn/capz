@@ -136,6 +136,8 @@ export type AppConfig = {
   };
   general: {
     theme: "light" | "dark" | "system";
+    /** UI language. Fresh installs default to Thai; v3 stores migrate to "en". */
+    language: "th" | "en";
     autostart: boolean;
     playSoundOnCapture: boolean;
     rememberLastTool: boolean;
@@ -313,7 +315,8 @@ export type AppConfig = {
 };
 
 // v2 (CP-0038): added `hotkeys.commandRingV2` and the `ring` section.
-export const CONFIG_SCHEMA_VERSION = 3;
+// v4: added `general.language`.
+export const CONFIG_SCHEMA_VERSION = 4;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -367,6 +370,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   general: {
     theme: "dark",
+    language: "th",
     autostart: false,
     playSoundOnCapture: false,
     rememberLastTool: true,
@@ -495,6 +499,7 @@ export const CONFIG_BACKUP_STORE_FILE = "config.backup.json";
 //   hotkeys.*                                  src-tauri/src/shortcuts.rs
 //   updates.autoCheck, updates.checkIntervalHours  src-tauri/src/lib.rs
 //   general.onboardingCompleted                src-tauri/src/lib.rs
+//   general.language                           src-tauri/src/i18n.rs
 //   general.editorWindow.{width,height}        src-tauri/src/windows.rs
 //   general.alwaysOnTopEditor                  src-tauri/src/windows.rs
 //   lastUsed.region.monitorId                  src-tauri/src/windows.rs
@@ -517,6 +522,14 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
   // the bump exists so an older build sees the store as newer and stops
   // stripping keys it does not know.
   2: (o) => o,
+  // v3 → v4: added `general.language`. The default is Thai for fresh installs,
+  // but anyone upgrading has been using capz in English, so an existing store
+  // without the key keeps English instead of switching language under them.
+  3: (o) => {
+    const general = isPlainObject(o.general) ? o.general : {};
+    if (general.language !== undefined) return o;
+    return { ...o, general: { ...general, language: "en" } };
+  },
 };
 
 /** Throws when a version between 0 and `version - 1` has no migration step. */
@@ -778,6 +791,7 @@ function vGeneral(
     def,
     {
       theme: inSet("light", "dark", "system"),
+      language: inSet("th", "en"),
       autostart: isBool,
       playSoundOnCapture: isBool,
       rememberLastTool: isBool,

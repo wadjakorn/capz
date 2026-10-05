@@ -33,6 +33,8 @@ import {
 } from "@/lib/notice";
 import { useUpdateCheckListener } from "@/lib/updater";
 import { useInstallIdNudge } from "@/hooks/use-install-id-nudge";
+import { t } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -42,6 +44,7 @@ const EditorStage = dynamic(
 type View = "editor" | "settings" | "onboarding";
 
 export default function EditorPage() {
+  useT(); // re-render on language change; copy here uses the store `t`
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
   /** The canvas column the workspace swap transition hides and reveals. */
@@ -121,10 +124,11 @@ export default function EditorPage() {
       await useHistory.getState().refreshArchive(dir);
       if (res.evicted.length > 0) {
         toast(
-          `Archive full — removed ${res.evicted.length} older ${
-            res.evicted.length === 1 ? "capture" : "captures"
-          }`,
-          { description: "Files you exported yourself are never removed." },
+          t(
+            res.evicted.length === 1 ? "editor.archive.fullOne" : "editor.archive.fullMany",
+            { n: res.evicted.length },
+          ),
+          { description: t("editor.archive.fullHint") },
         );
       }
     },
@@ -141,13 +145,13 @@ export default function EditorPage() {
       try {
         const { importImagePathDesktop } = await import("@/lib/importImage");
         const ok = await importImagePathDesktop(path);
-        if (!ok) toast.error("Couldn't add that image");
+        if (!ok) toast.error(t("editor.toast.addImageFailed"));
       } catch (err) {
         console.error("history drop failed", err);
         useHistory.getState().markMissing(
           useHistory.getState().items.find((i) => i.path === path)?.id ?? "",
         );
-        toast.error("File no longer exists");
+        toast.error(t("editor.history.gone"));
       }
     })();
   }, []);
@@ -158,7 +162,7 @@ export default function EditorPage() {
       toast(message, {
         id: "workspace-undo",
         duration: 6000,
-        action: { label: "Undo", onClick: () => reopenLastClosed() },
+        action: { label: t("editor.toolbar.undo"), onClick: () => reopenLastClosed() },
       });
     },
     [reopenLastClosed],
@@ -233,10 +237,10 @@ export default function EditorPage() {
       });
       const { addOverlayImage } = await import("@/lib/addImage");
       const id = await addOverlayImage(dataUrl);
-      if (!id) toast.error("Couldn't add the new capture");
+      if (!id) toast.error(t("editor.toast.addCaptureFailed"));
     } catch (err) {
       console.error("add capture as overlay failed", err);
-      toast.error("Couldn't add the new capture", { description: String(err) });
+      toast.error(t("editor.toast.addCaptureFailed"), { description: String(err) });
     }
   }, []);
 
@@ -271,9 +275,9 @@ export default function EditorPage() {
               // modal — a capture has to stay a single keystroke. Filling an
               // empty workspace discards nothing, so it stays silent.
               if (res?.outcome === "replaced") {
-                undoToast("Workspace replaced");
+                undoToast(t("editor.ws.replaced"));
               } else if (res?.outcome === "evicted") {
-                undoToast("Oldest workspace closed to make room");
+                undoToast(t("editor.ws.oldestClosed"));
               }
             })();
             return;
@@ -326,18 +330,18 @@ export default function EditorPage() {
     issueToastShown.current = true;
     const n = configIssues.length;
     const shown = configIssues.slice(0, 6).join(" · ");
-    const more = n > 6 ? ` · …and ${n - 6} more` : "";
-    toast.error(`${n} invalid setting${n === 1 ? "" : "s"} ignored`, {
-      description: `${shown}${more}. Reset to defaults to clean it up — your valid settings are kept.`,
+    const more = n > 6 ? ` · ${t("editor.config.more", { n: n - 6 })}` : "";
+    toast.error(t(n === 1 ? "editor.config.invalidOne" : "editor.config.invalidMany", { n }), {
+      description: t("editor.config.invalidHint", { list: `${shown}${more}` }),
       duration: Infinity,
       action: {
-        label: "Reset settings",
+        label: t("editor.config.reset"),
         onClick: () => {
           void resetSettings()
-            .then(() => toast.success("Settings reset to defaults"))
+            .then(() => toast.success(t("editor.config.resetDone")))
             .catch((e) => {
               console.error("settings reset failed", e);
-              toast.error("Reset failed", { description: String(e) });
+              toast.error(t("editor.config.resetFailed"), { description: String(e) });
             });
         },
       },
@@ -483,8 +487,8 @@ export default function EditorPage() {
       if (e.shiftKey || e.altKey) return;
       if (!file) return;
       if (view !== "editor") return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       const sel = window.getSelection();
       if (sel && sel.toString().length > 0) return;
       e.preventDefault();
@@ -494,20 +498,16 @@ export default function EditorPage() {
         const stage = getStage();
         if (!stage) return;
         await copyOnly(stage);
-        toast.success("Copied");
+        toast.success(t("editor.history.copied"));
       } catch (err) {
         console.error("copy shortcut failed", err);
         const { describeExportError } = await import("@/lib/exportErrors");
-        const { title, detail } = describeExportError(err);
-        const recoverable =
-          title === "Permission denied" ||
-          title === "Read-only volume" ||
-          title === "Disk full";
+        const { title, detail, recoverable } = describeExportError(err);
         toast.error(title, {
           description: detail,
           action: recoverable
             ? {
-                label: "Pick folder",
+                label: t("editor.toast.pickFolder"),
                 onClick: () => {
                   openSettings("after.folder");
                   setView("settings");
@@ -536,14 +536,14 @@ export default function EditorPage() {
           const dataUrl = await invoke<string>("read_clipboard_image_data_url");
           const { addOverlayImage } = await import("@/lib/addImage");
           const id = await addOverlayImage(dataUrl);
-          if (!id) toast.error("Couldn't add clipboard image");
+          if (!id) toast.error(t("editor.toast.clipboardAddFailed"));
         } else {
           // Empty canvas: the pasted image becomes the base.
           await invoke<string>("paste_into_editor");
         }
       } catch (err) {
         console.warn("clipboard paste failed", err);
-        toast.error("Clipboard has no image");
+        toast.error(t("editor.toast.clipboardNoImage"));
       }
     };
     window.addEventListener("paste", onPaste);
@@ -568,15 +568,15 @@ export default function EditorPage() {
           );
           const imgPath = paths.find(isImportableImagePath);
           if (!imgPath) {
-            if (paths.length > 0) toast.error("Not an image");
+            if (paths.length > 0) toast.error(t("editor.toast.notImage"));
             return;
           }
           try {
             const ok = await importImagePathDesktop(imgPath);
-            if (!ok) toast.error("Couldn't import image");
+            if (!ok) toast.error(t("editor.toast.importFailedShort"));
           } catch (err) {
             console.error("drop import failed", err);
-            toast.error("Import failed", { description: String(err) });
+            toast.error(t("editor.toast.importFailed"), { description: String(err) });
           }
         })();
       });
@@ -603,11 +603,11 @@ export default function EditorPage() {
     <div className="flex h-screen flex-col text-foreground">
       {view === "settings" ? (
         <SubViewHeader
-          title="Settings"
+          title={t("editor.view.settings")}
           onBack={() => setView("editor")}
         />
       ) : view === "onboarding" ? (
-        <SubViewHeader title="Welcome" onBack={() => setView("editor")} />
+        <SubViewHeader title={t("editor.view.welcome")} onBack={() => setView("editor")} />
       ) : (
         <Toolbar
           onOpenSettings={() => setView("settings")}
@@ -653,7 +653,7 @@ export default function EditorPage() {
             once, so unmounting would leave it holding detached nodes and the
             panels would come back empty. */}
         <aside
-          aria-label="Sidebar"
+          aria-label={t("editor.sidebar.label")}
           aria-hidden={view !== "editor"}
           style={{
             visibility: view === "editor" ? "visible" : "hidden",
@@ -752,42 +752,44 @@ export default function EditorPage() {
  * out it exists.
  */
 function HistoryOffNotice({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { t } = useT();
   return (
     <div className="grid justify-items-center gap-2 px-2 py-6 text-center">
-      <span className="text-xs text-[var(--fg-2)]">History is off</span>
+      <span className="text-xs text-[var(--fg-2)]">{t("editor.historyOff.title")}</span>
       <span className="text-[11px] leading-relaxed text-[var(--fg-4)]">
-        Turn it on to keep a list of the screenshots you export, and optionally a
-        copy of every capture.
+        {t("editor.historyOff.body")}
       </span>
       <button
         type="button"
         className="btn btn--secondary btn--sm mt-1"
         onClick={onOpenSettings}
       >
-        Open history settings
+        {t("editor.historyOff.open")}
       </button>
     </div>
   );
 }
 
 function SubViewHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  const { t } = useT();
   return (
     <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.04] px-3 py-2">
       <button
         type="button"
         onClick={onBack}
         className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
-        title="Back to editor"
+        title={t("editor.view.back")}
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Editor
+        {t("editor.view.editor")}
       </button>
-      <h1 className="text-sm font-semibold text-white">{title}</h1>
+      <h1 className="text-sm font-semibold text-foreground">{title}</h1>
     </div>
   );
 }
 
 function EmptyState() {
+  const { t } = useT();
   const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
   const paste = isMac ? "⌘V" : "Ctrl+V";
   return (
@@ -797,7 +799,9 @@ function EmptyState() {
           <span className="text-2xl">⌘</span>
         </div>
         <div className="text-sm text-foreground/80">
-          Paste an image (<span className="font-mono text-foreground">{paste}</span>) or capture from the tray.
+          {t("editor.empty.before")}
+          <span className="font-mono text-foreground">{paste}</span>
+          {t("editor.empty.after")}
         </div>
       </div>
     </div>

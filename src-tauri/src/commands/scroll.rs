@@ -300,7 +300,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                     s.auto = false;
                     s.dup_streak = 0;
                     let mut progress = ScrollProgress::from_session(s);
-                    progress.note = Some("Auto-scroll unavailable — scroll manually".into());
+                    progress.note = Some(crate::i18n::tr(crate::i18n::Msg::ScrollAutoUnavailable).into());
                     drop(g);
                     emit_progress(&app, progress);
                     continue;
@@ -368,7 +368,7 @@ fn spawn_sampler<R: Runtime>(app: AppHandle<R>) {
                             s.auto = false;
                             s.dup_streak = 0;
                             s.auto_progressed = false;
-                            note = Some("Target ignored auto-scroll — scroll manually".into());
+                            note = Some(crate::i18n::tr(crate::i18n::Msg::ScrollTargetIgnored).into());
                         }
                     }
                 }

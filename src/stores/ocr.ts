@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { t } from "@/i18n/store";
 import { toast } from "sonner";
 import { detectText, type OcrResult } from "@/lib/ocr";
 
@@ -56,9 +57,11 @@ export const useOcr = create<State>((set, get) => ({
       }));
       const lineCount = result.lines.length;
       if (lineCount > 0) {
-        toast.success(`Detected ${lineCount} text ${lineCount === 1 ? "line" : "lines"}`);
+        toast.success(
+          t(lineCount === 1 ? "app.ocr.detectedOne" : "app.ocr.detectedMany", { count: lineCount }),
+        );
       } else {
-        toast("No text found");
+        toast(t("app.ocr.noText"));
       }
       // Only worth mentioning when we found nothing at all: on a screenshot that
       // did contain readable text, a "Thai isn't available" toast is pure noise.
@@ -66,19 +69,17 @@ export const useOcr = create<State>((set, get) => ({
       // to read it is the one that is missing.
       if (!result.thaiAvailable && lineCount === 0 && !get().thaiNoticeShown) {
         set({ thaiNoticeShown: true });
-        toast("Thai text recognition isn't available on this system", {
+        toast(t("app.ocr.thaiUnavailable"), {
           description: isWindows()
-            ? "Windows ไม่มีชุด OCR ภาษาไทยให้ติดตั้ง (ไม่ว่าเวอร์ชันใด) จึงยังอ่านภาษาไทย" +
-              "ไม่ได้ — ไม่ต้องไปหาติดตั้งเพิ่ม ภาษาอังกฤษยังใช้ได้ตามปกติ · " +
-              `รายละเอียด: ${THAI_OCR_NOTE_URL}`
-            : "It requires a newer macOS version.",
+            ? t("app.ocr.thaiUnavailableWindows", { url: THAI_OCR_NOTE_URL })
+            : t("app.ocr.thaiUnavailableMac"),
           duration: isWindows() ? 12_000 : 8_000,
         });
       }
     } catch (e) {
       console.error("ocr_detect failed", e);
       set({ status: "error" });
-      toast.error?.("Text detection failed");
+      toast.error?.(t("app.ocr.failed"));
     }
   },
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { AlertTriangle, Check, X } from "lucide-react";
+import { useT } from "@/i18n/useT";
+import { rich } from "@/lib/richText";
 
 type Props = {
   open: boolean;
@@ -19,6 +21,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
   const [step, setStep] = useState<StepIdx>(1);
   const [probe, setProbe] = useState<ProbeStatus>("idle");
   const [busy, setBusy] = useState<"" | "open1" | "request" | "open3" | "relaunch">("");
+  const { t } = useT();
 
   useEffect(() => {
     if (!open) return;
@@ -126,21 +129,16 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-          aria-label="Close"
+          className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-[var(--surface-raised-hover)] hover:text-foreground"
+          aria-label={t("onboarding.inert.close")}
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
         <div className="shrink-0 p-6 pb-3">
-          <h2 id="inert-recovery-title" className="text-base font-semibold text-white">
-            Fix permission after macOS update
+          <h2 id="inert-recovery-title" className="text-base font-semibold text-foreground">
+            {t("onboarding.inert.title")}
           </h2>
-          <p className="mt-2 text-sm text-foreground/75">
-            System Settings still lists <strong>capz</strong> under Screen
-            Recording, but the entry is keyed to the previous build&apos;s code
-            identity and the new binary cannot capture. Toggling off and on does
-            not recover — the row must be removed entirely so macOS re-prompts.
-          </p>
+          <p className="mt-2 text-sm text-foreground/75">{rich(t("onboarding.inert.lead"))}</p>
         </div>
 
         <ol className="grid gap-4 overflow-y-auto px-6 pb-6 pt-2">
@@ -148,13 +146,10 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
             n={1}
             active={step === 1}
             done={step > 1}
-            title="Remove the stale entry"
+            title={t("onboarding.inert.step1.title")}
           >
             <p className="text-xs text-muted-foreground">
-              Find <strong>capz</strong> under Screen Recording and click the{" "}
-              <strong>−</strong> (minus) button to delete it. Toggling off
-              won&apos;t work — the row must be removed entirely so macOS
-              forgets the old code identity.
+              {rich(t("onboarding.inert.step1.body"))}
             </p>
             <button
               type="button"
@@ -162,7 +157,7 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
               disabled={busy !== ""}
               className="btn btn--secondary mt-1 self-start"
             >
-              {busy === "open1" ? "Opening…" : "Open Privacy Settings"}
+              {busy === "open1" ? t("onboarding.opening") : t("onboarding.inert.openPrivacy")}
             </button>
           </Step>
 
@@ -170,13 +165,9 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
             n={2}
             active={step === 2}
             done={step > 2}
-            title="Re-prompt for permission"
+            title={t("onboarding.inert.step2.title")}
           >
-            <p className="text-xs text-muted-foreground">
-              After removing the row, click below. macOS will ask for Screen
-              Recording access again, and capz will reappear in the list under
-              its new identity.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("onboarding.inert.step2.body")}</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -184,21 +175,15 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
                 disabled={busy !== "" || step < 2}
                 className="btn btn--primary mt-1 self-start disabled:opacity-50"
               >
-                {busy === "request" ? "Requesting…" : "Request permission"}
+                {busy === "request" ? t("onboarding.requesting") : t("onboarding.requestPermission")}
               </button>
               <ProbeBadge status={probe} />
             </div>
             {probe === "still-inert" && (
-              <Warning>
-                Still inert. Go back to step 1 and confirm the old row is gone,
-                then retry.
-              </Warning>
+              <Warning>{t("onboarding.inert.step2.stillInert")}</Warning>
             )}
             {probe === "denied" && (
-              <Warning>
-                macOS reported denied — open Privacy Settings and toggle the new
-                row on, or repeat step 1.
-              </Warning>
+              <Warning>{t("onboarding.inert.step2.denied")}</Warning>
             )}
           </Step>
 
@@ -206,11 +191,10 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
             n={3}
             active={step === 3}
             done={step > 3}
-            title="Toggle the new entry on"
+            title={t("onboarding.inert.step3.title")}
           >
             <p className="text-xs text-muted-foreground">
-              Switch the new <strong>capz</strong> row to on. macOS sometimes
-              adds it disabled even after the prompt.
+              {rich(t("onboarding.inert.step3.body"))}
             </p>
             <button
               type="button"
@@ -218,26 +202,23 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
               disabled={busy !== "" || step < 3}
               className="btn btn--secondary mt-1 self-start disabled:opacity-50"
             >
-              {busy === "open3" ? "Opening…" : "Open Privacy Settings"}
+              {busy === "open3" ? t("onboarding.opening") : t("onboarding.inert.openPrivacy")}
             </button>
           </Step>
 
-          <Step n={4} active={step === 4} done={false} title="Relaunch capz">
-            <p className="text-xs text-muted-foreground">
-              macOS only applies the new grant to processes started after the
-              toggle. Relaunch to finish.
-            </p>
+          <Step n={4} active={step === 4} done={false} title={t("onboarding.relaunchCapz")}>
+            <p className="text-xs text-muted-foreground">{t("onboarding.inert.step4.body")}</p>
             <button
               type="button"
               onClick={() => void relaunch()}
               disabled={busy !== ""}
               className="btn btn--primary mt-1 self-start disabled:opacity-50"
             >
-              {busy === "relaunch" ? "Relaunching…" : "Relaunch capz"}
+              {busy === "relaunch" ? t("onboarding.relaunching") : t("onboarding.relaunchCapz")}
             </button>
             {step < 4 && (
               <p className="text-[11px] text-muted-foreground/80">
-                Relaunch even if the earlier steps look incomplete.
+                {t("onboarding.inert.step4.hint")}
               </p>
             )}
           </Step>
@@ -261,14 +242,14 @@ function Step({
   children: React.ReactNode;
 }) {
   const badgeCls = done
-    ? "bg-emerald-500/25 text-emerald-100 ring-emerald-400/40"
+    ? "bg-[var(--success)]/15 text-[var(--success)] ring-[var(--success)]/50"
     : active
       ? "bg-[var(--accent-soft)] text-[var(--accent)] ring-1 ring-[var(--accent)]/40"
-      : "bg-white/5 text-muted-foreground ring-white/10";
+      : "bg-[var(--surface-raised)] text-muted-foreground ring-[var(--border-strong)]";
   const titleCls = done
     ? "text-foreground/60 line-through decoration-foreground/30"
     : active
-      ? "text-white"
+      ? "text-foreground"
       : "text-foreground/70";
   return (
     <li className="grid gap-2">
@@ -286,28 +267,29 @@ function Step({
 }
 
 function ProbeBadge({ status }: { status: ProbeStatus }) {
+  const { t } = useT();
   if (status === "idle") return null;
   if (status === "pending") {
-    return <span className="text-xs text-muted-foreground">Probing capture…</span>;
+    return <span className="text-xs text-muted-foreground">{t("onboarding.inert.probe.pending")}</span>;
   }
   if (status === "granted") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-300">
-        <Check className="h-3 w-3" aria-hidden /> Capture works
+      <span className="inline-flex items-center gap-1 text-xs text-[var(--success)]">
+        <Check className="h-3 w-3" aria-hidden /> {t("onboarding.inert.probe.works")}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs text-amber-300">
       <AlertTriangle className="h-3 w-3" aria-hidden />
-      {status === "still-inert" ? "Still inert" : "Denied"}
+      {status === "still-inert" ? t("onboarding.inert.probe.stillInert") : t("onboarding.inert.probe.denied")}
     </span>
   );
 }
 
 function Warning({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-foreground">
       {children}
     </div>
   );

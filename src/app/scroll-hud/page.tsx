@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ensureAutoScrollPermission } from "@/lib/accessibility";
+import { t as tNow } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
 type Progress = {
   frames: number;
@@ -27,6 +29,7 @@ type Progress = {
  * pill is drawn.
  */
 export default function ScrollHudPage() {
+  const { t } = useT();
   const [progress, setProgress] = useState<Progress>({
     frames: 1,
     height: 0,
@@ -125,7 +128,7 @@ export default function ScrollHudPage() {
     setNote(null);
     const ok = await ensureAutoScrollPermission();
     if (!ok) {
-      setNote("Enable Accessibility for capz, then press Auto-scroll again");
+      setNote(tNow("app.scroll.needAccessibility"));
       if (noteTimer.current) window.clearTimeout(noteTimer.current);
       noteTimer.current = window.setTimeout(() => setNote(null), 6000);
       return;
@@ -182,10 +185,10 @@ export default function ScrollHudPage() {
             />
             <div className="flex min-w-0 flex-1 flex-col" role="status" aria-live="polite">
               <span className="truncate text-[12px] font-semibold tracking-wide text-white/90">
-                Processing capture…
+                {t("app.scroll.processing")}
               </span>
               <span className="truncate text-[11px] text-white/60">
-                Stitching {progress.height}px · opening editor
+                {t("app.scroll.stitching", { height: progress.height })}
               </span>
             </div>
           </>
@@ -196,7 +199,7 @@ export default function ScrollHudPage() {
                   must ellipsize this title rather than wrap it to a second line
                   and push the bar past the HUD window height. */}
               <span className="truncate text-[12px] font-semibold tracking-wide text-white/90">
-                Scrolling capture
+                {t("app.scroll.title")}
               </span>
               <span className="truncate text-[11px] text-white/60">
                 {note ? (
@@ -206,9 +209,12 @@ export default function ScrollHudPage() {
                     {/* Down to capture; only downward content is appended. Scrolling
                         back up is tolerated — the stitcher recognizes and ignores
                         upward frames, so no duplicated band (see services/stitch.rs). */}
-                    {auto ? "Auto-scrolling · Enter/click capture · Esc cancel" : "Scroll down"} · {progress.height}px ·{" "}
-                    {progress.frames} frame{progress.frames === 1 ? "" : "s"}
-                    {progress.warnings > 0 ? " · ⚠ seams" : ""}
+                    {auto ? t("app.scroll.autoHint") : t("app.scroll.scrollDown")} ·{" "}
+                    {t("app.scroll.height", { height: progress.height })} ·{" "}
+                    {t(progress.frames === 1 ? "app.scroll.frameOne" : "app.scroll.frameMany", {
+                      count: progress.frames,
+                    })}
+                    {progress.warnings > 0 ? ` · ${t("app.scroll.seams")}` : ""}
                   </>
                 )}
               </span>
@@ -220,7 +226,7 @@ export default function ScrollHudPage() {
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/80 disabled:opacity-40"
               style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
             >
-              Cancel
+              {t("app.scroll.cancel")}
             </button>
             {/* Auto-scroll is chosen once at the overlay arming bar and is not
                 switchable mid-capture, so this button is disabled throughout the
@@ -232,9 +238,9 @@ export default function ScrollHudPage() {
               disabled
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-40"
               style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-              title="Start auto-scroll from the selection bar before capture begins"
+              title={t("app.scroll.autoScrollTitle")}
             >
-              Auto-scroll
+              {t("app.scroll.autoScroll")}
             </button>
             {/* During auto the backend drives the pointer, so a mouse click on
                 Capture is unreliable — disable it and commit via Enter / a click
@@ -246,7 +252,7 @@ export default function ScrollHudPage() {
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
             >
-              Capture
+              {t("app.scroll.capture")}
             </button>
           </>
         )}

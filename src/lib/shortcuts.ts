@@ -1,3 +1,5 @@
+import { t } from "@/i18n/store";
+
 export type Platform = "mac" | "win";
 
 export function currentPlatform(): Platform {
@@ -204,10 +206,10 @@ export function statusMessage(accel: string, status: RegoStatus): string | null 
     case "ok":
       return null;
     case "taken":
-      return `${accel} is already claimed by the OS or another app`;
+      return t("app.hotkey.taken", { accel });
     case "invalid":
-      return `${accel} isn't a valid shortcut`;
+      return t("app.hotkey.invalid", { accel });
     case "needsModifier":
-      return `${accel} needs a modifier — the hold ring fires when you release it`;
+      return t("app.hotkey.needsModifier", { accel });
   }
 }

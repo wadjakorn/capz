@@ -32,6 +32,8 @@ import { currentPreviewEdge, previewCache } from "@/lib/historyPreview";
 import { useHistoryActions } from "@/hooks/useHistoryActions";
 import { resolveSaveDirPath } from "@/lib/exportImage";
 import { useSettings } from "@/stores/settings";
+import { t, type TKey } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
 /** Pointer travel before a press becomes a drag rather than a click. */
 const DRAG_THRESHOLD_PX = 4;
@@ -50,6 +52,7 @@ export type CaptureHistorySectionProps = {
  * BackdropSection uses, and the reason GlobalToolsPanel can stay presentational.
  */
 export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySectionProps) {
+  useT(); // re-render on language change; copy here uses the store `t`
   const saved = useHistory((s) => s.items);
   const archived = useHistory((s) => s.archived);
   const filter = useHistory((s) => s.filter);
@@ -80,7 +83,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
   const openItem = useCallback(
     (item: HistoryItem) => {
       if (item.missing) {
-        toast.error("File no longer exists");
+        toast.error(t("editor.history.gone"));
         markMissing(item.id);
         return;
       }
@@ -143,20 +146,20 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
     <div className="flex flex-col gap-1 px-2 pb-1">
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-[var(--fg-4)]">
-          {items.length} {items.length === 1 ? "file" : "files"}
+          {t(items.length === 1 ? "editor.history.fileOne" : "editor.history.fileMany", { n: items.length })}
         </span>
         <span className="flex-1" />
         <div
           className="inline-flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5"
           role="group"
-          aria-label="History view"
+          aria-label={t("editor.history.view")}
         >
           {([["list", List], ["grid", LayoutGrid]] as const).map(([v, Icon]) => (
             <button
               key={v}
               type="button"
               aria-pressed={view === v}
-              title={v === "list" ? "List" : "Thumbnails"}
+              title={v === "list" ? t("editor.history.list") : t("editor.history.thumbnails")}
               onClick={() => setView(v)}
               className={`grid h-[18px] w-5 place-items-center rounded transition-colors ${
                 view === v
@@ -174,8 +177,8 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               <button
                 type="button"
                 className="grid h-[18px] w-5 place-items-center rounded text-[var(--fg-3)] hover:text-[var(--fg-2)]"
-                title="History actions"
-                aria-label="History actions"
+                title={t("editor.history.actions")}
+                aria-label={t("editor.history.actions")}
               >
                 <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
               </button>
@@ -193,11 +196,11 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               }}
             >
               <FolderOpen className="h-4 w-4" aria-hidden />
-              Open save folder
+              {t("editor.history.openFolder")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!saved.length} onClick={() => clear()}>
               <Trash2 className="h-4 w-4" aria-hidden />
-              Clear list
+              {t("editor.history.clearList")}
             </DropdownMenuItem>
             {/* Separate from "Clear list" on purpose: that one only forgets
                 rows, this one deletes files the app owns. */}
@@ -206,7 +209,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               onClick={() => setPendingArchiveWipe(true)}
             >
               <Trash2 className="h-4 w-4" aria-hidden />
-              Delete archived captures…
+              {t("editor.history.deleteArchived")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -218,27 +221,28 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         <div
           className="flex gap-px rounded-md bg-[var(--surface-raised)] p-0.5"
           role="group"
-          aria-label="History filter"
+          aria-label={t("editor.history.filter")}
         >
           {(
             [
-              ["all", "All"],
-              ["saved", "Saved"],
-              ["capture", "Captures"],
-            ] as const
-          ).map(([v, label]) => (
+              ["all", "editor.history.filterAll"],
+              ["saved", "editor.history.filterSaved"],
+              ["capture", "editor.history.filterCaptures"],
+            ] as const satisfies readonly (readonly [string, TKey])[]
+          ).map(([v, labelKey]) => (
             <button
               key={v}
               type="button"
               aria-pressed={filter === v}
               onClick={() => setFilter(v as HistoryFilter)}
-              className={`h-[18px] flex-1 rounded text-[9px] font-medium transition-colors ${
+              title={t(labelKey)}
+              className={`h-[18px] min-w-0 flex-1 truncate whitespace-nowrap rounded px-0.5 text-[9px] font-medium transition-colors ${
                 filter === v
                   ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                   : "text-[var(--fg-3)] hover:text-[var(--fg-2)]"
               }`}
             >
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </div>
@@ -252,28 +256,28 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         type="button"
         onClick={() => forget(item.id)}
         className={actionClass(variant, true)}
-        title="Remove from list"
+        title={t("editor.history.remove")}
       >
         <Trash2 className="h-3 w-3" aria-hidden />
-        {variant === "row" && "Remove from list"}
+        {variant === "row" && t("editor.history.remove")}
       </button>
     ) : (
       <>
-        <button type="button" onClick={() => void reveal(item)} className={actionClass(variant)} title="Reveal in folder">
+        <button type="button" onClick={() => void reveal(item)} className={actionClass(variant)} title={t("editor.history.revealHint")}>
           <FolderOpen className="h-3 w-3" aria-hidden />
-          {variant === "row" && "Reveal"}
+          {variant === "row" && t("editor.history.reveal")}
         </button>
-        <button type="button" onClick={() => void copy(item)} className={actionClass(variant)} title="Copy to clipboard">
+        <button type="button" onClick={() => void copy(item)} className={actionClass(variant)} title={t("editor.history.copyHint")}>
           <Copy className="h-3 w-3" aria-hidden />
-          {variant === "row" && "Copy"}
+          {variant === "row" && t("common.copy")}
         </button>
         {variant === "row" && <span className="flex-1" />}
         <button
           type="button"
           onClick={() => requestTrash(item)}
           className={actionClass(variant, true)}
-          title="Move to Trash"
-          aria-label="Move to Trash"
+          title={t("editor.history.moveToTrash")}
+          aria-label={t("editor.history.moveToTrash")}
         >
           <Trash2 className="h-3 w-3" aria-hidden />
         </button>
@@ -285,8 +289,8 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
       {header}
       {items.length === 0 ? (
         <div className="grid justify-items-center gap-1 px-3 py-5 text-center">
-          <span className="text-xs text-[var(--fg-3)]">No saved files yet</span>
-          <span className="text-[10px] text-[var(--fg-4)]">Files you export land here.</span>
+          <span className="text-xs text-[var(--fg-3)]">{t("editor.history.empty")}</span>
+          <span className="text-[10px] text-[var(--fg-4)]">{t("editor.history.emptyHint")}</span>
         </div>
       ) : view === "grid" ? (
         // auto-rows-max: the tiles are overflow-hidden, so their minimum height
@@ -355,13 +359,15 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
 
       <ConfirmDialog
         open={pendingArchiveWipe}
-        title="Delete archived captures?"
-        body={`${archived.length} automatically kept ${
-          archived.length === 1 ? "capture" : "captures"
-        } (${formatBytes(
-          archived.reduce((n, a) => n + a.bytes, 0),
-        )}) will be deleted from the Captures folder. Files you exported yourself are not touched.`}
-        confirmLabel="Delete"
+        title={t("editor.history.wipeTitle")}
+        body={t(
+          archived.length === 1 ? "editor.history.wipeBodyOne" : "editor.history.wipeBodyMany",
+          {
+            n: archived.length,
+            size: formatBytes(archived.reduce((n, a) => n + a.bytes, 0)),
+          },
+        )}
+        confirmLabel={t("common.delete")}
         destructive
         onCancel={() => setPendingArchiveWipe(false)}
         onConfirm={() => {
@@ -371,7 +377,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
             if (!dir) return;
             const n = await deleteArchive(dir);
             await refreshArchive(dir);
-            toast(`Deleted ${n} archived ${n === 1 ? "capture" : "captures"}`);
+            toast(t(n === 1 ? "editor.history.wipedOne" : "editor.history.wipedMany", { n }));
           })();
         }}
       />
@@ -410,6 +416,7 @@ function HistoryRow({
   onDoubleClick: () => void;
   actions: React.ReactNode;
 }) {
+  useT(); // re-render on language change
   return (
     <>
       {showDay && (
@@ -456,9 +463,9 @@ function HistoryRow({
             {item.fileName}
           </span>
           <span className="block truncate text-[10px] text-[var(--fg-4)]">
-            {item.kind === "capture" && !item.missing ? "Auto · " : ""}
+            {item.kind === "capture" && !item.missing ? `${t("editor.history.auto")} · ` : ""}
             {item.missing
-              ? `${dayLabel(item.savedAt)} · File not found`
+              ? `${dayLabel(item.savedAt)} · ${t("editor.history.notFound")}`
               : [timeOf(item.savedAt), formatBytes(item.bytes), item.size && `${item.size.w}×${item.size.h}`]
                   .filter(Boolean)
                   .join(" · ")}
@@ -626,8 +633,8 @@ function dayOf(at: number): string {
 function dayLabel(at: number): string {
   const d = dayOf(at);
   const now = new Date();
-  if (d === now.toDateString()) return "Today";
+  if (d === now.toDateString()) return t("editor.history.today");
   const y = new Date(now.getTime() - 86400000);
-  if (d === y.toDateString()) return "Yesterday";
+  if (d === y.toDateString()) return t("editor.history.yesterday");
   return new Date(at).toLocaleDateString([], { day: "numeric", month: "short" });
 }

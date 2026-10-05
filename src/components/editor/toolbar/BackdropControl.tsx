@@ -13,14 +13,16 @@ import {
 } from "@/lib/backdrop";
 import { paintSwatch } from "@/lib/backdropPatterns";
 import { ActionRow } from "./panels/kit";
+import { useT } from "@/i18n/useT";
+import type { TKey } from "@/i18n/store";
 
 /** Picker tabs: three preset families plus the flat colour. */
 type Tab = BackdropCategory | "solid";
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "gradient", label: "Gradient" },
-  { id: "minimal", label: "Minimal" },
-  { id: "art", label: "Art" },
-  { id: "solid", label: "Solid" },
+const TABS: Array<{ id: Tab; labelKey: TKey }> = [
+  { id: "gradient", labelKey: "editor.backdrop.tab.gradient" },
+  { id: "minimal", labelKey: "editor.backdrop.tab.minimal" },
+  { id: "art", labelKey: "editor.backdrop.tab.art" },
+  { id: "solid", labelKey: "editor.backdrop.tab.solid" },
 ];
 
 /**
@@ -39,6 +41,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
  * state only — what is persisted is `style` + `presetId`.
  */
 export function BackdropSection() {
+  const { t: tr } = useT();
   const backdropOn = useEditor((s) => s.backdropOn);
   const setBackdropOn = useEditor((s) => s.setBackdropOn);
   const backdrop = useSettings((s) => s.config.general.backdrop);
@@ -64,7 +67,7 @@ export function BackdropSection() {
       <div className="mb-1">
         <ActionRow
           Icon={Frame}
-          label="Show backdrop"
+          label={tr("editor.backdrop.show")}
           pressed={backdropOn}
           onClick={() => setBackdropOn(!backdropOn)}
         />
@@ -76,7 +79,7 @@ export function BackdropSection() {
         <>
           <div className="px-2">
           {/* Family / solid toggle */}
-          <div className="mb-2 flex items-center gap-0.5" role="tablist" aria-label="Backdrop style">
+          <div className="mb-2 flex items-center gap-0.5" role="tablist" aria-label={tr("editor.backdrop.style")}>
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -84,14 +87,15 @@ export function BackdropSection() {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => pickTab(t.id)}
+                title={tr(t.labelKey)}
                 className={[
-                  "flex-1 rounded-md px-1 py-1 text-xs transition-colors",
+                  "min-w-0 flex-1 truncate whitespace-nowrap rounded-md px-1 py-1 text-xs transition-colors",
                   tab === t.id
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                     : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
                 ].join(" ")}
               >
-                {t.label}
+                {tr(t.labelKey)}
               </button>
             ))}
           </div>
@@ -119,7 +123,7 @@ export function BackdropSection() {
             </div>
           ) : (
             <label className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-[var(--fg-2)]">Color</span>
+              <span className="text-[var(--fg-2)]">{tr("editor.backdrop.color")}</span>
               <input
                 type="color"
                 value={backdrop.solidColor}
@@ -130,14 +134,14 @@ export function BackdropSection() {
           )}
 
           <SliderRow
-            label="Padding"
+            label={tr("editor.backdrop.padding")}
             min={0}
             max={256}
             value={backdrop.padding}
             onChange={(v) => patch({ padding: v })}
           />
           <SliderRow
-            label="Corners"
+            label={tr("editor.backdrop.corners")}
             min={0}
             max={48}
             value={backdrop.cornerRadius}
@@ -148,7 +152,7 @@ export function BackdropSection() {
           <div className="mt-1">
             <ActionRow
               Icon={SunMedium}
-              label="Shadow"
+              label={tr("editor.backdrop.shadow")}
               pressed={backdrop.shadow}
               onClick={() => patch({ shadow: !backdrop.shadow })}
             />
@@ -174,7 +178,9 @@ function SliderRow({
 }) {
   return (
     <label className="mb-2 flex items-center gap-2">
-      <span className="w-14 shrink-0 text-[var(--fg-2)]">{label}</span>
+      <span className="w-14 shrink-0 truncate text-[var(--fg-2)]" title={label}>
+        {label}
+      </span>
       <input
         type="range"
         min={min}

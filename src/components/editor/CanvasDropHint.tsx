@@ -1,6 +1,7 @@
 "use client";
 
 import { ImageIcon, Layers } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 /**
  * Drop target shown while a capture-history row is being dragged.
@@ -11,6 +12,7 @@ import { ImageIcon, Layers } from "lucide-react";
  * Konva stage for the main thread.
  */
 export function CanvasDropHint() {
+  const { t } = useT();
   return (
     <div
       id="canvas-drop-hint"
@@ -31,10 +33,10 @@ export function CanvasDropHint() {
           aria-hidden
         />
         <span className="hidden [[data-mode=layer]_&]:inline">
-          Drop to add as a layer
+          {t("editor.dropHint.layer")}
         </span>
         <span className="hidden [[data-mode=base]_&]:inline">
-          Drop to open as the main image
+          {t("editor.dropHint.base")}
         </span>
       </div>
     </div>

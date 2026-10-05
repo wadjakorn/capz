@@ -2,7 +2,7 @@
 
 import { Camera, Code2, MonitorSmartphone } from "lucide-react";
 import { useT } from "@/i18n/useT";
-import type { TKey } from "@/i18n/dict";
+import type { TKey } from "@/i18n/store";
 
 type Feature = {
   icon: typeof Camera;

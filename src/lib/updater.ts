@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { t } from "@/i18n/store";
 import { useSettings } from "@/stores/settings";
 import { installIdHeaders } from "@/lib/installId";
 import { setUpdateStatus } from "@/lib/appVersion";
@@ -56,12 +57,12 @@ export async function promptAndInstall(
   if (skipped === available.version) return false;
   const { ask } = await import("@tauri-apps/plugin-dialog");
   const ok = await ask(
-    `Version ${available.version} is available.\n\n${available.body ?? ""}\n\nDownload and install now?`,
+    t("app.updater.prompt", { version: available.version, body: available.body ?? "" }),
     {
-      title: "Update Available",
+      title: t("app.updater.title"),
       kind: "info",
-      okLabel: "Install",
-      cancelLabel: "Later",
+      okLabel: t("app.updater.install"),
+      cancelLabel: t("app.updater.later"),
     },
   );
   if (!ok) return false;

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { installTauriMock, getInvokeCalls } from "../fixtures/tauri-mock";
 
 test.beforeEach(async ({ page }) => {

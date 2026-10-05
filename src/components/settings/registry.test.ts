@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { translate } from "@/i18n/store";
 import {
   MAX_VISIBLE_ROWS,
   PAGES,
@@ -68,10 +69,20 @@ describe("settings registry", () => {
 
   it("labels rows in sentence case, without trailing punctuation", () => {
     for (const id of SETTING_IDS) {
-      const { label } = settingDef(id);
+      const label = translate("en", settingDef(id).labelKey);
       expect(label.length, `${id} has an empty label`).toBeGreaterThan(0);
       expect(label, `${id} ends in punctuation`).not.toMatch(/[.:]$/);
       expect(label, `${id} is shouting`).not.toBe(label.toUpperCase());
+    }
+  });
+
+  it("gives every row a Thai label and Thai search words", () => {
+    for (const id of SETTING_IDS) {
+      const def = settingDef(id);
+      expect(translate("th", def.labelKey), `${id} has no Thai label`).not.toBe(
+        translate("en", def.labelKey),
+      );
+      expect(def.keywordsTh?.length ?? 0, `${id} has no Thai keywords`).toBeGreaterThan(0);
     }
   });
 
@@ -93,6 +104,18 @@ describe("settings registry", () => {
 
     it("returns nothing for an empty query", () => {
       expect(searchSettings("   ", "mac")).toEqual([]);
+    });
+
+    it("matches Thai labels and Thai keywords", () => {
+      // Label ("รูปแบบไฟล์") and a keywordsTh entry, whatever the UI language.
+      expect(searchSettings("รูปแบบไฟล์", "mac")).toContain("after.format");
+      expect(searchSettings("ภาษา", "mac")).toContain("app.language");
+      expect(searchSettings("มืด", "mac")).toContain("editor.theme");
+    });
+
+    it("still matches English labels", () => {
+      expect(searchSettings("file format", "mac")).toContain("after.format");
+      expect(searchSettings("language", "mac")).toContain("app.language");
     });
 
     it("does not offer settings from another platform", () => {

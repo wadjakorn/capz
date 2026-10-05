@@ -6,6 +6,7 @@ import type { StickerEntry } from "@/stores/stickers";
 import { ShapeSizeGlyph } from "./glyphs";
 import { Group, NumericField } from "./kit";
 import type { NumCtx } from "./types";
+import { useT } from "@/i18n/useT";
 
 /** The emoji/image grid. Custom images (if any) replace the built-in emoji. */
 function StickerPicker({
@@ -85,11 +86,12 @@ export function StickerPanel({
   /** The picker shows only in tool mode; a selected sticker gets just Size. */
   showPicker: boolean;
 }) {
+  const { t } = useT();
   return (
     <Group>
       {showPicker && (
         <>
-          <SectionLabel>Sticker</SectionLabel>
+          <SectionLabel>{t("editor.panel.sticker")}</SectionLabel>
           <StickerPicker
             entries={entries}
             selection={selection}
@@ -99,7 +101,7 @@ export function StickerPanel({
       )}
       {sizeCtx && (
         <>
-          <SectionLabel>Size</SectionLabel>
+          <SectionLabel>{t("editor.panel.size")}</SectionLabel>
           <NumericField
             ctx={sizeCtx}
             unit="px"

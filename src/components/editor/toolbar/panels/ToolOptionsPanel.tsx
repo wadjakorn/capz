@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { ActionRow } from "./kit";
 import type { RefObject } from "react";
+import { useT } from "@/i18n/useT";
 import type { Dispatch, SetStateAction } from "react";
 import type { StickerSelection } from "@/stores/editor";
 import type { StickerEntry } from "@/stores/stickers";
@@ -122,6 +123,7 @@ export type ToolOptionsPanelProps = {
  * value/persistence logic lives in the ctx objects built by Toolbar; panels are
  * presentational. */
 export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
+  const { t } = useT();
   let panel: React.ReactNode = null;
   switch (p.kind) {
     case "arrow":
@@ -241,7 +243,7 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
           <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
           <ActionRow
             Icon={Pointer}
-            label={`Keep ${p.keepActive.label} active (K)`}
+            label={t("editor.global.keepActive", { tool: p.keepActive.label })}
             pressed={p.keepActive.on}
             onClick={p.keepActive.onToggle}
           />
@@ -250,11 +252,11 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
       {p.reorder && (
         <>
           <div className="my-1 h-px w-full bg-[var(--border-strong)]" />
-          <div className="flex items-center gap-0.5" role="group" aria-label="Stacking order">
-            <ReorderButton Icon={SendToBack} title="Send to back" onClick={() => p.reorder!.onReorder("back")} disabled={p.reorder.atBack} />
-            <ReorderButton Icon={ChevronsDown} title="Send backward" onClick={() => p.reorder!.onReorder("backward")} disabled={p.reorder.atBack} />
-            <ReorderButton Icon={ChevronsUp} title="Bring forward" onClick={() => p.reorder!.onReorder("forward")} disabled={p.reorder.atFront} />
-            <ReorderButton Icon={BringToFront} title="Bring to front" onClick={() => p.reorder!.onReorder("front")} disabled={p.reorder.atFront} />
+          <div className="flex items-center gap-0.5" role="group" aria-label={t("editor.order.label")}>
+            <ReorderButton Icon={SendToBack} title={t("editor.order.back")} onClick={() => p.reorder!.onReorder("back")} disabled={p.reorder.atBack} />
+            <ReorderButton Icon={ChevronsDown} title={t("editor.order.backward")} onClick={() => p.reorder!.onReorder("backward")} disabled={p.reorder.atBack} />
+            <ReorderButton Icon={ChevronsUp} title={t("editor.order.forward")} onClick={() => p.reorder!.onReorder("forward")} disabled={p.reorder.atFront} />
+            <ReorderButton Icon={BringToFront} title={t("editor.order.front")} onClick={() => p.reorder!.onReorder("front")} disabled={p.reorder.atFront} />
           </div>
         </>
       )}

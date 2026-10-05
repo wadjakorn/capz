@@ -48,10 +48,7 @@ fn window_zorder() -> std::collections::HashMap<u32, u32> {
 pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayInfo>, String> {
     #[cfg(target_os = "macos")]
     if !crate::commands::permissions::has_screen_recording() {
-        return Err(
-            "Screen Recording permission required. Grant in System Settings → Privacy & Security → Screen Recording, then restart the app."
-                .into(),
-        );
+        return Err(crate::i18n::tr(crate::i18n::Msg::ScreenRecordingRequired).into());
     }
     tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<WindowOverlayInfo>> {
         let mon = monitor_service::monitor_by_id(monitor_id)?;

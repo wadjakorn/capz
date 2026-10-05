@@ -8,6 +8,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/useT";
 
 export type OverflowItem = {
   key: string;
@@ -20,6 +21,7 @@ export type OverflowItem = {
 };
 
 export function OverflowMenu({ items }: { items: OverflowItem[] }) {
+  const { t } = useT();
   if (items.length === 0) return null;
   return (
     <DropdownMenu>
@@ -27,8 +29,8 @@ export function OverflowMenu({ items }: { items: OverflowItem[] }) {
         render={
           <button
             type="button"
-            title="More tools"
-            aria-label="More tools"
+            title={t("editor.toolbar.moreTools")}
+            aria-label={t("editor.toolbar.moreTools")}
             // 44px below `sm`, matching ToolButton: on a phone this trigger is
             // the only route to most tools, so it is the toolbar's most
             // important target. Toolbar.tsx's overflow math already reserves

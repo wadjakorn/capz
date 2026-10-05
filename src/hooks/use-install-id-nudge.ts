@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { t } from "@/i18n/store";
 import { toast } from "sonner";
 import { isTauriRuntime } from "@/lib/platform";
 import { markNudgeShown, setShareInstallId, wasNudgeShown } from "@/lib/installId";
@@ -36,16 +37,15 @@ export function useInstallIdNudge() {
       if (await wasNudgeShown()) return;
       if (cancelled) return;
       await markNudgeShown();
-      toast("Help count active capz installs?", {
+      toast(t("app.nudge.title"), {
         id: "install-id-nudge",
-        description:
-          "Optional. Shares only a random ID with the daily update check. No personal data. Change it any time in Settings → Updates.",
+        description: t("app.nudge.desc"),
         duration: Infinity,
         action: {
-          label: "Enable",
+          label: t("app.nudge.enable"),
           onClick: () => void setShareInstallId(true),
         },
-        cancel: { label: "No thanks", onClick: () => {} },
+        cancel: { label: t("app.nudge.noThanks"), onClick: () => {} },
       });
     };
 
