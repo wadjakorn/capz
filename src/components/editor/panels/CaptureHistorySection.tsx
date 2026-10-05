@@ -291,6 +291,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
           {items.map((item) => (
             <div
               key={item.id}
+              data-history-item
               onPointerDown={(e) => drag.start(e, item)}
               onPointerEnter={() => prefetch.enter(item)}
               onPointerLeave={prefetch.leave}
@@ -336,6 +337,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               item={item}
               showDay={items.length > 8 && dayOf(item.savedAt) !== dayOf(items[idx - 1]?.savedAt ?? 0)}
               selected={selectedId === item.id}
+              data-history-item
               onPointerDown={(e) => drag.start(e, item)}
               onPointerEnter={() => prefetch.enter(item)}
               onPointerLeave={prefetch.leave}
@@ -411,6 +413,7 @@ function HistoryRow({
         </div>
       )}
       <div
+        data-history-item
         onPointerDown={onPointerDown}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
@@ -465,7 +468,7 @@ function HistoryRow({
           to be indented to the text column, which read as another column
           entirely. */}
       {selected && (
-        <div className="relative flex gap-0.5 rounded-b-md bg-[var(--accent-soft)] px-1.5 pb-1.5 pt-0.5">
+        <div data-history-item className="relative flex gap-0.5 rounded-b-md bg-[var(--accent-soft)] px-1.5 pb-1.5 pt-0.5">
           <span
             className="absolute bottom-1 left-0 top-0 w-0.5 rounded-full bg-[var(--accent)]"
             aria-hidden
@@ -542,6 +545,9 @@ function usePointerDrag(onDrop: (item: HistoryItem) => void, hasImage: boolean) 
         if (!st.live) {
           if (Math.hypot(ev.clientX - st.x, ev.clientY - st.y) < DRAG_THRESHOLD_PX) return;
           st.live = true;
+          // A drag is leaving the panel: get the preview out of the canvas's
+          // way so the drop target is what the user sees.
+          useHistory.getState().select(null);
           // The row itself is select-none, but the pointer is about to travel
           // over the canvas and toolbar, which are not. Without this the drag
           // paints a selection highlight across whatever it passes over.

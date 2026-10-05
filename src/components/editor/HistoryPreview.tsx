@@ -108,7 +108,8 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || trashPending) return;
+      // Any confirm dialog (ours, or the sidebar's own Trash) owns Escape.
+      if (e.key !== "Escape" || trashPending || document.querySelector('[role="alertdialog"]')) return;
       // Capture phase: Escape closes the preview, not whatever the canvas
       // would otherwise do with it.
       e.stopPropagation();
@@ -117,6 +118,21 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, trashPending, select]);
+
+  // Pressing anything else in the window — toolbar, sidebar tabs, panel
+  // controls, the workspace bar — closes the preview first. History items
+  // themselves are left alone: their own handler swaps, toggles or drags.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t || rootRef.current?.contains(t) || t.closest("[data-history-item]")) return;
+      select(null);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    return () => window.removeEventListener("pointerdown", onDown, true);
+  }, [open, select]);
 
   const add = () => {
     if (!item || item.missing) return;
@@ -134,6 +150,7 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
 
   return (
     <div
+      ref={rootRef}
       aria-hidden={!open}
       data-open={open}
       onClick={(e) => {
