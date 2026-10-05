@@ -61,13 +61,15 @@ export default function EditorPage() {
   const toolPanel = useSidebar((s) => s.toolPanel);
   const [rememberedTab, setRememberedTab] = useState<"canvas" | "history">("canvas");
   const [showingTool, setShowingTool] = useState(false);
-  const hadToolPanel = useRef(false);
+  const lastToolKey = useRef<string | null>(null);
   useEffect(() => {
-    const has = toolPanel !== null;
-    // Auto-open a panel the moment it appears; forget it the moment it goes.
-    if (has !== hadToolPanel.current) {
-      hadToolPanel.current = has;
-      setShowingTool(has);
+    const key = toolPanel?.key ?? null;
+    // Auto-open a panel whenever it appears or changes — picking another tool
+    // while History or Canvas is showing must bring up that tool's options,
+    // not only the first pick. Forget it the moment it goes.
+    if (key !== lastToolKey.current) {
+      lastToolKey.current = key;
+      setShowingTool(key !== null);
     }
   }, [toolPanel]);
   const activeTab: SidebarTab = showingTool && toolPanel ? "tool" : rememberedTab;
