@@ -62,6 +62,30 @@ export function notifyStageImageReady() {
 }
 
 /**
+ * Fires once a newly-loaded image has been fitted (or given its restored zoom)
+ * AND scrolled into place — the first moment the canvas looks the way it will
+ * stay.
+ *
+ * Image-ready is too early for that: fit, content-box measuring and the
+ * centring scroll all run in later effects, and each one paints. The workspace
+ * swap transition keeps the canvas hidden until this fires so none of those
+ * intermediate frames are seen.
+ */
+const viewSettledListeners = new Set<() => void>();
+
+export function onStageViewSettled(fn: () => void): () => void {
+  viewSettledListeners.add(fn);
+  return () => {
+    viewSettledListeners.delete(fn);
+  };
+}
+
+/** Called by EditorStage after it has scrolled a new image into place. */
+export function notifyStageViewSettled() {
+  for (const fn of [...viewSettledListeners]) fn();
+}
+
+/**
  * The view a restored workspace should open at, handed to EditorStage before
  * its `src` changes.
  *

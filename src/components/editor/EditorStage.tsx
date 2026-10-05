@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Stage,
@@ -47,6 +47,7 @@ import {
   setPrepareExport,
   setStageImageSize,
   notifyStageImageReady,
+  notifyStageViewSettled,
   takePendingView,
   clearStageImageSize,
   setStageExportBox,
@@ -73,6 +74,7 @@ import { anchoredScrollOffset } from "@/lib/zoomAnchor";
 import { snapAxis, snapResizedBox } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
+import { getPreloaded } from "@/lib/imagePreload";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
 const SNAP_SCREEN_PX = 6;
@@ -260,8 +262,19 @@ function handleMetrics(scale: number, coarse: boolean) {
   };
 }
 
+/**
+ * The base image for `src`: the already-decoded bitmap when a workspace switch
+ * preloaded it (so it arrives in the same render as that workspace's
+ * annotations), otherwise a normal `use-image` load.
+ */
+function useStageImage(src: string) {
+  const preloaded = useMemo(() => (src ? getPreloaded(src) : undefined), [src]);
+  const [loaded, status] = useImage(preloaded ? "" : src, "anonymous");
+  return preloaded ? ([preloaded, "loaded"] as const) : ([loaded, status] as const);
+}
+
 export function EditorStage({ src }: Props) {
-  const [image, status] = useImage(src, "anonymous");
+  const [image, status] = useStageImage(src);
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -766,7 +779,9 @@ export function EditorStage({ src }: Props) {
   // Scroll offset a restoring workspace asked for, handed to the centring
   // effect below so the two never write the scroll position in competition.
   const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
-  useEffect(() => {
+  // Layout effect: the restored zoom has to be in place before the new image is
+  // first painted, or that first frame shows it at the old workspace's scale.
+  useLayoutEffect(() => {
     if (!image) return;
     if (prevImageRef.current === image) return;
     prevImageRef.current = image;
@@ -1025,6 +1040,7 @@ export function EditorStage({ src }: Props) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         el.scrollTo({ left, top, behavior: "instant" as ScrollBehavior });
+        notifyStageViewSettled();
       });
     });
   }, [stageW, stageH, container.w, container.h, padX, padY, displayScale]);

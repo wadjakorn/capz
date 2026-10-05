@@ -32,9 +32,12 @@ const TOOL_KEYS: Record<string, Tool> = {
 
 /** Move `delta` workspaces along the bar, wrapping at both ends. */
 function cycleWorkspace(delta: number) {
-  const { order, activeId, switchTo } = useWorkspaces.getState();
+  const { order, activeId, pendingId, switchTo } = useWorkspaces.getState();
   if (order.length < 2) return;
-  const i = activeId ? order.indexOf(activeId) : -1;
+  // Step from where the user is heading, not where the canvas still is: a
+  // held ⌃Tab issues switches faster than images decode.
+  const from = pendingId ?? activeId;
+  const i = from ? order.indexOf(from) : -1;
   const next = order[(((i + delta) % order.length) + order.length) % order.length];
   if (next) switchTo(next);
 }

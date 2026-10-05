@@ -15,6 +15,7 @@ function reset() {
     docs: {},
     barPref: "full",
     barPrefUserSet: false,
+    pendingId: null,
     swapping: false,
     lastClosed: null,
   });
@@ -23,6 +24,19 @@ function reset() {
 
 const MAX = 3;
 const add = () => useWorkspaces.getState().createEmpty(MAX);
+/** Switch and land at once, as the session hook does after the image decodes. */
+const switchNow = (id: string) => {
+  useWorkspaces.getState().switchTo(id);
+  useWorkspaces.getState().commitSwitch(id);
+};
+/** Give the active workspace an image so it no longer counts as empty. */
+const giveImage = (id: string, path = `/ws/${id}.png`) =>
+  useWorkspaces.setState({
+    docs: {
+      ...useWorkspaces.getState().docs,
+      [id]: { ...useWorkspaces.getState().docs[id], image: { kind: "file", path } },
+    },
+  });
 
 describe("workspace ordering", () => {
   beforeEach(reset);
@@ -88,7 +102,7 @@ describe("adoptCapture dedupe", () => {
 
   it("does not block a repeat once the first workspace is closed", async () => {
     const id = await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "area", "new", MAX);
-    useWorkspaces.getState().close(id as string);
+    useWorkspaces.getState().close(id!.id);
     const again = await useWorkspaces.getState().adoptCapture("/tmp/capz-temp-1.png", "area", "new", MAX);
     expect(again).toBeTruthy();
     expect(useWorkspaces.getState().order).toHaveLength(1);
@@ -102,7 +116,7 @@ describe("closing", () => {
     const a = add();
     const b = add();
     const c = add();
-    useWorkspaces.getState().switchTo(b);
+    switchNow(b);
     useWorkspaces.getState().close(b);
     expect(useWorkspaces.getState().activeId).toBe(a);
     expect(useWorkspaces.getState().order).toEqual([a, c]);
@@ -111,7 +125,7 @@ describe("closing", () => {
   it("falls back to the right when the leftmost is closed", () => {
     const a = add();
     const b = add();
-    useWorkspaces.getState().switchTo(a);
+    switchNow(a);
     useWorkspaces.getState().close(a);
     expect(useWorkspaces.getState().activeId).toBe(b);
   });
@@ -277,5 +291,115 @@ describe("hasEdits", () => {
   it("counts annotations and a crop as work worth confirming", () => {
     expect(hasEdits({ ...base, annotations: [{ id: "a", type: "blur", x: 0, y: 0, w: 1, h: 1, blurRadius: 8 }] })).toBe(true);
     expect(hasEdits({ ...base, imageCrop: { x: 0, y: 0, w: 1, h: 1 } })).toBe(true);
+  });
+});
+
+describe("switching", () => {
+  beforeEach(reset);
+
+  it("holds the switch pending until the image is ready", () => {
+    const a = add();
+    const b = add();
+    switchNow(a);
+    useWorkspaces.getState().switchTo(b);
+    expect(useWorkspaces.getState().activeId).toBe(a);
+    expect(useWorkspaces.getState().pendingId).toBe(b);
+    useWorkspaces.getState().commitSwitch(b);
+    expect(useWorkspaces.getState().activeId).toBe(b);
+    expect(useWorkspaces.getState().pendingId).toBeNull();
+  });
+
+  it("lets the latest of several quick switches win", () => {
+    const a = add();
+    const b = add();
+    const c = add();
+    switchNow(a);
+    useWorkspaces.getState().switchTo(b);
+    useWorkspaces.getState().switchTo(c);
+    useWorkspaces.getState().commitSwitch(b); // b's decode lands late
+    expect(useWorkspaces.getState().activeId).toBe(a);
+    useWorkspaces.getState().commitSwitch(c);
+    expect(useWorkspaces.getState().activeId).toBe(c);
+  });
+
+  it("abandons a pending switch when the user goes back", () => {
+    const a = add();
+    const b = add();
+    switchNow(a);
+    useWorkspaces.getState().switchTo(b);
+    useWorkspaces.getState().switchTo(a);
+    expect(useWorkspaces.getState().pendingId).toBeNull();
+    useWorkspaces.getState().commitSwitch(b);
+    expect(useWorkspaces.getState().activeId).toBe(a);
+  });
+
+  it("drops a pending switch whose target was closed", () => {
+    const a = add();
+    const b = add();
+    switchNow(a);
+    useWorkspaces.getState().switchTo(b);
+    useWorkspaces.getState().close(b);
+    useWorkspaces.getState().commitSwitch(b);
+    expect(useWorkspaces.getState().activeId).toBe(a);
+    expect(useWorkspaces.getState().pendingId).toBeNull();
+  });
+});
+
+describe("adoptCapture into an empty workspace", () => {
+  beforeEach(reset);
+
+  it("fills the empty active workspace instead of appending", async () => {
+    const a = add();
+    const res = await useWorkspaces
+      .getState()
+      .adoptCapture("/tmp/capz-temp-9.png", "area", "new", MAX);
+    expect(res).toEqual({ id: a, outcome: "filled" });
+    expect(useWorkspaces.getState().order).toEqual([a]);
+    expect(useWorkspaces.getState().docs[a].image).toEqual({
+      kind: "file",
+      path: "/tmp/capz-temp-9.png",
+    });
+    expect(useWorkspaces.getState().docs[a].captureSource).toBe("area");
+    expect(useWorkspaces.getState().lastClosed).toBeNull();
+  });
+
+  it("does not evict when full and the active workspace is empty", async () => {
+    const a = add();
+    giveImage(a);
+    const b = add();
+    giveImage(b);
+    const c = add(); // empty, active, at max
+    const res = await useWorkspaces
+      .getState()
+      .adoptCapture("/tmp/capz-temp-9.png", "window", "new", MAX);
+    expect(res?.outcome).toBe("filled");
+    expect(useWorkspaces.getState().order).toEqual([a, b, c]);
+  });
+
+  it("still appends when the active workspace has an image", async () => {
+    const a = add();
+    giveImage(a);
+    const res = await useWorkspaces
+      .getState()
+      .adoptCapture("/tmp/capz-temp-9.png", "window", "new", MAX);
+    expect(res?.outcome).toBe("added");
+    expect(useWorkspaces.getState().order).toHaveLength(2);
+  });
+
+  it("reports an eviction when appending at max", async () => {
+    for (let i = 0; i < MAX; i++) giveImage(add());
+    const res = await useWorkspaces
+      .getState()
+      .adoptCapture("/tmp/capz-temp-9.png", "window", "new", MAX);
+    expect(res?.outcome).toBe("evicted");
+  });
+
+  it("leaves replace mode alone", async () => {
+    const a = add();
+    giveImage(a);
+    const res = await useWorkspaces
+      .getState()
+      .adoptCapture("/tmp/capz-temp-9.png", "window", "replace", MAX);
+    expect(res).toEqual({ id: a, outcome: "replaced" });
   });
 });

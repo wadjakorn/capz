@@ -62,6 +62,13 @@ export type WorkspaceDoc = EditorDoc & {
 /** Three heights, one value: `hidden` is derived, never chosen by the user. */
 export type BarMode = "hidden" | "rail" | "full";
 
+/**
+ * What `adoptCapture` did with a capture, so the caller can word its toast.
+ * `filled` means the capture landed in the active workspace because it was
+ * empty — nothing was discarded, so there is nothing to undo.
+ */
+export type AdoptOutcome = "added" | "evicted" | "replaced" | "filled";
+
 /** A closed workspace held for the undo window. */
 type ClosedWorkspace = { doc: WorkspaceDoc; index: number; at: number };
 
@@ -70,6 +77,12 @@ type State = {
   /** Left-to-right order; index + 1 is the number shown on each tile. */
   order: string[];
   activeId: string | null;
+  /**
+   * The workspace being switched to while its bitmap decodes. `activeId` only
+   * moves once the image is ready (see `commitSwitch`), so the editor never
+   * shows the incoming workspace's annotations over the outgoing image.
+   */
+  pendingId: string | null;
   docs: Record<string, WorkspaceDoc>;
   /** User's own choice; `hidden` is computed in `barMode()`. */
   barPref: Exclude<BarMode, "hidden">;
@@ -92,7 +105,7 @@ type State = {
     source: CaptureSource,
     mode: "new" | "replace",
     max: number,
-  ) => Promise<string | null>;
+  ) => Promise<{ id: string; outcome: AdoptOutcome } | null>;
   adoptBlob: (url: string, max: number) => string;
   /**
    * Point the active workspace at an image, creating a first workspace if
@@ -102,6 +115,8 @@ type State = {
   setActiveImage: (image: WorkspaceImage) => string;
   createEmpty: (max: number) => string;
   switchTo: (id: string) => void;
+  /** Finish a switch begun by `switchTo`, once the target's image is ready. */
+  commitSwitch: (id: string) => void;
   close: (id: string) => void;
   reopenLastClosed: () => void;
   clearActive: () => void;
@@ -287,6 +302,7 @@ export const useWorkspaces = create<State>((set, get) => ({
   ready: false,
   order: [],
   activeId: null,
+  pendingId: null,
   docs: {},
   barPref: "full",
   barPrefUserSet: false,
@@ -365,7 +381,11 @@ export const useWorkspaces = create<State>((set, get) => ({
     // `editor_current_image` probe — and each one used to mint a workspace.
     const { order, docs } = get();
     if (order.some((wid) => docs[wid]?.sourcePath === path)) return null;
-    const id = uid();
+    // An empty active workspace (made with + / ⇧⌘N, or cleared) is a slot the
+    // user opened for exactly this: fill it rather than appending another.
+    const active = get().activeId ? docs[get().activeId!] : undefined;
+    const fill = mode === "new" && active !== undefined && active.image === null;
+    const id = fill ? active.id : uid();
     let image: WorkspaceImage = { kind: "file", path };
     if (isTauriRuntime()) {
       try {
@@ -380,14 +400,29 @@ export const useWorkspaces = create<State>((set, get) => ({
         console.error("persist_workspace_image failed", e);
       }
     }
-    if (mode === "replace" && get().activeId)
-      return replaceActive(set, get, image, source, path);
-    return addWorkspace(
+    if (fill && get().docs[id]?.image === null) {
+      fillEmpty(set, get, id, image, source, path);
+      return { id, outcome: "filled" };
+    }
+    if (mode === "replace" && get().activeId) {
+      const replaced = replaceActive(set, get, image, source, path);
+      return replaced ? { id: replaced, outcome: "replaced" } : null;
+    }
+    if (fill) {
+      // The empty slot was filled or closed while the copy ran. The durable
+      // file is named after that slot, so a fresh workspace cannot own it (the
+      // startup sweep keeps files by id); use the temp path for this session
+      // and leave the copy to the sweep.
+      image = { kind: "file", path };
+    }
+    const wasFull = get().order.length >= max;
+    const added = addWorkspace(
       set,
       get,
-      { image, captureSource: source, id, sourcePath: path },
+      { image, captureSource: source, id: fill ? uid() : id, sourcePath: path },
       max,
     );
+    return { id: added, outcome: wasFull ? "evicted" : "added" };
   },
 
   adoptBlob: (url, max) =>
@@ -416,10 +451,27 @@ export const useWorkspaces = create<State>((set, get) => ({
   },
 
   switchTo: (id) => {
-    const { activeId, docs } = get();
-    if (id === activeId || !docs[id]) return;
-    get().commitActive();
-    set({ activeId: id, swapping: true });
+    const { activeId, pendingId, docs } = get();
+    if (!docs[id]) return;
+    if (id === activeId) {
+      // Switching back before a pending switch landed: abandon it.
+      if (pendingId) set({ pendingId: null, swapping: false });
+      return;
+    }
+    if (id === pendingId) return;
+    if (!pendingId) get().commitActive();
+    set({ pendingId: id, swapping: true });
+  },
+
+  commitSwitch: (id) => {
+    const { pendingId, docs } = get();
+    // A newer switch superseded this one, or the target was closed meanwhile.
+    if (pendingId !== id) return;
+    if (!docs[id]) {
+      set({ pendingId: null, swapping: false });
+      return;
+    }
+    set({ activeId: id, pendingId: null, swapping: true });
     schedulePersist();
   },
 
@@ -439,6 +491,8 @@ export const useWorkspaces = create<State>((set, get) => ({
       order: nextOrder,
       docs: nextDocs,
       activeId: nextActive,
+      // Any in-flight switch is moot once the bar changes under it.
+      pendingId: null,
       swapping: activeId === id && nextActive !== null,
       lastClosed: { doc, index, at: Date.now() },
     });
@@ -457,6 +511,7 @@ export const useWorkspaces = create<State>((set, get) => ({
       order: nextOrder,
       docs: { ...docs, [lastClosed.doc.id]: lastClosed.doc },
       activeId: lastClosed.doc.id,
+      pendingId: null,
       swapping: true,
       lastClosed: null,
     });
@@ -486,7 +541,12 @@ export const useWorkspaces = create<State>((set, get) => ({
       void deleteImage(docs[id]);
       historyStacks.delete(id);
     }
-    set({ order: [activeId], docs: { [activeId]: docs[activeId] }, lastClosed: null });
+    set({
+      order: [activeId],
+      docs: { [activeId]: docs[activeId] },
+      pendingId: null,
+      lastClosed: null,
+    });
     schedulePersist();
   },
 
@@ -561,9 +621,49 @@ function addWorkspace(
     lastClosed = { doc: evictedDoc, index: 0, at: Date.now() };
     scheduleImageDelete(evictedDoc);
   }
-  set({ order: nextOrder, docs: nextDocs, activeId: id, swapping: true, lastClosed });
+  set({
+    order: nextOrder,
+    docs: nextDocs,
+    activeId: id,
+    pendingId: null,
+    swapping: true,
+    lastClosed,
+  });
   schedulePersist();
   return id;
+}
+
+/**
+ * Put a capture into an empty workspace, keeping its slot and number.
+ *
+ * Unlike `replaceActive` there is no undo snapshot: the workspace held no
+ * image, so the capture discards nothing.
+ */
+function fillEmpty(
+  set: (partial: Partial<State>) => void,
+  get: () => State,
+  id: string,
+  image: WorkspaceImage,
+  source: CaptureSource,
+  sourcePath: string,
+) {
+  const { docs } = get();
+  historyStacks.delete(id);
+  set({
+    docs: {
+      ...docs,
+      [id]: {
+        ...emptyDoc(id),
+        createdAt: docs[id].createdAt,
+        image,
+        captureSource: source,
+        sourcePath,
+      },
+    },
+    pendingId: null,
+    swapping: true,
+  });
+  schedulePersist();
 }
 
 /** Overwrite the active workspace's image, keeping its slot and number. */

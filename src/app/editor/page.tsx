@@ -15,6 +15,7 @@ import { useWorkspaces } from "@/stores/workspaces";
 import { useHistory } from "@/stores/history";
 import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
 import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
+import { WorkspaceSwapOverlay } from "@/components/editor/WorkspaceSwapOverlay";
 import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
 import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
 import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
@@ -42,6 +43,8 @@ type View = "editor" | "settings" | "onboarding";
 export default function EditorPage() {
   const [file, setFile] = useState<string | null>(null);
   const [src, setSrc] = useState("");
+  /** The canvas column the workspace swap transition hides and reveals. */
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>("editor");
   /** Which setting to open Settings at, when something deep-links into it. */
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -258,15 +261,15 @@ export default function EditorPage() {
         case "base":
           if (wsConfig.enabled && path) {
             void (async () => {
-              const ws = useWorkspaces.getState();
-              const wasFull = ws.order.length >= wsConfig.max;
-              const hadActive = ws.activeId !== null;
-              await ws.adoptCapture(path, source, wsConfig.onCapture, wsConfig.max);
+              const res = await useWorkspaces
+                .getState()
+                .adoptCapture(path, source, wsConfig.onCapture, wsConfig.max);
               // Both paths discard a document; say so, with a way back. No
-              // modal — a capture has to stay a single keystroke.
-              if (wsConfig.onCapture === "replace" && hadActive) {
+              // modal — a capture has to stay a single keystroke. Filling an
+              // empty workspace discards nothing, so it stays silent.
+              if (res?.outcome === "replaced") {
                 undoToast("Workspace replaced");
-              } else if (wasFull) {
+              } else if (res?.outcome === "evicted") {
                 undoToast("Oldest workspace closed to make room");
               }
             })();
@@ -618,6 +621,7 @@ export default function EditorPage() {
       >
         <div id="canvas-area" className="relative min-w-0 flex-1">
           <div
+            ref={canvasWrapRef}
             className="absolute inset-0"
             style={{
               visibility: view === "editor" ? "visible" : "hidden",
@@ -627,6 +631,10 @@ export default function EditorPage() {
           >
             {file ? <EditorStage src={src} /> : <EmptyState />}
           </div>
+          <WorkspaceSwapOverlay
+            enabled={wsConfig.enabled && view === "editor"}
+            canvasRef={canvasWrapRef}
+          />
           {view === "editor" && <CanvasDropHint />}
         </div>
         {/* Right sidebar. Three panels live here at once, each in its own
