@@ -673,7 +673,9 @@ export default function EditorPage() {
             id="sidebar-panel-history"
             role="tabpanel"
             hidden={activeTab !== "history"}
-            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+            // A flex column so the history list fills the sidebar's height and
+            // scrolls inside itself, keeping the filter header in view.
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3"
           >
             {historyConfig.enabled ? (
               <CaptureHistorySection

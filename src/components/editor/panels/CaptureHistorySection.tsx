@@ -117,7 +117,12 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
             path: item.path,
             maxWidth: 128,
           });
-          if (!cancelled) setArchiveThumb(item.path, thumb);
+          // Store it even if this run was cancelled. Storing the previous
+          // thumbnail is what re-runs the effect and cancels this loop, so
+          // dropping the result here lost every second file — and the path is
+          // already marked attempted, so it was never asked for again. The
+          // store is keyed by path, so a late write is harmless.
+          setArchiveThumb(item.path, thumb);
         } catch {
           // Unreadable or already gone — leave the placeholder and move on.
         }
@@ -276,7 +281,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
     );
 
   return (
-    <section className="flex flex-col gap-1">
+    <section className="flex min-h-0 flex-1 flex-col gap-1">
       {header}
       {items.length === 0 ? (
         <div className="grid justify-items-center gap-1 px-3 py-5 text-center">
@@ -285,9 +290,9 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         </div>
       ) : view === "grid" ? (
         // auto-rows-max: the tiles are overflow-hidden, so their minimum height
-        // is 0, and WebKit shrinks the auto rows to fit the 270px cap. The
+        // is 0, and WebKit shrinks the auto rows to fit the list height. The
         // tiles then overlap each other instead of scrolling.
-        <div className="grid max-h-[270px] auto-rows-max grid-cols-2 gap-2 overflow-y-auto p-0.5">
+        <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto p-0.5">
           {items.map((item) => (
             <div
               key={item.id}
@@ -330,7 +335,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
           ))}
         </div>
       ) : (
-        <div className="flex max-h-[270px] flex-col gap-px overflow-y-auto pr-0.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pr-0.5">
           {items.map((item, idx) => (
             <HistoryRow
               key={item.id}
