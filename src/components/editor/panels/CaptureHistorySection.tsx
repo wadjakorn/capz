@@ -28,6 +28,8 @@ import {
   type HistoryItem,
 } from "@/stores/history";
 import { deleteArchive } from "@/lib/captureArchive";
+import { currentPreviewEdge, previewCache } from "@/lib/historyPreview";
+import { useHistoryActions } from "@/hooks/useHistoryActions";
 import { resolveSaveDirPath } from "@/lib/exportImage";
 import { useSettings } from "@/stores/settings";
 
@@ -61,11 +63,11 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
   const selectedId = useHistory((s) => s.selectedId);
   const select = useHistory((s) => s.select);
   const forget = useHistory((s) => s.forget);
+  const prefetch = useHoverPrefetch();
   const markMissing = useHistory((s) => s.markMissing);
   const clear = useHistory((s) => s.clear);
   const config = useSettings((s) => s.config);
   const updateSettings = useSettings((s) => s.update);
-  const [pendingTrash, setPendingTrash] = useState<HistoryItem | null>(null);
 
   const view = config.history.viewMode;
   const setView = useCallback(
@@ -73,49 +75,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
     [updateSettings],
   );
 
-  const reveal = useCallback(async (item: HistoryItem) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      // reveal_file_in_finder, not reveal_in_finder: the latter OPENS its
-      // argument, which for a file means handing it to Preview.
-      await invoke("reveal_file_in_finder", { path: item.path });
-    } catch (e) {
-      console.error("reveal failed", e);
-      toast.error("Couldn't open the folder");
-    }
-  }, []);
-
-  const copy = useCallback(async (item: HistoryItem) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const dataUrl = await invoke<string>("read_image_file_data_url", {
-        path: item.path,
-        consumeTemp: false,
-      });
-      const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
-      const bin = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      await writeImage(bytes);
-      toast.success("Copied");
-    } catch (e) {
-      console.error("copy from history failed", e);
-      markMissing(item.id);
-      toast.error("Couldn't copy that file");
-    }
-  }, [markMissing]);
-
-  const trash = useCallback(async (item: HistoryItem) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("trash_file", { path: item.path });
-      forget(item.id);
-      toast("Moved to Trash");
-    } catch (e) {
-      console.error("trash failed", e);
-      toast.error("Couldn't move that file to the Trash");
-    }
-  }, [forget]);
+  const { reveal, copy, requestTrash, trashDialog } = useHistoryActions();
 
   const openItem = useCallback(
     (item: HistoryItem) => {
@@ -305,7 +265,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         {variant === "row" && <span className="flex-1" />}
         <button
           type="button"
-          onClick={() => setPendingTrash(item)}
+          onClick={() => requestTrash(item)}
           className={actionClass(variant, true)}
           title="Move to Trash"
           aria-label="Move to Trash"
@@ -332,6 +292,8 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
             <div
               key={item.id}
               onPointerDown={(e) => drag.start(e, item)}
+              onPointerEnter={() => prefetch.enter(item)}
+              onPointerLeave={prefetch.leave}
               onDoubleClick={() => openItem(item)}
               title={item.fileName}
               // select-none, not preventDefault on pointerdown: suppressing the
@@ -375,6 +337,8 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
               showDay={items.length > 8 && dayOf(item.savedAt) !== dayOf(items[idx - 1]?.savedAt ?? 0)}
               selected={selectedId === item.id}
               onPointerDown={(e) => drag.start(e, item)}
+              onPointerEnter={() => prefetch.enter(item)}
+              onPointerLeave={prefetch.leave}
               onDoubleClick={() => openItem(item)}
               actions={actions(item, "row")}
             />
@@ -405,30 +369,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         }}
       />
 
-      <ConfirmDialog
-        open={pendingTrash !== null}
-        title="Move to Trash?"
-        preview={
-          pendingTrash
-            ? {
-                thumb: pendingTrash.thumb || undefined,
-                line1: pendingTrash.fileName,
-                line2: `${dirName(pendingTrash.path)}${
-                  pendingTrash.bytes ? ` · ${formatBytes(pendingTrash.bytes)}` : ""
-                }`,
-              }
-            : undefined
-        }
-        body="You can restore it from the Trash. It will also be removed from this list."
-        confirmLabel="Move to Trash"
-        destructive
-        onCancel={() => setPendingTrash(null)}
-        onConfirm={() => {
-          const item = pendingTrash;
-          setPendingTrash(null);
-          if (item) void trash(item);
-        }}
-      />
+      {trashDialog}
     </section>
   );
 
@@ -448,6 +389,8 @@ function HistoryRow({
   showDay,
   selected,
   onPointerDown,
+  onPointerEnter,
+  onPointerLeave,
   onDoubleClick,
   actions,
 }: {
@@ -455,6 +398,8 @@ function HistoryRow({
   showDay: boolean;
   selected: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
   onDoubleClick: () => void;
   actions: React.ReactNode;
 }) {
@@ -467,6 +412,8 @@ function HistoryRow({
       )}
       <div
         onPointerDown={onPointerDown}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
         onDoubleClick={onDoubleClick}
         className={`relative flex cursor-grab select-none items-center gap-2 px-1.5 py-1 transition-colors ${
           selected
@@ -528,6 +475,35 @@ function HistoryRow({
       )}
     </>
   );
+}
+
+/** How long the pointer rests on an item before its large preview is fetched. */
+const PREFETCH_DELAY_MS = 120;
+
+/**
+ * Warm the preview overlay's cache for the item under the pointer, so a click
+ * usually paints the sharp image on the first frame. The delay keeps a pointer
+ * sweeping down the list from decoding every file it crosses.
+ */
+function useHoverPrefetch() {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leave = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  const enter = useCallback(
+    (item: HistoryItem) => {
+      leave();
+      if (item.missing) return;
+      timer.current = setTimeout(
+        () => previewCache.prefetch(item.path, currentPreviewEdge()),
+        PREFETCH_DELAY_MS,
+      );
+    },
+    [leave],
+  );
+  useEffect(() => leave, [leave]);
+  return useMemo(() => ({ enter, leave }), [enter, leave]);
 }
 
 /**

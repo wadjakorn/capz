@@ -16,6 +16,7 @@ import { useHistory } from "@/stores/history";
 import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
 import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
 import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
+import { HistoryPreview } from "@/components/editor/HistoryPreview";
 import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
 import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
 import { useSidebar } from "@/stores/sidebar";
@@ -628,6 +629,9 @@ export default function EditorPage() {
             {file ? <EditorStage src={src} /> : <EmptyState />}
           </div>
           {view === "editor" && <CanvasDropHint />}
+          {view === "editor" && historyConfig.enabled && (
+            <HistoryPreview active={activeTab === "history"} onAdd={onHistoryDrop} />
+          )}
         </div>
         {/* Right sidebar. Three panels live here at once, each in its own
             container, and the tab bar decides which is on screen — they are

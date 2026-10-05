@@ -158,6 +158,7 @@ pub fn run() {
             commands::editor::import_image_file,
             commands::editor::read_image_file_data_url,
             commands::editor::read_image_thumbnail,
+            commands::editor::read_image_preview,
             commands::editor::clear_editor_workspace,
             commands::editor::show_settings_command,
             commands::ocr::ocr_detect,
