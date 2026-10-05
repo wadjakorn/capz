@@ -41,7 +41,10 @@ function imageKey(s: WsState): string {
  * - **develop** (a capture arriving, a close, a reopen): no tile to lift from,
  *   so the canvas simply fades out and settles back in from a slight zoom.
  *
- * `prefers-reduced-motion` reduces both to a short crossfade.
+ * Under `prefers-reduced-motion` nothing moves or scales: the canvas
+ * crossfades, the lift card simply fades in where it would have landed, and
+ * a slow opacity pulse replaces the sweeping shimmer — the loading cue stays,
+ * the motion goes.
  *
  * Everything is driven imperatively through the Web Animations API from a
  * store subscription: none of it is React state, so a transition never causes
@@ -138,7 +141,7 @@ class SwapController {
     this.kind = kind;
     this.hideCanvas(kind);
     this.dropCard();
-    if (kind === "lift" && s.pendingId && !this.reduced) {
+    if (kind === "lift" && s.pendingId) {
       this.cardIn = this.launchCard(s, s.pendingId, gen);
     } else {
       this.cardIn = Promise.resolve();
@@ -219,8 +222,11 @@ class SwapController {
     const tile = document
       .querySelector(`[data-ws-tile="${CSS.escape(id)}"]`)
       ?.getBoundingClientRect();
+    const reduced = this.reduced;
     let from: Keyframe;
-    if (tile && tile.width > 0) {
+    if (reduced) {
+      from = { opacity: 0 };
+    } else if (tile && tile.width > 0) {
       // FLIP, uniform scale by width so the thumbnail is never squashed; the
       // card starts centred on the tile.
       const k = tile.width / w;
@@ -232,13 +238,18 @@ class SwapController {
       from = { transform: `translate(${dir * 48}px, 0) scale(0.97)`, opacity: 0 };
     }
     const anim = card.animate(
-      [from, { transform: "none", opacity: 1, borderRadius: "8px" }],
-      { duration: 300, easing: EASE_LAND, fill: "forwards" },
+      reduced
+        ? [from, { opacity: 1 }]
+        : [from, { transform: "none", opacity: 1, borderRadius: "8px" }],
+      reduced
+        ? { duration: 160, easing: EASE_OUT, fill: "forwards" }
+        : { duration: 300, easing: EASE_LAND, fill: "forwards" },
     );
 
     this.later(() => {
       if (this.gen !== gen || this.card !== card) return;
-      this.addShimmer(card);
+      if (reduced) this.addPulse(img);
+      else this.addShimmer(card);
     }, SHIMMER_AFTER_MS);
 
     return anim.finished.catch(() => undefined);
@@ -261,6 +272,16 @@ class SwapController {
       [{ backgroundPosition: "120% 0" }, { backgroundPosition: "-120% 0" }],
       { duration: 1200, iterations: Infinity, easing: "ease-in-out" },
     );
+  }
+
+  /** Reduced-motion loading cue: the preview breathes instead of sweeping. */
+  private addPulse(img: HTMLImageElement) {
+    img.animate([{ opacity: 1 }, { opacity: 0.55 }], {
+      duration: 900,
+      iterations: Infinity,
+      direction: "alternate",
+      easing: "ease-in-out",
+    });
   }
 
   private dropCard() {

@@ -8,6 +8,7 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
 import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
+import { WorkspaceSwapOverlay } from "@/components/editor/WorkspaceSwapOverlay";
 import { useWorkspaces } from "@/stores/workspaces";
 import { useEditor } from "@/stores/editor";
 import { extractImageBlob, readClipboardPng } from "@/lib/webExport";
@@ -44,6 +45,7 @@ export default function PastePage() {
   const [canCapture, setCanCapture] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const srcRef = useRef("");
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
 
@@ -299,7 +301,7 @@ export default function PastePage() {
         style={{ backgroundColor: "var(--bg-canvas)" }}
       >
         <div id="canvas-area" className="relative min-w-0 flex-1">
-          <div className="absolute inset-0">
+          <div ref={canvasWrapRef} className="absolute inset-0">
             {src ? (
               <EditorStage src={src} />
             ) : (
@@ -311,6 +313,7 @@ export default function PastePage() {
               />
             )}
           </div>
+          <WorkspaceSwapOverlay enabled canvasRef={canvasWrapRef} />
         </div>
         {/* Tool-options panel — always docked on the right; empty until the
             Toolbar portals contextual controls into it. See the editor page.
