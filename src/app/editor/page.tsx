@@ -783,7 +783,7 @@ function SubViewHeader({ title, onBack }: { title: string; onBack: () => void })
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {t("editor.view.editor")}
       </button>
-      <h1 className="text-sm font-semibold text-white">{title}</h1>
+      <h1 className="text-sm font-semibold text-foreground">{title}</h1>
     </div>
   );
 }

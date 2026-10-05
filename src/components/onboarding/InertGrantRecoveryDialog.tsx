@@ -129,13 +129,13 @@ export function InertGrantRecoveryDialog({ open, onClose }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+          className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-[var(--surface-raised-hover)] hover:text-foreground"
           aria-label={t("onboarding.inert.close")}
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
         <div className="shrink-0 p-6 pb-3">
-          <h2 id="inert-recovery-title" className="text-base font-semibold text-white">
+          <h2 id="inert-recovery-title" className="text-base font-semibold text-foreground">
             {t("onboarding.inert.title")}
           </h2>
           <p className="mt-2 text-sm text-foreground/75">{rich(t("onboarding.inert.lead"))}</p>
@@ -242,14 +242,14 @@ function Step({
   children: React.ReactNode;
 }) {
   const badgeCls = done
-    ? "bg-emerald-500/25 text-emerald-100 ring-emerald-400/40"
+    ? "bg-[var(--success)]/15 text-[var(--success)] ring-[var(--success)]/50"
     : active
       ? "bg-[var(--accent-soft)] text-[var(--accent)] ring-1 ring-[var(--accent)]/40"
-      : "bg-white/5 text-muted-foreground ring-white/10";
+      : "bg-[var(--surface-raised)] text-muted-foreground ring-[var(--border-strong)]";
   const titleCls = done
     ? "text-foreground/60 line-through decoration-foreground/30"
     : active
-      ? "text-white"
+      ? "text-foreground"
       : "text-foreground/70";
   return (
     <li className="grid gap-2">
@@ -274,7 +274,7 @@ function ProbeBadge({ status }: { status: ProbeStatus }) {
   }
   if (status === "granted") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-300">
+      <span className="inline-flex items-center gap-1 text-xs text-[var(--success)]">
         <Check className="h-3 w-3" aria-hidden /> {t("onboarding.inert.probe.works")}
       </span>
     );
@@ -289,7 +289,7 @@ function ProbeBadge({ status }: { status: ProbeStatus }) {
 
 function Warning({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-foreground">
       {children}
     </div>
   );

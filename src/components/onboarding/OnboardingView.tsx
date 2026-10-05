@@ -266,17 +266,17 @@ function Stepper({ step, showMac }: { step: Step; showMac: boolean }) {
                 active
                   ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                   : passed
-                    ? "bg-emerald-500/25 text-emerald-200 ring-1 ring-emerald-400/50"
-                    : "bg-white/5 text-muted-foreground ring-1 ring-white/10"
+                    ? "bg-[var(--success)]/15 text-[var(--success)] ring-1 ring-[var(--success)]/50"
+                    : "bg-[var(--surface-raised)] text-muted-foreground ring-1 ring-[var(--border-strong)]"
               }`}
             >
               {i + 1}
             </span>
-            <span className={active ? "font-medium text-white" : "text-muted-foreground"}>
+            <span className={active ? "font-medium text-foreground" : "text-muted-foreground"}>
               {s.label}
             </span>
             {i < steps.length - 1 && (
-              <span className="mx-1 h-px w-8 bg-white/15" />
+              <span className="mx-1 h-px w-8 bg-[var(--fg-4)]" />
             )}
           </li>
         );
@@ -303,19 +303,19 @@ function Welcome({
       <p className="text-sm text-muted-foreground">{t("onboarding.welcome.lead")}</p>
       <ul className="grid gap-2 text-sm">
         <li className="flex items-center gap-2">
-          <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
+          <kbd className="rounded-md border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-0.5 text-xs">
             {mod}3
           </kbd>
           <span className="text-foreground/80">{t("onboarding.welcome.full")}</span>
         </li>
         <li className="flex items-center gap-2">
-          <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
+          <kbd className="rounded-md border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-0.5 text-xs">
             {mod}4
           </kbd>
           <span className="text-foreground/80">{t("onboarding.welcome.area")}</span>
         </li>
         <li className="flex items-center gap-2">
-          <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
+          <kbd className="rounded-md border border-[var(--border-strong)] bg-[var(--surface-raised)] px-2 py-0.5 text-xs">
             {mod}5
           </kbd>
           <span className="text-foreground/80">{t("onboarding.welcome.window")}</span>
@@ -389,7 +389,7 @@ function LanguagePicker({ value, onChange }: { value: Lang; onChange: (l: Lang) 
               className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] ${
                 checked
                   ? "border-[var(--accent)] bg-[var(--accent-soft)] text-foreground"
-                  : "border-white/10 bg-white/[0.04] text-foreground/80 hover:bg-white/[0.07]"
+                  : "border-[var(--border-strong)] bg-[var(--surface-raised)] text-foreground/80 hover:bg-[var(--surface-raised-hover)]"
               }`}
             >
               <span>{t(LANG_LABEL_KEY[l])}</span>
@@ -398,7 +398,7 @@ function LanguagePicker({ value, onChange }: { value: Lang; onChange: (l: Lang) 
                 className={`flex h-5 w-5 items-center justify-center rounded-full ${
                   checked
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                    : "ring-1 ring-white/20"
+                    : "ring-1 ring-[var(--fg-4)]"
                 }`}
               >
                 {checked && <Check className="h-3 w-3" />}
@@ -521,7 +521,7 @@ function StatusCard({
     },
     ready: {
       tile: "tile",
-      tone: "text-emerald-200",
+      tone: "text-[var(--success)]",
       icon: Check,
       eyebrow: t("onboarding.status.granted"),
       label: t("onboarding.status.ready"),
@@ -580,8 +580,8 @@ function Guidance({
 }) {
   const cls =
     tone === "warning"
-      ? "rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100"
-      : "rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-muted-foreground";
+      ? "rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-foreground"
+      : "rounded-xl border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 text-xs text-muted-foreground";
   return <div className={cls}>{children}</div>;
 }
 
@@ -702,7 +702,7 @@ function Accessibility({
           </span>
           <span
             className={`text-sm ${
-              state === "ready" ? "text-emerald-200" : "text-[var(--color-fg-2)]"
+              state === "ready" ? "text-[var(--success)]" : "text-[var(--color-fg-2)]"
             }`}
           >
             {state === "ready"
