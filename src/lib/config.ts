@@ -163,7 +163,7 @@ export type AppConfig = {
     /** Optional padded gradient/solid backdrop behind the capture. */
     backdrop: {
       style: "gradient" | "solid";
-      /** Gradient preset id (see lib/backdrop GRADIENT_PRESETS). */
+      /** Preset id — gradient or pattern (see lib/backdrop BACKDROP_PRESETS). */
       presetId: string;
       /** Solid-style background color. */
       solidColor: string;

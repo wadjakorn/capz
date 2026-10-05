@@ -60,7 +60,8 @@ import {
   DEFAULT_TEXT_LINE_HEIGHT,
   type AppConfig,
 } from "@/lib/config";
-import { canvasFill, paddedBox } from "@/lib/backdrop";
+import { canvasFill, paddedBox, patternUnit, resolvePreset } from "@/lib/backdrop";
+import { renderPattern } from "@/lib/backdropPatterns";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
 import {
@@ -938,6 +939,24 @@ export function EditorStage({ src }: Props) {
   // falls back to a hard white `canvasBg`. With the backdrop off and nothing
   // overflowing, the Rect matches the image exactly, so the flush color only
   // shows through transparent images.
+  const backdropShown = backdropOn || hasOverflow;
+  // Procedural presets render to an offscreen canvas used as the Rect's
+  // pattern fill. Tiles depend only on the preset + capture size; box
+  // compositions also on the frame size, so they re-render on padding change.
+  const preset = resolvePreset(backdrop.presetId);
+  const patternSpec =
+    backdropShown && backdrop.style === "gradient" && preset.kind === "pattern"
+      ? preset.pattern
+      : null;
+  const unit = patternUnit(imgW);
+  const patternBoxW = patternSpec?.mode === "box" ? contentBox.w : 0;
+  const patternBoxH = patternSpec?.mode === "box" ? contentBox.h : 0;
+  const backdropPattern = useMemo(() => {
+    if (!patternSpec || typeof document === "undefined") return null;
+    if (patternSpec.mode === "box" && (patternBoxW <= 0 || patternBoxH <= 0)) return null;
+    return renderPattern(patternSpec, patternBoxW, patternBoxH, unit);
+  }, [patternSpec, patternBoxW, patternBoxH, unit]);
+
   const bgFill = useMemo(
     () =>
       canvasFill(
@@ -945,16 +964,10 @@ export function EditorStage({ src }: Props) {
         contentBox.w,
         contentBox.h,
         canvasBg,
-        backdropOn || hasOverflow ? "backdrop" : "flush",
+        backdropShown ? "backdrop" : "flush",
+        backdropPattern,
       ),
-    [
-      backdrop,
-      backdropOn,
-      hasOverflow,
-      canvasBg,
-      contentBox.w,
-      contentBox.h,
-    ],
+    [backdrop, backdropShown, canvasBg, contentBox.w, contentBox.h, backdropPattern],
   );
 
   const padX = Math.max(MIN_PADDING, container.w);
