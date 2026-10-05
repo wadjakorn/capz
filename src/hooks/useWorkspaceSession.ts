@@ -5,11 +5,48 @@ import { useCallback, useEffect, useRef } from "react";
 import { useEditor } from "@/stores/editor";
 import { useOcr } from "@/stores/ocr";
 import { isTauriRuntime } from "@/lib/platform";
+import { preloadImage } from "@/lib/imagePreload";
 import { onStageImageReady, setPendingView } from "@/lib/stageBridge";
-import { restoreHistory, useWorkspaces } from "@/stores/workspaces";
+import { restoreHistory, useWorkspaces, type WorkspaceDoc } from "@/stores/workspaces";
 
 /** How long after the last edit a workspace's tile thumbnail is re-rendered. */
 const THUMB_DEBOUNCE_MS = 500;
+
+/**
+ * Longest a switch waits for the target's bitmap before landing anyway. The
+ * transition overlay keeps showing the target's thumbnail meanwhile, so a slow
+ * decode reads as loading rather than as a dead click.
+ */
+const PRELOAD_TIMEOUT_MS = 4000;
+
+type ConvertFileSrc = (path: string) => string;
+let convertFileSrcFn: ConvertFileSrc | null = null;
+
+/**
+ * `convertFileSrc`, loaded once. Applying a workspace has to be synchronous —
+ * hydrate and src in the same tick — so the dynamic import cannot sit on that
+ * path every time.
+ */
+async function loadConvertFileSrc(): Promise<ConvertFileSrc | null> {
+  if (!isTauriRuntime()) return null;
+  if (!convertFileSrcFn) {
+    const { convertFileSrc } = await import("@tauri-apps/api/core");
+    convertFileSrcFn = convertFileSrc;
+  }
+  return convertFileSrcFn;
+}
+
+/**
+ * The exact `src` string EditorStage is handed for a doc. Preloading must use
+ * the same string, or the preload cache misses and the stage loads it again.
+ */
+function srcForDoc(doc: WorkspaceDoc, cfs: ConvertFileSrc | null): string {
+  if (!doc.image) return "";
+  if (doc.image.kind === "blob") return doc.image.url;
+  // Cache-bust: two workspaces can legitimately point at the same path after
+  // an undo, and the webview would otherwise serve a stale decode.
+  return cfs ? `${cfs(doc.image.path)}?w=${doc.id}` : doc.image.path;
+}
 
 export type WorkspaceSessionOptions = {
   /** Feature switch. When false this hook does nothing at all. */
@@ -56,6 +93,40 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
   }, [enabled]);
 
   useEffect(() => () => cleanupRef.current?.(), []);
+
+  // --- land a pending switch once its bitmap is ready -----------------------
+  // `switchTo` only records where the user is heading; the editor keeps showing
+  // the current workspace until the target has decoded, then `commitSwitch`
+  // moves `activeId` and the apply effect below swaps everything in one tick.
+  // A newer switch makes `commitSwitch` a no-op for this one.
+  const pendingId = useWorkspaces((s) => s.pendingId);
+  useEffect(() => {
+    if (!enabled || !pendingId) return;
+    const id = pendingId;
+    let done = false;
+    const land = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      useWorkspaces.getState().commitSwitch(id);
+    };
+    const timer = setTimeout(land, PRELOAD_TIMEOUT_MS);
+    void (async () => {
+      const doc = useWorkspaces.getState().docs[id];
+      if (!doc?.image) return land();
+      try {
+        await preloadImage(srcForDoc(doc, await loadConvertFileSrc()));
+      } catch (e) {
+        // Land anyway; the stage shows its own "failed to load" state.
+        console.warn("workspace preload failed", e);
+      }
+      land();
+    })();
+    return () => {
+      done = true;
+      clearTimeout(timer);
+    };
+  }, [enabled, pendingId]);
 
   // --- apply the active workspace to the editor -----------------------------
   useEffect(() => {
@@ -107,22 +178,13 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
         return;
       }
 
-      let src: string;
-      let path: string | null = null;
-      if (doc.image.kind === "blob") {
-        src = doc.image.url;
-      } else {
-        path = doc.image.path;
-        if (isTauriRuntime()) {
-          const { convertFileSrc } = await import("@tauri-apps/api/core");
-          if (cancelled) return;
-          // Cache-bust: two workspaces can legitimately point at the same path
-          // after an undo, and the webview would otherwise serve a stale decode.
-          src = `${convertFileSrc(path)}?w=${doc.id}`;
-        } else {
-          src = path;
-        }
-      }
+      // Already loaded after the first switch, so this normally resolves
+      // without yielding — but hydrate above has run regardless, so a first
+      // apply that does yield is no worse than before.
+      const cfs = convertFileSrcFn ?? (await loadConvertFileSrc());
+      if (cancelled) return;
+      const src = srcForDoc(doc, cfs);
+      const path = doc.image.kind === "file" ? doc.image.path : null;
       setFile(path);
       setSrc(src);
       setHasImage(true);

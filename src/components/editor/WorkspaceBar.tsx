@@ -64,6 +64,12 @@ export type WorkspaceBarProps = {
 export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
   const order = useWorkspaces((s) => s.order);
   const activeId = useWorkspaces((s) => s.activeId);
+  /**
+   * The tile to highlight: where the user is heading, not where the canvas
+   * still is. A switch waits for its image to decode before `activeId` moves,
+   * and a highlight that lagged the click would feel like a missed click.
+   */
+  const selectedId = useWorkspaces((s) => s.pendingId ?? s.activeId);
   const docs = useWorkspaces((s) => s.docs);
   const barPref = useWorkspaces((s) => s.barPref);
   const barPrefUserSet = useWorkspaces((s) => s.barPrefUserSet);
@@ -158,7 +164,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
                 key={id}
                 doc={doc}
                 index={i}
-                active={id === activeId}
+                active={id === selectedId}
                 edited={id === activeId ? activeHasEdits : hasEdits(doc)}
                 onSelect={() => switchTo(id)}
                 onClose={() => requestClose(id)}
@@ -169,11 +175,12 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
                 type="button"
                 role="tab"
                 data-ws-control
-                aria-selected={id === activeId}
+                aria-selected={id === selectedId}
+                data-ws-tile={id}
                 title={caption(doc)}
                 onClick={() => switchTo(id)}
                 className={`h-[18px] min-w-[22px] flex-none rounded-[6px] px-1.5 text-[10px] font-semibold transition-colors ${
-                  id === activeId
+                  id === selectedId
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                     : "bg-[var(--surface-raised)] text-[var(--fg-3)] hover:bg-[var(--surface-raised-hover)] hover:text-[var(--fg-2)]"
                 }`}
@@ -327,6 +334,7 @@ function WorkspaceTile({
         role="tab"
         tabIndex={active ? 0 : -1}
         aria-selected={active}
+        data-ws-tile={doc.id}
         onClick={onSelect}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
