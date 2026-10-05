@@ -16,6 +16,14 @@ import { FeedbackTab } from "@/components/settings/FeedbackTab";
 import { setShareInstallId } from "@/lib/installId";
 import { currentPlatform } from "@/lib/shortcuts";
 import { useSettings } from "@/stores/settings";
+import { LANGS, type Lang } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
+
+/**
+ * Each language is named in itself, so whichever one is showing, the user can
+ * find their own — never translated.
+ */
+const LANGUAGE_NAMES: Record<Lang, string> = { th: "ไทย", en: "English" };
 
 /** Startup, updates, privacy and the things you only touch when stuck. */
 export function AppPage({
@@ -24,6 +32,7 @@ export function AppPage({
   /** Opens the macOS screen-recording permission recovery flow. */
   onOpenInertRecovery?: () => void;
 }) {
+  const { t } = useT();
   const { config, update, reset } = useSettings();
   const u = config.updates;
   const isMac = currentPlatform() === "mac";
@@ -72,9 +81,9 @@ export function AppPage({
     try {
       const { checkForUpdates, promptAndInstall } = await import("@/lib/updater");
       const r = await checkForUpdates();
-      if (r.kind === "none") toast("You are on the latest version.");
+      if (r.kind === "none") toast(t("settings.app.latest"));
       else if (r.kind === "error")
-        toast.error("Update check failed", { description: r.error });
+        toast.error(t("settings.app.checkFailed"), { description: r.error });
       else await promptAndInstall(r);
     } finally {
       setChecking(false);
@@ -84,6 +93,27 @@ export function AppPage({
   return (
     <div className="grid gap-4">
       <SectionCard>
+        <SettingRow id="app.language">
+          <div className="segmented" role="radiogroup" aria-label={t("settings.app.language")}>
+            {LANGS.map((value) => {
+              const active = config.general.language === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  data-active={active ? "true" : undefined}
+                  lang={value}
+                  onClick={() => void update("general", { language: value })}
+                  className="segmented-item whitespace-nowrap"
+                >
+                  {LANGUAGE_NAMES[value]}
+                </button>
+              );
+            })}
+          </div>
+        </SettingRow>
         <SettingToggle
           id="app.login"
           checked={config.general.autostart}
@@ -99,21 +129,21 @@ export function AppPage({
           hint={
             about
               ? `Tauri ${about.tauri} · ${currentPlatform() === "mac" ? "macOS" : "Windows"}`
-              : "loading…"
+              : t("settings.app.about.loading")
           }
         >
           <span className="text-sm text-muted-foreground">
             {about ? `v${about.app}` : "—"}
           </span>
         </SettingRow>
-        <SettingRow id="app.feedback" hint="Anonymous. Goes straight to the developer.">
+        <SettingRow id="app.feedback" hint={t("settings.app.feedback.hint")}>
           <button
             type="button"
             className="btn btn--secondary"
             aria-expanded={showFeedback}
             onClick={() => setShowFeedback((v) => !v)}
           >
-            {showFeedback ? "Hide" : "Write…"}
+            {showFeedback ? t("settings.hide") : t("settings.app.feedback.write")}
           </button>
         </SettingRow>
         {showFeedback && (
@@ -126,7 +156,7 @@ export function AppPage({
       <AdvancedSection page="app">
         <SettingToggle
           id="app.installId"
-          hint="A random ID sent with update checks so installs can be counted. Turning it off deletes it."
+          hint={t("settings.app.installId.hint")}
           checked={u.shareInstallId}
           onChange={(v) => void setShareInstallId(v)}
         />
@@ -138,17 +168,21 @@ export function AppPage({
             onChange={(e) =>
               update("updates", { checkIntervalHours: Number(e.target.value) })
             }
-            aria-label="Check interval"
+            aria-label={t("settings.app.interval")}
           >
-            <option value={6}>Every 6 hours</option>
-            <option value={24}>Every 24 hours</option>
-            <option value={168}>Every 7 days</option>
+            <option value={6}>{t("settings.app.interval.6")}</option>
+            <option value={24}>{t("settings.app.interval.24")}</option>
+            <option value={168}>{t("settings.app.interval.168")}</option>
           </select>
         </SettingRow>
 
         <SettingRow
           id="app.lastChecked"
-          hint={u.lastCheckedAt ? new Date(u.lastCheckedAt).toLocaleString() : "never"}
+          hint={
+            u.lastCheckedAt
+              ? new Date(u.lastCheckedAt).toLocaleString()
+              : t("settings.app.lastChecked.never")
+          }
         >
           <button
             type="button"
@@ -156,22 +190,22 @@ export function AppPage({
             disabled={checking}
             className="btn btn--secondary"
           >
-            {checking ? "Checking…" : "Check now"}
+            {checking ? t("settings.app.lastChecked.checking") : t("settings.app.lastChecked.checkNow")}
           </button>
         </SettingRow>
 
-        <SettingRow id="app.skipped" hint={u.skippedVersion ?? "none"}>
+        <SettingRow id="app.skipped" hint={u.skippedVersion ?? t("settings.app.skipped.none")}>
           <button
             type="button"
             disabled={!u.skippedVersion}
             onClick={() => update("updates", { skippedVersion: null })}
             className="btn btn--secondary"
           >
-            Clear
+            {t("settings.clear")}
           </button>
         </SettingRow>
 
-        <SettingRow id="app.onboarding" hint="Opens the welcome and permissions flow again.">
+        <SettingRow id="app.onboarding" hint={t("settings.app.onboarding.hint")}>
           <button
             type="button"
             onClick={async () => {
@@ -184,36 +218,36 @@ export function AppPage({
             }}
             className="btn btn--secondary"
           >
-            Run setup
+            {t("settings.app.onboarding.button")}
           </button>
         </SettingRow>
 
         {isMac && onOpenInertRecovery && (
           <SettingRow
             id="app.tcc"
-            hint="Removes the stale permission entry, relaunches, and asks again."
+            hint={t("settings.app.tcc.hint")}
           >
             <button
               type="button"
               onClick={onOpenInertRecovery}
               className="btn btn--secondary"
             >
-              Fix…
+              {t("settings.app.tcc.button")}
             </button>
           </SettingRow>
         )}
 
-        <SettingRow id="app.reset" hint="Restores every default. Cannot be undone.">
+        <SettingRow id="app.reset" hint={t("settings.app.reset.hint")}>
           <button
             type="button"
             onClick={async () => {
-              if (!window.confirm("Reset all settings to defaults?")) return;
+              if (!window.confirm(t("settings.app.reset.confirm"))) return;
               await reset();
-              toast.success("Settings reset", { duration: 1600 });
+              toast.success(t("settings.app.reset.done"), { duration: 1600 });
             }}
             className="btn btn--secondary text-rose-300 hover:text-rose-200"
           >
-            Reset…
+            {t("settings.app.reset.button")}
           </button>
         </SettingRow>
       </AdvancedSection>

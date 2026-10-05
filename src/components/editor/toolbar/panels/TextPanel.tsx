@@ -20,16 +20,18 @@ import { Group, ToggleIconButton, withBold, withDeco, withItalic } from "./kit";
 import { THAI_SANS_STACK } from "@/lib/config";
 import type { ColorCtx, NumCtx, TextStyleCtx } from "./types";
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useT } from "@/i18n/useT";
+import type { TKey } from "@/i18n/store";
 
-const FONT_FAMILIES: { label: string; value: string }[] = [
+const FONT_FAMILIES: { labelKey: TKey; value: string }[] = [
   // "Sans" leads with Noto Sans Thai so Thai glyphs render cleanly; falls back
   // to the system sans for Latin. The other families append Noto Sans Thai as a
   // last resort so Thai still renders (per-glyph fallback) without a loaded
   // serif/mono/cursive Thai face.
-  { label: "Sans", value: THAI_SANS_STACK },
-  { label: "Serif", value: 'serif, "Noto Sans Thai"' },
-  { label: "Mono", value: 'ui-monospace, monospace, "Noto Sans Thai"' },
-  { label: "Cursive", value: 'cursive, "Noto Sans Thai"' },
+  { labelKey: "editor.text.fontSans", value: THAI_SANS_STACK },
+  { labelKey: "editor.text.fontSerif", value: 'serif, "Noto Sans Thai"' },
+  { labelKey: "editor.text.fontMono", value: 'ui-monospace, monospace, "Noto Sans Thai"' },
+  { labelKey: "editor.text.fontCursive", value: 'cursive, "Noto Sans Thai"' },
 ];
 
 /** Text tool: font family/size, line height, weight/style/decoration/align,
@@ -49,19 +51,20 @@ export function TextPanel({
   lastBgColor: string;
   setLastBgColor: Dispatch<SetStateAction<string>>;
 }) {
+  const { t } = useT();
   const bold = tsc.fontStyle.includes("bold");
   const italic = tsc.fontStyle.includes("italic");
   const ul = tsc.textDecoration.includes("underline");
   const st = tsc.textDecoration.includes("line-through");
   return (
     <Group>
-      <SectionLabel>Type</SectionLabel>
+      <SectionLabel>{t("editor.text.type")}</SectionLabel>
 
       <label
         className="flex items-center justify-between gap-2 text-xs text-[var(--fg-2)]"
-        title="Font family"
+        title={t("editor.text.fontFamily")}
       >
-        <span>Font</span>
+        <span>{t("editor.text.font")}</span>
         <select
           value={tsc.fontFamily}
           onChange={(e) => tsc.setFontFamily(e.target.value)}
@@ -69,7 +72,7 @@ export function TextPanel({
         >
           {FONT_FAMILIES.map((f) => (
             <option key={f.value} value={f.value}>
-              {f.label}
+              {t(f.labelKey)}
             </option>
           ))}
         </select>
@@ -77,7 +80,7 @@ export function TextPanel({
 
       {sizeCtx && (
         <PresetSlider
-          label="Size"
+          label={t("editor.panel.size")}
           value={sizeCtx.value}
           min={sizeCtx.min}
           max={sizeCtx.max}
@@ -95,7 +98,7 @@ export function TextPanel({
       )}
 
       <PresetSlider
-        label="Line height"
+        label={t("editor.text.lineHeight")}
         value={tsc.lineHeight}
         min={1}
         max={2.5}
@@ -103,32 +106,32 @@ export function TextPanel({
         format={(v) => `${v.toFixed(2)}×`}
         onChange={(v) => tsc.setLineHeight(v)}
         presets={[
-          { value: 1, node: <LineGapIcon gap={2.5} />, title: "1.0× tight" },
-          { value: 1.25, node: <LineGapIcon gap={4} />, title: "1.25× normal" },
-          { value: 1.5, node: <LineGapIcon gap={5.5} />, title: "1.5× loose" },
+          { value: 1, node: <LineGapIcon gap={2.5} />, title: t("editor.text.lhTight") },
+          { value: 1.25, node: <LineGapIcon gap={4} />, title: t("editor.text.lhNormal") },
+          { value: 1.5, node: <LineGapIcon gap={5.5} />, title: t("editor.text.lhLoose") },
         ]}
       />
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-0.5">
-          <ToggleIconButton active={bold} onClick={() => tsc.setFontStyle(withBold(tsc.fontStyle, !bold))} title="Bold" Icon={Bold} />
-          <ToggleIconButton active={italic} onClick={() => tsc.setFontStyle(withItalic(tsc.fontStyle, !italic))} title="Italic" Icon={Italic} />
-          <ToggleIconButton active={ul} onClick={() => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul))} title="Underline" Icon={Underline} />
-          <ToggleIconButton active={st} onClick={() => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st))} title="Strike" Icon={Strikethrough} />
+          <ToggleIconButton active={bold} onClick={() => tsc.setFontStyle(withBold(tsc.fontStyle, !bold))} title={t("editor.text.bold")} Icon={Bold} />
+          <ToggleIconButton active={italic} onClick={() => tsc.setFontStyle(withItalic(tsc.fontStyle, !italic))} title={t("editor.text.italic")} Icon={Italic} />
+          <ToggleIconButton active={ul} onClick={() => tsc.setTextDecoration(withDeco(tsc.textDecoration, "underline", !ul))} title={t("editor.text.underline")} Icon={Underline} />
+          <ToggleIconButton active={st} onClick={() => tsc.setTextDecoration(withDeco(tsc.textDecoration, "line-through", !st))} title={t("editor.text.strike")} Icon={Strikethrough} />
         </div>
-        <div className="flex items-center gap-0.5" role="group" aria-label="Text alignment">
-          <ToggleIconButton active={tsc.align === "left"} onClick={() => tsc.setAlign("left")} title="Align left" Icon={AlignLeft} />
-          <ToggleIconButton active={tsc.align === "center"} onClick={() => tsc.setAlign("center")} title="Align center" Icon={AlignCenter} />
-          <ToggleIconButton active={tsc.align === "right"} onClick={() => tsc.setAlign("right")} title="Align right" Icon={AlignRight} />
+        <div className="flex items-center gap-0.5" role="group" aria-label={t("editor.text.alignment")}>
+          <ToggleIconButton active={tsc.align === "left"} onClick={() => tsc.setAlign("left")} title={t("editor.text.alignLeft")} Icon={AlignLeft} />
+          <ToggleIconButton active={tsc.align === "center"} onClick={() => tsc.setAlign("center")} title={t("editor.text.alignCenter")} Icon={AlignCenter} />
+          <ToggleIconButton active={tsc.align === "right"} onClick={() => tsc.setAlign("right")} title={t("editor.text.alignRight")} Icon={AlignRight} />
         </div>
       </div>
 
       {colorCtx && (
         <label
           className="flex items-center justify-between gap-2 text-xs text-[var(--fg-2)]"
-          title="Text color"
+          title={t("editor.text.textColor")}
         >
-          <span>Color</span>
+          <span>{t("editor.text.color")}</span>
           <input
             ref={colorInputRef}
             type="color"
@@ -139,7 +142,7 @@ export function TextPanel({
         </label>
       )}
 
-      <SectionLabel>Background</SectionLabel>
+      <SectionLabel>{t("editor.text.background")}</SectionLabel>
 
       <div className="flex items-center justify-between gap-2">
         <button
@@ -148,7 +151,7 @@ export function TextPanel({
             tsc.setBackgroundColor(tsc.backgroundColor === null ? lastBgColor : null)
           }
           aria-pressed={tsc.backgroundColor !== null}
-          title="Text background on/off"
+          title={t("editor.text.bgToggle")}
           className={[
             "rounded-md px-2.5 py-1 text-xs transition-colors",
             tsc.backgroundColor !== null
@@ -156,13 +159,13 @@ export function TextPanel({
               : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
           ].join(" ")}
         >
-          Fill {tsc.backgroundColor !== null ? "on" : "off"}
+          {tsc.backgroundColor !== null ? t("editor.text.fillOn") : t("editor.text.fillOff")}
         </button>
         {tsc.backgroundColor !== null && (
           <input
             type="color"
             value={tsc.backgroundColor}
-            title="Background color"
+            title={t("editor.text.bgColor")}
             onChange={(e) => {
               setLastBgColor(e.target.value);
               tsc.setBackgroundColor(e.target.value);
@@ -174,7 +177,7 @@ export function TextPanel({
 
       {tsc.backgroundColor !== null && (
         <PresetSlider
-          label="Padding"
+          label={t("editor.text.padding")}
           value={tsc.bgPadding}
           min={0}
           max={256}
@@ -183,7 +186,7 @@ export function TextPanel({
           unit="px"
           onChange={(v) => tsc.setBgPadding(v)}
           presets={[
-            { value: 0, node: <PadIcon inset={1} />, title: "None" },
+            { value: 0, node: <PadIcon inset={1} />, title: t("editor.text.paddingNone") },
             { value: 16, node: <PadIcon inset={3} />, title: "16 px" },
             { value: 40, node: <PadIcon inset={5} />, title: "40 px" },
             { value: 128, node: <PadIcon inset={6} />, title: "128 px" },

@@ -7,6 +7,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "@/stores/settings";
 import { ensureAutoScrollPermission } from "@/lib/accessibility";
+import { useT } from "@/i18n/useT";
 import {
   centeredDefaultRect,
   clampRect,
@@ -102,6 +103,7 @@ function AreaMode({
   scroll?: boolean;
 }) {
   const { w: dispW, h: dispH } = useViewport();
+  const { t } = useT();
 
   const initSettings = useSettings((s) => s.init);
   const settingsReady = useSettings((s) => s.ready);
@@ -383,7 +385,7 @@ function AreaMode({
         <TemplateRect
           rect={rect}
           dispH={dispH}
-          confirmLabel={scroll ? "Start" : "Capture"}
+          confirmLabel={scroll ? t("app.overlay.start") : t("app.overlay.capture")}
           scrollActions={
             scroll
               ? {
@@ -406,7 +408,7 @@ function AreaMode({
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
           }}
         >
-          Drag to select on this screen · Esc to cancel
+          {t("app.overlay.dragHint")}
         </div>
       )}
     </div>
@@ -432,7 +434,7 @@ const KEYCAP: React.CSSProperties = {
 function TemplateRect({
   rect,
   dispH,
-  confirmLabel = "Capture",
+  confirmLabel,
   scrollActions,
 }: {
   rect: Rect;
@@ -440,6 +442,7 @@ function TemplateRect({
   confirmLabel?: string;
   scrollActions?: { onStartManual: () => void; onAutoScroll: () => void };
 }) {
+  const { t } = useT();
   // Eight resize handles: corners + edge midpoints.
   const handles: Array<{ t: DragTarget; left: number; top: number }> = [
     { t: "nw", left: rect.x, top: rect.y },
@@ -498,20 +501,20 @@ function TemplateRect({
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white"
               style={{ background: "var(--accent)", border: "1px solid rgba(255,255,255,0.18)" }}
             >
-              Start manual capture
+              {t("app.overlay.startManual")}
             </button>
             <button
               type="button"
               onClick={scrollActions.onAutoScroll}
               className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90"
               style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-              title="Let capz scroll the page automatically to the bottom"
+              title={t("app.overlay.autoScrollTitle")}
             >
-              Auto-scroll
+              {t("app.overlay.autoScroll")}
             </button>
             <span className="flex items-center gap-1 pl-1 text-[11px] text-white/70">
               <span style={KEYCAP}>esc</span>
-              Cancel
+              {t("app.overlay.cancel")}
             </span>
           </div>
         ) : (
@@ -526,12 +529,12 @@ function TemplateRect({
           >
             <span className="flex items-center gap-1">
               <span style={KEYCAP}>↵</span>
-              {confirmLabel}
+              {confirmLabel ?? t("app.overlay.capture")}
             </span>
             <span className="opacity-40">·</span>
             <span className="flex items-center gap-1">
               <span style={KEYCAP}>esc</span>
-              Cancel
+              {t("app.overlay.cancel")}
             </span>
           </div>
         )}
@@ -562,6 +565,7 @@ function TemplateRect({
 // ---------------------------------------------------------------------------
 
 function PickMode({ monitorId }: { monitorId: number }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(false);
   const [windows, setWindows] = useState<WindowOverlayInfo[]>([]);
@@ -609,8 +613,8 @@ function PickMode({ monitorId }: { monitorId: number }) {
       : null;
 
   const hintText = !active
-    ? "Move cursor here to select on this screen"
-    : "Click a window to capture · Esc to cancel";
+    ? t("app.overlay.moveHere")
+    : t("app.overlay.clickWindow");
 
   return (
     <div

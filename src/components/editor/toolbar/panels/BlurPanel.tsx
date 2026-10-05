@@ -4,13 +4,15 @@ import { SectionLabel } from "../PresetSlider";
 import { BlurGlyph } from "./glyphs";
 import { Group, NumericField } from "./kit";
 import type { NumCtx } from "./types";
+import { useT } from "@/i18n/useT";
 
 /** Blur tool: a single "Blur" radius control (range 2–60). */
 export function BlurPanel({ widthCtx }: { widthCtx: NumCtx | null }) {
+  const { t } = useT();
   if (!widthCtx) return null;
   return (
     <Group>
-      <SectionLabel>Blur</SectionLabel>
+      <SectionLabel>{t("editor.panel.blur")}</SectionLabel>
       <NumericField
         ctx={widthCtx}
         presets={[

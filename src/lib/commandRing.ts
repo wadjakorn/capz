@@ -1,3 +1,5 @@
+import { t, type TKey } from "@/i18n/store";
+
 /** A capture mode that can occupy a ring slot. Values match Rust `CaptureKind`'s
  *  serde names so a slot id is passed straight to `command_ring_select`. */
 export type RingWedge = "window" | "full" | "scroll" | "area" | "systemArea";
@@ -48,24 +50,56 @@ export const RING_MAX_MODES = 4;
 /** The v1 (click-to-pick) ring layout, and the v2 default slot assignment. */
 export const RING_WEDGES: readonly RingWedge[] = ["window", "full", "scroll", "area"] as const;
 
-/** Short label rendered on each wedge. */
-export const RING_LABELS: Record<RingSlot, string> = {
-  cancel: "cancel",
-  window: "window",
-  full: "full",
-  scroll: "scroll",
-  area: "area",
-  systemArea: "system",
+const RING_LABEL_KEYS: Record<RingSlot, TKey> = {
+  cancel: "app.ring.cancel",
+  window: "app.ring.window",
+  full: "app.ring.full",
+  scroll: "app.ring.scroll",
+  area: "app.ring.area",
+  systemArea: "app.ring.systemArea",
 };
 
-/** Longer label for the Settings checkbox list, where there is room to be clear. */
-export const RING_MODE_LABELS: Record<RingWedge, string> = {
-  window: "Window",
-  full: "Full screen",
-  scroll: "Scrolling",
-  area: "Area",
-  systemArea: "System area (macOS)",
+const RING_MODE_LABEL_KEYS: Record<RingWedge, TKey> = {
+  window: "app.ring.mode.window",
+  full: "app.ring.mode.full",
+  scroll: "app.ring.mode.scroll",
+  area: "app.ring.mode.area",
+  systemArea: "app.ring.mode.systemArea",
 };
+
+/** Short label rendered on each wedge, in the current UI language. */
+export function ringLabel(slot: RingSlot): string {
+  return t(RING_LABEL_KEYS[slot]);
+}
+
+/** Longer label for the Settings checkbox list, in the current UI language. */
+export function ringModeLabel(mode: RingWedge): string {
+  return t(RING_MODE_LABEL_KEYS[mode]);
+}
+
+/** Read-only map whose values are looked up on each access, so a lookup made
+ *  at render time follows the current language. */
+function liveLabels<K extends string>(keys: Record<K, TKey>): Readonly<Record<K, string>> {
+  const out = {} as Record<K, string>;
+  for (const k of Object.keys(keys) as K[]) {
+    Object.defineProperty(out, k, { enumerable: true, get: () => t(keys[k]) });
+  }
+  return out;
+}
+
+/**
+ * Short label rendered on each wedge.
+ * @deprecated Use `ringLabel(slot)`. Kept as a live (getter-backed) map so
+ * existing `RING_LABELS[slot]` reads still follow the UI language.
+ */
+export const RING_LABELS: Readonly<Record<RingSlot, string>> = liveLabels(RING_LABEL_KEYS);
+
+/**
+ * Longer label for the Settings checkbox list, where there is room to be clear.
+ * @deprecated Use `ringModeLabel(mode)`. Live (getter-backed) like RING_LABELS.
+ */
+export const RING_MODE_LABELS: Readonly<Record<RingWedge, string>> =
+  liveLabels(RING_MODE_LABEL_KEYS);
 
 /**
  * Drop modes this platform cannot run. A config synced from a Mac may list

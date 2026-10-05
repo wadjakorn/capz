@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useT } from "@/i18n/useT";
 import { dirName, formatBytes, useHistory, type HistoryItem } from "@/stores/history";
 
 /**
@@ -17,6 +18,7 @@ export function useHistoryActions() {
   const forget = useHistory((s) => s.forget);
   const markMissing = useHistory((s) => s.markMissing);
   const [pendingTrash, setPendingTrash] = useState<HistoryItem | null>(null);
+  const { t } = useT();
 
   const reveal = useCallback(async (item: HistoryItem) => {
     try {
@@ -26,9 +28,9 @@ export function useHistoryActions() {
       await invoke("reveal_file_in_finder", { path: item.path });
     } catch (e) {
       console.error("reveal failed", e);
-      toast.error("Couldn't open the folder");
+      toast.error(t("editor.history.revealFailed"));
     }
-  }, []);
+  }, [t]);
 
   const copy = useCallback(async (item: HistoryItem) => {
     try {
@@ -42,30 +44,30 @@ export function useHistoryActions() {
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       await writeImage(bytes);
-      toast.success("Copied");
+      toast.success(t("editor.history.copied"));
     } catch (e) {
       console.error("copy from history failed", e);
       markMissing(item.id);
-      toast.error("Couldn't copy that file");
+      toast.error(t("editor.history.copyFailed"));
     }
-  }, [markMissing]);
+  }, [markMissing, t]);
 
   const trash = useCallback(async (item: HistoryItem) => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("trash_file", { path: item.path });
       forget(item.id);
-      toast("Moved to Trash");
+      toast(t("editor.history.trashed"));
     } catch (e) {
       console.error("trash failed", e);
-      toast.error("Couldn't move that file to the Trash");
+      toast.error(t("editor.history.trashFailed"));
     }
-  }, [forget]);
+  }, [forget, t]);
 
   const trashDialog = (
     <ConfirmDialog
       open={pendingTrash !== null}
-      title="Move to Trash?"
+      title={t("editor.history.trashTitle")}
       preview={
         pendingTrash
           ? {
@@ -77,8 +79,8 @@ export function useHistoryActions() {
             }
           : undefined
       }
-      body="You can restore it from the Trash. It will also be removed from this list."
-      confirmLabel="Move to Trash"
+      body={t("editor.history.trashBody")}
+      confirmLabel={t("editor.history.moveToTrash")}
       destructive
       onCancel={() => setPendingTrash(null)}
       onConfirm={() => {

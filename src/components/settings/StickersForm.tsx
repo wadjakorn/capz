@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
+import { useT } from "@/i18n/useT";
 
 async function pickDir(current: string | null): Promise<string | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -23,6 +24,7 @@ async function openFolder(path: string | null): Promise<void> {
 }
 
 export function StickersForm() {
+  const { t } = useT();
   const directory = useSettings((s) => s.config.stickers.directory);
   const update = useSettings((s) => s.update);
   const entries = useStickers((s) => s.entries);
@@ -56,12 +58,12 @@ export function StickersForm() {
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label>Sticker directory</Label>
+        <Label>{t("settings.stickers.directory")}</Label>
         <div className="flex gap-2">
           <Input
             value={directory ?? ""}
             readOnly
-            placeholder="No directory chosen — emoji fallback used"
+            placeholder={t("settings.stickers.placeholder")}
             className="flex-1 font-mono text-xs"
           />
           <button
@@ -69,7 +71,7 @@ export function StickersForm() {
             onClick={onChoose}
             className="btn btn--secondary"
           >
-            Choose…
+            {t("settings.choose")}
           </button>
           <button
             type="button"
@@ -77,7 +79,7 @@ export function StickersForm() {
             disabled={!directory}
             className="btn btn--secondary"
           >
-            Open folder
+            {t("settings.stickers.openFolder")}
           </button>
           <button
             type="button"
@@ -85,12 +87,11 @@ export function StickersForm() {
             disabled={!directory}
             className="btn btn--secondary"
           >
-            Clear
+            {t("settings.clear")}
           </button>
         </div>
         <span className="text-xs text-muted-foreground">
-          PNG / JPEG / WEBP / GIF. Up to 200 files, 2 MB each. Loaded into memory
-          at app start and on Sync.
+          {t("settings.stickers.help")}
         </span>
       </div>
 
@@ -101,19 +102,24 @@ export function StickersForm() {
           disabled={!directory || loading}
           className="btn btn--secondary"
         >
-          {loading ? "Syncing…" : "Sync now"}
+          {loading ? t("settings.stickers.syncing") : t("settings.stickers.syncNow")}
         </button>
         <span className="text-xs text-muted-foreground">
           {synced || entries.length > 0
-            ? `${entries.length} sticker${entries.length === 1 ? "" : "s"} loaded`
+            ? t(
+                entries.length === 1
+                  ? "settings.stickers.loadedOne"
+                  : "settings.stickers.loadedMany",
+                { n: entries.length },
+              )
             : directory
-              ? "Click Sync to load"
-              : "Choose a directory first"}
+              ? t("settings.stickers.clickSync")
+              : t("settings.stickers.chooseFirst")}
         </span>
       </div>
 
       {error && (
-        <span className="text-xs text-destructive">Sync failed: {error}</span>
+        <span className="text-xs text-destructive">{t("settings.stickers.failed", { error })}</span>
       )}
     </div>
   );

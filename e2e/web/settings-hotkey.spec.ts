@@ -9,7 +9,7 @@
  *
  * Real OS-level GlobalShortcut registration is in tier-2 / manual QA.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { installTauriMock, getInvokeCalls, emitTauriEvent } from "../fixtures/tauri-mock";
 
 test("hotkey rebind invokes reregister_shortcuts + persists accelerator", async ({ page }) => {

@@ -9,6 +9,7 @@ import { AdvancedSection } from "@/components/settings/AdvancedSection";
 import { StickersForm } from "@/components/settings/StickersForm";
 import { useSettings } from "@/stores/settings";
 import { useHistory } from "@/stores/history";
+import { useT } from "@/i18n/useT";
 import {
   ARCHIVE_BUDGET_OPTIONS_MB,
   HISTORY_MAX_OPTIONS,
@@ -22,6 +23,7 @@ function formatArchiveSize(bytes: number): string {
 
 /** Workspaces, saved captures, the archive and the sticker library. */
 export function LibraryPage() {
+  const { t } = useT();
   const { config, update } = useSettings();
   const w = config.workspaces;
   const h = config.history;
@@ -35,24 +37,24 @@ export function LibraryPage() {
       <SectionCard>
         <SettingToggle
           id="library.workspaces"
-          hint="Keep several captures open at once and switch between them in the editor."
+          hint={t("settings.library.workspaces.hint")}
           checked={w.enabled}
           onChange={(enabled) => update("workspaces", { enabled })}
         />
         <SettingToggle
           id="library.history"
-          hint="Keeps a list of what you exported, with thumbnails, in the editor sidebar."
+          hint={t("settings.library.history.hint")}
           checked={h.enabled}
           onChange={(enabled) => update("history", { enabled })}
         />
-        <SettingRow id="library.stickers" hint="Images you can drop onto a capture.">
+        <SettingRow id="library.stickers" hint={t("settings.library.stickers.hint")}>
           <button
             type="button"
             className="btn btn--secondary"
             aria-expanded={showStickers}
             onClick={() => setShowStickers((v) => !v)}
           >
-            {showStickers ? "Hide" : "Manage…"}
+            {showStickers ? t("settings.hide") : t("settings.library.manage")}
           </button>
         </SettingRow>
         {showStickers && (
@@ -69,7 +71,7 @@ export function LibraryPage() {
             disabled={!w.enabled}
             value={w.max}
             onChange={(e) => update("workspaces", { max: Number(e.target.value) })}
-            aria-label="Maximum workspaces"
+            aria-label={t("settings.library.max")}
           >
             {sizes.map((n) => (
               <option key={n} value={n}>
@@ -83,8 +85,8 @@ export function LibraryPage() {
           id="library.newCapture"
           hint={
             w.onCapture === "new"
-              ? `Once all ${w.max} are used, the oldest workspace closes — you can undo that.`
-              : "The capture overwrites the workspace you are in. Nothing is closed for you."
+              ? t("settings.library.newCapture.hintNew", { max: w.max })
+              : t("settings.library.newCapture.hintReplace")
           }
         >
           <select
@@ -94,16 +96,16 @@ export function LibraryPage() {
             onChange={(e) =>
               update("workspaces", { onCapture: e.target.value as "new" | "replace" })
             }
-            aria-label="When a new capture arrives"
+            aria-label={t("settings.library.newCapture")}
           >
-            <option value="new">Open in a new workspace</option>
-            <option value="replace">Replace the current workspace</option>
+            <option value="new">{t("settings.library.newCapture.new")}</option>
+            <option value="replace">{t("settings.library.newCapture.replace")}</option>
           </select>
         </SettingRow>
 
         <SettingRow
           id="library.keep"
-          hint="Older entries drop off the list. The files stay on your disk."
+          hint={t("settings.library.keep.hint")}
         >
           <select
             className="field"
@@ -115,12 +117,17 @@ export function LibraryPage() {
               const dropped = useHistory.getState().trim(max);
               if (dropped > 0) {
                 toast(
-                  `Removed ${dropped} older ${dropped === 1 ? "entry" : "entries"} from the list`,
-                  { description: "The files were not deleted." },
+                  t(
+                    dropped === 1
+                      ? "settings.library.keep.removedOne"
+                      : "settings.library.keep.removedMany",
+                    { n: dropped },
+                  ),
+                  { description: t("settings.library.keep.notDeleted") },
                 );
               }
             }}
-            aria-label="Keep the last"
+            aria-label={t("settings.library.keep")}
           >
             {HISTORY_MAX_OPTIONS.map((n) => (
               <option key={n} value={n}>
@@ -138,24 +145,24 @@ export function LibraryPage() {
             onChange={(e) =>
               update("history", { viewMode: e.target.value as "list" | "grid" })
             }
-            aria-label="Show as"
+            aria-label={t("settings.library.showAs")}
           >
-            <option value="list">List</option>
-            <option value="grid">Thumbnails</option>
+            <option value="list">{t("settings.library.showAs.list")}</option>
+            <option value="grid">{t("settings.library.showAs.grid")}</option>
           </select>
         </SettingRow>
 
-        <SettingRow id="library.clear" hint="Removes every entry. No files are deleted.">
+        <SettingRow id="library.clear" hint={t("settings.library.clear.hint")}>
           <button
             type="button"
             disabled={!h.enabled}
             onClick={() => {
               useHistory.getState().clear();
-              toast.success("History cleared", { duration: 1600 });
+              toast.success(t("settings.library.clear.done"), { duration: 1600 });
             }}
             className="btn btn--secondary text-rose-300 hover:text-rose-200"
           >
-            Clear list
+            {t("settings.library.clear.button")}
           </button>
         </SettingRow>
 
@@ -173,6 +180,7 @@ export function LibraryPage() {
  * figure there would be worse than none.
  */
 function ArchiveRows() {
+  const { t } = useT();
   const { config, update } = useSettings();
   const h = config.history;
   const [usage, setUsage] = useState<{ count: number; bytes: number } | null>(null);
@@ -196,7 +204,7 @@ function ArchiveRows() {
     <>
       <SettingToggle
         id="library.archive"
-        hint="Copies each screen capture into a Captures folder next to your saved files."
+        hint={t("settings.library.archive.hint")}
         checked={h.archiveCaptures}
         onChange={(archiveCaptures) => {
           void update("history", { archiveCaptures });
@@ -206,7 +214,7 @@ function ArchiveRows() {
 
       <SettingRow
         id="library.archiveLimit"
-        hint="Past this, the oldest captures go. Files you exported yourself are never touched."
+        hint={t("settings.library.archiveLimit.hint")}
       >
         <select
           className="field"
@@ -223,13 +231,18 @@ function ArchiveRows() {
               const gone = await enforceBudget(dir, mb);
               if (gone.length > 0) {
                 toast(
-                  `Removed ${gone.length} older ${gone.length === 1 ? "capture" : "captures"}`,
+                  t(
+                    gone.length === 1
+                      ? "settings.library.archiveLimit.removedOne"
+                      : "settings.library.archiveLimit.removedMany",
+                    { n: gone.length },
+                  ),
                 );
               }
               await refresh();
             })();
           }}
-          aria-label="Archive limit"
+          aria-label={t("settings.library.archiveLimit")}
         >
           {ARCHIVE_BUDGET_OPTIONS_MB.map((mb) => (
             <option key={mb} value={mb}>
@@ -243,8 +256,13 @@ function ArchiveRows() {
         id="library.archiveUsage"
         hint={
           usage
-            ? `${usage.count} ${usage.count === 1 ? "capture" : "captures"} in the Captures folder.`
-            : "Nothing archived yet."
+            ? t(
+                usage.count === 1
+                  ? "settings.library.archiveUsage.one"
+                  : "settings.library.archiveUsage.many",
+                { n: usage.count },
+              )
+            : t("settings.library.archiveUsage.empty")
         }
       >
         <button
@@ -259,7 +277,14 @@ function ArchiveRows() {
                 const dir = await resolveSaveDirPath();
                 if (!dir) return;
                 const n = await deleteArchive(dir);
-                toast.success(`Deleted ${n} archived ${n === 1 ? "capture" : "captures"}`);
+                toast.success(
+                  t(
+                    n === 1
+                      ? "settings.library.archiveUsage.deletedOne"
+                      : "settings.library.archiveUsage.deletedMany",
+                    { n },
+                  ),
+                );
                 await refresh();
               } finally {
                 setWiping(false);
@@ -268,7 +293,9 @@ function ArchiveRows() {
           }}
           className="btn btn--secondary text-rose-300 hover:text-rose-200"
         >
-          {usage ? formatArchiveSize(usage.bytes) : "0 MB"} — Delete…
+          {t("settings.library.archiveUsage.delete", {
+            size: usage ? formatArchiveSize(usage.bytes) : "0 MB",
+          })}
         </button>
       </SettingRow>
     </>

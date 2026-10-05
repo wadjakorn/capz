@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 
 /**
  * In-browser Screen Capture API path on /paste. getDisplayMedia can't be

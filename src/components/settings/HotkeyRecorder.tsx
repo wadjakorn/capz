@@ -11,6 +11,7 @@ import {
   statusMessage,
   type HotkeyProbe,
 } from "@/lib/shortcuts";
+import { useT } from "@/i18n/useT";
 
 type Props = {
   value: string;
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function HotkeyRecorder({ value, onChange }: Props) {
+  const { t } = useT();
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -54,8 +56,8 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     if (!res.ok) {
       setError(
         res.reason === "win"
-          ? "Windows reserves the ⊞ key — use Ctrl, Alt or Shift"
-          : "Add a modifier (Ctrl, Alt or Shift)",
+          ? t("settings.hotkey.winKey")
+          : t("settings.hotkey.needModifier"),
       );
       return;
     }
@@ -65,10 +67,10 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     if (!v.ok) {
       setError(
         v.reason === "win"
-          ? "Windows reserves the ⊞ key — use Ctrl, Alt or Shift"
+          ? t("settings.hotkey.winKey")
           : v.reason === "no-modifier"
-            ? "Add a modifier (Ctrl, Alt or Shift)"
-            : "Not a valid shortcut",
+            ? t("settings.hotkey.needModifier")
+            : t("settings.hotkey.invalid"),
       );
       return;
     }
@@ -84,7 +86,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
       console.warn("probe_hotkey failed", err);
     }
     if (status !== "ok") {
-      setError(statusMessage(accel, status) ?? "Can't use this shortcut");
+      setError(statusMessage(accel, status) ?? t("settings.hotkey.cantUse"));
       return;
     }
 
@@ -93,7 +95,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     // can still swallow the keystroke before capz sees it, so say so.
     setWarning(
       v.warning === "os-owned"
-        ? `The system usually owns ${formatShortcut(accel)}. If it doesn't trigger capz, turn the system shortcut off first.`
+        ? t("settings.hotkey.osOwned", { shortcut: formatShortcut(accel) })
         : null,
     );
     onChange(accel);
@@ -117,10 +119,12 @@ export function HotkeyRecorder({ value, onChange }: Props) {
           data-hotkey-recorder
           aria-label={
             recording
-              ? "Recording shortcut — press keys"
-              : `${formatShortcut(value) || "No shortcut"} — click to record`
+              ? t("settings.hotkey.recordingAria")
+              : t("settings.hotkey.idleAria", {
+                  shortcut: formatShortcut(value) || t("settings.hotkey.none"),
+                })
           }
-          title="Click, then press the new shortcut"
+          title={t("settings.hotkey.title")}
           onFocus={() => {
             setRecording(true);
             setError(null);
@@ -136,7 +140,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
           className="field flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-1 overflow-hidden py-0 hover:border-[var(--fg-4)]"
         >
           {recording ? (
-            <span className="text-[var(--accent)]">Press keys…</span>
+            <span className="whitespace-nowrap text-[var(--accent)]">{t("settings.hotkey.pressKeys")}</span>
           ) : keys.length > 0 ? (
             keys.map((k, i) => (
               <kbd
@@ -147,7 +151,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
               </kbd>
             ))
           ) : (
-            <span className="italic text-muted-foreground">Not set</span>
+            <span className="truncate italic text-muted-foreground">{t("settings.hotkey.notSet")}</span>
           )}
         </div>
         <button
@@ -165,8 +169,8 @@ export function HotkeyRecorder({ value, onChange }: Props) {
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground ${
             value ? "" : "invisible"
           }`}
-          title="Remove this shortcut"
-          aria-label="Remove this shortcut"
+          title={t("settings.hotkey.remove")}
+          aria-label={t("settings.hotkey.remove")}
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>

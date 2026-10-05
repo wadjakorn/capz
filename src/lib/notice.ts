@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { t } from "@/i18n/store";
 import { toast } from "sonner";
 import { CONFIG_STORE_FILE } from "@/lib/config";
 
@@ -42,13 +43,12 @@ export function usePermissionRevokedListener() {
     (async () => {
       const { listen, emit } = await import("@tauri-apps/api/event");
       unlisten = await listen("app:permission-revoked", () => {
-        toast.error("Screen Recording permission revoked", {
+        toast.error(t("app.notice.revokedTitle"), {
           id: "permission-revoked",
-          description:
-            "Re-grant in System Settings → Privacy & Security → Screen Recording.",
+          description: t("app.notice.revokedDesc"),
           duration: 12_000,
           action: {
-            label: "Re-run onboarding",
+            label: t("app.notice.rerunOnboarding"),
             onClick: () => {
               void emit("editor:show-onboarding");
             },
@@ -152,13 +152,12 @@ export function useInertGrantAfterUpdateListener(onOpenRecovery: () => void) {
         toast.dismiss(INERT_TOAST_ID);
         return;
       }
-      toast.error("Capture is broken after the macOS update", {
+      toast.error(t("app.notice.inertTitle"), {
         id: INERT_TOAST_ID,
-        description:
-          "System Settings shows capz as allowed, but the entry is keyed to the previous build. TCC needs a full reset: remove the row, relaunch, re-grant.",
+        description: t("app.notice.inertDesc"),
         duration: Infinity,
         action: {
-          label: "Fix permission…",
+          label: t("app.notice.fixPermission"),
           onClick: onOpenRecovery,
         },
       });
@@ -236,15 +235,15 @@ export function useScreenRecordingHealthCheck(onOpenRecovery: () => void) {
 
       const description =
         brokenState === "denied"
-          ? "macOS Screen Recording is denied. capz can't capture until you re-grant it."
-          : "macOS shows capz as allowed, but the entry is stale and capture returns blank frames.";
+          ? t("app.notice.healthDenied")
+          : t("app.notice.healthInert");
 
-      toast.error("Screen Recording is not working", {
+      toast.error(t("app.notice.healthTitle"), {
         id: HEALTH_TOAST_ID,
         description,
         duration: Infinity,
         action: {
-          label: "Fix permission…",
+          label: t("app.notice.fixPermission"),
           onClick: onOpenRecovery,
         },
       });

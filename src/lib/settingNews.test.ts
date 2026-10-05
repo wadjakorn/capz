@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SETTINGS, type SettingId } from "@/components/settings/registry";
 import {
   isNewSetting,
@@ -9,8 +9,9 @@ import {
 } from "./settingNews";
 
 /**
- * The registry ships with no `addedIn` — nothing is new until a genuinely new
- * setting lands — so these tests stamp one in to exercise the logic.
+ * The tests start from a registry with every `addedIn` cleared — so the result
+ * doesn't depend on which settings happen to be new in this release — and
+ * stamp one in to exercise the logic.
  */
 function withAddedIn(id: SettingId, version: string | undefined) {
   const def = SETTINGS[id] as { addedIn?: string };
@@ -21,8 +22,20 @@ function withAddedIn(id: SettingId, version: string | undefined) {
   };
 }
 
+let shipped: Array<[{ addedIn?: string }, string | undefined]> = [];
+
 beforeEach(() => {
   useSeenSettings.getState().reset();
+  shipped = Object.values(SETTINGS).map((d) => {
+    const def = d as { addedIn?: string };
+    const before = def.addedIn;
+    def.addedIn = undefined;
+    return [def, before];
+  });
+});
+
+afterEach(() => {
+  for (const [def, before] of shipped) def.addedIn = before;
 });
 
 describe("isNewerVersion", () => {

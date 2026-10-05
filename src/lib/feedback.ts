@@ -1,4 +1,5 @@
 import { isTauriRuntime } from "@/lib/platform";
+import { t } from "@/i18n/store";
 
 /**
  * Anonymous bug / feature reports (Settings → Feedback).
@@ -33,9 +34,9 @@ export type SendResult = { ok: true } | { ok: false; error: string };
 /** Returns an error string, or null when the message is sendable. */
 export function validateMessage(raw: string): string | null {
   const msg = raw.trim();
-  if (msg.length === 0) return "Write a few words first.";
+  if (msg.length === 0) return t("app.feedback.empty");
   if (msg.length > FEEDBACK_MESSAGE_MAX) {
-    return `Keep it under ${FEEDBACK_MESSAGE_MAX.toLocaleString()} characters.`;
+    return t("app.feedback.tooLong", { max: FEEDBACK_MESSAGE_MAX.toLocaleString() });
   }
   return null;
 }
@@ -80,18 +81,18 @@ export async function postFeedback(
       signal: AbortSignal.timeout(10_000),
     });
     if (res.ok) return { ok: true };
-    let error = `Server replied ${res.status}.`;
+    let error = t("app.feedback.serverReplied", { status: res.status });
     try {
       const body = (await res.json()) as { error?: string };
       if (body?.error) error = body.error;
     } catch {
       // non-JSON error body; keep the status text
     }
-    if (res.status === 429) error = "You have sent a few already. Try again later.";
+    if (res.status === 429) error = t("app.feedback.rateLimited");
     return { ok: false, error };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: /abort|timeout/i.test(msg) ? "Timed out." : msg };
+    return { ok: false, error: /abort|timeout/i.test(msg) ? t("app.feedback.timedOut") : msg };
   }
 }
 
@@ -99,7 +100,7 @@ export async function postFeedback(
 export async function sendFeedback(input: { kind: FeedbackKind; message: string }): Promise<SendResult> {
   const invalid = validateMessage(input.message);
   if (invalid) return { ok: false, error: invalid };
-  if (!isTauriRuntime()) return { ok: false, error: "Feedback is only available in the desktop app." };
+  if (!isTauriRuntime()) return { ok: false, error: t("app.feedback.desktopOnly") };
   const ctx = await collectContext();
   return postFeedback(buildFeedbackPayload({ ...input, ...ctx }));
 }

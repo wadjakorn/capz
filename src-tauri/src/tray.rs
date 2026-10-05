@@ -24,27 +24,16 @@ pub fn set_idle<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let capture_full = MenuItem::with_id(
-        app,
-        "capture_full",
-        "Capture Full Screen",
-        true,
-        None::<&str>,
-    )?;
-    let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, None::<&str>)?;
-    let capture_window =
-        MenuItem::with_id(app, "capture_window", "Capture Window…", true, None::<&str>)?;
-    let capture_scroll = MenuItem::with_id(
-        app,
-        "capture_scroll",
-        "Scrolling Capture…",
-        true,
-        None::<&str>,
-    )?;
+    use crate::i18n::{tr, Msg, TrayLabels};
+    let item = |id: &str, msg: Msg| MenuItem::with_id(app, id, tr(msg), true, None::<&str>);
+    let capture_full = item("capture_full", Msg::TrayCaptureFull)?;
+    let capture_area = item("capture_area", Msg::TrayCaptureArea)?;
+    let capture_window = item("capture_window", Msg::TrayCaptureWindow)?;
+    let capture_scroll = item("capture_scroll", Msg::TrayCaptureScroll)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let open_app = MenuItem::with_id(app, "open_app", "Open App", true, None::<&str>)?;
+    let open_app = item("open_app", Msg::TrayOpenApp)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit capz", true, None::<&str>)?;
+    let quit = item("quit", Msg::TrayQuit)?;
 
     let menu = Menu::with_items(
         app,
@@ -59,6 +48,18 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             &quit,
         ],
     )?;
+
+    // Kept so `set_ui_language` can relabel the menu without rebuilding it.
+    if let Ok(mut labels) = app.state::<TrayLabels>().0.lock() {
+        *labels = vec![
+            (Msg::TrayCaptureFull, capture_full.clone()),
+            (Msg::TrayCaptureArea, capture_area.clone()),
+            (Msg::TrayCaptureWindow, capture_window.clone()),
+            (Msg::TrayCaptureScroll, capture_scroll.clone()),
+            (Msg::TrayOpenApp, open_app.clone()),
+            (Msg::TrayQuit, quit.clone()),
+        ];
+    }
 
     let icon_path = app.path().resolve(
         "icons/tray/tray_22@2x.png",

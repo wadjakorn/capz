@@ -24,6 +24,7 @@ import type {
 import type { PinLabelStyle, PinShapeKind, PinTailDir } from "@/stores/editor";
 import { formatPinLabel } from "@/lib/pinLabel";
 import type { RefObject } from "react";
+import { useT } from "@/i18n/useT";
 
 /** Pin tool: shape (+ bubble tail), the numbered colors, size (12–120), border
  * width (0–100), and the capture-to-capture numbering controls. */
@@ -63,19 +64,20 @@ export function PinPanel({
     clearTo: number;
   } | null;
 }) {
+  const { t } = useT();
   return (
     <Group>
-      <SectionLabel>Pin</SectionLabel>
+      <SectionLabel>{t("editor.pin.pin")}</SectionLabel>
       {pinShapeCtx && (
         <IconSegmented<PinShapeKind>
           value={pinShapeCtx.value}
           onChange={pinShapeCtx.onChange}
-          title="Pin shape"
-          ariaLabel="Pin shape"
+          title={t("editor.pin.shape")}
+          ariaLabel={t("editor.pin.shape")}
           options={[
-            { value: "circle", title: "Circle", Icon: CircleIcon },
-            { value: "bubble", title: "Message bubble", Icon: MessageCircle },
-            { value: "mappin", title: "Map pin", Icon: MapPin },
+            { value: "circle", title: t("editor.panel.circle"), Icon: CircleIcon },
+            { value: "bubble", title: t("editor.pin.bubble"), Icon: MessageCircle },
+            { value: "mappin", title: t("editor.pin.mapPin"), Icon: MapPin },
           ]}
         />
       )}
@@ -83,13 +85,13 @@ export function PinPanel({
         <IconSegmented<PinTailDir>
           value={pinTailCtx.value}
           onChange={pinTailCtx.onChange}
-          title="Tail direction"
-          ariaLabel="Tail direction"
+          title={t("editor.pin.tailDir")}
+          ariaLabel={t("editor.pin.tailDir")}
           options={[
-            { value: "up", title: "Tail up", Icon: ArrowUp },
-            { value: "down", title: "Tail down", Icon: ArrowDown },
-            { value: "left", title: "Tail left", Icon: ArrowLeft },
-            { value: "right", title: "Tail right", Icon: ArrowRight },
+            { value: "up", title: t("editor.pin.tailUp"), Icon: ArrowUp },
+            { value: "down", title: t("editor.pin.tailDown"), Icon: ArrowDown },
+            { value: "left", title: t("editor.pin.tailLeft"), Icon: ArrowLeft },
+            { value: "right", title: t("editor.pin.tailRight"), Icon: ArrowRight },
           ]}
         />
       )}
@@ -98,11 +100,11 @@ export function PinPanel({
         <IconSegmented<PinLabelStyle>
           value={pinLabelStyleCtx.value}
           onChange={pinLabelStyleCtx.onChange}
-          title="Label style"
-          ariaLabel="Label style"
+          title={t("editor.pin.labelStyle")}
+          ariaLabel={t("editor.pin.labelStyle")}
           options={[
-            { value: "numeric", title: "Numbers (1, 2, 3…)", Icon: Hash },
-            { value: "alpha", title: "Letters (A, B, C…)", Icon: CaseUpper },
+            { value: "numeric", title: t("editor.pin.numbers"), Icon: Hash },
+            { value: "alpha", title: t("editor.pin.letters"), Icon: CaseUpper },
           ]}
         />
       )}
@@ -111,11 +113,11 @@ export function PinPanel({
         <ColorField
           ctx={colorCtx}
           inputRef={colorInputRef}
-          title={selected ? "Edit selected element color" : "Default color for next element"}
+          title={selected ? t("editor.panel.colorSelected") : t("editor.panel.colorDefault")}
         />
       )}
-      {pinLabelCtx && <ColorField ctx={pinLabelCtx} title="Pin label color" />}
-      {pinBorderCtx && <ColorField ctx={pinBorderCtx} title="Pin border color" />}
+      {pinLabelCtx && <ColorField ctx={pinLabelCtx} title={t("editor.pin.labelColor")} />}
+      {pinBorderCtx && <ColorField ctx={pinBorderCtx} title={t("editor.pin.borderColor")} />}
       {sizeCtx && (
         <NumericField
           ctx={sizeCtx}
@@ -143,10 +145,10 @@ export function PinPanel({
 
       {numbering && (
         <>
-          <SectionLabel>Numbering</SectionLabel>
+          <SectionLabel>{t("editor.pin.numbering")}</SectionLabel>
           <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/80">
             <label className="flex items-center gap-1">
-              Next:
+              {t("editor.pin.next")}
               <input
                 type="number"
                 min={0}
@@ -159,30 +161,30 @@ export function PinPanel({
               />
             </label>
             {pinLabelStyleCtx?.value === "alpha" && (
-              <span className="text-foreground/60" title="Label the next pin will show">
+              <span className="text-foreground/60" title={t("editor.pin.nextLabel")}>
                 → {formatPinLabel(numbering.next, "alpha")}
               </span>
             )}
             <button
               type="button"
               onClick={numbering.onSave}
-              title="Persist current as latest used number"
+              title={t("editor.pin.saveHint")}
               className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
             >
-              Save
+              {t("common.save")}
             </button>
             <button
               type="button"
               onClick={numbering.onClear}
-              title={`Clear persisted (reset to ${numbering.clearTo})`}
+              title={t("editor.pin.clearHint", { n: numbering.clearTo })}
               className="rounded-md px-2 py-1 text-foreground/85 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground"
             >
-              Clear
+              {t("common.clear")}
             </button>
             <button
               type="button"
               onClick={numbering.onToggleContinuity}
-              title="Toggle continuity across captures"
+              title={t("editor.pin.continueHint")}
               className={[
                 "rounded-md px-2 py-1 transition-colors",
                 numbering.continuityOn
@@ -190,7 +192,7 @@ export function PinPanel({
                   : "text-foreground/85 hover:bg-[var(--surface-raised)]",
               ].join(" ")}
             >
-              Continue
+              {t("editor.pin.continue")}
             </button>
           </div>
         </>

@@ -14,6 +14,7 @@ import { openSettings, useSettingsNav } from "@/lib/settingsNav";
 import { currentPlatform } from "@/lib/shortcuts";
 import { pagesWithNewSettings, useSeenSettings } from "@/lib/settingNews";
 import { useSettings } from "@/stores/settings";
+import { useT } from "@/i18n/useT";
 import { VersionFooter } from "./VersionFooter";
 import {
   PAGES,
@@ -44,6 +45,7 @@ export function SettingsSidebar({
   /** Lets the view focus the search field from a keyboard shortcut. */
   searchRef?: React.RefObject<HTMLInputElement | null>;
 }) {
+  const { t } = useT();
   const page = useSettingsNav((s) => s.page);
   const setPage = useSettingsNav((s) => s.setPage);
   const [query, setQuery] = useState("");
@@ -65,7 +67,7 @@ export function SettingsSidebar({
 
   return (
     <nav
-      aria-label="Settings sections"
+      aria-label={t("settings.nav.label")}
       // Pinned while the page scrolls. `self-start` matters: a stretched flex
       // item is as tall as the page, so `sticky` would have nowhere to stick.
       // `top-8` matches SettingsView's `py-8`.
@@ -85,8 +87,8 @@ export function SettingsSidebar({
             if (e.key === "Escape") setQuery("");
             if (e.key === "Enter" && results[0]) jump(results[0]);
           }}
-          placeholder="Search settings"
-          aria-label="Search settings"
+          placeholder={t("settings.search.placeholder")}
+          aria-label={t("settings.search.placeholder")}
           aria-controls={searching ? listId : undefined}
           className="field w-full pl-8"
         />
@@ -96,7 +98,7 @@ export function SettingsSidebar({
         <div id={listId} className="grid gap-0.5">
           {results.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-muted-foreground">
-              No settings match “{query.trim()}”
+              {t("settings.search.noResults", { query: query.trim() })}
             </p>
           ) : (
             results.map((id) => {
@@ -108,10 +110,10 @@ export function SettingsSidebar({
                   onClick={() => jump(id)}
                   className="rounded-lg px-2 py-1.5 text-left text-sm hover:bg-foreground/[0.06]"
                 >
-                  {def.label}
+                  {t(def.labelKey)}
                   <span className="block text-xs text-muted-foreground">
-                    {pageDef(def.page).label}
-                    {def.advanced ? " › Advanced" : ""}
+                    {t(pageDef(def.page).labelKey)}
+                    {def.advanced ? t("settings.search.inAdvanced") : ""}
                   </span>
                 </button>
               );
@@ -122,13 +124,14 @@ export function SettingsSidebar({
         PAGES.map((p) => {
           const Icon = PAGE_ICONS[p.id];
           const active = p.id === page;
+          const label = t(p.labelKey);
           return (
             <button
               key={p.id}
               type="button"
               onClick={() => setPage(p.id)}
               aria-current={active ? "page" : undefined}
-              title={p.label}
+              title={label}
               className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm max-[720px]:justify-center max-[720px]:px-2 ${
                 active
                   ? "bg-accent-soft text-foreground"
@@ -136,11 +139,12 @@ export function SettingsSidebar({
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="max-[720px]:sr-only">{p.label}</span>
+              {/* Thai names run longer than the w-56 column was sized for. */}
+              <span className="min-w-0 truncate max-[720px]:sr-only">{label}</span>
               {pagesWithNews.has(p.id) && (
                 <span
                   className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 max-[720px]:hidden"
-                  aria-label="Has new settings"
+                  aria-label={t("settings.nav.hasNew")}
                 />
               )}
             </button>

@@ -10,13 +10,20 @@ import {
   validateMessage,
   type FeedbackKind,
 } from "@/lib/feedback";
+import { t as tNow, type TKey } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
-const KINDS: { value: FeedbackKind; label: string; hint: string }[] = [
-  { value: "bug", label: "Bug", hint: "Something broke or behaves wrongly." },
-  { value: "feature", label: "Feature", hint: "Something you wish capz did." },
+const KINDS: { value: FeedbackKind; label: TKey; hint: TKey }[] = [
+  { value: "bug", label: "settings.feedback.bug", hint: "settings.feedback.bugHint" },
+  {
+    value: "feature",
+    label: "settings.feedback.feature",
+    hint: "settings.feedback.featureHint",
+  },
 ];
 
 export function FeedbackTab() {
+  const { t } = useT();
   const [kind, setKind] = useState<FeedbackKind>("bug");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -30,13 +37,13 @@ export function FeedbackTab() {
     try {
       const r = await sendFeedback({ kind, message });
       if (r.ok) {
-        toast.success("Thanks, sent anonymously.");
+        toast.success(tNow("settings.feedback.sent"));
         setMessage("");
       } else {
-        toast.error("Could not send feedback", {
+        toast.error(tNow("settings.feedback.failed"), {
           description: r.error,
           action: {
-            label: "Open GitHub Issues",
+            label: tNow("settings.feedback.openIssues"),
             onClick: () => void openIssues(),
           },
         });
@@ -49,15 +56,13 @@ export function FeedbackTab() {
   return (
     <div className="grid gap-4">
       <div className="grid gap-1">
-        <Label className="text-foreground">Send feedback</Label>
+        <Label className="text-foreground">{t("settings.app.feedback")}</Label>
         <p className="text-xs text-muted-foreground">
-          Goes straight to the developer. Anonymous: we receive only your text,
-          the app version and your OS. There is no way to reply, so include what
-          you tried and what you expected.
+          {t("settings.feedback.body")}
         </p>
       </div>
 
-      <div className="flex gap-2" role="radiogroup" aria-label="Feedback type">
+      <div className="flex gap-2" role="radiogroup" aria-label={t("settings.feedback.typeAria")}>
         {KINDS.map((k) => (
           <button
             key={k.value}
@@ -66,9 +71,9 @@ export function FeedbackTab() {
             aria-checked={kind === k.value}
             onClick={() => setKind(k.value)}
             className={kind === k.value ? "btn btn--primary" : "btn btn--secondary"}
-            title={k.hint}
+            title={t(k.hint)}
           >
-            {k.label}
+            {t(k.label)}
           </button>
         ))}
       </div>
@@ -80,14 +85,14 @@ export function FeedbackTab() {
           maxLength={FEEDBACK_MESSAGE_MAX}
           placeholder={
             kind === "bug"
-              ? "What happened? What did you expect? Steps to reproduce help a lot."
-              : "What would you like capz to do, and when would you use it?"
+              ? t("settings.feedback.bugPlaceholder")
+              : t("settings.feedback.featurePlaceholder")
           }
           onChange={(e) => setMessage(e.target.value)}
           disabled={sending}
         />
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{remaining.toLocaleString()} characters left</span>
+          <span>{t("settings.feedback.remaining", { n: remaining.toLocaleString() })}</span>
           <a
             href={GITHUB_ISSUES_URL}
             onClick={(e) => {
@@ -96,7 +101,7 @@ export function FeedbackTab() {
             }}
             className="underline hover:text-foreground"
           >
-            Prefer GitHub Issues?
+            {t("settings.feedback.preferGithub")}
           </a>
         </div>
       </div>
@@ -109,7 +114,9 @@ export function FeedbackTab() {
           disabled={!!invalid || sending}
           title={invalid ?? undefined}
         >
-          {sending ? "Sending…" : `Send ${kind === "bug" ? "bug report" : "feature request"}`}
+          {sending
+            ? t("settings.feedback.sending")
+            : t(kind === "bug" ? "settings.feedback.sendBug" : "settings.feedback.sendFeature")}
         </button>
       </div>
     </div>

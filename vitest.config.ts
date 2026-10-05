@@ -13,5 +13,7 @@ export default defineConfig({
     // `// @vitest-environment jsdom` pragma (see SettingRow.test.tsx).
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}", "worker/src/**/*.test.ts"],
+    // Pin the UI language to English for tests that assert copy.
+    setupFiles: ["src/test/setupLang.ts"],
   },
 });

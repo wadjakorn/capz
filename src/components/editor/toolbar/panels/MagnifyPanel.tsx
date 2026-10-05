@@ -20,6 +20,7 @@ import type {
 import type { MagnifyShape } from "@/stores/editor";
 import type { SliderPreset } from "../PresetSlider";
 import type { RefObject } from "react";
+import { useT } from "@/i18n/useT";
 
 const borderWidthPresets: SliderPreset[] = [
   { value: 2, node: <StrokeGlyph t={1} />, title: "2 px" },
@@ -52,18 +53,19 @@ export function MagnifyPanel({
   arrowDashCtx: ToggleCtx | null;
   colorInputRef: RefObject<HTMLInputElement | null>;
 }) {
+  const { t } = useT();
   return (
     <Group>
-      <SectionLabel>Loupe</SectionLabel>
+      <SectionLabel>{t("editor.panel.loupe")}</SectionLabel>
       {magnifyShapeCtx && (
         <IconSegmented<MagnifyShape>
           value={magnifyShapeCtx.value}
           onChange={magnifyShapeCtx.onChange}
-          title="Loupe shape"
-          ariaLabel="Loupe shape"
+          title={t("editor.panel.loupeShape")}
+          ariaLabel={t("editor.panel.loupeShape")}
           options={[
-            { value: "circle", title: "Circle", Icon: CircleIcon },
-            { value: "rect", title: "Rectangle", Icon: Square },
+            { value: "circle", title: t("editor.panel.circle"), Icon: CircleIcon },
+            { value: "rect", title: t("editor.panel.rectangle"), Icon: Square },
           ]}
         />
       )}
@@ -80,9 +82,9 @@ export function MagnifyPanel({
         />
       )}
 
-      <SectionLabel>Border</SectionLabel>
+      <SectionLabel>{t("editor.panel.border")}</SectionLabel>
       {colorCtx && (
-        <ColorField ctx={colorCtx} inputRef={colorInputRef} title="Border color" />
+        <ColorField ctx={colorCtx} inputRef={colorInputRef} title={t("editor.panel.borderColor")} />
       )}
       {(magnifyLinkCtx || arrowDashCtx) && (
         <div className="flex items-center gap-0.5">
@@ -92,10 +94,10 @@ export function MagnifyPanel({
               onClick={() => magnifyLinkCtx.onChange(!magnifyLinkCtx.value)}
               title={
                 magnifyLinkCtx.value
-                  ? "Borders linked — click to set separately"
-                  : "Borders separate — click to link"
+                  ? t("editor.panel.bordersLinked")
+                  : t("editor.panel.bordersSeparate")
               }
-              ariaLabel="Link border widths"
+              ariaLabel={t("editor.panel.linkBorders")}
               Icon={magnifyLinkCtx.value ? Link2 : Link2Off}
             />
           )}
@@ -103,8 +105,8 @@ export function MagnifyPanel({
             <ToggleIconButton
               active={arrowDashCtx.value}
               onClick={() => arrowDashCtx.onChange(!arrowDashCtx.value)}
-              title="Dashed line"
-              ariaLabel="Dashed line"
+              title={t("editor.panel.dashedLine")}
+              ariaLabel={t("editor.panel.dashedLine")}
               Icon={DashLineIcon}
             />
           )}

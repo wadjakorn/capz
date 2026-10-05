@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 
 // 1x1 red PNG
 const PNG_B64 =

@@ -7,6 +7,9 @@ import { GlowTile } from "@/components/design/tiles/GlowTile";
 import { ToggleRow } from "@/components/settings/ToggleRow";
 import { markNudgeShown, setShareInstallId } from "@/lib/installId";
 import { useSettings } from "@/stores/settings";
+import { useT } from "@/i18n/useT";
+import { LANGS, type Lang, type TKey } from "@/i18n/store";
+import { rich } from "@/lib/richText";
 
 type Step = "welcome" | "permission" | "accessibility" | "done";
 
@@ -20,6 +23,7 @@ type Props = {
 
 export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
   const { ready, init, update, config } = useSettings();
+  const { t } = useT();
   const [step, setStep] = useState<Step>("welcome");
   const [granted, setGranted] = useState<boolean | null>(null);
   const [requested, setRequested] = useState(false);
@@ -162,7 +166,7 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
   if (!ready) {
     return (
       <main className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Loading…
+        {t("onboarding.loading")}
       </main>
     );
   }
@@ -190,6 +194,8 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
         <div className="pt-2">
           {step === "welcome" && (
             <Welcome
+              language={config.general.language}
+              onLanguage={(language) => void update("general", { language })}
               onNext={() => {
                 if (IS_MAC) setStep("permission");
                 else setStep("done");
@@ -234,16 +240,17 @@ export function OnboardingView({ onDone, onOpenInertRecovery }: Props) {
 }
 
 function Stepper({ step, showMac }: { step: Step; showMac: boolean }) {
+  const { t } = useT();
   const steps: { id: Step; label: string }[] = showMac
     ? [
-        { id: "welcome", label: "Welcome" },
-        { id: "permission", label: "Permission" },
-        { id: "accessibility", label: "Auto-scroll" },
-        { id: "done", label: "Done" },
+        { id: "welcome", label: t("onboarding.step.welcome") },
+        { id: "permission", label: t("onboarding.step.permission") },
+        { id: "accessibility", label: t("onboarding.step.autoScroll") },
+        { id: "done", label: t("onboarding.step.done") },
       ]
     : [
-        { id: "welcome", label: "Welcome" },
-        { id: "done", label: "Done" },
+        { id: "welcome", label: t("onboarding.step.welcome") },
+        { id: "done", label: t("onboarding.step.done") },
       ];
   return (
     <ol className="flex items-center gap-2 text-xs">
@@ -278,41 +285,127 @@ function Stepper({ step, showMac }: { step: Step; showMac: boolean }) {
   );
 }
 
-function Welcome({ onNext }: { onNext: () => void }) {
+function Welcome({
+  language,
+  onLanguage,
+  onNext,
+}: {
+  language: Lang;
+  onLanguage: (l: Lang) => void;
+  onNext: () => void;
+}) {
+  const { t } = useT();
   const mod = IS_MAC ? "⌘⌥⇧" : "Ctrl+Alt+Shift+";
   return (
     <div className="grid gap-4">
-      <h1 className="headline">Welcome to capz</h1>
-      <p className="text-sm text-muted-foreground">
-        Fast screenshots with annotation. Default hotkeys:
-      </p>
+      <LanguagePicker value={language} onChange={onLanguage} />
+      <h1 className="headline">{t("onboarding.welcome.title")}</h1>
+      <p className="text-sm text-muted-foreground">{t("onboarding.welcome.lead")}</p>
       <ul className="grid gap-2 text-sm">
         <li className="flex items-center gap-2">
           <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
             {mod}3
           </kbd>
-          <span className="text-foreground/80">full screen capture</span>
+          <span className="text-foreground/80">{t("onboarding.welcome.full")}</span>
         </li>
         <li className="flex items-center gap-2">
           <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
             {mod}4
           </kbd>
-          <span className="text-foreground/80">area capture</span>
+          <span className="text-foreground/80">{t("onboarding.welcome.area")}</span>
         </li>
         <li className="flex items-center gap-2">
           <kbd className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-xs">
             {mod}5
           </kbd>
-          <span className="text-foreground/80">window capture</span>
+          <span className="text-foreground/80">{t("onboarding.welcome.window")}</span>
         </li>
       </ul>
-      <p className="text-xs text-muted-foreground">
-        Change these any time from Settings.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("onboarding.welcome.changeLater")}</p>
       <div className="mt-4 flex justify-end">
         <button onClick={onNext} className="btn btn--primary">
-          Next
+          {t("onboarding.next")}
         </button>
+      </div>
+    </div>
+  );
+}
+
+const LANG_LABEL_KEY: Record<Lang, TKey> = {
+  th: "onboarding.language.th",
+  en: "onboarding.language.en",
+};
+
+/**
+ * First thing on the Welcome step. Writes `general.language`; LanguageManager
+ * then switches every window (this one included) straight away. Radio-group
+ * semantics with a roving tab stop: Tab lands on the selected card, arrow keys
+ * move and select, like native radios.
+ */
+function LanguagePicker({ value, onChange }: { value: Lang; onChange: (l: Lang) => void }) {
+  const { t } = useT();
+  const refs = useRef<Partial<Record<Lang, HTMLButtonElement | null>>>({});
+
+  const onKeyDown = (e: React.KeyboardEvent, current: Lang) => {
+    const step =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (step === 0) return;
+    e.preventDefault();
+    const i = LANGS.indexOf(current);
+    const next = LANGS[(i + step + LANGS.length) % LANGS.length];
+    onChange(next);
+    refs.current[next]?.focus();
+  };
+
+  return (
+    <div className="grid gap-2">
+      <span id="onboarding-language-label" className="eyebrow">
+        {t("onboarding.language.heading")}
+      </span>
+      <div
+        role="radiogroup"
+        aria-labelledby="onboarding-language-label"
+        className="grid grid-cols-2 gap-2"
+      >
+        {LANGS.map((l) => {
+          const checked = value === l;
+          return (
+            <button
+              key={l}
+              ref={(el) => {
+                refs.current[l] = el;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              tabIndex={checked ? 0 : -1}
+              lang={l}
+              onClick={() => onChange(l)}
+              onKeyDown={(e) => onKeyDown(e, l)}
+              className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] ${
+                checked
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-foreground"
+                  : "border-white/10 bg-white/[0.04] text-foreground/80 hover:bg-white/[0.07]"
+              }`}
+            >
+              <span>{t(LANG_LABEL_KEY[l])}</span>
+              <span
+                aria-hidden
+                className={`flex h-5 w-5 items-center justify-center rounded-full ${
+                  checked
+                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                    : "ring-1 ring-white/20"
+                }`}
+              >
+                {checked && <Check className="h-3 w-3" />}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -355,43 +448,24 @@ function Permission({
         : requested
           ? "open-settings"
           : "ask";
+  const { t } = useT();
 
   return (
     <div className="grid gap-4">
-      <h2 className="headline">Screen Recording permission</h2>
-      <p className="text-sm text-muted-foreground">
-        macOS asks every app for explicit permission to read your screen
-        contents. Without it capz can&apos;t capture anything.
-      </p>
+      <h2 className="headline">{t("onboarding.perm.title")}</h2>
+      <p className="text-sm text-muted-foreground">{t("onboarding.perm.lead")}</p>
 
       <StatusCard state={state} />
 
-      {state === "ask" && (
-        <Guidance>
-          Click <strong>Allow</strong> in the macOS prompt that appears next.
-          If you don&apos;t see it, use <em>Open System Settings</em> below.
-        </Guidance>
-      )}
+      {state === "ask" && <Guidance>{rich(t("onboarding.perm.guide.ask"))}</Guidance>}
       {state === "open-settings" && (
-        <Guidance>
-          macOS won&apos;t prompt again. Open System Settings, find{" "}
-          <strong>capz</strong> under Screen Recording, and toggle it on. This
-          view updates automatically once granted.
-        </Guidance>
+        <Guidance>{rich(t("onboarding.perm.guide.openSettings"))}</Guidance>
       )}
       {state === "needs-relaunch" && (
-        <Guidance tone="warning">
-          Permission granted, but macOS only applies it to processes started
-          <em> after</em> the change. Relaunch capz to finish.
-        </Guidance>
+        <Guidance tone="warning">{rich(t("onboarding.perm.guide.relaunch"))}</Guidance>
       )}
       {state === "inert" && (
-        <Guidance tone="warning">
-          System Settings shows capz as allowed, but the entry is keyed to the
-          previous build and the new binary cannot capture. The stale row must
-          be removed (minus button) — toggling won&apos;t recover. Use{" "}
-          <strong>Fix permission…</strong> below for the guided steps.
-        </Guidance>
+        <Guidance tone="warning">{rich(t("onboarding.perm.guide.inert"))}</Guidance>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -410,7 +484,7 @@ function Permission({
             disabled={busy !== ""}
             className="btn btn--secondary"
           >
-            Open System Settings
+            {t("onboarding.openSystemSettings")}
           </button>
         )}
       </div>
@@ -421,7 +495,7 @@ function Permission({
           disabled={busy !== ""}
           className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
-          Skip for now
+          {t("onboarding.skipForNow")}
         </button>
       </div>
     </div>
@@ -433,6 +507,7 @@ function StatusCard({
 }: {
   state: "unknown" | "ready" | "needs-relaunch" | "ask" | "open-settings" | "inert";
 }) {
+  const { t } = useT();
   const map: Record<
     typeof state,
     { tile: string; tone: string; icon: typeof Check; label: string; eyebrow: string }
@@ -441,43 +516,43 @@ function StatusCard({
       tile: "tile",
       tone: "text-[var(--color-fg-2)]",
       icon: Clock,
-      eyebrow: "Checking",
-      label: "Polling system permission…",
+      eyebrow: t("onboarding.status.checking"),
+      label: t("onboarding.status.polling"),
     },
     ready: {
       tile: "tile",
       tone: "text-emerald-200",
       icon: Check,
-      eyebrow: "Granted",
-      label: "Ready to capture",
+      eyebrow: t("onboarding.status.granted"),
+      label: t("onboarding.status.ready"),
     },
     "needs-relaunch": {
       tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
-      eyebrow: "Relaunch",
-      label: "Granted — relaunch required",
+      eyebrow: t("onboarding.status.relaunch"),
+      label: t("onboarding.status.needsRelaunch"),
     },
     ask: {
       tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
-      eyebrow: "Pending",
-      label: "Not granted yet",
+      eyebrow: t("onboarding.status.pending"),
+      label: t("onboarding.status.notGranted"),
     },
     "open-settings": {
       tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
-      eyebrow: "Pending",
-      label: "Awaiting toggle in System Settings",
+      eyebrow: t("onboarding.status.pending"),
+      label: t("onboarding.status.awaitingToggle"),
     },
     inert: {
       tile: "tile",
       tone: "text-amber-200",
       icon: ShieldCheck,
-      eyebrow: "Stale grant",
-      label: "Granted on paper — capture returns blank frames",
+      eyebrow: t("onboarding.status.stale"),
+      label: t("onboarding.status.inert"),
     },
   };
   const s = map[state];
@@ -527,31 +602,32 @@ function PrimaryButton({
   onOpenInertRecovery?: () => void;
   onNext: () => void;
 }) {
+  const { t } = useT();
   if (state === "ready") {
     return (
       <button onClick={onNext} disabled={busy !== ""} className="btn btn--primary">
-        Continue
+        {t("onboarding.continue")}
       </button>
     );
   }
   if (state === "needs-relaunch") {
     return (
       <button onClick={onRelaunch} disabled={busy !== ""} className="btn btn--primary">
-        {busy === "relaunch" ? "Relaunching…" : "Relaunch capz"}
+        {busy === "relaunch" ? t("onboarding.relaunching") : t("onboarding.relaunchCapz")}
       </button>
     );
   }
   if (state === "ask") {
     return (
       <button onClick={onRequest} disabled={busy !== ""} className="btn btn--primary">
-        {busy === "request" ? "Requesting…" : "Request permission"}
+        {busy === "request" ? t("onboarding.requesting") : t("onboarding.requestPermission")}
       </button>
     );
   }
   if (state === "open-settings") {
     return (
       <button onClick={onOpenSettings} disabled={busy !== ""} className="btn btn--primary">
-        {busy === "open" ? "Opening…" : "Open System Settings"}
+        {busy === "open" ? t("onboarding.opening") : t("onboarding.openSystemSettings")}
       </button>
     );
   }
@@ -562,13 +638,13 @@ function PrimaryButton({
         disabled={busy !== "" || !onOpenInertRecovery}
         className="btn btn--primary disabled:opacity-50"
       >
-        Fix permission…
+        {t("onboarding.fixPermission")}
       </button>
     );
   }
   return (
     <button disabled className="btn btn--primary">
-      Checking…
+      {t("onboarding.checkingButton")}
     </button>
   );
 }
@@ -596,16 +672,12 @@ function Accessibility({
         : requested
           ? "open-settings"
           : "ask";
+  const { t } = useT();
 
   return (
     <div className="grid gap-4">
-      <h2 className="headline">Auto-scroll (optional)</h2>
-      <p className="text-sm text-muted-foreground">
-        Scrolling capture can drive long pages for you instead of scrolling by
-        hand. macOS requires <strong>Accessibility</strong> permission to move
-        the page. You can skip this and still capture manually — or grant it here
-        or later from Settings.
-      </p>
+      <h2 className="headline">{t("onboarding.ax.title")}</h2>
+      <p className="text-sm text-muted-foreground">{rich(t("onboarding.ax.lead"))}</p>
 
       <div className="surface flex items-center gap-3 p-3">
         <GlowTile
@@ -623,10 +695,10 @@ function Accessibility({
         <div className="flex flex-col">
           <span className="eyebrow">
             {state === "ready"
-              ? "Granted"
+              ? t("onboarding.status.granted")
               : state === "unknown"
-                ? "Checking"
-                : "Optional"}
+                ? t("onboarding.status.checking")
+                : t("onboarding.status.optional")}
           </span>
           <span
             className={`text-sm ${
@@ -634,44 +706,35 @@ function Accessibility({
             }`}
           >
             {state === "ready"
-              ? "Auto-scroll is ready"
+              ? t("onboarding.ax.ready")
               : state === "unknown"
-                ? "Polling system permission…"
-                : "Not granted — auto-scroll falls back to manual"}
+                ? t("onboarding.status.polling")
+                : t("onboarding.ax.notGranted")}
           </span>
         </div>
       </div>
 
-      {state === "ask" && (
-        <Guidance>
-          Click <strong>Open the prompt</strong>, then enable <strong>capz</strong>{" "}
-          under Privacy &amp; Security → Accessibility.
-        </Guidance>
-      )}
+      {state === "ask" && <Guidance>{rich(t("onboarding.ax.guide.ask"))}</Guidance>}
       {state === "open-settings" && (
-        <Guidance>
-          Find <strong>capz</strong> under Privacy &amp; Security → Accessibility
-          and toggle it on. This view updates automatically once granted; you may
-          need to relaunch capz for it to take effect.
-        </Guidance>
+        <Guidance>{rich(t("onboarding.ax.guide.openSettings"))}</Guidance>
       )}
 
       <div className="flex flex-wrap gap-2">
         {state === "ready" ? (
           <button onClick={onNext} disabled={busy !== ""} className="btn btn--primary">
-            Continue
+            {t("onboarding.continue")}
           </button>
         ) : (
           <>
             <button onClick={onRequest} disabled={busy !== ""} className="btn btn--primary">
-              {busy === "request" ? "Requesting…" : "Open the prompt"}
+              {busy === "request" ? t("onboarding.requesting") : t("onboarding.ax.openPrompt")}
             </button>
             <button
               onClick={onOpenSettings}
               disabled={busy !== ""}
               className="btn btn--secondary"
             >
-              {busy === "open" ? "Opening…" : "Open System Settings"}
+              {busy === "open" ? t("onboarding.opening") : t("onboarding.openSystemSettings")}
             </button>
           </>
         )}
@@ -683,7 +746,7 @@ function Accessibility({
           disabled={busy !== ""}
           className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
-          Skip for now
+          {t("onboarding.skipForNow")}
         </button>
       </div>
     </div>
@@ -699,27 +762,23 @@ function Done({
   onShareInstallId: (v: boolean) => void;
   onFinish: () => void;
 }) {
+  const { t } = useT();
   return (
     <div className="grid gap-4">
-      <h2 className="headline">You&apos;re all set</h2>
-      <p className="text-sm text-muted-foreground">
-        capz lives in your menu bar / system tray. Use the hotkeys, or click
-        the tray icon for capture options.
-      </p>
+      <h2 className="headline">{t("onboarding.done.title")}</h2>
+      <p className="text-sm text-muted-foreground">{t("onboarding.done.lead")}</p>
       <div className="rounded-lg border border-border p-3">
         <ToggleRow
-          label="Help count active installs"
-          hint="Optional. Sends a random ID with the daily update check so the developer can see how many machines use capz. No personal data, nothing about your machine. You can change this any time in Settings → Updates."
+          label={t("onboarding.done.shareLabel")}
+          hint={t("onboarding.done.shareHint")}
           checked={shareInstallId}
           onChange={onShareInstallId}
         />
       </div>
-      <p className="text-xs text-muted-foreground">
-        Tweak everything later from the Settings view.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("onboarding.done.tweakLater")}</p>
       <div className="mt-4 flex justify-end">
         <button onClick={onFinish} className="btn btn--primary">
-          Finish
+          {t("onboarding.finish")}
         </button>
       </div>
     </div>

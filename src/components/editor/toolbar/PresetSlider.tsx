@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useT } from "@/i18n/useT";
 
 /** One quick-set preset: `value` is applied on click; `node` is the button's
  * visual (a glyph/icon that conveys the effect, not the raw number); `title`
@@ -51,6 +52,7 @@ export function PresetSlider({
   /** Custom readout formatter (wins over round/unit), e.g. line-height "1.35×". */
   format?: (v: number) => string;
 }) {
+  const { t } = useT();
   const readout = format
     ? format(value)
     : `${round ? Math.round(value) : value}${unit ? ` ${unit}` : ""}`;
@@ -92,7 +94,7 @@ export function PresetSlider({
         max={max}
         step={step}
         value={value}
-        aria-label={`${label} fine adjust`}
+        aria-label={t("editor.panel.fineAdjust", { label })}
         onChange={(e) =>
           onChange(round ? Math.round(+e.target.value) : +e.target.value)
         }

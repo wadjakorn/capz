@@ -444,7 +444,7 @@ pub fn show_editor<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     let (w, h) = read_editor_window_size(app);
     WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("editor/".into()))
-        .title("capz — Editor")
+        .title(crate::i18n::tr(crate::i18n::Msg::EditorTitle))
         .inner_size(w, h)
         .min_inner_size(1024.0, 680.0)
         .resizable(true)

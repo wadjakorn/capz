@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ToolButton } from "./ToolButton";
+import { useT } from "@/i18n/useT";
 
 // Shared 32px hit target, matching every other toolbar button; 44px below
 // Tailwind's `sm`, matching ToolButton, so it stays finger-sized on a phone.
@@ -29,6 +30,7 @@ export function ZoomMenuButton({
   displayScale: number;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const pct = displayScale > 0 ? Math.round(displayScale * 100) : null;
   const sliderValue = scaleToSlider(displayScale > 0 ? displayScale : 1);
 
@@ -36,7 +38,7 @@ export function ZoomMenuButton({
     <div className="inline-flex items-center gap-1">
       <ToolButton
         icon={Maximize2}
-        label="Fit to window"
+        label={t("editor.zoom.fit")}
         hint="⌘0"
         disabled={disabled}
         onClick={() => zoomToFit()}
@@ -45,8 +47,8 @@ export function ZoomMenuButton({
         type="button"
         onClick={() => zoomTo100()}
         disabled={disabled}
-        title="Zoom to 100% (⌘1)"
-        aria-label="Zoom to 100%"
+        title={`${t("editor.zoom.to100")} (⌘1)`}
+        aria-label={t("editor.zoom.to100")}
         className={`${HIT} w-8 text-[11px] font-semibold tabular-nums`}
       >
         1:1
@@ -57,8 +59,8 @@ export function ZoomMenuButton({
             <button
               type="button"
               disabled={disabled}
-              title="Set zoom"
-              aria-label="Set zoom"
+              title={t("editor.zoom.set")}
+              aria-label={t("editor.zoom.set")}
               className={`${HIT} gap-1 px-2 text-xs tabular-nums`}
             >
               {pct !== null ? `${pct}%` : "—"}
@@ -71,8 +73,8 @@ export function ZoomMenuButton({
             <button
               type="button"
               onClick={() => zoomAtViewportCenter(1 / 1.2)}
-              title="Zoom out (⌘−)"
-              aria-label="Zoom out"
+              title={`${t("editor.zoom.out")} (⌘−)`}
+              aria-label={t("editor.zoom.out")}
               className={`${HIT} w-8 shrink-0`}
             >
               <ZoomOut className="h-4 w-4" aria-hidden />
@@ -92,7 +94,7 @@ export function ZoomMenuButton({
                 step={0.001}
                 value={sliderValue}
                 disabled={disabled}
-                aria-label="Zoom level"
+                aria-label={t("editor.zoom.level")}
                 onChange={(e) => setZoom(sliderToScale(Number(e.target.value)))}
                 className="relative w-full accent-[var(--accent)]"
               />
@@ -101,8 +103,8 @@ export function ZoomMenuButton({
             <button
               type="button"
               onClick={() => zoomAtViewportCenter(1.2)}
-              title="Zoom in (⌘+)"
-              aria-label="Zoom in"
+              title={`${t("editor.zoom.in")} (⌘+)`}
+              aria-label={t("editor.zoom.in")}
               className={`${HIT} w-8 shrink-0`}
             >
               <ZoomIn className="h-4 w-4" aria-hidden />

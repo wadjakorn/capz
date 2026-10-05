@@ -4,7 +4,7 @@
  *
  * Tier-1: the React UI under mocked IPC.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
 import { installTauriMock } from "../fixtures/tauri-mock";
 
 test.beforeEach(async ({ page }) => {
@@ -20,7 +20,8 @@ test.beforeEach(async ({ page }) => {
 test("sidebar pages are named, not just icons", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "Settings sections" });
   for (const label of ["Capture", "Editor", "Saving", "Library", "App"]) {
-    await expect(nav.getByRole("button", { name: label, exact: true })).toBeVisible();
+    // A page with new settings appends "Has new settings" to its name.
+    await expect(nav.getByRole("button", { name: new RegExp(`^${label}\\b`) })).toBeVisible();
   }
 });
 

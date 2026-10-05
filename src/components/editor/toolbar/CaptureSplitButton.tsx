@@ -20,13 +20,15 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/useT";
+import type { TKey } from "@/i18n/store";
 
 export type CaptureKind = "full" | "area" | "window";
 
-const KINDS: { kind: CaptureKind; label: string; icon: LucideIcon }[] = [
-  { kind: "full", label: "Capture full screen", icon: Monitor },
-  { kind: "area", label: "Capture area", icon: Crop },
-  { kind: "window", label: "Capture window", icon: AppWindow },
+const KINDS: { kind: CaptureKind; labelKey: TKey; icon: LucideIcon }[] = [
+  { kind: "full", labelKey: "editor.capture.full", icon: Monitor },
+  { kind: "area", labelKey: "editor.capture.area", icon: Crop },
+  { kind: "window", labelKey: "editor.capture.window", icon: AppWindow },
 ];
 
 /**
@@ -73,6 +75,7 @@ export function CaptureSplitButton({
   // Shortcut glyphs are platform-specific (⌘ vs Ctrl). navigator is absent
   // during prerender, so pin to the prerender value ("win") until mounted to
   // avoid a hydration mismatch, then switch to the real platform.
+  const { t } = useT();
   const [platform, setPlatform] = useState<Platform>("win");
   useEffect(() => setPlatform(currentPlatform()), []);
 
@@ -82,8 +85,9 @@ export function CaptureSplitButton({
   // is the destination, not the capture kind, and reusing the replace icons
   // would make the two buttons indistinguishable at a glance.
   const PrimaryIcon = layer ? Layers : primary.icon;
-  const label = (base: string) => (layer ? `${base} as a layer` : base);
-  const primaryLabel = label(primary.label);
+  const label = (key: TKey) =>
+    layer ? t("editor.capture.asLayer", { label: t(key) }) : t(key);
+  const primaryLabel = label(primary.labelKey);
   const primaryTitle = disabled
     ? (disabledReason ?? primaryLabel)
     : `${primaryLabel} (${formatShortcut(accelerators[primary.kind], platform)})`;
@@ -109,8 +113,8 @@ export function CaptureSplitButton({
             <button
               type="button"
               disabled={disabled}
-              title={disabled ? disabledReason : label("Capture options")}
-              aria-label={label("Capture options")}
+              title={disabled ? disabledReason : label("editor.capture.options")}
+              aria-label={label("editor.capture.options")}
               className="flex h-8 w-4 max-sm:h-11 max-sm:w-11 items-center justify-center text-foreground/60 transition-colors hover:bg-[var(--surface-raised)] hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronDown className="h-3 w-3" aria-hidden />
@@ -126,7 +130,7 @@ export function CaptureSplitButton({
                 onClick={() => onCapture(k.kind)}
               >
                 <Icon aria-hidden />
-                <span>{label(k.label)}</span>
+                <span>{label(k.labelKey)}</span>
                 <DropdownMenuShortcut>
                   {formatShortcut(accelerators[k.kind], platform)}
                 </DropdownMenuShortcut>
@@ -138,7 +142,7 @@ export function CaptureSplitButton({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onSystemAreaCapture()}>
                 <Crosshair aria-hidden />
-                <span>{label("System area capture")}</span>
+                <span>{label("editor.capture.systemArea")}</span>
                 {systemAreaAccelerator ? (
                   <DropdownMenuShortcut>
                     {formatShortcut(systemAreaAccelerator, platform)}
@@ -152,7 +156,7 @@ export function CaptureSplitButton({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onScrollCapture()}>
                 <ScrollText aria-hidden />
-                <span>{label("Scrolling capture")}</span>
+                <span>{label("editor.capture.scrolling")}</span>
                 <span
                   className="ml-1.5 rounded-full px-1.5 py-px text-[10px] font-semibold uppercase leading-none tracking-wide"
                   style={{

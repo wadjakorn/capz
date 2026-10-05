@@ -100,7 +100,7 @@ where
     R: Runtime,
     F: FnOnce() -> anyhow::Result<image::RgbaImage> + Send + 'static,
 {
-    tray::set_busy(&app, "Capturing…");
+    tray::set_busy(&app, crate::i18n::tr(crate::i18n::Msg::Capturing));
     let spec = read_capture_intermediate(&app);
     let res = tokio::task::spawn_blocking(move || -> anyhow::Result<std::path::PathBuf> {
         let img = capture()?;
@@ -114,12 +114,12 @@ where
         Ok(Ok(p)) => p,
         Ok(Err(e)) => {
             tray::set_idle(&app);
-            emit_capture_error(&app, &format!("Capture failed: {e}"));
+            emit_capture_error(&app, &crate::i18n::capture_failed(&e));
             return Err(e.to_string());
         }
         Err(e) => {
             tray::set_idle(&app);
-            emit_capture_error(&app, &format!("Capture failed: {e}"));
+            emit_capture_error(&app, &crate::i18n::capture_failed(&e));
             return Err(format!("join: {e}"));
         }
     };
@@ -202,7 +202,7 @@ pub async fn capture_region_command<R: Runtime>(
     w: u32, // width, physical px
     h: u32, // height, physical px
 ) -> Result<String, String> {
-    tray::set_busy(&app, "Capturing…");
+    tray::set_busy(&app, crate::i18n::tr(crate::i18n::Msg::Capturing));
     hide_overlays_and_wait(&app).await?;
     let res = capture_to_editor(
         app.clone(),

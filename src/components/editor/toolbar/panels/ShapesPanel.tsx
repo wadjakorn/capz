@@ -13,6 +13,7 @@ import {
 import type { ColorCtx, NumCtx, RectShapeCtx } from "./types";
 import type { RectShapeKind } from "@/stores/editor";
 import type { RefObject } from "react";
+import { useT } from "@/i18n/useT";
 
 /** Shapes tool (rect/ellipse/line/dashed): stroke color + width (1–20), a shape
  * picker, and a corner radius (0–60) for the rectangle. */
@@ -31,20 +32,21 @@ export function ShapesPanel({
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
 }) {
+  const { t } = useT();
   return (
     <Group>
-      <SectionLabel>Shape</SectionLabel>
+      <SectionLabel>{t("editor.panel.shape")}</SectionLabel>
       {rectShapeCtx && (
         <IconSegmented<RectShapeKind>
           value={rectShapeCtx.value}
           onChange={rectShapeCtx.onChange}
-          title="Shape"
-          ariaLabel="Shape"
+          title={t("editor.panel.shape")}
+          ariaLabel={t("editor.panel.shape")}
           options={[
-            { value: "rect", title: "Rectangle", Icon: Square },
-            { value: "ellipse", title: "Circle", Icon: CircleIcon },
-            { value: "line", title: "Line", Icon: Minus },
-            { value: "dashline", title: "Dashed line", Icon: DashLineIcon },
+            { value: "rect", title: t("editor.panel.rectangle"), Icon: Square },
+            { value: "ellipse", title: t("editor.panel.circle"), Icon: CircleIcon },
+            { value: "line", title: t("editor.panel.line"), Icon: Minus },
+            { value: "dashline", title: t("editor.panel.dashedLine"), Icon: DashLineIcon },
           ]}
         />
       )}
@@ -52,7 +54,7 @@ export function ShapesPanel({
         <ColorField
           ctx={colorCtx}
           inputRef={colorInputRef}
-          title={selected ? "Edit selected element color" : "Default color for next element"}
+          title={selected ? t("editor.panel.colorSelected") : t("editor.panel.colorDefault")}
         />
       )}
       {widthCtx && (

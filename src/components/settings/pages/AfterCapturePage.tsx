@@ -12,6 +12,7 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { SettingRow } from "@/components/settings/SettingRow";
 import { AdvancedSection } from "@/components/settings/AdvancedSection";
 import { useSettings } from "@/stores/settings";
+import { useT } from "@/i18n/useT";
 
 async function pickDir(current: string | null): Promise<string | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -33,6 +34,7 @@ async function openFolder(path: string | null): Promise<void> {
 
 /** What happens to a screenshot when you leave the editor, and where files go. */
 export function AfterCapturePage() {
+  const { t } = useT();
   const output = useSettings((s) => s.config.output);
   const capture = useSettings((s) => s.config.capture);
   const general = useSettings((s) => s.config.general);
@@ -48,7 +50,7 @@ export function AfterCapturePage() {
       <SectionCard>
         <SettingRow
           id="after.onClose"
-          hint="Runs when you press Esc or close the editor."
+          hint={t("settings.after.onClose.hint")}
         >
           <Select
             value={general.closeAction}
@@ -62,28 +64,28 @@ export function AfterCapturePage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Do nothing</SelectItem>
-              <SelectItem value="copy">Copy to clipboard</SelectItem>
-              <SelectItem value="file">Save to file</SelectItem>
-              <SelectItem value="both">Save and copy</SelectItem>
+              <SelectItem value="none">{t("settings.after.onClose.none")}</SelectItem>
+              <SelectItem value="copy">{t("settings.after.onClose.copy")}</SelectItem>
+              <SelectItem value="file">{t("settings.after.onClose.file")}</SelectItem>
+              <SelectItem value="both">{t("settings.after.onClose.both")}</SelectItem>
             </SelectContent>
           </Select>
         </SettingRow>
 
         <SettingRow
           id="after.folder"
-          hint="Files save here directly. Repeat names get -1, -2 added."
+          hint={t("settings.after.folder.hint")}
         >
           <div className="flex items-center gap-2">
             <Input
               value={output.defaultSavePath ?? ""}
               readOnly
-              placeholder="Resolving default…"
+              placeholder={t("settings.after.folder.placeholder")}
               className="w-56 font-mono text-xs"
-              aria-label="Save folder"
+              aria-label={t("settings.after.folder")}
             />
             <button type="button" onClick={onChoose} className="btn btn--secondary">
-              Choose…
+              {t("settings.choose")}
             </button>
             <button
               type="button"
@@ -91,7 +93,7 @@ export function AfterCapturePage() {
               disabled={!output.defaultSavePath}
               className="btn btn--secondary"
             >
-              Open
+              {t("settings.after.folder.open")}
             </button>
           </div>
         </SettingRow>
@@ -118,18 +120,18 @@ export function AfterCapturePage() {
       <AdvancedSection page="after">
         <SettingRow
           id="after.filename"
-          hint={`Tokens: ${"{yyyy} {MM} {dd} {HH} {mm} {ss}"}`}
+          hint={t("settings.after.filename.hint", { tokens: "{yyyy} {MM} {dd} {HH} {mm} {ss}" })}
         >
           <Input
             value={output.filenameTemplate}
             onChange={(e) => update("output", { filenameTemplate: e.target.value })}
             className="w-56 font-mono"
-            aria-label="Filename template"
+            aria-label={t("settings.after.filename.aria")}
           />
         </SettingRow>
 
         {output.fileFormat === "jpeg" && (
-          <SettingRow id="after.quality" hint={`Currently ${output.jpegQuality}`}>
+          <SettingRow id="after.quality" hint={t("settings.currently", { value: output.jpegQuality })}>
             <Input
               type="number"
               min={1}
@@ -141,19 +143,19 @@ export function AfterCapturePage() {
                 })
               }
               className="w-24"
-              aria-label="JPEG quality"
+              aria-label={t("settings.after.quality")}
             />
           </SettingRow>
         )}
 
         <SettingRow
           id="after.edge"
-          hint="Downscales captures whose longest side is bigger. Blank keeps native resolution."
+          hint={t("settings.after.edge.hint")}
         >
           <Input
             type="number"
             min={0}
-            placeholder="No limit"
+            placeholder={t("settings.after.edge.placeholder")}
             value={capture.intermediateMaxEdge ?? ""}
             onChange={(e) => {
               const raw = e.target.value.trim();
@@ -161,13 +163,13 @@ export function AfterCapturePage() {
               update("capture", { intermediateMaxEdge: next });
             }}
             className="w-28"
-            aria-label="Longest edge in pixels"
+            aria-label={t("settings.after.edge.aria")}
           />
         </SettingRow>
 
         <SettingRow
           id="after.temp"
-          hint="What the editor loads from. JPEG is faster but caps the quality of every export."
+          hint={t("settings.after.temp.hint")}
         >
           <Select
             value={capture.intermediateFormat}
@@ -181,8 +183,8 @@ export function AfterCapturePage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="png">PNG — every pixel kept</SelectItem>
-              <SelectItem value="jpeg">JPEG — smaller and faster</SelectItem>
+              <SelectItem value="png">{t("settings.after.temp.png")}</SelectItem>
+              <SelectItem value="jpeg">{t("settings.after.temp.jpeg")}</SelectItem>
             </SelectContent>
           </Select>
         </SettingRow>
@@ -190,7 +192,7 @@ export function AfterCapturePage() {
         {capture.intermediateFormat === "jpeg" && (
           <SettingRow
             id="after.tempQuality"
-            hint={`Currently ${capture.tempJpegQuality}`}
+            hint={t("settings.currently", { value: capture.tempJpegQuality })}
           >
             <Input
               type="number"
@@ -203,7 +205,7 @@ export function AfterCapturePage() {
                 })
               }
               className="w-24"
-              aria-label="Temporary JPEG quality"
+              aria-label={t("settings.after.tempQuality")}
             />
           </SettingRow>
         )}

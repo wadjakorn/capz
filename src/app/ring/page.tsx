@@ -6,7 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit, listen } from "@tauri-apps/api/event";
 import {
   RING_CANCEL,
-  RING_LABELS,
+  ringLabel,
   holdRingSlots,
   RING_WEDGES,
   ringSlotAngleDeg,
@@ -15,6 +15,7 @@ import {
   type RingSlot,
   type RingWedge,
 } from "@/lib/commandRing";
+import { useI18n } from "@/i18n/store";
 
 /** Fraction of the half-min-dimension used for the outer ring / dead-zone. */
 const OUTER_FRAC = 0.9;
@@ -88,6 +89,9 @@ export default function CommandRingPage() {
   );
   /** Highlighted slot index in hold mode (null = v1 / pointer-driven). */
   const [heldIndex, setHeldIndex] = useState<number | null>(null);
+  // Subscribe so wedge labels (resolved by `ringLabel`) re-render on a
+  // language change made in Settings while the ring is up.
+  useI18n((s) => s.lang);
 
   // The ring window is transparent — clear the opaque app background so only
   // the ring paints (same trick as the scroll HUD).
@@ -347,7 +351,7 @@ export default function CommandRingPage() {
                   pointerEvents: "none",
                 }}
               >
-                {RING_LABELS[w]}
+                {ringLabel(w)}
               </text>
             );
           })}

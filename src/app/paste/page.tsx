@@ -19,6 +19,9 @@ import {
   isWebCaptureSupported,
   WebCaptureError,
 } from "@/lib/webCapture";
+import { rich } from "@/lib/richText";
+import { t as tNow, LANGS, type Lang } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -48,6 +51,7 @@ export default function PastePage() {
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const resetEditor = useEditor((s) => s.reset);
   const setHasImage = useEditor((s) => s.setHasImage);
+  const { t } = useT();
 
   useEditorShortcuts();
   // Workspaces are always on in the browser: there is no Settings view here,
@@ -62,8 +66,8 @@ export default function PastePage() {
   useEffect(() => {
     if (wsCount < 2 || tabOnlyNoticeShown.current) return;
     tabOnlyNoticeShown.current = true;
-    toast("Workspaces are kept in this tab only", {
-      description: "They're gone if you reload the page.",
+    toast(tNow("app.paste.tabOnly"), {
+      description: tNow("app.paste.tabOnlyDesc"),
       duration: 6000,
     });
   }, [wsCount]);
@@ -123,10 +127,10 @@ export default function PastePage() {
         void (async () => {
           const { addOverlayImage } = await import("@/lib/addImage");
           const id = await addOverlayImage(reader.result as string);
-          if (!id) toast.error("Couldn't add image");
+          if (!id) toast.error(tNow("app.paste.addFailed"));
         })();
       };
-      reader.onerror = () => toast.error("Couldn't read image");
+      reader.onerror = () => toast.error(tNow("app.paste.readFailed"));
       reader.readAsDataURL(blob);
     },
     [applyBlob],
@@ -155,7 +159,7 @@ export default function PastePage() {
       }
       const blob = extractImageBlob(ev.clipboardData?.items);
       if (!blob) {
-        toast.error("Clipboard has no image");
+        toast.error(tNow("app.paste.noImage"));
         return;
       }
       ev.preventDefault();
@@ -170,8 +174,8 @@ export default function PastePage() {
     const onWebPaste = () => {
       void readClipboardPng().then((blob) => {
         if (blob) acceptBlob(blob);
-        else toast.error("Clipboard has no image", {
-          description: "Copy a screenshot first, or press Ctrl+V / ⌘V.",
+        else toast.error(tNow("app.paste.noImage"), {
+          description: tNow("app.paste.noImageDesc"),
         });
       });
     };
@@ -185,7 +189,7 @@ export default function PastePage() {
     const onDrop = (e: DragEvent) => {
       e.preventDefault();
       const blob = extractImageBlob(e.dataTransfer?.items);
-      if (!blob) { toast.error("Not an image"); return; }
+      if (!blob) { toast.error(tNow("app.paste.notImage")); return; }
       acceptBlob(blob);
     };
     window.addEventListener("dragover", onDragOver);
@@ -212,20 +216,19 @@ export default function PastePage() {
         const stage = getStage();
         if (!stage) return;
         const r = await copyOnly(stage);
-        if (r.copied) toast.success("Copied");
+        if (r.copied) toast.success(tNow("app.paste.copied"));
         else if (r.downloaded)
-          toast("Downloaded instead", {
-            description:
-              "This browser can't copy images to the clipboard — saved the PNG to your downloads.",
+          toast(tNow("app.paste.downloaded"), {
+            description: tNow("app.paste.downloadedDesc"),
           });
         else
-          toast.error("Copy failed", {
-            description: "Your browser blocked the clipboard — use Save to download instead.",
+          toast.error(tNow("app.paste.copyFailed"), {
+            description: tNow("app.paste.copyFailedDesc"),
           });
       } catch (err) {
         console.error("copy shortcut failed", err);
-        toast.error("Copy failed", {
-          description: "Your browser blocked the clipboard — use Save to download instead.",
+        toast.error(tNow("app.paste.copyFailed"), {
+          description: tNow("app.paste.copyFailedDesc"),
         });
       }
     };
@@ -252,7 +255,7 @@ export default function PastePage() {
       // ignores the hint can still yield a non-image — reject it with a toast.
       if (file) {
         if (file.type.startsWith("image/")) acceptBlob(file);
-        else toast.error("Not an image");
+        else toast.error(tNow("app.paste.notImage"));
       }
       e.target.value = "";
     },
@@ -278,11 +281,11 @@ export default function PastePage() {
       if (err instanceof WebCaptureError && err.kind === "cancelled") {
         // User dismissed the picker — silent.
       } else if (err instanceof WebCaptureError && err.kind === "unsupported") {
-        toast.error("Screen capture unavailable", {
-          description: "This browser or context can't capture the screen — paste a screenshot instead.",
+        toast.error(tNow("app.paste.captureUnavailable"), {
+          description: tNow("app.paste.captureUnavailableDesc"),
         });
       } else {
-        toast.error("Capture failed", { description: String(err) });
+        toast.error(tNow("app.paste.captureFailed"), { description: String(err) });
       }
     } finally {
       setCapturing(false);
@@ -301,6 +304,7 @@ export default function PastePage() {
         style={{ backgroundColor: "var(--bg-canvas)" }}
       >
         <div id="canvas-area" className="relative min-w-0 flex-1">
+          <LanguageSwitch />
           <div ref={canvasWrapRef} className="absolute inset-0">
             {src ? (
               <EditorStage src={src} />
@@ -320,7 +324,7 @@ export default function PastePage() {
             Below `sm` it slides over the canvas instead of stealing 240px. */}
         <button
           type="button"
-          aria-label={optionsOpen ? "Close tool options" : "Open tool options"}
+          aria-label={optionsOpen ? t("app.paste.closeOptions") : t("app.paste.openOptions")}
           aria-expanded={optionsOpen}
           aria-controls="tool-options-slot"
           onClick={() => setOptionsOpen((v) => !v)}
@@ -330,7 +334,7 @@ export default function PastePage() {
         </button>
         <aside
           id="tool-options-slot"
-          aria-label="Tool options"
+          aria-label={t("app.paste.toolOptions")}
           className={`${
             optionsOpen ? "flex" : "hidden"
           } absolute right-0 top-0 z-10 h-full w-60 flex-none flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-3 sm:static sm:flex`}
@@ -370,6 +374,7 @@ function WebEmptyState({
   const isMac =
     mounted && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
   const paste = isMac ? "⌘V" : "Ctrl+V";
+  const { t } = useT();
   return (
     <div className="flex h-full w-full items-center justify-center">
       <div className="surface flex flex-col items-center gap-4 px-10 py-8 text-center">
@@ -378,13 +383,11 @@ function WebEmptyState({
         </div>
         <div className="flex flex-col gap-1 text-sm text-foreground/80">
           <div>
-            Capture your screen, paste a screenshot (
-            <span className="font-mono text-foreground">{paste}</span>), or drop
-            an image here.
+            {rich(t("app.paste.emptyLead"), {
+              paste: <span className="font-mono text-foreground">{paste}</span>,
+            })}
           </div>
-          <div className="text-xs text-foreground/60">
-            Capture prompts you to pick a screen or window each time.
-          </div>
+          <div className="text-xs text-foreground/60">{t("app.paste.emptyHint")}</div>
         </div>
         <div className="flex items-center gap-2">
           {canCapture && (
@@ -395,11 +398,11 @@ function WebEmptyState({
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-[var(--accent-fg)] transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               <Monitor className="h-4 w-4" aria-hidden />
-              {capturing ? "Capturing…" : "Capture screen"}
+              {capturing ? t("app.paste.capturing") : t("app.paste.captureScreen")}
             </button>
           )}
           <label className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm text-foreground/85 transition-colors hover:bg-[var(--surface-raised)]">
-            Choose an image…
+            {t("app.paste.chooseImage")}
             <input
               type="file"
               accept="image/*"
@@ -409,6 +412,41 @@ function WebEmptyState({
           </label>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * TH/EN switch for the web build. There is no persisted config here (the
+ * project rule bans browser storage), so it only sets the in-memory i18n
+ * language — a reload goes back to Thai. Floats over the canvas's top-right
+ * corner, below the ruler band and clear of the mobile tool-options button.
+ */
+function LanguageSwitch() {
+  const { t, lang, setLang } = useT();
+  const label: Record<Lang, string> = { th: t("app.paste.langTh"), en: t("app.paste.langEn") };
+  return (
+    <div
+      role="group"
+      aria-label={t("app.paste.language")}
+      className="absolute right-[3.75rem] top-2 z-20 flex items-center rounded-md border border-[var(--border)] bg-[var(--surface-overlay)] p-0.5 text-xs sm:right-3 sm:top-7"
+    >
+      {LANGS.map((l) => (
+        <button
+          key={l}
+          type="button"
+          lang={l}
+          onClick={() => setLang(l)}
+          aria-pressed={lang === l}
+          className={`rounded px-2 py-1 transition-colors ${
+            lang === l
+              ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {label[l]}
+        </button>
+      ))}
     </div>
   );
 }

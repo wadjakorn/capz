@@ -54,6 +54,8 @@ import {
   setScrollContainer,
 } from "@/lib/stageBridge";
 import { toast } from "sonner";
+import { t as tx } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 import {
   effectiveTools,
   THAI_SANS_STACK,
@@ -275,6 +277,9 @@ function useStageImage(src: string) {
 }
 
 export function EditorStage({ src }: Props) {
+  // `t` is a common local name in this file, so the store translator is `tx`;
+  // useT() only subscribes the stage to language changes.
+  useT();
   const [image, status] = useStageImage(src);
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -690,7 +695,7 @@ export function EditorStage({ src }: Props) {
     if (tool !== "crop" || !selectedId) return;
     const a = annotations.find((x) => x.id === selectedId);
     if (a?.type === "image" && (a.rotation ?? 0) !== 0) {
-      toast.error("Reset the image's rotation to crop it");
+      toast.error(tx("editor.crop.resetRotation"));
       setTool("select");
     }
   }, [tool, selectedId, annotations, setTool]);
@@ -732,7 +737,7 @@ export function EditorStage({ src }: Props) {
       // prior crop we can't know the source size — using display dims would map
       // 1:1 and store a wrong rect, so defer rather than guess.
       if (!el && !cropImage.crop) {
-        toast.error("Image still loading — try again");
+        toast.error(tx("editor.stage.stillLoading"));
         return;
       }
       const natural = el
@@ -1472,7 +1477,7 @@ export function EditorStage({ src }: Props) {
     try {
       const { copyOnly } = await import("@/lib/exportImage");
       await copyOnly(stage);
-      toast.success("Copied");
+      toast.success(tx("editor.history.copied"));
     } catch (err) {
       console.error("context copy failed", err);
       const { describeExportError } = await import("@/lib/exportErrors");
@@ -1497,14 +1502,14 @@ export function EditorStage({ src }: Props) {
         const dataUrl = await invoke<string>("read_clipboard_image_data_url");
         const { addOverlayImage } = await import("@/lib/addImage");
         const id = await addOverlayImage(dataUrl);
-        if (!id) toast.error("Couldn't add clipboard image");
+        if (!id) toast.error(tx("editor.toast.clipboardAddFailed"));
       } else {
         // Empty canvas: the pasted image becomes the base.
         await invoke<string>("paste_into_editor");
       }
     } catch (err) {
       console.warn("clipboard paste failed", err);
-      toast.error("Clipboard has no image");
+      toast.error(tx("editor.toast.clipboardNoImage"));
     }
   }
 
@@ -1526,12 +1531,12 @@ export function EditorStage({ src }: Props) {
     >
       {status === "failed" && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
-          Failed to load image: {src}
+          {tx("editor.stage.loadFailed", { src })}
         </div>
       )}
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-foreground/60">
-          Loading…
+          {tx("common.loading")}
         </div>
       )}
       {image && (
@@ -2041,14 +2046,14 @@ export function EditorStage({ src }: Props) {
             onClick={() => void ctxCopy()}
             className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-[var(--surface-raised)] disabled:opacity-40 disabled:hover:bg-transparent"
           >
-            Copy
+            {tx("common.copy")}
           </button>
           <button
             type="button"
             onClick={() => void ctxPaste()}
             className="flex w-full items-center rounded-lg px-3 py-1.5 text-left text-foreground/90 transition-colors hover:bg-[var(--surface-raised)]"
           >
-            Paste
+            {tx("common.paste")}
           </button>
         </div>
       </>
@@ -2057,7 +2062,7 @@ export function EditorStage({ src }: Props) {
       createPortal(
         <div className="flex flex-col items-stretch gap-2.5 text-sm">
           <div className="flex items-center justify-between text-xs text-foreground/60">
-            <span>Crop</span>
+            <span>{tx("editor.tool.crop")}</span>
             <span className="tabular-nums text-foreground/80">
               {cropSel ? `${Math.round(cropSel.w)}×${Math.round(cropSel.h)}` : "—"}
             </span>
@@ -2067,14 +2072,14 @@ export function EditorStage({ src }: Props) {
             onClick={applyCropNow}
             className="rounded-lg bg-[var(--accent,#6d7cff)] px-3 py-1.5 font-medium text-white transition-opacity hover:opacity-90"
           >
-            Apply crop
+            {tx("editor.crop.apply")}
           </button>
           <button
             type="button"
             onClick={() => setTool("select")}
             className="rounded-lg px-3 py-1.5 text-foreground/90 transition-colors hover:bg-[var(--surface-raised)]"
           >
-            Cancel
+            {tx("common.cancel")}
           </button>
         </div>,
         optionsSlot,

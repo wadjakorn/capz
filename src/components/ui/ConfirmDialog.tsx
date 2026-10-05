@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -36,11 +37,12 @@ export function ConfirmDialog({
   body,
   preview,
   confirmLabel,
-  cancelLabel = "Cancel",
+  cancelLabel,
   destructive,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { t } = useT();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export function ConfirmDialog({
 
         <div className="flex justify-end gap-2">
           <button ref={cancelRef} type="button" className="btn btn--ghost btn--sm" onClick={onCancel}>
-            {cancelLabel}
+            {cancelLabel ?? t("common.cancel")}
           </button>
           <button
             type="button"

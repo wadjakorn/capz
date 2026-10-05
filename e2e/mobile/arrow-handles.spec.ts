@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "../fixtures/test";
+import type { Page } from "@playwright/test";
 import { selectArrowTool, oneFingerDrag } from "./gestures";
 
 // Arrows do not use a Konva Transformer — they carry their own Circle handles

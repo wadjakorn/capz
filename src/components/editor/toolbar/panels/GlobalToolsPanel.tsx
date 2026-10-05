@@ -5,6 +5,7 @@ import { ImageDown, Loader2, Pointer, Ruler, ScanText, Trash2 } from "lucide-rea
 import { ActionRow } from "./kit";
 import { BackdropSection } from "../BackdropControl";
 import { ZoomMenuButton } from "../ZoomMenuButton";
+import { useT } from "@/i18n/useT";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -51,38 +52,39 @@ export type GlobalToolsPanelProps = {
  * which is exactly when this panel is hidden.
  */
 export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
+  const { t } = useT();
   return (
     <div className="flex flex-col gap-4">
-      <Section title="View">
+      <Section title={t("editor.global.view")}>
         <div className="px-1">
           <ZoomMenuButton displayScale={p.displayScale} disabled={!p.hasImage} />
         </div>
         <ActionRow
           Icon={Ruler}
-          label="Rulers"
+          label={t("editor.global.rulers")}
           pressed={p.showRulers}
           onClick={p.onToggleRulers}
         />
         {p.keepActive && (
           <ActionRow
             Icon={Pointer}
-            label={`Keep ${p.keepActive.label} active (K)`}
+            label={t("editor.global.keepActive", { tool: p.keepActive.label })}
             pressed={p.keepActive.on}
             onClick={p.keepActive.onToggle}
           />
         )}
       </Section>
 
-      <Section title="Workspace">
+      <Section title={t("editor.global.workspace")}>
         <ActionRow
           Icon={ImageDown}
-          label={p.hasImage ? "Add image as overlay" : "Open image file"}
+          label={p.hasImage ? t("editor.global.addOverlay") : t("editor.global.openImage")}
           onClick={p.onImportImage}
         />
         {p.tauriUi ? (
           <ActionRow
             Icon={Trash2}
-            label={p.hasImage ? "Clear workspace" : "Workspace already empty"}
+            label={p.hasImage ? t("editor.global.clearWorkspace") : t("editor.global.workspaceEmpty")}
             disabled={!p.hasImage}
             onClick={p.onClearWorkspace}
           />
@@ -90,7 +92,7 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
           p.onWebClear && (
             <ActionRow
               Icon={Trash2}
-              label={p.hasImage ? "Delete image" : "No image loaded"}
+              label={p.hasImage ? t("editor.global.deleteImage") : t("editor.global.noImage")}
               disabled={!p.hasImage}
               onClick={p.onWebClear}
             />
@@ -99,18 +101,18 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
       </Section>
 
       {p.ocr && (
-        <Section title="Text">
+        <Section title={t("editor.global.text")}>
           <ActionRow
             Icon={p.ocr.scanning ? Loader2 : ScanText}
             iconClassName={p.ocr.scanning ? "h-4 w-4 animate-spin" : "h-4 w-4"}
             label={
               !p.hasImage
-                ? "Detect text (load an image first)"
+                ? t("editor.ocr.detectNeedsImage")
                 : p.ocr.scanning
-                  ? "Detecting text…"
+                  ? t("editor.ocr.detecting")
                   : p.ocr.mode
-                    ? "Hide detected text"
-                    : "Detect text"
+                    ? t("editor.ocr.hide")
+                    : t("editor.ocr.detect")
             }
             pressed={p.ocr.mode}
             disabled={!p.hasImage || p.ocr.scanning}
@@ -120,7 +122,7 @@ export function GlobalToolsPanel(p: GlobalToolsPanelProps) {
       )}
 
       {p.hasImage && (
-        <Section title="Backdrop">
+        <Section title={t("editor.global.backdrop")}>
           <BackdropSection />
         </Section>
       )}

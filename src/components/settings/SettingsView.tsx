@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useSettings } from "@/stores/settings";
+import { t as tNow } from "@/i18n/store";
+import { useT } from "@/i18n/useT";
 import { useAppVersion } from "@/lib/appVersion";
 import { markPageSeen } from "@/lib/settingNews";
 import { currentPlatform } from "@/lib/shortcuts";
@@ -45,6 +47,7 @@ export function SettingsView({
   const searchRef = useRef<HTMLInputElement>(null);
   const appVersion = useAppVersion();
   const lastSeen = config.general.lastSeenSettingsVersion;
+  const { t } = useT();
 
   // Looking at a page is what clears its "New" badges.
   useEffect(() => {
@@ -81,16 +84,16 @@ export function SettingsView({
     }
     if (configSig === firstSig.current) return;
     firstSig.current = configSig;
-    const t = setTimeout(() => {
-      toast.success("Saved", { id: "settings-saved", duration: 1400 });
+    const timer = setTimeout(() => {
+      toast.success(tNow("settings.saved"), { id: "settings-saved", duration: 1400 });
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [configSig, ready]);
 
   if (!ready) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Loading…
+        {t("settings.loading")}
       </div>
     );
   }
@@ -105,8 +108,8 @@ export function SettingsView({
         <main className="surface min-w-0 flex-1 p-8 max-[720px]:p-5">
           <header className="mb-6">
             {/* h2: the window chrome already owns the page's h1 ("Settings"). */}
-            <h2 className="headline">{def.label}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{def.lede}</p>
+            <h2 className="headline">{t(def.labelKey)}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t(def.ledeKey)}</p>
           </header>
 
           {page === "capture" && <CapturePage />}
