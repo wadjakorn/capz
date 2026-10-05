@@ -7,8 +7,13 @@ import {
   colorStops,
   gradientPoints,
   canvasFill,
+  BACKDROP_PRESETS,
+  PATTERN_PRESETS,
+  resolvePreset,
+  patternUnit,
   type BackdropFill,
 } from "./backdrop";
+import type { RenderedPattern } from "./backdropPatterns";
 
 describe("resolveGradient", () => {
   it("returns the matching preset", () => {
@@ -123,5 +128,70 @@ describe("canvasFill", () => {
     expect("fillLinearGradientStartPoint" in f).toBe(true);
     expect("fillLinearGradientEndPoint" in f).toBe(true);
     expect("fillLinearGradientColorStops" in f).toBe(true);
+  });
+});
+
+describe("backdrop presets", () => {
+  it("has unique ids across every family", () => {
+    const ids = BACKDROP_PRESETS.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("ships at least 5 minimal and 10 art presets", () => {
+    expect(PATTERN_PRESETS.filter((p) => p.category === "minimal").length).toBeGreaterThanOrEqual(5);
+    expect(PATTERN_PRESETS.filter((p) => p.category === "art").length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("resolvePreset finds pattern presets and falls back to the default gradient", () => {
+    expect(resolvePreset("gingham").kind).toBe("pattern");
+    expect(resolvePreset("indigo").kind).toBe("linear");
+    expect(resolvePreset("nope").id).toBe(DEFAULT_GRADIENT_ID);
+    expect(resolvePreset(undefined).id).toBe(DEFAULT_GRADIENT_ID);
+  });
+
+  it("patternUnit is 1 up to 1600px and grows linearly past it", () => {
+    expect(patternUnit(800)).toBe(1);
+    expect(patternUnit(1600)).toBe(1);
+    expect(patternUnit(3200)).toBe(2);
+    expect(patternUnit(Number.NaN)).toBe(1);
+  });
+});
+
+describe("canvasFill with pattern presets", () => {
+  const pat: BackdropFill = { style: "gradient", presetId: "gingham", solidColor: "#000" };
+  const fakeCanvas = {} as HTMLCanvasElement;
+
+  it("paints the flat base until the pattern canvas exists", () => {
+    const f = canvasFill(pat, 100, 100, "#fff", "backdrop", null);
+    const p = resolvePreset("gingham");
+    expect(p.kind === "pattern" && f.fill === p.base).toBe(true);
+    expect(f.fillPatternImage).toBeUndefined();
+  });
+
+  it("uses the rendered canvas as a pattern fill", () => {
+    const r: RenderedPattern = { canvas: fakeCanvas, repeat: "no-repeat", scale: 2 };
+    const f = canvasFill(pat, 100, 100, "#fff", "backdrop", r);
+    expect(f.fill).toBeUndefined();
+    expect(f.fillPatternImage).toBe(fakeCanvas);
+    expect(f.fillPatternRepeat).toBe("no-repeat");
+    expect(f.fillPatternScaleX).toBe(2);
+    expect(f.fillPatternScaleY).toBe(2);
+    expect(f.fillLinearGradientColorStops).toBeUndefined();
+  });
+
+  it("drops the pattern in flush mode and for linear presets", () => {
+    const r: RenderedPattern = { canvas: fakeCanvas, repeat: "repeat", scale: 1 };
+    expect(canvasFill(pat, 10, 10, "#eee", "flush", r).fillPatternImage).toBeUndefined();
+    const lin = canvasFill({ ...pat, presetId: "slate" }, 10, 10, "#eee", "backdrop", r);
+    expect(lin.fillPatternImage).toBeUndefined();
+    expect(lin.fillLinearGradientColorStops).toBeDefined();
+  });
+
+  it("keeps every pattern key present so react-konva clears stale props", () => {
+    const f = canvasFill({ ...pat, style: "solid" }, 10, 10, "#fff", "backdrop");
+    expect("fillPatternImage" in f).toBe(true);
+    expect(f.fillPatternRepeat).toBe("repeat");
+    expect(f.fillPatternScaleX).toBe(1);
+    expect(f.fillPatternScaleY).toBe(1);
   });
 });

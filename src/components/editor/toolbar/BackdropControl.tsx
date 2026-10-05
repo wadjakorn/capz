@@ -1,10 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Frame, SunMedium } from "lucide-react";
 import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
-import { GRADIENT_PRESETS } from "@/lib/backdrop";
+import {
+  BACKDROP_PRESETS,
+  resolvePreset,
+  type BackdropCategory,
+  type BackdropPreset,
+  type PatternPreset,
+} from "@/lib/backdrop";
+import { paintSwatch } from "@/lib/backdropPatterns";
 import { ActionRow } from "./panels/kit";
+
+/** Picker tabs: three preset families plus the flat colour. */
+type Tab = BackdropCategory | "solid";
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "gradient", label: "Gradient" },
+  { id: "minimal", label: "Minimal" },
+  { id: "art", label: "Art" },
+  { id: "solid", label: "Solid" },
+];
 
 /**
  * Padded-backdrop controls (K5pWujLnPFKv): an on/off toggle plus the
@@ -14,12 +31,12 @@ import { ActionRow } from "./panels/kit";
  * Rendered inline inside the sidebar's Canvas panel — there is no popover
  * (CP-0044).
  *
- * The preset grid is `grid-cols-4` with `h-7` swatches: eight presets in two
- * rows instead of three. Expanded, this section is by far the tallest thing in
- * the panel, and at three rows it pushed the panel past the sidebar's height at
- * the default window size. Four columns of ~49px chips still read clearly — the
- * swatches are gradients, not icons, so they lose nothing by being wider than
- * they are tall.
+ * One segmented row picks the family (Gradient / Minimal / Art) or Solid, and
+ * the grid shows only that family. Expanded, this section is by far the tallest
+ * thing in the panel and a third grid row pushed it past the sidebar's height
+ * at the default window size, so the grid is `grid-cols-6` of square chips:
+ * the largest family (12 art presets) still fits in two rows. The tab is UI
+ * state only — what is persisted is `style` + `presetId`.
  */
 export function BackdropSection() {
   const backdropOn = useEditor((s) => s.backdropOn);
@@ -30,8 +47,17 @@ export function BackdropSection() {
   const patch = (p: Partial<typeof backdrop>) =>
     void update("general", { backdrop: { ...backdrop, ...p } });
 
-  const cssPreview = (colors: string[], angle: number) =>
-    `linear-gradient(${angle}deg, ${colors.join(", ")})`;
+  const current = resolvePreset(backdrop.presetId);
+  const activeTab: Tab = backdrop.style === "solid" ? "solid" : current.category;
+  // The family being browsed; defaults to the selected preset's family.
+  const [browse, setBrowse] = useState<Tab>(activeTab);
+  const tab = backdrop.style === "solid" ? "solid" : browse === "solid" ? activeTab : browse;
+
+  const pickTab = (t: Tab) => {
+    setBrowse(t);
+    if (t === "solid") patch({ style: "solid" });
+    else if (backdrop.style !== "gradient") patch({ style: "gradient" });
+  };
 
   return (
     <div className="text-sm">
@@ -49,42 +75,46 @@ export function BackdropSection() {
       {!backdropOn ? null : (
         <>
           <div className="px-2">
-          {/* Style toggle */}
-          <div className="mb-2 flex items-center gap-1">
-            {(["gradient", "solid"] as const).map((s) => (
+          {/* Family / solid toggle */}
+          <div className="mb-2 flex items-center gap-0.5" role="tablist" aria-label="Backdrop style">
+            {TABS.map((t) => (
               <button
-                key={s}
+                key={t.id}
                 type="button"
-                onClick={() => patch({ style: s })}
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => pickTab(t.id)}
                 className={[
-                  "flex-1 rounded-md px-2 py-1 text-xs capitalize transition-colors",
-                  backdrop.style === s
+                  "flex-1 rounded-md px-1 py-1 text-xs transition-colors",
+                  tab === t.id
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                     : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
                 ].join(" ")}
               >
-                {s}
+                {t.label}
               </button>
             ))}
           </div>
 
-          {backdrop.style === "gradient" ? (
-            <div className="mb-2 grid grid-cols-4 gap-1.5">
-              {GRADIENT_PRESETS.map((p) => (
+          {tab !== "solid" ? (
+            <div className="mb-2 grid grid-cols-6 gap-1.5">
+              {BACKDROP_PRESETS.filter((p) => p.category === tab).map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   title={p.name}
-                  onClick={() => patch({ presetId: p.id })}
+                  onClick={() => patch({ style: "gradient", presetId: p.id })}
                   className={[
-                    "h-7 rounded-md border transition-transform hover:scale-105",
-                    backdrop.presetId === p.id
+                    "aspect-square overflow-hidden rounded-md border transition-transform hover:scale-105",
+                    backdrop.style === "gradient" && current.id === p.id
                       ? "border-[var(--accent)]"
                       : "border-transparent",
                   ].join(" ")}
-                  style={{ backgroundImage: cssPreview(p.colors, p.angle) }}
                   aria-label={p.name}
-                />
+                  aria-pressed={backdrop.style === "gradient" && current.id === p.id}
+                >
+                  <Swatch preset={p} />
+                </button>
               ))}
             </div>
           ) : (
@@ -157,5 +187,54 @@ function SliderRow({
         {value}
       </span>
     </label>
+  );
+}
+
+function Swatch({ preset }: { preset: BackdropPreset }) {
+  if (preset.kind === "linear") {
+    return (
+      <span
+        className="block h-full w-full"
+        style={{
+          backgroundImage: `linear-gradient(${preset.angle}deg, ${preset.colors.join(", ")})`,
+        }}
+      />
+    );
+  }
+  return <PatternSwatch preset={preset} />;
+}
+
+/** Pattern swatches are painted once per preset and reused across mounts. */
+const swatchCache = new Map<string, string>();
+const SWATCH_PX = 64;
+
+function patternSwatchUrl(preset: PatternPreset): string {
+  const hit = swatchCache.get(preset.id);
+  if (hit) return hit;
+  const c = document.createElement("canvas");
+  c.width = SWATCH_PX;
+  c.height = SWATCH_PX;
+  const ctx = c.getContext("2d");
+  if (!ctx) return "";
+  // Tiles at half scale so a few repeats show; compositions are fitted as if
+  // the chip were a ~900px backdrop so their shapes stay recognisable.
+  const unit = preset.pattern.mode === "tile" ? 0.5 : SWATCH_PX / 900;
+  paintSwatch(preset.pattern, ctx, SWATCH_PX, SWATCH_PX, unit);
+  const url = c.toDataURL("image/png");
+  swatchCache.set(preset.id, url);
+  return url;
+}
+
+function PatternSwatch({ preset }: { preset: PatternPreset }) {
+  // Painted after mount: the static export prerenders without a DOM canvas.
+  const [url, setUrl] = useState(() => swatchCache.get(preset.id) ?? "");
+  useEffect(() => {
+    setUrl(patternSwatchUrl(preset));
+  }, [preset]);
+  return (
+    <span
+      className="block h-full w-full bg-cover"
+      style={{ backgroundColor: preset.base, backgroundImage: url ? `url(${url})` : undefined }}
+    />
   );
 }
