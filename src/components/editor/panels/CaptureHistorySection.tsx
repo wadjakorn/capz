@@ -28,6 +28,8 @@ import {
   type HistoryItem,
 } from "@/stores/history";
 import { deleteArchive } from "@/lib/captureArchive";
+import { currentPreviewEdge, previewCache } from "@/lib/historyPreview";
+import { useHistoryActions } from "@/hooks/useHistoryActions";
 import { resolveSaveDirPath } from "@/lib/exportImage";
 import { useSettings } from "@/stores/settings";
 
@@ -61,11 +63,11 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
   const selectedId = useHistory((s) => s.selectedId);
   const select = useHistory((s) => s.select);
   const forget = useHistory((s) => s.forget);
+  const prefetch = useHoverPrefetch();
   const markMissing = useHistory((s) => s.markMissing);
   const clear = useHistory((s) => s.clear);
   const config = useSettings((s) => s.config);
   const updateSettings = useSettings((s) => s.update);
-  const [pendingTrash, setPendingTrash] = useState<HistoryItem | null>(null);
 
   const view = config.history.viewMode;
   const setView = useCallback(
@@ -73,49 +75,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
     [updateSettings],
   );
 
-  const reveal = useCallback(async (item: HistoryItem) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      // reveal_file_in_finder, not reveal_in_finder: the latter OPENS its
-      // argument, which for a file means handing it to Preview.
-      await invoke("reveal_file_in_finder", { path: item.path });
-    } catch (e) {
-      console.error("reveal failed", e);
-      toast.error("Couldn't open the folder");
-    }
-  }, []);
-
-  const copy = useCallback(async (item: HistoryItem) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const dataUrl = await invoke<string>("read_image_file_data_url", {
-        path: item.path,
-        consumeTemp: false,
-      });
-      const { writeImage } = await import("@tauri-apps/plugin-clipboard-manager");
-      const bin = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      await writeImage(bytes);
-      toast.success("Copied");
-    } catch (e) {
-      console.error("copy from history failed", e);
-      markMissing(item.id);
-      toast.error("Couldn't copy that file");
-    }
-  }, [markMissing]);
-
-  const trash = useCallback(async (item: HistoryItem) => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("trash_file", { path: item.path });
-      forget(item.id);
-      toast("Moved to Trash");
-    } catch (e) {
-      console.error("trash failed", e);
-      toast.error("Couldn't move that file to the Trash");
-    }
-  }, [forget]);
+  const { reveal, copy, requestTrash, trashDialog } = useHistoryActions();
 
   const openItem = useCallback(
     (item: HistoryItem) => {
@@ -157,7 +117,12 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
             path: item.path,
             maxWidth: 128,
           });
-          if (!cancelled) setArchiveThumb(item.path, thumb);
+          // Store it even if this run was cancelled. Storing the previous
+          // thumbnail is what re-runs the effect and cancels this loop, so
+          // dropping the result here lost every second file — and the path is
+          // already marked attempted, so it was never asked for again. The
+          // store is keyed by path, so a late write is harmless.
+          setArchiveThumb(item.path, thumb);
         } catch {
           // Unreadable or already gone — leave the placeholder and move on.
         }
@@ -305,7 +270,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         {variant === "row" && <span className="flex-1" />}
         <button
           type="button"
-          onClick={() => setPendingTrash(item)}
+          onClick={() => requestTrash(item)}
           className={actionClass(variant, true)}
           title="Move to Trash"
           aria-label="Move to Trash"
@@ -316,7 +281,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
     );
 
   return (
-    <section className="flex flex-col gap-1">
+    <section className="flex min-h-0 flex-1 flex-col gap-1">
       {header}
       {items.length === 0 ? (
         <div className="grid justify-items-center gap-1 px-3 py-5 text-center">
@@ -325,13 +290,16 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         </div>
       ) : view === "grid" ? (
         // auto-rows-max: the tiles are overflow-hidden, so their minimum height
-        // is 0, and WebKit shrinks the auto rows to fit the 270px cap. The
+        // is 0, and WebKit shrinks the auto rows to fit the list height. The
         // tiles then overlap each other instead of scrolling.
-        <div className="grid max-h-[270px] auto-rows-max grid-cols-2 gap-2 overflow-y-auto p-0.5">
+        <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto p-0.5">
           {items.map((item) => (
             <div
               key={item.id}
+              data-history-item
               onPointerDown={(e) => drag.start(e, item)}
+              onPointerEnter={() => prefetch.enter(item)}
+              onPointerLeave={prefetch.leave}
               onDoubleClick={() => openItem(item)}
               title={item.fileName}
               // select-none, not preventDefault on pointerdown: suppressing the
@@ -367,14 +335,17 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
           ))}
         </div>
       ) : (
-        <div className="flex max-h-[270px] flex-col gap-px overflow-y-auto pr-0.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pr-0.5">
           {items.map((item, idx) => (
             <HistoryRow
               key={item.id}
               item={item}
               showDay={items.length > 8 && dayOf(item.savedAt) !== dayOf(items[idx - 1]?.savedAt ?? 0)}
               selected={selectedId === item.id}
+              data-history-item
               onPointerDown={(e) => drag.start(e, item)}
+              onPointerEnter={() => prefetch.enter(item)}
+              onPointerLeave={prefetch.leave}
               onDoubleClick={() => openItem(item)}
               actions={actions(item, "row")}
             />
@@ -405,30 +376,7 @@ export function CaptureHistorySection({ hasImage, onDropFile }: CaptureHistorySe
         }}
       />
 
-      <ConfirmDialog
-        open={pendingTrash !== null}
-        title="Move to Trash?"
-        preview={
-          pendingTrash
-            ? {
-                thumb: pendingTrash.thumb || undefined,
-                line1: pendingTrash.fileName,
-                line2: `${dirName(pendingTrash.path)}${
-                  pendingTrash.bytes ? ` · ${formatBytes(pendingTrash.bytes)}` : ""
-                }`,
-              }
-            : undefined
-        }
-        body="You can restore it from the Trash. It will also be removed from this list."
-        confirmLabel="Move to Trash"
-        destructive
-        onCancel={() => setPendingTrash(null)}
-        onConfirm={() => {
-          const item = pendingTrash;
-          setPendingTrash(null);
-          if (item) void trash(item);
-        }}
-      />
+      {trashDialog}
     </section>
   );
 
@@ -448,6 +396,8 @@ function HistoryRow({
   showDay,
   selected,
   onPointerDown,
+  onPointerEnter,
+  onPointerLeave,
   onDoubleClick,
   actions,
 }: {
@@ -455,6 +405,8 @@ function HistoryRow({
   showDay: boolean;
   selected: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
   onDoubleClick: () => void;
   actions: React.ReactNode;
 }) {
@@ -466,7 +418,10 @@ function HistoryRow({
         </div>
       )}
       <div
+        data-history-item
         onPointerDown={onPointerDown}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
         onDoubleClick={onDoubleClick}
         className={`relative flex cursor-grab select-none items-center gap-2 px-1.5 py-1 transition-colors ${
           selected
@@ -518,7 +473,7 @@ function HistoryRow({
           to be indented to the text column, which read as another column
           entirely. */}
       {selected && (
-        <div className="relative flex gap-0.5 rounded-b-md bg-[var(--accent-soft)] px-1.5 pb-1.5 pt-0.5">
+        <div data-history-item className="relative flex gap-0.5 rounded-b-md bg-[var(--accent-soft)] px-1.5 pb-1.5 pt-0.5">
           <span
             className="absolute bottom-1 left-0 top-0 w-0.5 rounded-full bg-[var(--accent)]"
             aria-hidden
@@ -528,6 +483,35 @@ function HistoryRow({
       )}
     </>
   );
+}
+
+/** How long the pointer rests on an item before its large preview is fetched. */
+const PREFETCH_DELAY_MS = 120;
+
+/**
+ * Warm the preview overlay's cache for the item under the pointer, so a click
+ * usually paints the sharp image on the first frame. The delay keeps a pointer
+ * sweeping down the list from decoding every file it crosses.
+ */
+function useHoverPrefetch() {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leave = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  const enter = useCallback(
+    (item: HistoryItem) => {
+      leave();
+      if (item.missing) return;
+      timer.current = setTimeout(
+        () => previewCache.prefetch(item.path, currentPreviewEdge()),
+        PREFETCH_DELAY_MS,
+      );
+    },
+    [leave],
+  );
+  useEffect(() => leave, [leave]);
+  return useMemo(() => ({ enter, leave }), [enter, leave]);
 }
 
 /**
@@ -566,6 +550,9 @@ function usePointerDrag(onDrop: (item: HistoryItem) => void, hasImage: boolean) 
         if (!st.live) {
           if (Math.hypot(ev.clientX - st.x, ev.clientY - st.y) < DRAG_THRESHOLD_PX) return;
           st.live = true;
+          // A drag is leaving the panel: get the preview out of the canvas's
+          // way so the drop target is what the user sees.
+          useHistory.getState().select(null);
           // The row itself is select-none, but the pointer is about to travel
           // over the canvas and toolbar, which are not. Without this the drag
           // paints a selection highlight across whatever it passes over.

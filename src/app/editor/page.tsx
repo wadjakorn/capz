@@ -17,6 +17,7 @@ import { useWorkspaceSession } from "@/hooks/useWorkspaceSession";
 import { WorkspaceBar } from "@/components/editor/WorkspaceBar";
 import { WorkspaceSwapOverlay } from "@/components/editor/WorkspaceSwapOverlay";
 import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
+import { HistoryPreview } from "@/components/editor/HistoryPreview";
 import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
 import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
 import { useSidebar } from "@/stores/sidebar";
@@ -63,13 +64,15 @@ export default function EditorPage() {
   const toolPanel = useSidebar((s) => s.toolPanel);
   const [rememberedTab, setRememberedTab] = useState<"canvas" | "history">("canvas");
   const [showingTool, setShowingTool] = useState(false);
-  const hadToolPanel = useRef(false);
+  const lastToolKey = useRef<string | null>(null);
   useEffect(() => {
-    const has = toolPanel !== null;
-    // Auto-open a panel the moment it appears; forget it the moment it goes.
-    if (has !== hadToolPanel.current) {
-      hadToolPanel.current = has;
-      setShowingTool(has);
+    const key = toolPanel?.key ?? null;
+    // Auto-open a panel whenever it appears or changes — picking another tool
+    // while History or Canvas is showing must bring up that tool's options,
+    // not only the first pick. Forget it the moment it goes.
+    if (key !== lastToolKey.current) {
+      lastToolKey.current = key;
+      setShowingTool(key !== null);
     }
   }, [toolPanel]);
   const activeTab: SidebarTab = showingTool && toolPanel ? "tool" : rememberedTab;
@@ -636,6 +639,9 @@ export default function EditorPage() {
             canvasRef={canvasWrapRef}
           />
           {view === "editor" && <CanvasDropHint />}
+          {view === "editor" && historyConfig.enabled && (
+            <HistoryPreview active={activeTab === "history"} onAdd={onHistoryDrop} />
+          )}
         </div>
         {/* Right sidebar. Three panels live here at once, each in its own
             container, and the tab bar decides which is on screen — they are
@@ -677,7 +683,9 @@ export default function EditorPage() {
             id="sidebar-panel-history"
             role="tabpanel"
             hidden={activeTab !== "history"}
-            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+            // A flex column so the history list fills the sidebar's height and
+            // scrolls inside itself, keeping the filter header in view.
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3"
           >
             {historyConfig.enabled ? (
               <CaptureHistorySection

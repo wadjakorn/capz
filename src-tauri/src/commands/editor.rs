@@ -262,6 +262,43 @@ pub async fn read_image_thumbnail(path: String, max_width: u32) -> Result<String
     .map_err(|e| e.to_string())
 }
 
+/// Large preview of an image on disk for the history overlay, as raw JPEG bytes.
+///
+/// Same reason as `read_image_thumbnail` for decoding here (the asset scope
+/// stays closed to the arbitrary save folder), but sized to the canvas rather
+/// than a sidebar tile, and returned as bytes: a base64 data URL of a 2–3K
+/// preview would be a multi-megabyte JS string on every click.
+#[tauri::command]
+pub async fn read_image_preview(path: String, max_edge: u32) -> Result<tauri::ipc::Response, String> {
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<u8>> {
+        use anyhow::anyhow;
+        use image::{codecs::jpeg::JpegEncoder, ExtendedColorType, ImageEncoder};
+
+        let img = image::open(&path).map_err(|e| anyhow!("decode {path}: {e}"))?;
+        let (w, h) = (img.width(), img.height());
+        if w == 0 || h == 0 {
+            return Err(anyhow!("image has zero dimensions"));
+        }
+        let edge = max_edge.clamp(256, 3072);
+        // Never upscale: a small capture is shown at its own size.
+        let img = if w.max(h) > edge {
+            img.resize(edge, edge, image::imageops::FilterType::Triangle)
+        } else {
+            img
+        };
+        let rgb = img.to_rgb8();
+        let mut out = Vec::new();
+        JpegEncoder::new_with_quality(&mut out, 85)
+            .write_image(rgb.as_raw(), rgb.width(), rgb.height(), ExtendedColorType::Rgb8)
+            .map_err(|e| anyhow!("jpeg encode: {e}"))?;
+        Ok(out)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map(tauri::ipc::Response::new)
+    .map_err(|e| e.to_string())
+}
+
 /// Read an image from the clipboard and return it as a `data:image/png;base64,…`
 /// URL, WITHOUT touching the workspace. Used by "Add image" mode to layer the
 /// clipboard image as an overlay object instead of replacing the base.
