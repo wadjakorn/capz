@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Copy, FolderOpen, Trash2, X } from "lucide-react";
 
 import { useHistoryActions } from "@/hooks/useHistoryActions";
+import { useT } from "@/i18n/useT";
 import { currentPreviewEdge, previewCache } from "@/lib/historyPreview";
 import { formatBytes, useHistory, visibleItems, type HistoryItem } from "@/stores/history";
 
@@ -27,6 +28,7 @@ export type HistoryPreviewProps = {
  *   the editor page.
  */
 export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
+  const { t } = useT();
   const selectedId = useHistory((s) => s.selectedId);
   const saved = useHistory((s) => s.items);
   const archived = useHistory((s) => s.archived);
@@ -174,9 +176,11 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
           <div className="grid h-60 w-[420px] max-w-full place-items-center content-center gap-1.5 rounded-lg border border-dashed border-[var(--border-strong)] bg-[var(--surface)] text-xs text-[var(--fg-3)]">
             <AlertTriangle className="h-4 w-4 text-[var(--warning)]" aria-hidden />
             <span className="font-medium text-[var(--fg-2)]">
-              {item?.missing ? "File not found" : "Couldn't read this file"}
+              {item?.missing ? t("editor.history.notFound") : t("editor.preview.unreadable")}
             </span>
-            <span>{item?.missing ? "It was moved or deleted outside capz." : "It may be damaged or not an image."}</span>
+            <span>
+              {item?.missing ? t("editor.preview.missingHint") : t("editor.preview.unreadableHint")}
+            </span>
           </div>
         ) : item && box ? (
           <div
@@ -216,7 +220,7 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs text-[var(--fg)]">{item.fileName}</div>
             <div className="truncate font-mono text-[10px] tabular-nums text-[var(--fg-3)]">
-              {item.kind === "capture" && !item.missing ? "Auto  ·  " : ""}
+              {item.kind === "capture" && !item.missing ? `${t("editor.history.auto")}  ·  ` : ""}
               {meta}
             </div>
           </div>
@@ -227,25 +231,25 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
               className={actionClass(true)}
             >
               <Trash2 className="h-3 w-3" aria-hidden />
-              Remove from list
+              {t("editor.history.remove")}
             </button>
           ) : (
             <>
               <div className="flex gap-0.5">
-                <button type="button" onClick={() => void reveal(item)} className={actionClass()} title="Reveal in folder">
+                <button type="button" onClick={() => void reveal(item)} className={actionClass()} title={t("editor.history.revealHint")}>
                   <FolderOpen className="h-3 w-3" aria-hidden />
-                  Reveal
+                  {t("editor.history.reveal")}
                 </button>
-                <button type="button" onClick={() => void copy(item)} className={actionClass()} title="Copy to clipboard">
+                <button type="button" onClick={() => void copy(item)} className={actionClass()} title={t("editor.history.copyHint")}>
                   <Copy className="h-3 w-3" aria-hidden />
-                  Copy
+                  {t("common.copy")}
                 </button>
                 <button
                   type="button"
                   onClick={() => requestTrash(item)}
                   className={actionClass(true)}
-                  title="Move to Trash"
-                  aria-label="Move to Trash"
+                  title={t("editor.history.moveToTrash")}
+                  aria-label={t("editor.history.moveToTrash")}
                 >
                   <Trash2 className="h-3 w-3" aria-hidden />
                 </button>
@@ -254,10 +258,10 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
               <button
                 type="button"
                 onClick={add}
-                title="Double-clicking the picture does the same"
+                title={t("editor.preview.addHint")}
                 className="inline-flex h-7 items-center rounded-md bg-[var(--accent)] px-3 text-xs font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-hover)]"
               >
-                Add to current workspace
+                {t("editor.preview.add")}
               </button>
             </>
           )}
@@ -265,8 +269,8 @@ export function HistoryPreview({ active, onAdd }: HistoryPreviewProps) {
             type="button"
             onClick={() => select(null)}
             className="grid h-7 w-7 place-items-center rounded-md bg-[var(--surface-raised)] text-[var(--fg-2)] hover:bg-[var(--surface-raised-hover)]"
-            title="Close preview (Esc)"
-            aria-label="Close preview"
+            title={t("editor.preview.closeHint")}
+            aria-label={t("editor.preview.close")}
           >
             <X className="h-3.5 w-3.5" aria-hidden />
           </button>

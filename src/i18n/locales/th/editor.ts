@@ -278,4 +278,11 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.zoom.out": "ซูมออก",
   "editor.zoom.set": "ตั้งค่าซูม",
   "editor.zoom.to100": "ซูม 100%",
+  "editor.preview.unreadable": "อ่านไฟล์นี้ไม่ได้",
+  "editor.preview.missingHint": "ไฟล์ถูกย้ายหรือลบนอก capz",
+  "editor.preview.unreadableHint": "ไฟล์อาจเสียหายหรือไม่ใช่รูปภาพ",
+  "editor.preview.addHint": "ดับเบิลคลิกที่รูปก็ได้ผลเหมือนกัน",
+  "editor.preview.add": "เพิ่มลงเวิร์กสเปซปัจจุบัน",
+  "editor.preview.closeHint": "ปิดตัวอย่าง (Esc)",
+  "editor.preview.close": "ปิดตัวอย่าง",
 };

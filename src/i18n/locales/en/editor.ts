@@ -277,4 +277,11 @@ export const editor = {
   "editor.zoom.out": "Zoom out",
   "editor.zoom.set": "Set zoom",
   "editor.zoom.to100": "Zoom to 100%",
+  "editor.preview.unreadable": "Couldn't read this file",
+  "editor.preview.missingHint": "It was moved or deleted outside capz.",
+  "editor.preview.unreadableHint": "It may be damaged or not an image.",
+  "editor.preview.addHint": "Double-clicking the picture does the same",
+  "editor.preview.add": "Add to current workspace",
+  "editor.preview.closeHint": "Close preview (Esc)",
+  "editor.preview.close": "Close preview",
 };
