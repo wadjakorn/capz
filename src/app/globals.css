@@ -627,14 +627,20 @@
   & .minimap { position: absolute; right: 8px; bottom: 8px; width: 48px; aspect-ratio: 16 / 10; border: 1.5px solid rgba(255, 255, 255, .9); border-radius: 3px; background: rgba(12, 12, 16, .45); box-shadow: 0 1px 4px rgba(0, 0, 0, .4); pointer-events: none; z-index: 1; }
   & .minimap i { position: absolute; border: 1.5px solid var(--a-yellow); border-radius: 1px; background: rgba(250, 204, 21, .18); }
   & .clipcap { margin: 12px 0 0; text-align: center; font: 500 16px/1.6 var(--body); min-height: 1.6em; }
-  & .chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  & .chip-btn { all: unset; box-sizing: border-box; cursor: pointer; position: relative; overflow: hidden; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; font: 600 15px/1 var(--body); color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink); transition: background .2s, color .2s, border-color .2s; }
-  & .chip-btn b { font: 600 12px/1 var(--measure); margin-right: 8px; }
-  & .chip-btn::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--fill, 0) * 100%); background: var(--pill); }
-  & .chip-btn[aria-current="true"] { background: var(--pill); border-color: var(--pill); color: #fff; }
-  & .chip-btn[aria-current="true"]::after { background: rgba(255, 255, 255, .9); }
-  & .chip-btn:hover:not([aria-current="true"]) { background: #eef0ff; }
-  & .chip-btn:focus-visible { outline: 2px solid var(--pill); outline-offset: 3px; }
+  /* chapter rail: one continuous scrubber, segments sized by each clip's share of the scroll */
+  & .chips { display: flex; gap: 6px; margin-top: 14px; }
+  & .chip-btn { all: unset; box-sizing: border-box; cursor: pointer; flex: 1 1 0; min-width: 0; min-height: 48px; padding-top: 14px; display: grid; align-content: start; gap: 8px; color: var(--ink-2); }
+  & .chip-btn .seg { position: relative; display: block; height: 6px; border-radius: 3px; background: rgba(12, 12, 16, .14); overflow: hidden; transform: scaleY(.6); transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
+  & .chip-btn .seg::after { content: ""; position: absolute; inset: 0; transform-origin: 0 50%; transform: scaleX(var(--fill, 0)); background: var(--pill); }
+  & .chip-btn .lbl { display: flex; align-items: baseline; gap: 6px; font: 500 15px/1.3 var(--body); white-space: nowrap; overflow: hidden; }
+  & .chip-btn .lbl b { font: 600 12px/1 var(--measure); }
+  & .chip-btn[aria-current="true"] { color: var(--ink); }
+  & .chip-btn[aria-current="true"] .lbl { font-weight: 700; }
+  & .chip-btn[aria-current="true"] .seg, & .chip-btn:hover .seg { transform: none; }
+  & .chip-btn:focus-visible { outline: 2px solid var(--pill); outline-offset: 4px; border-radius: 4px; }
+  @media (max-width: 600px) {
+    & .chip-btn:not([aria-current="true"]) .name { display: none; }
+  }
   & .demo figcaption { margin-top: 10px; text-align: center; font-size: 16px; color: var(--ink-2); }
   & .play { all: unset; cursor: pointer; position: absolute; inset: 0; margin: auto; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: var(--pill); color: #fff; box-shadow: 0 10px 30px -8px rgba(12, 12, 16, .5); z-index: 1; }
   & .play svg { width: 30px; height: 30px; margin-left: 4px; }
@@ -920,7 +926,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     & .mode-plate.swap .ed { animation: none; }
-    & .btn, & .chip-btn, & .win-body video { transition: none; }
+    & .btn, & .chip-btn .seg, & .win-body video { transition: none; }
   }
 }
 

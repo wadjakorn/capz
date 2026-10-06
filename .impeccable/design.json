@@ -331,12 +331,12 @@
       "css": ".ds-cmd{display:flex;border:1.5px solid #0c0c10;border-radius:10px;overflow:hidden;background:#fff;max-width:560px}.ds-cmd code{flex:1;font:600 15px/1 'JetBrains Mono',ui-monospace,monospace;padding:18px 16px;white-space:nowrap;overflow-x:auto}.ds-cmd code::before{content:'$ ';color:#44464f}.ds-copy{border:0;border-radius:0;min-width:104px;background:#0c0c10;color:#fff;font:700 16px/1 'Noto Sans Thai',sans-serif;cursor:pointer}.ds-copy:hover{background:#26262d}.ds-copy:active{background:#4d5cf0}.ds-copy:focus-visible{outline:2px solid #4d5cf0;outline-offset:-4px}"
     },
     {
-      "name": "Clip Chip",
-      "kind": "chip",
-      "refersTo": "chip-clip",
-      "description": "Hero clip chapter chip with progress fill.",
-      "html": "<div class=\"ds-chips\"><button class=\"ds-chip on\" style=\"--fill:.6\"><b>1</b>นำเข้า</button><button class=\"ds-chip\"><b>2</b>ใส่คำอธิบาย</button></div>",
-      "css": ".ds-chips{display:flex;gap:8px}.ds-chip{position:relative;overflow:hidden;display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:999px;background:#fff;color:#0c0c10;border:1.5px solid #0c0c10;font:600 15px/1 'Noto Sans Thai',sans-serif;cursor:pointer;transition:background .2s,color .2s}.ds-chip b{font:600 12px/1 'JetBrains Mono',monospace;margin-right:8px}.ds-chip::after{content:'';position:absolute;left:0;bottom:0;height:3px;width:calc(var(--fill,0)*100%);background:#4d5cf0}.ds-chip.on{background:#4d5cf0;border-color:#4d5cf0;color:#fff}.ds-chip.on::after{background:rgba(255,255,255,.9)}.ds-chip:hover:not(.on){background:#eef0ff}.ds-chip:focus-visible{outline:2px solid #4d5cf0;outline-offset:3px}"
+      "name": "Chapter Rail",
+      "kind": "custom",
+      "refersTo": "chapter-rail-segment",
+      "description": "Hero chapter scrubber: one continuous rail, segment widths = each clip's share of the scroll, indigo fill across segments.",
+      "html": "<div class=\"ds-rail\"><button class=\"ds-seg done\" style=\"flex-grow:.17\"><i></i><span><b>1</b>ใส่ภาพ</span></button><button class=\"ds-seg on\" style=\"flex-grow:.6;--fill:.45\"><i></i><span><b>2</b>ขีดเขียน</span></button><button class=\"ds-seg\" style=\"flex-grow:.23\"><i></i><span><b>3</b>แต่งพื้นหลัง</span></button></div>",
+      "css": ".ds-rail{display:flex;gap:6px;max-width:720px}.ds-seg{all:unset;box-sizing:border-box;cursor:pointer;flex:1 1 0;min-width:0;min-height:48px;padding-top:14px;display:grid;align-content:start;gap:8px;color:#44464f}.ds-seg i{position:relative;display:block;height:6px;border-radius:3px;background:rgba(12,12,16,.14);overflow:hidden;transform:scaleY(.6);transition:transform .2s cubic-bezier(.16,1,.3,1)}.ds-seg i::after{content:'';position:absolute;inset:0;transform-origin:0 50%;transform:scaleX(var(--fill,0));background:#4d5cf0}.ds-seg.done{--fill:1}.ds-seg span{display:flex;gap:6px;align-items:baseline;font:500 15px/1.3 'Noto Sans Thai',sans-serif;white-space:nowrap;overflow:hidden}.ds-seg b{font:600 12px/1 'JetBrains Mono',monospace}.ds-seg.on{color:#0c0c10}.ds-seg.on span{font-weight:700}.ds-seg.on i,.ds-seg:hover i{transform:none}.ds-seg:focus-visible{outline:2px solid #4d5cf0;outline-offset:4px;border-radius:4px}"
     },
     {
       "name": "Keycap",

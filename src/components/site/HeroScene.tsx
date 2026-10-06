@@ -13,6 +13,8 @@ import { heroSegments, locateSegment, type Segment } from "@/lib/heroSegments";
 import { ThaiText } from "./ThaiText";
 
 const BREW_CMD = "brew install wadjakorn/capz/capz";
+/** Each chapter's share of the rail = its share of the scrub scroll. */
+const RAIL = heroSegments(HERO_CLIPS.map((c) => c.duration)).map((s) => s.b - s.a);
 const RISE_VH = 90;
 const PER_CLIP_VH = 60;
 type Mode = "scrub" | "playlist" | "poster";
@@ -346,14 +348,23 @@ export function HeroScene() {
               )}
             </div>
           </div>
-          <p className="clipcap" aria-live="polite"><ThaiText>{t(clip.caption)}</ThaiText></p>
           <div className="chips" role="group" aria-label={t("site.clip.chapters")} ref={chipsRef}>
             {HERO_CLIPS.map((c, i) => (
-              <button key={c.id} type="button" className="chip-btn" aria-current={i === active} onClick={() => api.current?.jump(i)}>
-                <span><b>{i + 1}</b><ThaiText>{t(c.label)}</ThaiText></span>
+              <button
+                key={c.id}
+                type="button"
+                className="chip-btn"
+                aria-current={i === active}
+                aria-label={`${i + 1} ${t(c.label)}`}
+                style={{ flexGrow: RAIL[i] }}
+                onClick={() => api.current?.jump(i)}
+              >
+                <span className="seg" aria-hidden />
+                <span className="lbl" aria-hidden><b>{i + 1}</b><span className="name"><ThaiText>{t(c.label)}</ThaiText></span></span>
               </button>
             ))}
           </div>
+          <p className="clipcap" aria-live="polite"><ThaiText>{t(clip.caption)}</ThaiText></p>
           <figcaption>{t("site.clip.note")}</figcaption>
         </figure>
       </div>

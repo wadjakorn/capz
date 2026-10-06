@@ -115,15 +115,14 @@ components:
     width: "104px"
   button-copy-done:
     backgroundColor: "{colors.pill}"
-  chip-clip:
-    backgroundColor: "{colors.sheet}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.pill}"
-    padding: "0 16px"
-    height: "44px"
-  chip-clip-active:
+  chapter-rail-segment:
+    backgroundColor: "rgba(12, 12, 16, .14)"
+    textColor: "{colors.ink-2}"
+    rounded: "3px"
+    height: "6px"
+  chapter-rail-segment-active:
     backgroundColor: "{colors.pill}"
-    textColor: "#ffffff"
+    textColor: "{colors.ink}"
   keycap:
     backgroundColor: "{colors.app-raised}"
     textColor: "{colors.app-fg}"
@@ -173,7 +172,7 @@ A monochrome paper-and-ink world plus a dark replica of the app's screen, with o
 
 ### Primary
 - **Capture Indigo** (`app-accent`): the primary CTA fill ("Try in the browser", the Windows download) and the app-screen accent: slider fills and thumbs, selected backdrop swatch ring, version dot. Hover lightens to `app-accent-hover` on dark and darkens on light.
-- **Pill Indigo** (`pill` / `app-pill`): the same hue, darkened so white text passes contrast (5.1:1 on dark; `app-pill-light` gives 5.7:1). Used for every *small* active state with white text: the active editor tool, active sidebar rows and segments, active backdrop tab and action, active ring segment, active clip chip, the play button, the "copied" state, and the focus outline on paper.
+- **Pill Indigo** (`pill` / `app-pill`): the same hue, darkened so white text passes contrast (5.1:1 on dark; `app-pill-light` gives 5.7:1). Used for every *small* active state with white text: the active editor tool, active sidebar rows and segments, active backdrop tab and action, active ring segment, the chapter-rail fill, the play button, the "copied" state, and the focus outline on paper.
 
 ### Secondary (annotation grammar)
 - **Arrow Red** (`annotation-red`): the app's arrow/pen default. Specimen arrows (4-unit stroke, filled triangular head 4× the stroke), the caret colour, and the nav's hover/current underline.
@@ -181,7 +180,7 @@ A monochrome paper-and-ink world plus a dark replica of the app's screen, with o
 - **Highlighter Yellow** (`annotation-yellow`): magnifier border (2px dashed source with a 15% fill and a 3px solid lens), the mini-map viewport, and, at 50% alpha, the text highlighter: the hero's `.hl` mark (14px round caps), text selection, and the active install tab.
 
 ### Neutral
-- **Specimen White** (`sheet`): paper chapter background, the sticky nav, and clip chips.
+- **Specimen White** (`sheet`): paper chapter background, and the sticky nav.
 - **Proof Ink** (`ink`): paper text, 1.5px structural borders, the copy button, the language toggle track, the phone bezel, and the footer background.
 - **Second Ink** (`ink-2`): ledes, secondary paper text, and specimen level labels.
 - **Hairline Rule** (`rule`): dashed specimen level lines, fact dividers, step dividers, and the mobile nav pill borders.
@@ -210,7 +209,7 @@ A monochrome paper-and-ink world plus a dark replica of the app's screen, with o
 - **Title** (400, `clamp(26px, 2.6vw, 38px)`, 1.45): `h3` in lead rows, mode captions, the ring row and workspaces. The install OS head (`clamp(26px, 2.6vw, 36px)`) and fact terms and mode names (`clamp(22px, 2.2vw, 32px)`) are its smaller siblings, and install steps use `clamp(20px, 1.8vw, 26px)`.
 - **Lede** (400, `clamp(17px, 1.35–1.4vw, 20px)`, 1.75, max 32–34em): the paragraph beside each chapter head, `ink-2` on paper and `app-fg-2` on screen. On phones the hero lede is 16px/1.7.
 - **Body** (400, 17px, 1.75): base copy, max 30–36em. Fine print and captions are 16px/1.6.
-- **Label** (600–700, 15–19px, line-height 1): buttons (16px, 19px on the primary), chips (15px), the language toggle (12px), and nav links (500, 15px).
+- **Label** (600–700, 15–19px, line-height 1): buttons (16px, 19px on the primary), chapter-rail labels (15px), the language toggle (12px), and nav links (500, 15px).
 - **Measure** (JetBrains Mono, 12.5px, +0.02em): slot ids, version line, the brew command (600, 15px), and specimen level labels. Keycaps are mono 600 at `clamp(17px, 1.8vw, 22px)`.
 
 ### Named Rules
@@ -227,7 +226,7 @@ A monochrome paper-and-ink world plus a dark replica of the app's screen, with o
 - **Content rows:** asymmetric two-column grids (`1.5fr/1fr`, `.9fr/1.3fr`, `1.15fr/1.4fr`, `1.6fr/1fr`) with column gaps of `clamp(28px, 5vw, 72px)`. Section bottoms are `clamp(56px, 9vw, 112px)`.
 - **Mosaic:** the Annotate shots sit on a 12-column grid with deliberately offset spans and staggered top margins (`clamp(0px, 8vw, 120px)`). It drops to 2 columns at 900px and 1 column at 600px.
 - **Rhythm rule:** every vertical gap is a `clamp(min, vw, max)`. Fixed px appears only inside components.
-- **Breakpoints (observed):** 1024px (touch targets go to 44px, the mode grid stacks, the specimen tablet tier), 900px (all two-column grids collapse, the install switches to tabs at 899px (macOS / Windows / Linux; on desktop, Linux "coming soon" is a full-width row under the two columns), the backdrop panel moves below), 820px (the nav wraps and its list becomes a scrolling pill row), 760px (the phone hero: headline, then lede, then CTA, then specimen, with the brew command, proof strip and version hidden; phones and Linux lead with /paste, desktop Macs with the chip-matched .dmg), 600px (the editor frame drops its sidebar and goes 4:3.3, capture modes become a pill scroller, the specimen phone tier).
+- **Breakpoints (observed):** 1024px (touch targets go to 44px, the mode grid stacks, the specimen tablet tier), 900px (all two-column grids collapse, the install switches to tabs at 899px (macOS / Windows / Linux; on desktop, macOS spans the left column and Windows then Linux "coming soon" stack on the right), the backdrop panel moves below), 820px (the nav wraps and its list becomes a scrolling pill row), 760px (the phone hero: headline, then lede, then CTA, then specimen, with the brew command, proof strip and version hidden; phones and Linux lead with /paste, desktop Macs with the chip-matched .dmg), 600px (the editor frame drops its sidebar and goes 4:3.3, capture modes become a pill scroller, the specimen phone tier).
 - **Specimen tiers are rethought, not scaled:** the phone shows the single word "ผู้ใหญ่" (all four levels, no loupe), the tablet shows the full line filling the width, and the desktop shows the line with a level-label column and a magnifier column.
 
 ## Elevation & Depth
@@ -247,7 +246,7 @@ Paper is flat: depth there comes from 1.5px ink borders and hairline rules, neve
 ## Shapes
 
 - **Paper geometry is ruled:** 1.5px ink borders on the nav bottom, hero body top, chapter heads, the brew command box, the install card and its column divider, and the quiet button. Hairlines are 1px `rule`.
-- **Radii:** 4px for the shot or placeholder inside a canvas and the focus ring; 6–8px for app controls (sidebar rows, segments, tool buttons, the language toggle); 9px for keycaps; 10px for buttons, the command box, code blocks and the tool rail; 12px for app frames (editor, hero window, backdrop grid, capture-mode rows); 14px for the install card; 999px for chips, mobile nav and mode pills, and the Beta tag; 36px for the phone frame, whose bezel is a 10px ink border.
+- **Radii:** 4px for the shot or placeholder inside a canvas and the focus ring; 6–8px for app controls (sidebar rows, segments, tool buttons, the language toggle); 9px for keycaps; 10px for buttons, the command box, code blocks and the tool rail; 12px for app frames (editor, hero window, backdrop grid, capture-mode rows); 14px for the install card; 999px for mobile nav and mode pills, and the Beta tag; 36px for the phone frame, whose bezel is a 10px ink border.
 - **The copy button is square (0 radius)**, fused into the command box's right edge like a stamped slug.
 - On the phone hero the window loses its radius and side borders and runs edge to edge.
 
@@ -261,7 +260,7 @@ Paper is flat: depth there comes from 1.5px ink borders and hairline rules, neve
 - **Focus (all):** a 2px `pill` outline with a 3px offset on paper, and `app-accent` on screen.
 
 ### Chips
-- **Clip chips (hero):** a 44px pill on the sheet with a 1.5px ink border, a mono 600 12px index number, and a 15px label. A 3px `pill` progress bar fills along the bottom edge (`--fill`) as the clip plays. The active chip fills `pill` with white text and a white progress bar, and hovering an inactive chip gives `#eef0ff`.
+- **Chapter rail (hero):** one continuous scrubber under the clip frame, not pills. Each chapter is a segment whose width equals its share of the scrub scroll (`heroSegments`), with 6px gaps acting as ticks. The fill is `pill` indigo, running left to right across segments (`--fill` drives `scaleX`). Segments are 6px tall rendered at `scaleY(.6)`; the active or hovered one shows full height, with no layout shift. Under each segment start sits a mono 12px number plus a 15px label, ink and 700 when active, `ink-2` otherwise. Below 600px, inactive segments show only the number. The whole 48px column is the tap target, and it jumps to the chapter.
 - **Mobile nav and capture-mode pills:** 44px pills with a 1px border (`rule` on paper, `app-border-2` on screen). The current one fills ink (nav) or `app-pill` (modes). They sit in a horizontal snap scroller with masked edges.
 - **Beta tag:** mono 600 12px, a currentColor 1px border, a pill shape, at 0.8 opacity.
 
