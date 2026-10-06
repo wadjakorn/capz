@@ -577,9 +577,6 @@
   }
 
   /* ---------- hero: the specimen sheet ---------- */
-  & .proofhead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 24px; padding-top: 18px; color: var(--ink-2); }
-  & .proofhead b { color: var(--ink); font-weight: 600; }
-  & .redact { filter: blur(4px); user-select: none; }
   & .specimen { position: relative; margin-top: 6px; }
   & .specimen .fallback { font: 400 clamp(48px, 10vw, 180px)/1.6 var(--display); }
   & .spec-stack { position: relative; }
@@ -649,7 +646,7 @@
   @media (max-width: 760px) {
     & .scene-copy { display: flex; flex-direction: column; }
     & .hero-body { order: -1; border-top: 0; padding-block: 16px 14px; gap: 12px; }
-    & .proofhead, & .cmd, & .install-cta .k, & .ver, & .proofstrip { display: none; }
+    & .cmd, & .install-cta .k, & .ver, & .proofstrip { display: none; }
     & .specimen { border-top: 1.5px solid var(--ink); padding-top: 4px; margin-top: 0; }
     & .lede { font-size: 16px; margin-top: 8px; line-height: 1.7; }
     & .btn-primary { font-size: 18px; padding: 14px 18px; }

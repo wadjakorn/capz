@@ -268,13 +268,6 @@ export function HeroScene() {
     <section className="scene" id="top" ref={secRef} aria-labelledby="hero-title">
       <div className="stage" ref={stageRef}>
         <div className="wrap scene-copy" ref={copyRef}>
-          <div className="proofhead mono">
-            <span><b>capz</b> · {t("hero.proofSheet")} · Chonburi</span>
-            <span>
-              {t("hero.sentTo")}: <span className="redact" aria-hidden>proof@studio.co.th</span>
-              <span className="sr">{t("hero.blurred")}</span>
-            </span>
-          </div>
           <SpecimenHero onLayers={onLayers} />
           <div className="hero-body">
             <div>

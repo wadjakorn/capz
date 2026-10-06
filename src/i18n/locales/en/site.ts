@@ -28,9 +28,6 @@ export const site = {
   "hero.proof.oss": "MIT open source",
   "hero.proof.noAds": "No ads, no account",
   "hero.proof.privacy": "Nothing is sent unless you opt in",
-  "hero.proofSheet": "proof sheet 1",
-  "hero.sentTo": "sent to",
-  "hero.blurred": "email blurred with the blur tool",
 
   "site.spec.aria":
     "Thai words measured from the real font at four levels — tone mark, upper vowel, main line, lower vowel — and marked up with capz's own tools",

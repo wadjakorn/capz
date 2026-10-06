@@ -1,0 +1,441 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-06T08:28:41.592851+00:00",
+  "title": "Design System: capz landing",
+  "extensions": {
+    "scope": "Landing page only (.site-landing). The desktop editor UI keeps its own Graphite tokens in the same globals.css and is not governed here.",
+    "colorMeta": {
+      "app-accent": {
+        "role": "primary",
+        "displayName": "Capture Indigo",
+        "tonalRamp": [
+          "oklch(15% 0.17 275)",
+          "oklch(25% 0.17 275)",
+          "oklch(35% 0.17 275)",
+          "oklch(45% 0.17 275)",
+          "oklch(55% 0.17 275)",
+          "oklch(70% 0.17 275)",
+          "oklch(85% 0.17 275)",
+          "oklch(95% 0.17 275)"
+        ],
+        "note": "Switched by data-app-theme; light theme uses app-accent-light (#5b6bff)."
+      },
+      "pill": {
+        "role": "primary",
+        "displayName": "Pill Indigo",
+        "tonalRamp": [
+          "oklch(15% 0.19 274)",
+          "oklch(25% 0.19 274)",
+          "oklch(35% 0.19 274)",
+          "oklch(45% 0.19 274)",
+          "oklch(55% 0.19 274)",
+          "oklch(70% 0.19 274)",
+          "oklch(85% 0.19 274)",
+          "oklch(95% 0.19 274)"
+        ]
+      },
+      "annotation-red": {
+        "role": "secondary",
+        "displayName": "Arrow Red",
+        "tonalRamp": [
+          "oklch(15% 0.2 25)",
+          "oklch(25% 0.2 25)",
+          "oklch(35% 0.2 25)",
+          "oklch(45% 0.2 25)",
+          "oklch(55% 0.2 25)",
+          "oklch(70% 0.2 25)",
+          "oklch(85% 0.2 25)",
+          "oklch(95% 0.2 25)"
+        ]
+      },
+      "annotation-pin": {
+        "role": "secondary",
+        "displayName": "Pin Red",
+        "tonalRamp": [
+          "oklch(15% 0.2 28)",
+          "oklch(25% 0.2 28)",
+          "oklch(35% 0.2 28)",
+          "oklch(45% 0.2 28)",
+          "oklch(55% 0.2 28)",
+          "oklch(70% 0.2 28)",
+          "oklch(85% 0.2 28)",
+          "oklch(95% 0.2 28)"
+        ]
+      },
+      "annotation-yellow": {
+        "role": "secondary",
+        "displayName": "Highlighter Yellow",
+        "tonalRamp": [
+          "oklch(15% 0.17 95)",
+          "oklch(25% 0.17 95)",
+          "oklch(35% 0.17 95)",
+          "oklch(45% 0.17 95)",
+          "oklch(55% 0.17 95)",
+          "oklch(70% 0.17 95)",
+          "oklch(85% 0.17 95)",
+          "oklch(95% 0.17 95)"
+        ]
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Specimen White",
+        "tonalRamp": [
+          "oklch(15% 0.005 270)",
+          "oklch(25% 0.005 270)",
+          "oklch(35% 0.005 270)",
+          "oklch(45% 0.005 270)",
+          "oklch(55% 0.005 270)",
+          "oklch(70% 0.005 270)",
+          "oklch(85% 0.005 270)",
+          "oklch(95% 0.005 270)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Proof Ink",
+        "tonalRamp": [
+          "oklch(15% 0.008 285)",
+          "oklch(25% 0.008 285)",
+          "oklch(35% 0.008 285)",
+          "oklch(45% 0.008 285)",
+          "oklch(55% 0.008 285)",
+          "oklch(70% 0.008 285)",
+          "oklch(85% 0.008 285)",
+          "oklch(95% 0.008 285)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Second Ink",
+        "tonalRamp": [
+          "oklch(15% 0.015 275)",
+          "oklch(25% 0.015 275)",
+          "oklch(35% 0.015 275)",
+          "oklch(45% 0.015 275)",
+          "oklch(55% 0.015 275)",
+          "oklch(70% 0.015 275)",
+          "oklch(85% 0.015 275)",
+          "oklch(95% 0.015 275)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline Rule",
+        "tonalRamp": [
+          "oklch(15% 0.01 270)",
+          "oklch(25% 0.01 270)",
+          "oklch(35% 0.01 270)",
+          "oklch(45% 0.01 270)",
+          "oklch(55% 0.01 270)",
+          "oklch(70% 0.01 270)",
+          "oklch(85% 0.01 270)",
+          "oklch(95% 0.01 270)"
+        ]
+      },
+      "app-bg": {
+        "role": "neutral",
+        "displayName": "App Screen",
+        "tonalRamp": [
+          "oklch(15% 0.008 285)",
+          "oklch(25% 0.008 285)",
+          "oklch(35% 0.008 285)",
+          "oklch(45% 0.008 285)",
+          "oklch(55% 0.008 285)",
+          "oklch(70% 0.008 285)",
+          "oklch(85% 0.008 285)",
+          "oklch(95% 0.008 285)"
+        ]
+      },
+      "app-surface": {
+        "role": "neutral",
+        "displayName": "App Surface",
+        "tonalRamp": [
+          "oklch(15% 0.008 285)",
+          "oklch(25% 0.008 285)",
+          "oklch(35% 0.008 285)",
+          "oklch(45% 0.008 285)",
+          "oklch(55% 0.008 285)",
+          "oklch(70% 0.008 285)",
+          "oklch(85% 0.008 285)",
+          "oklch(95% 0.008 285)"
+        ]
+      },
+      "app-raised": {
+        "role": "neutral",
+        "displayName": "App Raised",
+        "tonalRamp": [
+          "oklch(15% 0.01 285)",
+          "oklch(25% 0.01 285)",
+          "oklch(35% 0.01 285)",
+          "oklch(45% 0.01 285)",
+          "oklch(55% 0.01 285)",
+          "oklch(70% 0.01 285)",
+          "oklch(85% 0.01 285)",
+          "oklch(95% 0.01 285)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display-chapter": {
+        "displayName": "Chapter Display",
+        "purpose": "h2 on screen chapters (Chonburi 400)."
+      },
+      "display-paper": {
+        "displayName": "Paper Display",
+        "purpose": "h2 on paper chapters."
+      },
+      "headline": {
+        "displayName": "Hero Headline",
+        "purpose": "Hero h1 only; second phrase gets the 50% yellow highlighter."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "h3 in lead rows, mode captions, ring row, workspaces."
+      },
+      "title-sm": {
+        "displayName": "Small Title",
+        "purpose": "Capture-mode names and fact terms."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "Paragraph beside each chapter head, max 32–34em."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base copy, 17px/1.75."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, chips, nav."
+      },
+      "measure": {
+        "displayName": "Measure",
+        "purpose": "JetBrains Mono for slot ids, version, brew command, specimen levels, keycaps."
+      }
+    },
+    "shadows": [
+      {
+        "name": "app-elev",
+        "value": "0 2px 6px rgba(0,0,0,.25), 0 30px 60px -30px rgba(0,0,0,.6)",
+        "purpose": "Editor frames and backdrop playground (light theme: rgba(15,15,18,.08)/.28)."
+      },
+      {
+        "name": "hero-window",
+        "value": "0 2px 6px rgba(12,12,16,.16), 0 40px 90px -30px rgba(12,12,16,.55)",
+        "purpose": "Rising hero demo window on paper."
+      },
+      {
+        "name": "app-key",
+        "value": "0 2px 0 rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06)",
+        "purpose": "Keycap physical edge."
+      },
+      {
+        "name": "cta-glow",
+        "value": "0 1px 2px rgba(15,15,18,.25), 0 12px 26px -12px rgba(109,124,255,.8)",
+        "purpose": "Primary button only."
+      },
+      {
+        "name": "placeholder-plate",
+        "value": "0 12px 30px -12px rgba(0,0,0,.45)",
+        "purpose": "Image plate inside an editor canvas."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-landing",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Every landing transition and keyframe."
+      },
+      {
+        "name": "specimen-stroke",
+        "value": "800ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Arrow draw-in by dash offset, staggered 150ms from 120ms."
+      },
+      {
+        "name": "specimen-pop",
+        "value": "520ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Pins, heads and labels pop from scale .3."
+      },
+      {
+        "name": "plate-swap",
+        "value": "350ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Capture-mode plate swap from 6px down and .3 opacity."
+      },
+      {
+        "name": "video-crossfade",
+        "value": "220ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Hero clip cross-fade."
+      },
+      {
+        "name": "button-lift",
+        "value": "transform 250ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Primary hover lifts 2px."
+      },
+      {
+        "name": "hero-scroll-scene",
+        "value": "pinned 100vh + 90vh rise + 60vh per clip",
+        "purpose": "Scrub mode: specimen parallax 6/14/26% of the stage, window rises and scales .62→1, scroll scrubs clips."
+      },
+      {
+        "name": "guided-camera",
+        "value": "quadratic ease-in-out between {t,x,y,s} keys",
+        "purpose": "Under 760px: follow the point of action at ~2× with a mini-map, never a fixed crop."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "touch",
+        "value": "1024px"
+      },
+      {
+        "name": "stack",
+        "value": "900px"
+      },
+      {
+        "name": "nav-wrap",
+        "value": "820px"
+      },
+      {
+        "name": "phone-hero",
+        "value": "760px"
+      },
+      {
+        "name": "phone",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single indigo action per decision area.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">ลองในเบราว์เซอร์ →</a>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:16px 20px;border-radius:10px;background:#6d7cff;color:#fff;font:700 19px/1 'Noto Sans Thai',system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 2px rgba(15,15,18,.25),0 12px 26px -12px rgba(109,124,255,.8);transition:transform .25s cubic-bezier(.16, 1, .3, 1),background .2s}.ds-btn-primary:hover{transform:translateY(-2px);background:#7d8aff}.ds-btn-primary:focus-visible{outline:2px solid #4d5cf0;outline-offset:3px}"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Secondary route on paper.",
+      "html": "<a class=\"ds-btn-quiet\" href=\"#\">Try in the browser</a>",
+      "css": ".ds-btn-quiet{display:inline-flex;align-items:center;min-height:48px;padding:16px 20px;border-radius:10px;background:transparent;color:#0c0c10;border:1.5px solid #0c0c10;font:700 16px/1 'Noto Sans Thai',system-ui,sans-serif;text-decoration:none}.ds-btn-quiet:hover{background:#eef0ff}.ds-btn-quiet:focus-visible{outline:2px solid #4d5cf0;outline-offset:3px}"
+    },
+    {
+      "name": "Brew Command",
+      "kind": "input",
+      "refersTo": "button-copy",
+      "description": "Command box with a fused square copy slab.",
+      "html": "<div class=\"ds-cmd\"><code>brew install wadjakorn/capz/capz</code><button class=\"ds-copy\">Copy</button></div>",
+      "css": ".ds-cmd{display:flex;border:1.5px solid #0c0c10;border-radius:10px;overflow:hidden;background:#fff;max-width:560px}.ds-cmd code{flex:1;font:600 15px/1 'JetBrains Mono',ui-monospace,monospace;padding:18px 16px;white-space:nowrap;overflow-x:auto}.ds-cmd code::before{content:'$ ';color:#44464f}.ds-copy{border:0;border-radius:0;min-width:104px;background:#0c0c10;color:#fff;font:700 16px/1 'Noto Sans Thai',sans-serif;cursor:pointer}.ds-copy:hover{background:#26262d}.ds-copy:active{background:#4d5cf0}.ds-copy:focus-visible{outline:2px solid #4d5cf0;outline-offset:-4px}"
+    },
+    {
+      "name": "Clip Chip",
+      "kind": "chip",
+      "refersTo": "chip-clip",
+      "description": "Hero clip chapter chip with progress fill.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip on\" style=\"--fill:.6\"><b>1</b>นำเข้า</button><button class=\"ds-chip\"><b>2</b>ใส่คำอธิบาย</button></div>",
+      "css": ".ds-chips{display:flex;gap:8px}.ds-chip{position:relative;overflow:hidden;display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:999px;background:#fff;color:#0c0c10;border:1.5px solid #0c0c10;font:600 15px/1 'Noto Sans Thai',sans-serif;cursor:pointer;transition:background .2s,color .2s}.ds-chip b{font:600 12px/1 'JetBrains Mono',monospace;margin-right:8px}.ds-chip::after{content:'';position:absolute;left:0;bottom:0;height:3px;width:calc(var(--fill,0)*100%);background:#4d5cf0}.ds-chip.on{background:#4d5cf0;border-color:#4d5cf0;color:#fff}.ds-chip.on::after{background:rgba(255,255,255,.9)}.ds-chip:hover:not(.on){background:#eef0ff}.ds-chip:focus-visible{outline:2px solid #4d5cf0;outline-offset:3px}"
+    },
+    {
+      "name": "Keycap",
+      "kind": "custom",
+      "refersTo": "keycap",
+      "description": "Hotkeys as rows of app-surface keycaps.",
+      "html": "<span class=\"ds-keys\"><kbd class=\"ds-kbd\">⌘</kbd><kbd class=\"ds-kbd\">⌥</kbd><kbd class=\"ds-kbd\">⇧</kbd><kbd class=\"ds-kbd\">4</kbd></span>",
+      "css": ".ds-keys{display:inline-flex;gap:8px;padding:16px;background:#0f0f12}.ds-kbd{font:600 20px/1 'JetBrains Mono',monospace;min-width:2em;height:2em;padding:0 .5em;display:inline-grid;place-items:center;color:#ecedf0;background:#1f1f24;border:1px solid rgba(255,255,255,.14);border-radius:9px;box-shadow:0 2px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}"
+    },
+    {
+      "name": "Editor Frame",
+      "kind": "card",
+      "refersTo": "editor-frame",
+      "description": "Replica of the capz editor chrome around a shot or labelled placeholder.",
+      "html": "<div class=\"ds-ed\"><div class=\"ds-ed-bar\"><span class=\"ds-t\"></span><span class=\"ds-t on\"></span><span class=\"ds-t\"></span><span class=\"ds-t\"></span></div><div class=\"ds-ed-body\"><div class=\"ds-ph\"><div class=\"ds-ph-id\">ann-arrow</div><div>ลูกศรโค้ง สีแดงค่าเริ่มต้น</div></div></div></div>",
+      "css": ".ds-ed{max-width:520px;border-radius:12px;overflow:hidden;background:#0f0f12;border:1px solid rgba(255,255,255,.14);box-shadow:0 2px 6px rgba(0,0,0,.25),0 30px 60px -30px rgba(0,0,0,.6);color:#ecedf0;font-family:'Noto Sans Thai',sans-serif}.ds-ed-bar{display:flex;gap:2px;height:44px;align-items:center;padding:0 10px;background:#161619;border-bottom:1px solid rgba(255,255,255,.08)}.ds-t{width:32px;height:32px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}.ds-t.on{background:#4d5cf0}.ds-ed-body{aspect-ratio:16/9.4;padding:6%;display:grid}.ds-ph{border-radius:4px;display:grid;place-content:center;text-align:center;background:linear-gradient(135deg,#2b3242,#1b1f2a);box-shadow:0 12px 30px -12px rgba(0,0,0,.45)}.ds-ph-id{font:14px 'JetBrains Mono',monospace;color:#9a9aa3}"
+    },
+    {
+      "name": "Specimen Index Nav",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Sticky paper nav with ink rule, red underline for current, TH/EN toggle.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-mark\">capz</span><ol><li><a href=\"#\" aria-current=\"true\">จับภาพ</a></li><li><a href=\"#\">พื้นหลัง</a></li><li><a href=\"#\">ติดตั้ง</a></li></ol><span class=\"ds-lang\"><button aria-pressed=\"true\">TH</button><button>EN</button></span></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:24px;min-height:56px;padding:0 24px;background:#fff;border-bottom:1.5px solid #0c0c10;font-family:'Noto Sans Thai',sans-serif}.ds-mark{font:400 26px/1 Chonburi,serif}.ds-nav ol{display:flex;gap:22px;list-style:none;margin:0 0 0 auto;padding:0}.ds-nav a{color:#0c0c10;font-size:15px;font-weight:500;text-decoration:none}.ds-nav a:hover,.ds-nav a[aria-current=true]{text-decoration:underline;text-decoration-color:#ef4444;text-decoration-thickness:2px;text-underline-offset:.3em}.ds-lang{display:inline-flex;padding:3px;gap:2px;border-radius:8px;background:#0c0c10}.ds-lang button{all:unset;cursor:pointer;font:600 12px/1 sans-serif;color:#b4b4bc;padding:6px 9px;border-radius:6px}.ds-lang button[aria-pressed=true]{background:#fff;color:#0c0c10}.ds-lang button:focus-visible{outline:2px solid #4d5cf0}"
+    },
+    {
+      "name": "Annotation Pin",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "The app's default numbered pin, used on the specimen and tool rail.",
+      "html": "<span class=\"ds-pin\">1</span>",
+      "css": ".ds-pin{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#E5342B;color:#fff;font:700 19px/1 'Noto Sans Thai',sans-serif;box-shadow:0 0 0 2px #fff,0 0 0 3px rgba(12,12,16,.1)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Proof Sheet and the Screen",
+    "overview": "The page is a printer's Thai type specimen that keeps cutting to the app itself. Paper chapters are white sheets set in black ink with hairline rules and 1.5px ink borders, the way a foundry proof is set. Screen chapters drop into the app's own dark editor surface, rendered with replica chrome and the app's real default values. The two materials alternate down the page (hero paper → Capture, Backdrops on screen → Thai on paper → Annotate on screen → OCR on paper → Workspaces on screen → Web, Install on paper → ink footer), so the reader is always either *reading Thai set well* or *looking at the tool that does it*.\n\nThe signature is the hero specimen: a Thai line measured live from the display face at its five vertical levels (tone, upper vowel, x-line, baseline, lower vowel), then marked up with capz's own default annotations: red arrow, red numbered pins, yellow dashed magnifier, and black text on white boxes. Annotation is not decoration here; it is the product demonstrating itself on the page's own type.\n\nDensity is generous and editorial: huge Chonburi display heads, 17px body at 1.75 leading, and clamp-driven section rhythm. Indigo is the single action colour. There are no gradients-as-brand, no glass, and no bento grid.",
+    "keyCharacteristics": [
+      "Two materials, strictly alternated: specimen paper (.paper) and app screen (.screen).",
+      "App-screen colours come only from --app-* tokens, switched by data-app-theme=\"dark|light\" on the landing root (it currently ships dark).",
+      "Annotation colours are the app's defaults from src/lib/config.ts, never re-tinted.",
+      "One action colour: indigo. Large CTAs use app-accent; small white-text pills use the darker pill.",
+      "Display type never breaks inside a Thai word (ThaiText units).",
+      "Every interactive target is at least 44px under 1024px."
+    ],
+    "rules": [
+      {
+        "name": "The Borrowed Colour Rule",
+        "body": "Annotation colours are the app's defaults, copied by value with a comment pointing at src/lib/config.ts. If the app's defaults change, these change; never pick a \"nicer\" red.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Indigos Rule",
+        "body": "Fill large CTAs with app-accent. Anything small that carries white text uses pill/app-pill, because #6d7cff with white is only 3.5:1.",
+        "section": "colors"
+      },
+      {
+        "name": "The Theme Switch Rule",
+        "body": "App-screen surfaces read only --app-* variables. Never hard-code a Graphite hex inside a .screen chapter, so that flipping data-app-theme re-skins every replica at once.",
+        "section": "colors"
+      },
+      {
+        "name": "The Unbroken Word Rule",
+        "body": "Every Thai display string goes through ThaiText, which wraps each unit in a no-wrap span. Lines break only at spaces and at explicit U+200B markers placed in the locale strings, never inside a Thai word.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Weight Display Rule",
+        "body": "Chonburi is set at 400 everywhere (all headings are reset to font-weight: 400). Hierarchy comes from size alone, never from fake bold.",
+        "section": "typography"
+      },
+      {
+        "name": "The Specimen Scale Rule",
+        "body": "Chonburi appears only at title size (≥20px) or larger, plus the wordmark. Never set body, labels, or UI text in it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Paper Rule",
+        "body": "Nothing on a paper chapter casts a shadow except an app object placed on it (a window, a phone, a frame). Paper structure is drawn with ink lines.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do alternate .paper and .screen chapters, and put every new app depiction inside a .screen chapter or an app frame that reads --app-* tokens.",
+      "Do copy annotation colours and sizes from the app defaults (arrow #ef4444 at width 4 with a filled head, pin #E5342B with a white numeral, magnify and highlighter #facc15, text on a white box).",
+      "Do use pill/app-pill for any small active state that carries white text, and app-accent only for large CTAs, fills and thumbs.",
+      "Do wrap every Thai display string in ThaiText and place U+200B break hints in the locale strings.",
+      "Do size every vertical section gap with clamp() and hold touch targets at ≥44px under 1024px.",
+      "Do show each unshot feature through MediaSlot with its labelled placeholder until a real capture exists.",
+      "Do give every motion a reduced-motion path that keeps the content (posters, a static specimen)."
+    ],
+    "donts": [
+      "Don't apply these landing tokens to the desktop editor, settings, onboarding, or /paste. They use Graphite (--bg, --surface, --accent, --elev-*) and are out of scope here.",
+      "Don't hard-code Graphite hex values inside screen chapters, which bypasses data-app-theme.",
+      "Don't put shadows on paper elements; draw structure with 1.5px ink or 1px rule lines.",
+      "Don't set Chonburi below title size or at any weight other than 400.",
+      "Don't crop hero clips to a fixed portrait frame or shrink the whole frame on phones; follow the guided camera keyframes instead.",
+      "Don't add a second action colour or re-tint the annotation colours for aesthetic reasons.",
+      "Don't present a placeholder as a real shot, or invent stats, testimonials or counts (PRODUCT.md: show the real thing)."
+    ]
+  }
+}

@@ -29,9 +29,6 @@ export const site: Record<keyof typeof en, string> = {
   "hero.proof.oss": "โอเพนซอร์ส MIT",
   "hero.proof.noAds": "ไม่มีโฆษณา ไม่ต้องสมัคร",
   "hero.proof.privacy": "ไม่ส่งข้อมูลใด ๆ ถ้าคุณไม่เปิดเอง",
-  "hero.proofSheet": "แผ่นพิสูจน์ 1",
-  "hero.sentTo": "ส่งตรวจ",
-  "hero.blurred": "อีเมลถูกเบลอด้วยเครื่องมือเบลอ",
 
   "site.spec.aria":
     "คำภาษาไทยที่วัดจากฟอนต์จริงสี่ระดับ — วรรณยุกต์ สระบน บรรทัดหลัก สระล่าง — แล้วขีดเขียนด้วยเครื่องมือของ capz",
