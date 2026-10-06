@@ -837,7 +837,8 @@
   & .inst { border: 1.5px solid var(--ink); border-radius: 14px; overflow: hidden; margin-bottom: clamp(56px, 9vw, 112px); }
   & .inst-tabs { display: none; border-bottom: 1.5px solid var(--ink); }
   & .inst-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  & .inst-col { padding: clamp(20px, 3vw, 36px); display: grid; gap: 28px; align-content: start; min-width: 0; }
+  & .inst-col { padding: clamp(20px, 3vw, 36px); display: grid; gap: 28px; align-content: start; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+  & .inst-col > * { min-width: 0; }
   & .inst-col + .inst-col { border-left: 1.5px solid var(--ink); }
   & .inst-os { display: flex; align-items: center; gap: 10px; margin: 0; font: 400 clamp(26px, 2.6vw, 36px)/1.3 var(--display); }
   & .inst-os svg { width: 24px; height: 24px; }
@@ -851,13 +852,14 @@
   & .inst-tabs button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 22px; font: 600 16px/1 var(--body); color: var(--ink-2); border-right: 1px solid var(--rule); }
   & .inst-tabs button[aria-selected="true"] { color: var(--ink); background: rgba(250, 204, 21, .5); }
   & .inst-tabs svg { width: 18px; height: 18px; }
-  & .step { display: grid; gap: 12px; max-width: 760px; }
+  & .step { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 760px; min-width: 0; }
+  & .step > * { min-width: 0; }
   & .step + .step { border-top: 1px solid var(--rule); padding-top: 24px; }
   & .step h4 { margin: 0; font: 400 clamp(20px, 1.8vw, 26px)/1.45 var(--display); }
   & .step p { margin: 0; font-size: 16px; color: var(--ink-2); }
   & .step .btn { justify-self: start; }
   & .codeblock { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--rule); background: #f6f7f9; border-radius: 10px; padding: 4px 4px 4px 16px; }
-  & .codeblock code { font: 500 14px/1.6 var(--measure); white-space: nowrap; overflow-x: auto; scrollbar-width: none; padding-block: 10px; }
+  & .codeblock code { min-width: 0; mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 20px; font: 500 14px/1.6 var(--measure); white-space: nowrap; overflow-x: auto; scrollbar-width: none; padding-block: 10px; }
   & .codeblock .prompt { color: var(--ink-2); user-select: none; }
   & .code-copy { all: unset; cursor: pointer; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 8px; color: var(--ink-2); }
   & .code-copy:hover { background: #e9ebef; color: var(--ink); }
