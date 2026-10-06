@@ -8,10 +8,15 @@ export const RELEASES_PAGE = "https://github.com/wadjakorn/capz/releases/latest"
 type Asset = { name: string; browser_download_url: string };
 type Release = { tag_name: string; assets: Asset[]; html_url: string };
 
-function pickWindowsAsset(assets: Asset[] | undefined): string | undefined {
+export function pickWindowsAsset(assets: Asset[] | undefined): string | undefined {
   if (!assets?.length) return undefined;
   const exe = assets.find((a) => /\.exe$/i.test(a.name));
   return exe?.browser_download_url;
+}
+
+/** Tauri ships one .dmg per chip: `capz_<ver>_aarch64.dmg` and `capz_<ver>_x64.dmg`. */
+export function pickMacAsset(assets: Asset[] | undefined, arch: "aarch64" | "x64"): string | undefined {
+  return assets?.find((a) => a.name.toLowerCase().endsWith(`_${arch}.dmg`))?.browser_download_url;
 }
 
 /**
@@ -49,6 +54,8 @@ export function useLatestRelease() {
   return {
     version: data?.tag_name ?? (status === "error" ? FALLBACK_VERSION : undefined),
     windowsAssetUrl: pickWindowsAsset(data?.assets) ?? RELEASES_PAGE,
+    macArmUrl: pickMacAsset(data?.assets, "aarch64") ?? RELEASES_PAGE,
+    macIntelUrl: pickMacAsset(data?.assets, "x64") ?? RELEASES_PAGE,
     releasePageUrl: data?.html_url ?? RELEASES_PAGE,
     isLoading: status === "loading",
     isError: status === "error",

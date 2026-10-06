@@ -1,38 +1,50 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
-import { Apple, Download, MonitorDown } from "lucide-react";
+import { Apple, ArrowRight, Download, MonitorDown, Terminal } from "lucide-react";
 import { CodeBlock } from "./CodeBlock";
 import { ThaiText } from "./ThaiText";
 import { useLatestRelease } from "@/hooks/use-latest-release";
+import { useMacArch } from "@/hooks/use-mac-arch";
 import { useOS } from "@/hooks/use-os";
 import { useT } from "@/i18n/useT";
 
-type Tab = "mac" | "windows";
+type Tab = "mac" | "windows" | "linux";
+const TABS: Tab[] = ["mac", "windows", "linux"];
 const BREW_CMD = "brew install wadjakorn/capz/capz";
 
 /**
- * Two columns from 900px (macOS left, Windows right, both always visible);
- * below that the same columns become tabs, opening on the visitor's OS.
+ * From 900px: macOS and Windows side by side, Linux (coming soon) as a row
+ * underneath. Below that the same panels become tabs, opening on the
+ * visitor's OS.
  */
 export function Install() {
   const os = useOS();
+  const arch = useMacArch();
   const [chosen, setChosen] = useState<Tab | null>(null);
-  const tab: Tab = chosen ?? (os === "windows" ? "windows" : "mac");
-  const { version, windowsAssetUrl, isLoading } = useLatestRelease();
+  const tab: Tab = chosen ?? (os === "windows" ? "windows" : os === "linux" ? "linux" : "mac");
+  const { version, windowsAssetUrl, macArmUrl, macIntelUrl, isLoading } = useLatestRelease();
   const { t } = useT();
   const copy = t("install.copy");
   const tabs = [
     { id: "mac" as const, label: t("install.tabMac"), Icon: Apple },
     { id: "windows" as const, label: t("install.tabWin"), Icon: MonitorDown },
+    { id: "linux" as const, label: t("install.tabLinux"), Icon: Terminal },
   ];
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    const next = tab === "mac" ? "windows" : "mac";
+    const i = TABS.indexOf(tab);
+    const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
     setChosen(next);
     (e.currentTarget.querySelector(`#install-tab-${next}`) as HTMLButtonElement | null)?.focus();
   };
+  // Unknown chip (Safari/Firefox) → Apple Silicon leads; Intel stays one tap away.
+  const dmgs = [
+    { id: "arm", href: macArmUrl, label: t("install.mac.dmgArm") },
+    { id: "intel", href: macIntelUrl, label: t("install.mac.dmgIntel") },
+  ];
+  if (arch === "intel") dmgs.reverse();
 
   return (
     <section className="paper install" id="install" aria-labelledby="install-title">
@@ -60,9 +72,21 @@ export function Install() {
             <div className={`inst-col${tab === "mac" ? " on" : ""}`} id="install-mac" aria-labelledby="install-h-mac">
               <h3 className="inst-os" id="install-h-mac"><Apple aria-hidden />{t("install.tabMac")}</h3>
               <div className="step">
-                <h4><ThaiText>{t("install.mac.step1")}</ThaiText></h4>
+                <h4><ThaiText>{t("install.mac.optDmg")}</ThaiText></h4>
+                <div className="dl-row">
+                  {dmgs.map((d, i) => (
+                    <a key={d.id} href={d.href} className={`btn ${i === 0 ? "btn-primary" : "btn-quiet"}`}>
+                      <Download aria-hidden />
+                      {d.label}
+                    </a>
+                  ))}
+                </div>
+                <p>{t("install.mac.dmgDesc")}</p>
+              </div>
+              <div className="step">
+                <h4><ThaiText>{t("install.mac.optBrew")}</ThaiText></h4>
                 <CodeBlock command={BREW_CMD} copyLabel={copy} />
-                <p>{t("install.mac.universal")}</p>
+                <p>{t("install.mac.brewDesc")}</p>
               </div>
               <div className="step">
                 <h4><ThaiText>{t("install.mac.step2")}</ThaiText></h4>
@@ -87,6 +111,16 @@ export function Install() {
                 <h4><ThaiText>{t("install.win.sacTitle")}</ThaiText></h4>
                 <p>{t("install.win.sacDesc")}</p>
                 <p>{t("install.win.sacWarn")}</p>
+              </div>
+            </div>
+            <div className={`inst-col linux${tab === "linux" ? " on" : ""}`} id="install-linux" aria-labelledby="install-h-linux">
+              <h3 className="inst-os" id="install-h-linux"><Terminal aria-hidden /><ThaiText>{t("install.linux.title")}</ThaiText></h3>
+              <div className="step">
+                <p>{t("install.linux.desc")}</p>
+                <a href="/paste" className="btn btn-quiet">
+                  {t("hero.tryWeb")}
+                  <ArrowRight aria-hidden />
+                </a>
               </div>
             </div>
           </div>

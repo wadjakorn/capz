@@ -7,6 +7,7 @@ import { HERO_CLIPS } from "./shots";
 import { useT } from "@/i18n/useT";
 import { useOS } from "@/hooks/use-os";
 import { useLatestRelease } from "@/hooks/use-latest-release";
+import { useMacArch } from "@/hooks/use-mac-arch";
 import { cameraAt, cameraTransform, viewportRect } from "@/lib/heroCamera";
 import { heroSegments, locateSegment, type Segment } from "@/lib/heroSegments";
 import { ThaiText } from "./ThaiText";
@@ -26,7 +27,11 @@ type Mode = "scrub" | "playlist" | "poster";
 export function HeroScene() {
   const { t } = useT();
   const os = useOS();
-  const { version, windowsAssetUrl } = useLatestRelease();
+  const { version, windowsAssetUrl, macArmUrl, macIntelUrl } = useLatestRelease();
+  const arch = useMacArch();
+  // Unknown chip (Safari/Firefox can't tell) → Apple Silicon leads, Intel one tap away.
+  const macMain = arch === "intel" ? { href: macIntelUrl, chip: "intel" as const } : { href: macArmUrl, chip: "arm" as const };
+  const macAlt = macMain.chip === "arm" ? { href: macIntelUrl, chip: "intel" as const } : { href: macArmUrl, chip: "arm" as const };
   const [active, setActive] = useState(0);
   const [mode, setMode] = useState<Mode>("poster");
   const [copied, setCopied] = useState(false);
@@ -285,9 +290,16 @@ export function HeroScene() {
                     <a className="link" href="#install">{t("hero.installMac")}</a>
                   </div>
                 </>
-              ) : (
+              ) : os === "mac" ? (
                 <>
-                  <span className="mono k">{t("hero.installMac")}</span>
+                  <div className="row">
+                    <a className="btn btn-primary" href={macMain.href}>
+                      {t("hero.downloadMac")} <span className="chip-tag">{t(`hero.chip.${macMain.chip}`)}</span>
+                      <ArrowRight aria-hidden />
+                    </a>
+                    <a className="link" href={macAlt.href}>{t(`hero.otherChip.${macAlt.chip}`)}</a>
+                  </div>
+                  <span className="mono k">{t("hero.orBrew")}</span>
                   <div className="cmd">
                     <code>{BREW_CMD}</code>
                     <button className="btn btn-copy" type="button" onClick={copy} aria-label={t("hero.copyCmd")} data-done={copied || undefined}>
@@ -295,8 +307,16 @@ export function HeroScene() {
                     </button>
                   </div>
                   <div className="row">
-                    <a className="btn btn-primary" href="/paste">{t("hero.tryWeb")}<ArrowRight aria-hidden /></a>
+                    <a className="btn btn-quiet" href="/paste">{t("hero.tryWeb")}</a>
                     <a className="link" href={windowsAssetUrl}>{t("hero.downloadWin")}</a>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {os === "linux" && <p className="soon">{t("hero.linuxSoon")}</p>}
+                  <div className="row">
+                    <a className="btn btn-primary" href="/paste">{t("hero.tryWeb")}<ArrowRight aria-hidden /></a>
+                    <a className="link" href="#install">{t("hero.installDesktop")}</a>
                   </div>
                 </>
               )}

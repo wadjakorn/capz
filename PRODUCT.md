@@ -30,7 +30,7 @@ The same editor also runs in the browser at /paste with no install. CleanShot X 
 - **Output:** Save, Copy, or Save & Copy, as PNG, JPEG or WebP, with a filename template.
 - **Settings:** search and deep links; light/dark/system theme; auto-updater.
 - **Privacy:** nothing is sent unless the user opts in. The anonymous install id is opt-in and off by default.
-- **Builds:** ad-hoc/unsigned, so the macOS Gatekeeper steps and the Windows SmartScreen/Smart App Control guidance must stay on the page. The macOS build is a universal binary. Windows 10/11 x64.
+- **Builds:** ad-hoc/unsigned, so the macOS Gatekeeper steps and the Windows SmartScreen/Smart App Control guidance must stay on the page. macOS ships one .dmg per chip (Apple Silicon `aarch64`, Intel `x64`) on each GitHub release, and the Homebrew cask picks the right one. Every macOS install, by .dmg or brew, needs the xattr step on first launch. Windows 10/11 x64. Linux is planned and shown as "coming soon".
 - **Web build:** the /paste editor runs in the browser, including on phones with touch.
 - **Release status:** all of the above shipped in v0.15.0.
 - **Page stack:** Next.js 15 static export, Tailwind 4. No localStorage. TH/EN toggle, Thai by default.
