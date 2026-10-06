@@ -14,7 +14,7 @@ export const site: Record<keyof typeof en, string> = {
   "nav.skip": "ข้ามไปที่ส่วนจับภาพ",
 
   "hero.title1": "จับภาพหน้าจอ",
-  "hero.title2": "ที่พูดภาษาไทย",
+  "hero.title2": "ที่พูด\u200Bภาษาไทย",
   "hero.desc":
     "แอปจับภาพหน้าจอสำหรับ macOS และ Windows ขีดเขียน แต่งพื้นหลัง แล้วส่งต่อได้ในไม่กี่วินาที ฟรี โอเพนซอร์ส ไม่มีโฆษณา ไม่ต้องสมัคร",
   "hero.installMac": "ติดตั้งบน macOS",
@@ -83,8 +83,22 @@ export const site: Record<keyof typeof en, string> = {
   "site.ed.backdrop": "พื้นหลัง",
   "site.ed.show": "แสดงพื้นหลัง",
   "site.ed.shadow": "เงา",
+  "site.ed.color": "สี",
+  "site.ed.width": "ความหนา",
+  "site.ed.heads": "หัวลูกศร",
+  "site.ed.strength": "ความเบลอ",
+  "site.ed.zoom": "ซูม",
+  "site.ed.border": "สีขอบ",
+  "site.ed.shape": "รูปทรง",
+  "site.ed.numbering": "การนับเลข",
+  "site.ed.font": "แบบอักษร",
+  "site.ed.size": "ขนาด",
+  "site.ed.lineHeight": "ระยะบรรทัด",
+  "site.ed.align": "จัดแนว",
+  "site.ed.aspect": "สัดส่วน",
+  "site.ed.free": "อิสระ",
 
-  "site.lead.title": "ขีดเขียนให้คนอ่านเข้าใจทันที",
+  "site.lead.title": "ขีดเขียนให้คนอ่าน\u200Bเข้าใจทันที",
   "site.lead.desc":
     "ลูกศร หมุดเลข ข้อความไทย แว่นขยาย และเบลอข้อมูลส่วนตัว ทั้งหมดบนภาพเดียว แล้วกดคัดลอกหรือบันทึก",
 
@@ -141,13 +155,13 @@ export const site: Record<keyof typeof en, string> = {
   "site.bd.stage": "ภาพตัวอย่างบนพื้นหลังที่เลือก",
   "site.bd.announce": "พื้นหลัง {name}",
 
-  "site.thai.title": "ภาษาไทยเต็มตัว",
+  "site.thai.title": "ภาษาไทย\u200Bเต็มตัว",
   "site.thai.desc": "ไม่ใช่แค่แปลเมนู capz ทำมาสำหรับคนที่อ่านและเขียนภาษาไทยทุกวัน",
-  "site.thai.ui.title": "หน้าตาภาษาไทย",
+  "site.thai.ui.title": "หน้าตา\u200Bภาษาไทย",
   "site.thai.ui.desc": "ทุกเมนู ทุกการตั้งค่า ทุกข้อความเป็นภาษาไทยตั้งแต่เปิดครั้งแรก เปลี่ยนเป็นอังกฤษได้ในคลิกเดียว",
-  "site.thai.text.title": "เครื่องมือข้อความที่เข้าใจภาษาไทย",
+  "site.thai.text.title": "เครื่องมือข้อความ\u200Bที่เข้าใจภาษาไทย",
   "site.thai.text.desc": "วรรณยุกต์และสระวางถูกชั้น ปรับระยะบรรทัดและการจัดแนวได้ ตัวอักษรไม่ชนกัน",
-  "site.thai.ocr.title": "อ่านข้อความภาษาไทย",
+  "site.thai.ocr.title": "อ่านข้อความ\u200Bภาษาไทย",
   "site.thai.ocr.desc": "ตรวจจับข้อความอ่านภาษาไทยได้บน macOS ทำในเครื่องของคุณ บน Windows อ่านได้เฉพาะตัวอักษรละติน เพราะ Windows ไม่มีชุด OCR ภาษาไทย",
 
   "site.ann.title": "ขีดเขียน",
@@ -166,7 +180,7 @@ export const site: Record<keyof typeof en, string> = {
   "site.tool.crop": "ครอป",
   "site.tool.snap": "ไม้บรรทัดและการดูดแนว",
 
-  "site.ocr.title": "คัดลอกข้อความในภาพ",
+  "site.ocr.title": "คัดลอกข้อความ\u200Bในภาพ",
   "site.ocr.desc": "ตรวจจับข้อความเปลี่ยนตัวหนังสือในภาพให้เลือกและคัดลอกได้ ทำงานในเครื่องของคุณ ไม่มีอะไรถูกอัปโหลด",
   "site.ocr.note": "ภาษาไทยบน macOS · ตัวอักษรละตินบน macOS และ Windows",
 

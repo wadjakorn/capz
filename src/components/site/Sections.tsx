@@ -4,6 +4,7 @@ import { ArrowRight, Crop, Droplet, Highlighter, Image as ImageIcon, Magnet, Pen
 import { MediaSlot } from "./MediaSlot";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
+import { ThaiText } from "./ThaiText";
 
 /** Thai-first: the claim neighbouring apps can't make, told honestly (Thai OCR is macOS-only). */
 export function ThaiFirst() {
@@ -17,7 +18,7 @@ export function ThaiFirst() {
     <section className="paper thai" id="thai" aria-labelledby="thai-title">
       <div className="wrap">
         <div className="paper-head">
-          <h2 id="thai-title">{t("site.thai.title")}</h2>
+          <h2 id="thai-title"><ThaiText>{t("site.thai.title")}</ThaiText></h2>
           <p>{t("site.thai.desc")}</p>
         </div>
         <div className="thai-grid">
@@ -25,7 +26,7 @@ export function ThaiFirst() {
           <dl className="facts">
             {items.map(([title, desc]) => (
               <div key={title}>
-                <dt>{t(title)}</dt>
+                <dt><ThaiText>{t(title)}</ThaiText></dt>
                 <dd>{t(desc)}</dd>
               </div>
             ))}
@@ -50,7 +51,7 @@ export function Annotate() {
     <section className="screen ann" aria-labelledby="ann-title">
       <div className="wrap">
         <div className="ch-head">
-          <h2 id="ann-title">{t("site.ann.title")}</h2>
+          <h2 id="ann-title"><ThaiText>{t("site.ann.title")}</ThaiText></h2>
           <p>{t("site.ann.desc")}</p>
         </div>
         <ul className="toolrail" aria-label={t("site.ann.tools")}>
@@ -76,9 +77,9 @@ export function Ocr() {
     <section className="paper ocr" aria-labelledby="ocr-title">
       <div className="wrap ocr-grid">
         <div>
-          <h2 id="ocr-title">{t("site.ocr.title")}</h2>
+          <h2 id="ocr-title"><ThaiText>{t("site.ocr.title")}</ThaiText></h2>
           <p className="lede">{t("site.ocr.desc")}</p>
-          <p className="mono note">{t("site.ocr.note")}</p>
+          <p className="note">{t("site.ocr.note")}</p>
         </div>
         <MediaSlot id="ocr" />
       </div>
@@ -92,18 +93,18 @@ export function Workspaces() {
     <section className="screen ws" aria-labelledby="ws-title">
       <div className="wrap">
         <div className="ch-head">
-          <h2 id="ws-title">{t("site.ws.title")}</h2>
+          <h2 id="ws-title"><ThaiText>{t("site.ws.title")}</ThaiText></h2>
           <p>{t("site.ws.desc")}</p>
         </div>
         <div className="ws-grid">
           <div className="ws-main">
             <MediaSlot id="workspaces" />
-            <h3>{t("site.ws.ws.title")}</h3>
+            <h3><ThaiText>{t("site.ws.ws.title")}</ThaiText></h3>
             <p>{t("site.ws.ws.desc")}</p>
           </div>
           <div className="ws-side">
             <MediaSlot id="history-preview" />
-            <h3>{t("site.ws.hist.title")}</h3>
+            <h3><ThaiText>{t("site.ws.hist.title")}</ThaiText></h3>
             <p>{t("site.ws.hist.desc")}</p>
           </div>
         </div>
@@ -118,7 +119,7 @@ export function TryWeb() {
     <section className="paper web" aria-labelledby="web-title">
       <div className="wrap web-grid">
         <div>
-          <h2 id="web-title">{t("site.web.title")}</h2>
+          <h2 id="web-title"><ThaiText>{t("site.web.title")}</ThaiText></h2>
           <p className="lede">{t("site.web.desc")}</p>
           <a className="btn btn-primary" href="/paste">{t("hero.tryWeb")}<ArrowRight aria-hidden /></a>
           <p className="note">{t("site.web.note")}</p>

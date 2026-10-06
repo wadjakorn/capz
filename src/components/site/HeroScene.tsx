@@ -9,6 +9,7 @@ import { useOS } from "@/hooks/use-os";
 import { useLatestRelease } from "@/hooks/use-latest-release";
 import { cameraAt, cameraTransform, viewportRect } from "@/lib/heroCamera";
 import { heroSegments, locateSegment, type Segment } from "@/lib/heroSegments";
+import { ThaiText } from "./ThaiText";
 
 const BREW_CMD = "brew install wadjakorn/capz/capz";
 const RISE_VH = 90;
@@ -278,7 +279,7 @@ export function HeroScene() {
           <div className="hero-body">
             <div>
               <h1 id="hero-title">
-                {t("hero.title1")} <span className="hl">{t("hero.title2")}</span>
+                <ThaiText>{t("hero.title1")}</ThaiText> <span className="hl"><ThaiText>{t("hero.title2")}</ThaiText></span>
               </h1>
               <p className="lede">{t("hero.desc")}</p>
             </div>
@@ -332,11 +333,11 @@ export function HeroScene() {
               )}
             </div>
           </div>
-          <p className="clipcap" aria-live="polite">{t(clip.caption)}</p>
+          <p className="clipcap" aria-live="polite"><ThaiText>{t(clip.caption)}</ThaiText></p>
           <div className="chips" role="group" aria-label={t("site.clip.chapters")} ref={chipsRef}>
             {HERO_CLIPS.map((c, i) => (
               <button key={c.id} type="button" className="chip-btn" aria-current={i === active} onClick={() => api.current?.jump(i)}>
-                <span><b>{i + 1}</b>{t(c.label)}</span>
+                <span><b>{i + 1}</b><ThaiText>{t(c.label)}</ThaiText></span>
               </button>
             ))}
           </div>

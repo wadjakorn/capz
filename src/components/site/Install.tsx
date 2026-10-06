@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { Apple, Download, MonitorDown } from "lucide-react";
 import { CodeBlock } from "./CodeBlock";
+import { ThaiText } from "./ThaiText";
 import { useLatestRelease } from "@/hooks/use-latest-release";
 import { useOS } from "@/hooks/use-os";
 import { useT } from "@/i18n/useT";
@@ -10,6 +11,10 @@ import { useT } from "@/i18n/useT";
 type Tab = "mac" | "windows";
 const BREW_CMD = "brew install wadjakorn/capz/capz";
 
+/**
+ * Two columns from 900px (macOS left, Windows right, both always visible);
+ * below that the same columns become tabs, opening on the visitor's OS.
+ */
 export function Install() {
   const os = useOS();
   const [chosen, setChosen] = useState<Tab | null>(null);
@@ -32,7 +37,7 @@ export function Install() {
   return (
     <section className="paper install" id="install" aria-labelledby="install-title">
       <div className="wrap">
-        <h2 id="install-title">{t("install.title")}</h2>
+        <h2 id="install-title"><ThaiText>{t("install.title")}</ThaiText></h2>
         <div className="inst">
           <div role="tablist" className="inst-tabs" aria-label={t("install.title")} onKeyDown={onKey}>
             {tabs.map(({ id, label, Icon }) => (
@@ -42,7 +47,7 @@ export function Install() {
                 role="tab"
                 type="button"
                 aria-selected={tab === id}
-                aria-controls="install-panel"
+                aria-controls={`install-${id}`}
                 tabIndex={tab === id ? 0 : -1}
                 onClick={() => setChosen(id)}
               >
@@ -51,40 +56,39 @@ export function Install() {
               </button>
             ))}
           </div>
-          <div className="inst-panel" id="install-panel" role="tabpanel" aria-labelledby={`install-tab-${tab}`}>
-            {tab === "mac" ? (
-              <>
-                <div className="step">
-                  <h3>{t("install.mac.step1")}</h3>
-                  <CodeBlock command={BREW_CMD} copyLabel={copy} />
-                  <p>{t("install.mac.universal")}</p>
-                </div>
-                <div className="step">
-                  <h3>{t("install.mac.step2")}</h3>
-                  <p>{t("install.mac.step2desc")}</p>
-                  <CodeBlock command="sudo xattr -dr com.apple.quarantine /Applications/capz.app" copyLabel={copy} />
-                  <CodeBlock command="sudo spctl --add /Applications/capz.app" copyLabel={copy} />
-                  <CodeBlock command="open -a capz" copyLabel={copy} />
-                  <p>{t("install.mac.stillBlocked")}</p>
-                  <CodeBlock command="open /System/Library/PreferencePanes/Security.prefPane" copyLabel={copy} />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="step">
-                  <a href={windowsAssetUrl} className="btn btn-primary">
-                    <Download aria-hidden />
-                    {isLoading ? t("install.win.download") : `${t("install.win.download")} ${version ?? ""}`}
-                  </a>
-                  <p>{t("install.win.desc")}</p>
-                </div>
-                <div className="step">
-                  <h3>{t("install.win.sacTitle")}</h3>
-                  <p>{t("install.win.sacDesc")}</p>
-                  <p>{t("install.win.sacWarn")}</p>
-                </div>
-              </>
-            )}
+          <div className="inst-cols">
+            <div className={`inst-col${tab === "mac" ? " on" : ""}`} id="install-mac" aria-labelledby="install-h-mac">
+              <h3 className="inst-os" id="install-h-mac"><Apple aria-hidden />{t("install.tabMac")}</h3>
+              <div className="step">
+                <h4><ThaiText>{t("install.mac.step1")}</ThaiText></h4>
+                <CodeBlock command={BREW_CMD} copyLabel={copy} />
+                <p>{t("install.mac.universal")}</p>
+              </div>
+              <div className="step">
+                <h4><ThaiText>{t("install.mac.step2")}</ThaiText></h4>
+                <p>{t("install.mac.step2desc")}</p>
+                <CodeBlock command="sudo xattr -dr com.apple.quarantine /Applications/capz.app" copyLabel={copy} />
+                <CodeBlock command="sudo spctl --add /Applications/capz.app" copyLabel={copy} />
+                <CodeBlock command="open -a capz" copyLabel={copy} />
+                <p>{t("install.mac.stillBlocked")}</p>
+                <CodeBlock command="open /System/Library/PreferencePanes/Security.prefPane" copyLabel={copy} />
+              </div>
+            </div>
+            <div className={`inst-col${tab === "windows" ? " on" : ""}`} id="install-windows" aria-labelledby="install-h-win">
+              <h3 className="inst-os" id="install-h-win"><MonitorDown aria-hidden />{t("install.tabWin")}</h3>
+              <div className="step">
+                <a href={windowsAssetUrl} className="btn btn-primary">
+                  <Download aria-hidden />
+                  {isLoading ? t("install.win.download") : `${t("install.win.download")} ${version ?? ""}`}
+                </a>
+                <p>{t("install.win.desc")}</p>
+              </div>
+              <div className="step">
+                <h4><ThaiText>{t("install.win.sacTitle")}</ThaiText></h4>
+                <p>{t("install.win.sacDesc")}</p>
+                <p>{t("install.win.sacWarn")}</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

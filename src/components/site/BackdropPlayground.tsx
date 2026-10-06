@@ -6,6 +6,7 @@ import { paintSwatch, type ProceduralPattern } from "@/lib/backdropPatterns";
 import { BACKDROP_PRESETS, colorStops, gradientPoints, patternUnit, type BackdropCategory, type BackdropPreset } from "@/lib/backdrop";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
+import { ThaiText } from "./ThaiText";
 
 type Tab = BackdropCategory | "solid";
 const TABS: Array<[Tab, TKey]> = [
@@ -162,7 +163,7 @@ export function BackdropPlayground() {
     <section className="screen bd" id="backdrops" aria-labelledby="bd-title">
       <div className="wrap">
         <div className="ch-head">
-          <h2 id="bd-title">{t("site.bd.title")}</h2>
+          <h2 id="bd-title"><ThaiText>{t("site.bd.title")}</ThaiText></h2>
           <p>{t("site.bd.desc")}</p>
         </div>
         <div className="bd-grid">

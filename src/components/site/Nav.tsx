@@ -5,13 +5,12 @@ import { GithubIcon } from "./GithubIcon";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 
-// A specimen index: Thai letters stand in for section numbers.
-const SECTIONS: Array<[string, string, TKey]> = [
-  ["top", "ก", "nav.specimen"],
-  ["capture", "ข", "nav.capture"],
-  ["backdrops", "ค", "nav.backdrops"],
-  ["thai", "ง", "nav.thai"],
-  ["install", "จ", "nav.install"],
+const SECTIONS: Array<[string, TKey]> = [
+  ["top", "nav.specimen"],
+  ["capture", "nav.capture"],
+  ["backdrops", "nav.backdrops"],
+  ["thai", "nav.thai"],
+  ["install", "nav.install"],
 ];
 
 export function Nav() {
@@ -52,10 +51,9 @@ export function Nav() {
           capz
         </a>
         <ol ref={ol} aria-label={t("nav.index")}>
-          {SECTIONS.map(([id, letter, key]) => (
+          {SECTIONS.map(([id, key]) => (
             <li key={id}>
               <a href={`#${id}`} aria-current={current === id ? "true" : undefined}>
-                <span aria-hidden>{letter}</span>
                 <b>{t(key)}</b>
               </a>
             </li>

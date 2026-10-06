@@ -6,6 +6,7 @@ import { RingWheel } from "./RingWheel";
 import type { SlotId } from "./shots";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
+import { ThaiText } from "./ThaiText";
 
 type Mode = { id: string; name: TKey; note: TKey; title: TKey; keys: string[] | null; slot: SlotId; beta?: boolean };
 
@@ -56,13 +57,13 @@ export function CaptureChapter() {
         <div className="lead-row">
           <MediaSlot id="hero-editor" />
           <div>
-            <h3>{t("site.lead.title")}</h3>
+            <h3><ThaiText>{t("site.lead.title")}</ThaiText></h3>
             <p>{t("site.lead.desc")}</p>
           </div>
         </div>
 
         <div className="ch-head">
-          <h2 id="cap-title">{t("site.cap.title")}</h2>
+          <h2 id="cap-title"><ThaiText>{t("site.cap.title")}</ThaiText></h2>
           <p>{t("site.cap.desc")}</p>
         </div>
 
@@ -82,7 +83,7 @@ export function CaptureChapter() {
                 onClick={() => select(i)}
                 onMouseEnter={() => { if (matchMedia("(hover: hover) and (min-width: 601px)").matches) select(i); }}
               >
-                <span className="name">{t(x.name)}{x.beta && <span className="tag">Beta</span>}</span>
+                <span className="name"><ThaiText>{t(x.name)}</ThaiText>{x.beta && <span className="tag">Beta</span>}</span>
                 {keysOf(x)}
                 <span className="note">{t(x.note)}</span>
               </button>
@@ -92,7 +93,7 @@ export function CaptureChapter() {
           <div className={`mode-plate${swap ? " swap" : ""}`} key={swap} id="mode-plate" role="tabpanel" aria-labelledby={`mode-tab-${m.id}`}>
             <MediaSlot id={m.slot} />
             <div className="mode-cap">
-              <h3>{t(m.title)}{m.beta && <span className="tag">Beta</span>}</h3>
+              <h3><ThaiText>{t(m.title)}</ThaiText>{m.beta && <span className="tag">Beta</span>}</h3>
               <div className="mode-keys" aria-hidden>{keysOf(m)}</div>
               <p>{desc}</p>
             </div>
@@ -101,9 +102,9 @@ export function CaptureChapter() {
 
         <div className="ring-row">
           <div>
-            <h3>{t("site.ring.title")}</h3>
+            <h3><ThaiText>{t("site.ring.title")}</ThaiText></h3>
             <p>{t("site.ring.desc")}</p>
-            <p className="mono">{t("site.ring.note")}</p>
+            <p className="fine">{t("site.ring.note")}</p>
           </div>
           <RingWheel />
         </div>
