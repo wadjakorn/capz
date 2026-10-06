@@ -1,77 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GithubIcon } from "./GithubIcon";
 import { useT } from "@/i18n/useT";
+import type { TKey } from "@/i18n/store";
+
+// A specimen index: Thai letters stand in for section numbers.
+const SECTIONS: Array<[string, string, TKey]> = [
+  ["top", "ก", "nav.specimen"],
+  ["capture", "ข", "nav.capture"],
+  ["backdrops", "ค", "nav.backdrops"],
+  ["thai", "ง", "nav.thai"],
+  ["install", "จ", "nav.install"],
+];
 
 export function Nav() {
-  const [scrolled, setScrolled] = useState(false);
   const { lang, setLang, t } = useT();
+  const [current, setCurrent] = useState("top");
+  const ol = useRef<HTMLOListElement>(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) setCurrent(e.target.id);
+      },
+      { rootMargin: "-40% 0px -55% 0px" },
+    );
+    for (const [id] of SECTIONS) {
+      const n = document.getElementById(id);
+      if (n) io.observe(n);
+    }
+    return () => io.disconnect();
   }, []);
 
+  // keep the current pill in view when the index row scrolls sideways (phones)
+  useEffect(() => {
+    const list = ol.current;
+    const a = list?.querySelector<HTMLElement>(`a[href="#${current}"]`);
+    if (list && a && list.scrollWidth > list.clientWidth) list.scrollTo({ left: (a.parentElement?.offsetLeft ?? 0) - 16, behavior: "smooth" });
+  }, [current]);
+
   return (
-    <header
-      className={`sticky top-0 z-50 w-full transition-all duration-200 ${
-        scrolled
-          ? "border-b border-white/10 bg-background/40 backdrop-blur-xl"
-          : "border-b border-transparent"
-      }`}
-    >
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
-        <a href="/" className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-lg border border-white/15 bg-gradient-to-br from-white to-white/85 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.4)]">
+    <header className="index">
+      <a className="skip" href="#capture">{t("nav.skip")}</a>
+      <div className="wrap">
+        <a className="wordmark" href="#top">
+          <span className="mark" aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon.png" alt="" width={20} height={20} className="h-5 w-5" />
+            <img src="/icon.png" alt="" width={22} height={22} />
           </span>
-          <span className="text-sm font-medium tracking-tight text-foreground">capz</span>
+          capz
         </a>
-        <div className="flex items-center gap-1">
-          <div
-            role="group"
-            aria-label="Language"
-            className="mr-1 flex items-center rounded-full border border-white/10 bg-white/5 p-0.5 text-xs backdrop-blur"
-          >
-            <button
-              type="button"
-              onClick={() => setLang("th")}
-              aria-pressed={lang === "th"}
-              className={`rounded-full px-2.5 py-1 transition-colors ${
-                lang === "th"
-                  ? "bg-white text-[oklch(0.18_0.05_290)] shadow"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t("nav.langTh")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setLang("en")}
-              aria-pressed={lang === "en"}
-              className={`rounded-full px-2.5 py-1 transition-colors ${
-                lang === "en"
-                  ? "bg-white text-[oklch(0.18_0.05_290)] shadow"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t("nav.langEn")}
-            </button>
-          </div>
-          <a
-            href="https://github.com/wadjakorn/capz"
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t("nav.github")}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <GithubIcon className="h-4 w-4" />
-          </a>
+        <ol ref={ol} aria-label={t("nav.index")}>
+          {SECTIONS.map(([id, letter, key]) => (
+            <li key={id}>
+              <a href={`#${id}`} aria-current={current === id ? "true" : undefined}>
+                <span aria-hidden>{letter}</span>
+                <b>{t(key)}</b>
+              </a>
+            </li>
+          ))}
+        </ol>
+        <div className="lang" role="group" aria-label={t("nav.language")}>
+          <button type="button" aria-pressed={lang === "th"} onClick={() => setLang("th")}>{t("nav.langTh")}</button>
+          <button type="button" aria-pressed={lang === "en"} onClick={() => setLang("en")}>{t("nav.langEn")}</button>
         </div>
+        <a className="gh" href="https://github.com/wadjakorn/capz" aria-label={t("nav.github")}>
+          <GithubIcon />
+        </a>
       </div>
     </header>
   );

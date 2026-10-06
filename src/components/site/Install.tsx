@@ -1,99 +1,89 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Apple, Download, MonitorDown } from "lucide-react";
 import { CodeBlock } from "./CodeBlock";
 import { useLatestRelease } from "@/hooks/use-latest-release";
+import { useOS } from "@/hooks/use-os";
 import { useT } from "@/i18n/useT";
 
 type Tab = "mac" | "windows";
-
 const BREW_CMD = "brew install wadjakorn/capz/capz";
 
 export function Install() {
-  const [tab, setTab] = useState<Tab>("mac");
+  const os = useOS();
+  const [chosen, setChosen] = useState<Tab | null>(null);
+  const tab: Tab = chosen ?? (os === "windows" ? "windows" : "mac");
   const { version, windowsAssetUrl, isLoading } = useLatestRelease();
   const { t } = useT();
+  const copy = t("install.copy");
+  const tabs = [
+    { id: "mac" as const, label: t("install.tabMac"), Icon: Apple },
+    { id: "windows" as const, label: t("install.tabWin"), Icon: MonitorDown },
+  ];
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next = tab === "mac" ? "windows" : "mac";
+    setChosen(next);
+    (e.currentTarget.querySelector(`#install-tab-${next}`) as HTMLButtonElement | null)?.focus();
+  };
 
   return (
-    <section id="install" className="border-t border-border/60">
-      <div className="mx-auto max-w-5xl px-6 py-28 sm:py-32">
-        <div className="max-w-xl">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            {t("install.kicker")}
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            {t("install.title")}
-          </h2>
-        </div>
-
-        <div className="glass-card mt-10 overflow-hidden">
-          <div role="tablist" className="relative flex border-b border-white/10">
-            {(
-              [
-                { id: "mac" as const, label: t("install.tabMac"), Icon: Apple },
-                { id: "windows" as const, label: t("install.tabWin"), Icon: MonitorDown },
-              ]
-            ).map(({ id, label, Icon }) => (
+    <section className="paper install" id="install" aria-labelledby="install-title">
+      <div className="wrap">
+        <h2 id="install-title">{t("install.title")}</h2>
+        <div className="inst">
+          <div role="tablist" className="inst-tabs" aria-label={t("install.title")} onKeyDown={onKey}>
+            {tabs.map(({ id, label, Icon }) => (
               <button
                 key={id}
+                id={`install-tab-${id}`}
                 role="tab"
+                type="button"
                 aria-selected={tab === id}
-                onClick={() => setTab(id)}
-                className={`relative inline-flex items-center gap-2 px-5 py-3 text-sm transition-colors ${
-                  tab === id ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
+                aria-controls="install-panel"
+                tabIndex={tab === id ? 0 : -1}
+                onClick={() => setChosen(id)}
               >
-                <Icon className="h-4 w-4" strokeWidth={1.5} />
+                <Icon aria-hidden />
                 {label}
-                {tab === id && (
-                  <span
-                    className="absolute inset-x-3 -bottom-px h-px"
-                    style={{ background: "var(--accent-purple)", boxShadow: "0 0 12px var(--accent-purple)" }}
-                  />
-                )}
               </button>
             ))}
           </div>
-
-          <div className="p-6 sm:p-8">
+          <div className="inst-panel" id="install-panel" role="tabpanel" aria-labelledby={`install-tab-${tab}`}>
             {tab === "mac" ? (
-              <div key="mac" className="space-y-8 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-foreground">{t("install.mac.step1")}</h3>
-                  <CodeBlock command={BREW_CMD} />
-                  <p className="text-sm text-muted-foreground">{t("install.mac.universal")}</p>
+              <>
+                <div className="step">
+                  <h3>{t("install.mac.step1")}</h3>
+                  <CodeBlock command={BREW_CMD} copyLabel={copy} />
+                  <p>{t("install.mac.universal")}</p>
                 </div>
-
-                <div className="space-y-3 border-t border-white/10 pt-6">
-                  <h3 className="text-sm font-medium text-foreground">{t("install.mac.step2")}</h3>
-                  <p className="text-sm text-muted-foreground">{t("install.mac.step2desc")}</p>
-                  <CodeBlock command="sudo xattr -dr com.apple.quarantine /Applications/capz.app" />
-                  <CodeBlock command="sudo spctl --add /Applications/capz.app" />
-                  <CodeBlock command="open -a capz" />
-                  <p className="text-sm text-muted-foreground pt-2">
-                    {t("install.mac.stillBlocked")}
-                  </p>
-                  <CodeBlock command="open /System/Library/PreferencePanes/Security.prefPane" />
+                <div className="step">
+                  <h3>{t("install.mac.step2")}</h3>
+                  <p>{t("install.mac.step2desc")}</p>
+                  <CodeBlock command="sudo xattr -dr com.apple.quarantine /Applications/capz.app" copyLabel={copy} />
+                  <CodeBlock command="sudo spctl --add /Applications/capz.app" copyLabel={copy} />
+                  <CodeBlock command="open -a capz" copyLabel={copy} />
+                  <p>{t("install.mac.stillBlocked")}</p>
+                  <CodeBlock command="open /System/Library/PreferencePanes/Security.prefPane" copyLabel={copy} />
                 </div>
-              </div>
+              </>
             ) : (
-              <div key="windows" className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
-                <a
-                  href={windowsAssetUrl}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                >
-                  <Download className="h-4 w-4" />
-                  {isLoading ? t("install.win.download") : `${t("install.win.download")} ${version ?? ""}`}
-                </a>
-                <p className="text-sm text-muted-foreground">{t("install.win.desc")}</p>
-
-                <div className="space-y-3 border-t border-white/10 pt-6">
-                  <h3 className="text-sm font-medium text-foreground">{t("install.win.sacTitle")}</h3>
-                  <p className="text-sm text-muted-foreground">{t("install.win.sacDesc")}</p>
-                  <p className="text-sm text-muted-foreground">{t("install.win.sacWarn")}</p>
+              <>
+                <div className="step">
+                  <a href={windowsAssetUrl} className="btn btn-primary">
+                    <Download aria-hidden />
+                    {isLoading ? t("install.win.download") : `${t("install.win.download")} ${version ?? ""}`}
+                  </a>
+                  <p>{t("install.win.desc")}</p>
                 </div>
-              </div>
+                <div className="step">
+                  <h3>{t("install.win.sacTitle")}</h3>
+                  <p>{t("install.win.sacDesc")}</p>
+                  <p>{t("install.win.sacWarn")}</p>
+                </div>
+              </>
             )}
           </div>
         </div>

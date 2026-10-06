@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import { Landing } from "@/components/site/Landing";
+import { site as th } from "@/i18n/locales/th/site";
 
+// Static export: metadata can't follow the in-page TH/EN switch, so it leads in Thai (the default).
 export const metadata: Metadata = {
-  title: "capz — Free screen capture for macOS & Windows",
-  description:
-    "capz is a free, open-source native screen capture and recording app. An alternative to CleanShot and ShareX. macOS and Windows.",
+  title: th["meta.title"],
+  description: th["meta.desc"],
   openGraph: {
     title: "capz",
-    description: "Free, open-source screen capture for macOS and Windows.",
+    description: th["meta.desc"],
     type: "website",
+    locale: "th_TH",
   },
   twitter: {
     card: "summary_large_image",
