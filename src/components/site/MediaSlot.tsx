@@ -30,7 +30,18 @@ export function MediaSlot({ id, frame = "editor", caption = true }: { id: SlotId
   );
   return (
     <figure className={`slot slot--${frame}`}>
-      {frame === "editor" ? (
+      {frame === "editor" && slot.ready ? (
+        // A real capture already shows the editor's own toolbar: frame it as a
+        // plain window (whole-editor shots) or a bare card (canvas close-ups).
+        slot.shot === "window" ? (
+          <div className="win win--slot">
+            <div className="win-bar" aria-hidden><i /><i /><i /><span>capz</span></div>
+            <div className="slot-body" style={{ aspectRatio: slot.aspect }}>{media}</div>
+          </div>
+        ) : (
+          <div className="bare crop-card" style={{ aspectRatio: slot.aspect }}>{media}</div>
+        )
+      ) : frame === "editor" ? (
         <EditorFrame tool={slot.tool} label={line}>{media}</EditorFrame>
       ) : (
         <div className={frame === "phone" ? "phone-frame" : "bare"} style={{ aspectRatio: slot.aspect }} role={slot.ready ? undefined : "img"} aria-label={slot.ready ? undefined : line}>

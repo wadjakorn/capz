@@ -712,6 +712,10 @@
   & .phone-frame { width: min(300px, 70vw); margin-inline: auto; border-radius: 36px; border: 10px solid var(--ink); overflow: hidden; background: var(--app-bg); box-shadow: 0 30px 60px -28px rgba(12, 12, 16, .5); }
   & .phone-frame .ph-img { border-radius: 0; box-shadow: none; }
   & .bare { border-radius: 12px; overflow: hidden; }
+  & .win--slot { box-shadow: 0 1px 3px rgba(12, 12, 16, .12), 0 24px 48px -28px rgba(12, 12, 16, .45); }
+  & .slot-body { position: relative; background: var(--app-bg); overflow: hidden; }
+  & .slot-body .shot, & .crop-card .shot, & .phone-frame .shot { border-radius: 0; }
+  & .crop-card { border: 1px solid var(--app-border-2); background: #fff; box-shadow: 0 1px 3px rgba(12, 12, 16, .1), 0 18px 36px -24px rgba(12, 12, 16, .4); }
   @media (max-width: 600px) {
     & .ed-body { grid-template-columns: minmax(0, 1fr); aspect-ratio: 4 / 3.3; }
     & .ed-side { display: none; }

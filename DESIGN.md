@@ -160,7 +160,7 @@ Density is generous and editorial: huge Chonburi display heads, 17px body at 1.7
 
 **Key Characteristics:**
 - Two materials, strictly alternated: specimen paper (`.paper`) and app screen (`.screen`).
-- App-screen colours come only from `--app-*` tokens, switched by `data-app-theme="dark|light"` on the landing root (it currently ships `dark`).
+- App-screen colours come only from `--app-*` tokens, switched by `data-app-theme="dark|light"` on the landing root (it ships `light`: the page is bright, and every real shot is captured in the app's light theme so the screenshots match the page).
 - Annotation colours are the app's defaults from `src/lib/config.ts`, never re-tinted.
 - One action colour: indigo. Large CTAs use `app-accent`; small white-text pills use the darker `pill`.
 - Display type never breaks inside a Thai word (ThaiText units).
@@ -185,7 +185,7 @@ A monochrome paper-and-ink world plus a dark replica of the app's screen, with o
 - **Second Ink** (`ink-2`): ledes, secondary paper text, and specimen level labels.
 - **Hairline Rule** (`rule`): dashed specimen level lines, fact dividers, step dividers, and the mobile nav pill borders.
 - **Code Paper** (`codeblock-bg`): install code blocks.
-- **App screen ramp** (`app-bg` → `app-surface` → `app-raised`, text `app-fg` → `app-fg-4`, and `app-track` for slider tracks): the dark replica of the app's Graphite surfaces. Borders are `rgba(255,255,255,.08)` (`--app-border`) and `.14` (`--app-border-2`). The `*-light` entries are the `data-app-theme="light"` overrides.
+- **App screen ramp** (`app-bg` → `app-surface` → `app-raised`, text `app-fg` → `app-fg-4`, and `app-track` for slider tracks): the replica of the app's surfaces: Graphite dark by default in the token file, with the shipped page using the light overrides. Borders are `rgba(255,255,255,.08)` (`--app-border`) and `.14` (`--app-border-2`). The `*-light` entries are the `data-app-theme="light"` overrides.
 
 ### Named Rules
 **The Borrowed Colour Rule.** Annotation colours are the app's defaults, copied by value with a comment pointing at `src/lib/config.ts`. If the app's defaults change, these change; never pick a "nicer" red.

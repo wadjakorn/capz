@@ -7,6 +7,7 @@ import { BACKDROP_PRESETS, colorStops, gradientPoints, patternUnit, type Backdro
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 import { ThaiText } from "./ThaiText";
+import { SLOTS } from "./shots";
 
 type Tab = BackdropCategory | "solid";
 const TABS: Array<[Tab, TKey]> = [
@@ -92,6 +93,15 @@ export function BackdropPlayground() {
   const [shadow, setShadow] = useState(true);
   const [announce, setAnnounce] = useState("");
   const stage = useRef<HTMLCanvasElement>(null);
+  // Real capture (shots.ts "backdrop-base") once it's in place; the drawn sample until then.
+  const [capture, setCapture] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!SLOTS["backdrop-base"].ready) return;
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => setCapture(img);
+    img.src = "/landing/backdrop-base.webp";
+  }, []);
   const preset = useMemo(() => BACKDROP_PRESETS.find((p) => p.id === presetId) ?? BACKDROP_PRESETS[0], [presetId]);
   const list = tab === "solid" ? [] : BACKDROP_PRESETS.filter((p) => p.category === tab);
 
@@ -122,14 +132,18 @@ export function BackdropPlayground() {
         ctx.save(); ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 64 * s; ctx.shadowOffsetY = 24 * s;
         rr(ctx, cx, cy, CAP_W * s, CAP_H * s, r * s); ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
       }
-      drawCapture(ctx, cx, cy, s, r, t("site.bd.sample"));
+      if (capture) {
+        ctx.save(); rr(ctx, cx, cy, CAP_W * s, CAP_H * s, r * s); ctx.clip();
+        ctx.drawImage(capture, cx, cy, CAP_W * s, CAP_H * s);
+        ctx.restore();
+      } else drawCapture(ctx, cx, cy, s, r, t("site.bd.sample"));
     };
     draw();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(draw);
     ro?.observe(cv);
     document.fonts?.ready.then(draw).catch(() => {});
     return () => ro?.disconnect();
-  }, [on, tab, preset, solid, pad, rad, shadow, t]);
+  }, [on, tab, preset, solid, pad, rad, shadow, t, capture]);
 
   const pick = (id: string, name: string) => { setPresetId(id); setAnnounce(t("site.bd.announce", { name })); };
   const pickSolid = (c: string) => { setSolid(c); setAnnounce(t("site.bd.announce", { name: c })); };

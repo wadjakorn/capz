@@ -42,12 +42,12 @@ export const HERO_CLIPS: HeroClip[] = [
     caption: "site.clip.annotate.caption",
     src: "/landing/hero-2-annotate.mp4",
     poster: "/landing/hero-2-annotate.jpg",
-    duration: 11,
+    duration: 8.8,
     camera: [
       { t: 0, x: 0.5, y: 0.5, s: 1 },
-      { t: 0.9, x: 0.3889, y: 0.5556, s: 2.1 },
-      { t: 9.6, x: 0.3889, y: 0.5556, s: 2.1 },
-      { t: 10.6, x: 0.5, y: 0.5, s: 1 },
+      { t: 0.6, x: 0.33, y: 0.53, s: 2.1 },
+      { t: 7.7, x: 0.33, y: 0.53, s: 2.1 },
+      { t: 8.6, x: 0.5, y: 0.5, s: 1 },
     ],
   },
   {
@@ -56,7 +56,7 @@ export const HERO_CLIPS: HeroClip[] = [
     caption: "site.clip.backdrop.caption",
     src: "/landing/hero-3-backdrop.mp4",
     poster: "/landing/hero-3-backdrop.jpg",
-    duration: 4.3,
+    duration: 8.4,
     camera: [{ t: 0, x: 0.5, y: 0.5, s: 1 }],
   },
 ];
@@ -78,35 +78,45 @@ export type Slot = {
   tool?: EditorTool;
   /** Clip instead of a still: public/landing/<id>.mp4 (looped, muted). */
   video?: boolean;
+  /**
+   * How a ready shot is framed: "window" = a capture of the whole editor,
+   * shown in a plain window (it already has the real toolbar); "crop" = a
+   * close-up of the canvas, shown as a bare card.
+   */
+  shot: "window" | "crop";
 };
 
 export type EditorTool = "select" | "arrow" | "shapes" | "text" | "blur" | "pen" | "highlighter" | "magnify" | "sticker" | "pin" | "crop";
 
-const slot = (id: SlotId, aspect: string, tool: EditorTool = "select", video = false): Slot => ({
+type SlotOpts = { tool?: EditorTool; video?: boolean; ready?: boolean; shot?: Slot["shot"] };
+const slot = (id: SlotId, aspect: string, o: SlotOpts = {}): Slot => ({
   id,
   line: `site.slot.${id}` as TKey,
   aspect,
-  ready: false,
-  tool,
-  video,
+  ready: o.ready ?? false,
+  tool: o.tool ?? "select",
+  video: o.video ?? false,
+  shot: o.shot ?? "window",
 });
 
+// Ready shots were captured from the web editor (/paste, light theme) with
+// Playwright; the rest need the desktop app (see docs/landing/SHOTS.md).
 export const SLOTS: Record<SlotId, Slot> = {
-  "hero-editor": slot("hero-editor", "16 / 10", "arrow"),
+  "hero-editor": slot("hero-editor", "16 / 10", { tool: "arrow", ready: true }),
   "full-screen": slot("full-screen", "16 / 10"),
-  "area-overlay": slot("area-overlay", "16 / 10", "crop"),
+  "area-overlay": slot("area-overlay", "16 / 10", { tool: "crop" }),
   "window-corners": slot("window-corners", "16 / 10"),
-  "ring-v2": slot("ring-v2", "16 / 10", "select", true),
-  "scroll-capture": slot("scroll-capture", "16 / 10", "select", true),
-  "backdrop-base": slot("backdrop-base", "16 / 10"),
-  "thai-text": slot("thai-text", "16 / 10", "text"),
+  "ring-v2": slot("ring-v2", "16 / 10", { video: true }),
+  "scroll-capture": slot("scroll-capture", "16 / 10", { video: true }),
+  "backdrop-base": slot("backdrop-base", "16 / 10", { ready: true }),
+  "thai-text": slot("thai-text", "16 / 10", { tool: "text", ready: true }),
   "settings-th": slot("settings-th", "16 / 10"),
   ocr: slot("ocr", "16 / 10"),
-  "tool-arrow": slot("tool-arrow", "1 / 1", "arrow"),
-  "tool-pins": slot("tool-pins", "1 / 1", "pin"),
-  "tool-magnify": slot("tool-magnify", "1 / 1", "magnify"),
-  "tool-blur": slot("tool-blur", "1 / 1", "blur"),
-  workspaces: slot("workspaces", "16 / 10", "select", true),
+  "tool-arrow": slot("tool-arrow", "1 / 1", { tool: "arrow", ready: true, shot: "crop" }),
+  "tool-pins": slot("tool-pins", "1 / 1", { tool: "pin", ready: true, shot: "crop" }),
+  "tool-magnify": slot("tool-magnify", "1 / 1", { tool: "magnify", ready: true, shot: "crop" }),
+  "tool-blur": slot("tool-blur", "1 / 1", { tool: "blur", ready: true, shot: "crop" }),
+  workspaces: slot("workspaces", "16 / 10", { video: true, ready: true }),
   "history-preview": slot("history-preview", "16 / 10"),
-  "paste-mobile": slot("paste-mobile", "9 / 19.5"),
+  "paste-mobile": slot("paste-mobile", "9 / 19.5", { ready: true }),
 };

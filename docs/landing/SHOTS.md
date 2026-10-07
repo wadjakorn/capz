@@ -12,6 +12,8 @@ placeholder showing the slot id and one line saying what the shot will show.
 
 ## Capture setup
 
+- **Light theme.** The landing is bright, so every shot uses the app's light theme. The web editor's default config is dark, so Playwright captures force `light` with an init script that pins `<html>`'s `dark`/`light` classes. The desktop app has a real light theme in Settings.
+- **Web-capturable first.** Everything the `/paste` web editor can show (annotation tools, backdrops, Thai text, workspaces, phone layout) is captured there with Playwright at 2–3× DPR. Only desktop-only features need the Mac.
 - macOS on a Retina screen, with the app UI in Thai.
 - Clean wallpaper. No real names, emails or tokens on screen.
 - Use a Thai web page as the subject.
@@ -22,27 +24,29 @@ placeholder showing the slot id and one line saying what the shot will show.
 
 | id | What it shows | Notes |
 |---|---|---|
-| `import` | Pasting a screenshot into the editor and turning on a backdrop | `camera`: whole frame |
-| `annotate` | An arrow, pins 1-2-3, a blurred email, the magnifier | On phones the camera zooms to the action. Keyframes use normalised x/y (0–1). |
-| `backdrop` | Switching backdrops | `camera`: whole frame |
+| `import` | Pasting a screenshot into the editor | `camera`: whole frame |
+| `annotate` | An arrow, pins 1-2-3, a blurred email, the magnifier, a Thai text label | On phones the camera zooms to the action. Keyframes use normalised x/y (0–1). |
+| `backdrop` | Turning on the backdrop, then switching art styles | `camera`: whole frame |
 
-The current clips are stand-ins recorded in the `/paste` web editor.
+The clips are recorded in the `/paste` web editor (light theme). Annotations are drawn **before** the backdrop is turned on, which works around the blur/magnify offset bug when a backdrop is active (see the PR notes).
 
 ## Stills and loops (`SLOTS`)
 
+Status: ✅ = captured from `/paste` (light) and `ready: true`; 🖥 = needs the desktop app.
+
 | Priority | id | What to capture |
 |---|---|---|
-| ★★★ | `hero-editor` | The editor marking up a Thai page: a curved arrow, pins 1-2-3, a Thai label, a blurred email, a Risograph backdrop |
-| ★★★ | `ring-v2` (loop) | Hold ⌘⇧Space, tap to cycle, release, and the area overlay appears |
-| ★★★ | `scroll-capture` (loop) | The scroll HUD stitching a long Thai page, ending on the tall result |
-| ★★ | `full-screen` | A full-screen capture just opened in the editor |
-| ★★ | `area-overlay` | The area overlay on a busy desktop, with the template rect and the action pill |
-| ★★ | `window-corners` | A macOS window capture on a backdrop, with transparent corners |
-| ★★ | `thai-text` | The text tool with a mark-heavy Thai line, plus the line-spacing panel |
-| ★★ | `ocr` | Detect text on Thai content: a line selected and the "copied" toast showing |
-| ★★ | `workspaces` (loop) | Switching workspaces, then opening a History item |
-| ★ | `settings-th` | Settings in Thai, with a search query typed |
-| ★ | `history-preview` | The History preview with Reveal, Copy, Trash and Add to workspace |
-| ★ | `tool-arrow`, `tool-pins`, `tool-magnify`, `tool-blur` | One 1:1 close-up per tool |
-| ★ | `paste-mobile` | `/paste` on a phone (portrait) |
-| — | `backdrop-base` | A plain window capture with no backdrop. Not wired yet: the backdrop playground still draws a sample capture and doesn't read this file. |
+| ★★★ ✅ | `hero-editor` | The editor marking up a Thai page: an arrow, pins 1-2-3, a Thai label, a blurred email, the magnifier, a Risograph backdrop |
+| ★★★ 🖥 | `ring-v2` (loop) | Hold ⌘⇧Space, tap to cycle, release, and the area overlay appears |
+| ★★★ 🖥 | `scroll-capture` (loop) | The scroll HUD stitching a long Thai page, ending on the tall result |
+| ★★ 🖥 | `full-screen` | A full-screen capture just opened in the editor |
+| ★★ 🖥 | `area-overlay` | The area overlay on a busy desktop, with the template rect and the action pill |
+| ★★ 🖥 | `window-corners` | A macOS window capture on a backdrop, with transparent corners |
+| ★★ ✅ | `thai-text` | The text tool with a mark-heavy Thai line, plus the line-spacing panel |
+| ★★ 🖥 | `ocr` | Detect text on Thai content: a line selected and the "copied" toast showing |
+| ★★ ✅ | `workspaces` (loop) | Switching workspaces (captured on the web; History preview is desktop-only and has its own slot) |
+| ★ 🖥 | `settings-th` | Settings in Thai, with a search query typed |
+| ★ 🖥 | `history-preview` | The History preview with Reveal, Copy, Trash and Add to workspace |
+| ★ ✅ | `tool-arrow`, `tool-pins`, `tool-magnify`, `tool-blur` | One 1:1 close-up per tool |
+| ★ ✅ | `paste-mobile` | `/paste` on a phone (portrait) |
+| — ✅ | `backdrop-base` | The annotated capture with no backdrop, 1600×1000. The backdrop playground draws it on every style. |
