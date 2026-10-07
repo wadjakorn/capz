@@ -54,6 +54,7 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.ctl.zoom": "ซูม",
   "editor.dropHint.base": "วางเพื่อเปิดเป็นภาพหลัก",
   "editor.dropHint.layer": "วางเพื่อเพิ่มเป็นเลเยอร์",
+  "editor.duplicate": "ทำสำเนา ({shortcut})",
   "editor.empty.after": ") หรือจับภาพจากถาดระบบ",
   "editor.empty.before": "วางภาพ (",
   "editor.export.downloaded": "ดาวน์โหลดแทนแล้ว",

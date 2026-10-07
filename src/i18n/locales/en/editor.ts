@@ -53,6 +53,7 @@ export const editor = {
   "editor.ctl.zoom": "Zoom",
   "editor.dropHint.base": "Drop to open as the main image",
   "editor.dropHint.layer": "Drop to add as a layer",
+  "editor.duplicate": "Duplicate ({shortcut})",
   "editor.empty.after": ") or capture from the tray.",
   "editor.empty.before": "Paste an image (",
   "editor.export.downloaded": "Downloaded instead",
