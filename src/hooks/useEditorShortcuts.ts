@@ -14,6 +14,7 @@ import { isTauriRuntime } from "@/lib/platform";
 import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
 import { useWorkspaces } from "@/stores/workspaces";
+import { nudgeDelta } from "@/lib/nudge";
 
 const ESC_HIDE_WINDOW_MS = 2000;
 const ESC_TOAST_ID = "editor-esc-hide-arm";
@@ -193,6 +194,18 @@ export function useEditorShortcuts() {
         toast(tr(next ? "app.shortcuts.toolStays" : "app.shortcuts.toolReturns", { tool: label }), {
           id: "capz-keep-tool-active",
         });
+        return;
+      }
+
+      // CP-0056: arrow keys nudge the selected element (Shift = 10px). Left
+      // alone in crop mode, with Alt, or when a focused widget consumed it.
+      const nudge = nudgeDelta(key, e.shiftKey);
+      if (nudge) {
+        const s = useEditor.getState();
+        if (s.selectedId && s.tool !== "crop" && !e.altKey && !e.defaultPrevented) {
+          e.preventDefault();
+          s.nudge(s.selectedId, nudge.dx, nudge.dy);
+        }
         return;
       }
 
