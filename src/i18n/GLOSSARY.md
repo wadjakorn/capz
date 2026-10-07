@@ -58,6 +58,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | crop | ครอบตัด |
 | undo / redo | เลิกทำ / ทำซ้ำ |
 | copy / paste | คัดลอก / วาง |
+| duplicate (an element on the canvas) | ทำสำเนา (not คัดลอก, which is the clipboard copy) |
 | save / save as | บันทึก / บันทึกเป็น |
 | export | ส่งออก |
 | clipboard | คลิปบอร์ด |

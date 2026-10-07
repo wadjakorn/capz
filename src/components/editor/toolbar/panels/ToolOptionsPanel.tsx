@@ -4,12 +4,15 @@ import {
   BringToFront,
   ChevronsDown,
   ChevronsUp,
+  CopyPlus,
   Pointer,
   SendToBack,
 } from "lucide-react";
 import { ActionRow } from "./kit";
 import type { RefObject } from "react";
 import { useT } from "@/i18n/useT";
+import { DUPLICATE_SHORTCUT } from "@/lib/duplicate";
+import { formatShortcut } from "@/lib/shortcuts";
 import type { Dispatch, SetStateAction } from "react";
 import type { StickerSelection } from "@/stores/editor";
 import type { StickerEntry } from "@/stores/stickers";
@@ -116,6 +119,8 @@ export type ToolOptionsPanelProps = {
     atBack: boolean;
     onReorder: (mode: ReorderMode) => void;
   } | null;
+  /** Duplicate the selected annotation (CP-0057). Null = nothing selected. */
+  duplicate: { onDuplicate: () => void; disabled: boolean } | null;
 };
 
 /** Routes the built control contexts to the matching per-tool panel and adds
@@ -257,6 +262,17 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
             <ReorderButton Icon={ChevronsDown} title={t("editor.order.backward")} onClick={() => p.reorder!.onReorder("backward")} disabled={p.reorder.atBack} />
             <ReorderButton Icon={ChevronsUp} title={t("editor.order.forward")} onClick={() => p.reorder!.onReorder("forward")} disabled={p.reorder.atFront} />
             <ReorderButton Icon={BringToFront} title={t("editor.order.front")} onClick={() => p.reorder!.onReorder("front")} disabled={p.reorder.atFront} />
+            {p.duplicate && (
+              <>
+                <div className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
+                <ReorderButton
+                  Icon={CopyPlus}
+                  title={t("editor.duplicate", { shortcut: formatShortcut(DUPLICATE_SHORTCUT) })}
+                  onClick={p.duplicate.onDuplicate}
+                  disabled={p.duplicate.disabled}
+                />
+              </>
+            )}
           </div>
         </>
       )}

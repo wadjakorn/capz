@@ -11,6 +11,7 @@ import {
   zoomTo100,
 } from "@/lib/zoom";
 import { isTauriRuntime } from "@/lib/platform";
+import { duplicateSelected } from "@/lib/duplicate";
 import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
 import { useWorkspaces } from "@/stores/workspaces";
@@ -96,6 +97,15 @@ export function useEditorShortcuts() {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+        return;
+      }
+
+      // CP-0057: duplicate the selection. Always swallowed so browsers don't
+      // open "bookmark this page" on Ctrl+D; duplicateSelected() no-ops in
+      // crop mode or with nothing selected.
+      if (mod && key === "d" && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        duplicateSelected();
         return;
       }
 

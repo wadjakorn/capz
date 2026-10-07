@@ -46,6 +46,7 @@ import { ExportSplitButton, type ExportAction } from "./toolbar/ExportSplitButto
 import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { ToolOptionsPanel } from "./toolbar/panels/ToolOptionsPanel";
+import { canDuplicate, duplicateSelected } from "@/lib/duplicate";
 import { GlobalToolsPanel } from "./toolbar/panels/GlobalToolsPanel";
 import type {
   ColorCtx,
@@ -1595,6 +1596,14 @@ export function Toolbar({
                   atFront,
                   atBack,
                   onReorder: (mode) => reorderAnnotation(selected.id, mode),
+                }
+              : null
+          }
+          duplicate={
+            selected
+              ? {
+                  onDuplicate: () => void duplicateSelected(),
+                  disabled: !canDuplicate({ tool, selectedId: selected.id }),
                 }
               : null
           }
