@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { PinLabelStyle } from "@/lib/pinLabel";
 import type { KeepToolActive } from "@/lib/config";
+import { NUDGE_COALESCE_MS } from "@/lib/nudge";
 
 export type Tool =
   | "select"
@@ -299,8 +300,11 @@ type Snapshot = {
   imageCrop: ImageCrop | null;
 };
 
-/** Translate an annotation's positional fields by (dx, dy) in image pixels. */
-function shiftAnnotation(a: Annotation, dx: number, dy: number): Annotation {
+/**
+ * Translate an annotation's positional fields by (dx, dy) in image pixels —
+ * the same fields a mouse drag moves. Used by crop and arrow-key nudge.
+ */
+export function shiftAnnotation(a: Annotation, dx: number, dy: number): Annotation {
   if (a.type === "arrow") {
     const next: ArrowAnnotation = {
       ...a,
@@ -394,6 +398,12 @@ type State = {
   userZoomed: boolean;
   /** Transient snap guide lines (image-pixel coords). Not in undo history. */
   guides: { x: number[]; y: number[] };
+  /**
+   * The open arrow-key nudge run (CP-0056), so a run shares one undo entry.
+   * `annotations` is the array the last nudge produced: any other edit
+   * replaces it, which ends the run. Transient; never persisted.
+   */
+  nudgeRun: { id: string; at: number; annotations: Annotation[] } | null;
 
   setTool: (t: Tool) => void;
   setStickerSelection: (sel: StickerSelection) => void;
@@ -405,6 +415,13 @@ type State = {
   add: (a: Annotation) => void;
   update: (id: string, patch: Partial<Annotation>) => void;
   remove: (id: string) => void;
+  /**
+   * Move one annotation by (dx, dy) image px (arrow-key nudge). Consecutive
+   * nudges of the same element, with nothing else in between and no more
+   * than NUDGE_COALESCE_MS apart, share one undo entry. `now` is injectable
+   * for tests.
+   */
+  nudge: (id: string, dx: number, dy: number, now?: number) => void;
   /** Change a single annotation's stacking order; history-tracked. */
   reorder: (id: string, mode: ReorderMode) => void;
   clear: () => void;
@@ -471,6 +488,7 @@ export const useEditor = create<State>((set, get) => ({
   displayScale: 0,
   userZoomed: false,
   guides: { x: [], y: [] },
+  nudgeRun: null,
 
   setTool: (t) =>
     // Crop keeps the current selection so per-object image crop knows its
@@ -517,6 +535,28 @@ export const useEditor = create<State>((set, get) => ({
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
       selectedId: selectedId === id ? null : selectedId,
+    });
+  },
+
+  nudge: (id, dx, dy, now = Date.now()) => {
+    if (!dx && !dy) return;
+    const { annotations, nextPinNumber, past, imageCrop, nudgeRun } = get();
+    if (!annotations.some((a) => a.id === id)) return;
+    const next = annotations.map((a) =>
+      a.id === id ? shiftAnnotation(a, dx, dy) : a,
+    );
+    const continuing =
+      nudgeRun !== null &&
+      nudgeRun.id === id &&
+      nudgeRun.annotations === annotations &&
+      now - nudgeRun.at <= NUDGE_COALESCE_MS;
+    set({
+      annotations: next,
+      ...(continuing
+        ? {}
+        : { past: pushHistory(past, { annotations, nextPinNumber, imageCrop }) }),
+      future: [],
+      nudgeRun: { id, at: now, annotations: next },
     });
   },
 
