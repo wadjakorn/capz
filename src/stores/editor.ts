@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { PinLabelStyle } from "@/lib/pinLabel";
 import type { KeepToolActive } from "@/lib/config";
 import { NUDGE_COALESCE_MS } from "@/lib/nudge";
+import { uid } from "@/lib/uid";
 
 export type Tool =
   | "select"
@@ -329,6 +330,22 @@ export function shiftAnnotation(a: Annotation, dx: number, dy: number): Annotati
   return { ...a, x: a.x + dx, y: a.y + dy };
 }
 
+/**
+ * A deep copy of `a` with a new `id`, translated by (dx, dy) image px. Nothing
+ * mutable (pen `points`, image `crop`) is shared with the source. An image's
+ * `src` is a plain string (a data: URL), so the copy reuses the same bitmap.
+ */
+export function cloneAnnotation(
+  a: Annotation,
+  id: string,
+  dx: number,
+  dy: number,
+): Annotation {
+  const copy = structuredClone(a);
+  copy.id = id;
+  return shiftAnnotation(copy, dx, dy);
+}
+
 function cropEq(a: ImageCrop | null, b: ImageCrop | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -422,6 +439,12 @@ type State = {
    * for tests.
    */
   nudge: (id: string, dx: number, dy: number, now?: number) => void;
+  /**
+   * Duplicate one annotation: a deep copy offset by `delta` (default +10,+10),
+   * inserted directly above the original, selected, one undo entry. A pin copy
+   * takes `nextPinNumber`. Returns the copy's id, or null for an unknown id.
+   */
+  duplicate: (id: string, delta?: { dx: number; dy: number }) => string | null;
   /** Change a single annotation's stacking order; history-tracked. */
   reorder: (id: string, mode: ReorderMode) => void;
   clear: () => void;
@@ -558,6 +581,25 @@ export const useEditor = create<State>((set, get) => ({
       future: [],
       nudgeRun: { id, at: now, annotations: next },
     });
+  },
+
+  duplicate: (id, delta = { dx: 10, dy: 10 }) => {
+    const { annotations, nextPinNumber, past, imageCrop } = get();
+    const from = annotations.findIndex((a) => a.id === id);
+    if (from < 0) return null;
+    const copy = cloneAnnotation(annotations[from], uid(), delta.dx, delta.dy);
+    const isPin = copy.type === "pin";
+    if (isPin) copy.number = nextPinNumber;
+    const next = annotations.slice();
+    next.splice(from + 1, 0, copy);
+    set({
+      annotations: next,
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
+      selectedId: copy.id,
+      nextPinNumber: isPin ? nextPinNumber + 1 : nextPinNumber,
+    });
+    return copy.id;
   },
 
   reorder: (id, mode) => {
