@@ -12,7 +12,7 @@ export default defineConfig({
     // Node by default; component tests opt into jsdom with a per-file
     // `// @vitest-environment jsdom` pragma (see SettingRow.test.tsx).
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}", "worker/src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "worker/src/**/*.test.ts", "scripts/**/*.test.mjs"],
     // Pin the UI language to English for tests that assert copy.
     setupFiles: ["src/test/setupLang.ts"],
   },

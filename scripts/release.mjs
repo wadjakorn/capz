@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Bump version across package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml.
+// Bump version across package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml
+// and the app's own entry in src-tauri/Cargo.lock.
 // Commits + tags. Does NOT push.
 //
 // Usage:
@@ -9,11 +10,18 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  bumpCargoLockPackage,
+  bumpCargoTomlPackage,
+  cargoPackageName,
+  nextVersion,
+} from "./release-lib.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PKG = resolve(ROOT, "package.json");
 const TAURI = resolve(ROOT, "src-tauri/tauri.conf.json");
 const CARGO = resolve(ROOT, "src-tauri/Cargo.toml");
+const CARGO_LOCK = resolve(ROOT, "src-tauri/Cargo.lock");
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith("--")));
@@ -27,20 +35,6 @@ if (!bumpArg) {
   process.exit(1);
 }
 
-const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
-
-function nextVersion(current, kind) {
-  const m = current.match(SEMVER);
-  if (!m) throw new Error(`current version not semver: ${current}`);
-  let [_, maj, min, pat] = m.map(Number);
-  if (kind === "patch") pat += 1;
-  else if (kind === "minor") { min += 1; pat = 0; }
-  else if (kind === "major") { maj += 1; min = 0; pat = 0; }
-  else if (SEMVER.test(kind)) return kind;
-  else throw new Error(`unknown bump: ${kind}`);
-  return `${maj}.${min}.${pat}`;
-}
-
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -51,23 +45,6 @@ function writeJsonInPlace(path, mut) {
   mut(obj);
   const trailingNl = raw.endsWith("\n") ? "\n" : "";
   writeFileSync(path, JSON.stringify(obj, null, 2) + trailingNl);
-}
-
-function bumpCargoPackageVersion(path, next) {
-  const raw = readFileSync(path, "utf8");
-  let inPackage = false;
-  let replaced = false;
-  const out = raw.split("\n").map((line) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("[")) inPackage = trimmed === "[package]";
-    if (inPackage && !replaced && /^version\s*=\s*"/.test(line)) {
-      replaced = true;
-      return line.replace(/"[^"]*"/, `"${next}"`);
-    }
-    return line;
-  }).join("\n");
-  if (!replaced) throw new Error(`could not find [package] version in ${path}`);
-  writeFileSync(path, out);
 }
 
 function sh(cmd) {
@@ -94,7 +71,10 @@ if (dryRun) console.log("(dry run — no files changed, no git ops)");
 if (!dryRun) {
   writeJsonInPlace(PKG, (o) => { o.version = next; });
   writeJsonInPlace(TAURI, (o) => { o.version = next; });
-  bumpCargoPackageVersion(CARGO, next);
+  const cargoToml = readFileSync(CARGO, "utf8");
+  writeFileSync(CARGO, bumpCargoTomlPackage(cargoToml, next));
+  const lock = readFileSync(CARGO_LOCK, "utf8");
+  writeFileSync(CARGO_LOCK, bumpCargoLockPackage(lock, cargoPackageName(cargoToml), next));
 }
 
 // Check working tree only has expected files dirty.
@@ -102,7 +82,12 @@ let status = "";
 try {
   status = execSync("git status --porcelain", { cwd: ROOT }).toString();
 } catch {}
-const expected = new Set(["package.json", "src-tauri/tauri.conf.json", "src-tauri/Cargo.toml"]);
+const expected = new Set([
+  "package.json",
+  "src-tauri/tauri.conf.json",
+  "src-tauri/Cargo.toml",
+  "src-tauri/Cargo.lock",
+]);
 const dirty = status.split("\n").map((l) => l.slice(3).trim()).filter(Boolean);
 const unexpected = dirty.filter((f) => !expected.has(f));
 if (unexpected.length > 0) {
@@ -112,7 +97,7 @@ if (unexpected.length > 0) {
 }
 
 if (!noCommit) {
-  sh(`git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml`);
+  sh(`git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock`);
   sh(`git commit -m "chore(release): ${tag}"`);
   if (!noTag) sh(`git tag ${tag}`);
 }
