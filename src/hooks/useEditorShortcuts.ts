@@ -17,6 +17,7 @@ import { useSettings } from "@/stores/settings";
 import { useWorkspaces } from "@/stores/workspaces";
 import { nudgeDelta } from "@/lib/nudge";
 import { currentPlatform } from "@/lib/shortcuts";
+import { shortcutKey } from "@/lib/shortcutKey";
 
 const ESC_HIDE_WINDOW_MS = 2000;
 const ESC_TOAST_ID = "editor-esc-hide-arm";
@@ -66,7 +67,8 @@ export function useEditorShortcuts() {
       if (isTypingTarget(e.target)) return;
 
       const mod = e.metaKey || e.ctrlKey;
-      const key = e.key.toLowerCase();
+      // CP-0061: physical key under non-Latin layouts (Thai Ctrl+Z is "ผ").
+      const key = shortcutKey(e).toLowerCase();
 
       // --- workspace switching (CP-0045) -------------------------------
       // NOT Cmd+1..9: Cmd+0 / Cmd+1 are zoom-to-fit / zoom-100% below and have
