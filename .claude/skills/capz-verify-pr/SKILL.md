@@ -12,7 +12,11 @@ gates; you never try to get around a "review required".
 
 ## Per PR
 
-`gh pr view N -R wadjakorn/capz --json number,title,headRefName,headRefOid,mergeable,mergeStateStatus,reviewDecision,reviews,labels,statusCheckRollup,comments,state`
+`gh pr view N -R wadjakorn/capz --json number,title,headRefName,headRefOid,mergeable,mergeStateStatus,reviews,labels,statusCheckRollup,comments,state`
+
+(Don't ask for `reviewRequests` — it needs `read:org`, which the bot token lacks; use
+`gh api repos/wadjakorn/capz/pulls/N/requested_reviewers`. `reviewDecision` is always
+empty under the ruleset, so don't rely on it.)
 
 Ticket = `CP-NNNN` from the title. Worktree = `~/development/capz-loop-wt/cp<NNNN>`
 (re-create from the PR branch if missing).
@@ -42,8 +46,9 @@ findings (or "No blocking findings") ending in that marker.
 - Latest review marker = head SHA, no blocking findings open.
 - No human comment newer than your last reply.
 - **No merge freeze:** no open PR titled `chore(release): v*`.
-- **Gate:** if `reviewDecision` is `REVIEW_REQUIRED`, or the PR has the label
-  `needs-owner-test`, there must be an `APPROVED` review by `wadjakorn` whose
+- **Gate:** if `mergeStateStatus` is `BLOCKED` while checks are green (the
+  ruleset wants a code-owner review — `requested_reviewers` lists `wadjakorn`),
+  or the PR has the label `needs-owner-test`, there must be an `APPROVED` review by `wadjakorn` whose
   `commit.oid` equals the head SHA. Otherwise ensure the owner was asked:
   one PR comment (once per head SHA, marker
   `<!-- capz-loop:owner-test sha=… -->`) with the checklist of what only a human

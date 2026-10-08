@@ -30,6 +30,10 @@ case "$STAGE" in intake|build|verify|release) ;; *)
   exit 64 ;;
 esac
 
+# n8n reaches us over a forced-command SSH key: a non-interactive shell whose
+# PATH lacks ~/.local/bin (pm, claude, node, pnpm) and ~/.cargo/bin.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
 ENV_FILE="${CAPZ_LOOP_ENV:-$HOME/.config/capz-loop/env}"
 CLONE="${CAPZ_LOOP_CLONE:-$HOME/development/capz-loop}"
 WT_ROOT="$HOME/development/capz-loop-wt"
@@ -162,7 +166,7 @@ precheck_build() {
 precheck_verify() {
   local prs
   prs="$(gh pr list -R "$REPO" --label capz-loop --state open --limit 50 \
-    --json number,title,headRefOid,reviewDecision,labels,statusCheckRollup,reviews,comments)"
+    --json number,title,headRefOid,mergeStateStatus,labels,statusCheckRollup,reviews,comments)"
   jq -r --arg bot "$BOT" --arg owner "$OWNER" '
     .[] | select(.title | startswith("chore(release)") | not)
     | . as $p
@@ -173,7 +177,9 @@ precheck_verify() {
     | ([.comments[] | select(.author.login != $bot and .createdAt > $lastBot)] | length > 0) as $human
     | ([.comments[] | select(.author.login == $bot) | .body | select(contains("capz-loop:reviewed sha=" + $p.headRefOid))] | length > 0) as $reviewed
     | ([.reviews[] | select(.author.login == $owner and .state == "APPROVED" and .commit.oid == $p.headRefOid)] | length > 0) as $approved
-    | ((.reviewDecision == "REVIEW_REQUIRED") or ([.labels[].name] | index("needs-owner-test") != null)) as $gated
+    # Rulesets leave reviewDecision empty, so a code-owner gate shows up only as
+    # BLOCKED with green checks (verified on the gate-test PR #101).
+    | ((.mergeStateStatus == "BLOCKED") or ([.labels[].name] | index("needs-owner-test") != null)) as $gated
     | ([.comments[] | select(.author.login == $bot) | .body | select(contains("capz-loop:owner-test sha=" + $p.headRefOid))] | length > 0) as $asked
     | if   $failed or $human or ($reviewed | not) then "pr: #\(.number) (\(if $failed then "checks failed" elif $human then "new comment" else "unreviewed head" end))"
       elif $pending then empty
