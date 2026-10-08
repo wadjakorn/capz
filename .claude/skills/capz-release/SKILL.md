@@ -33,7 +33,8 @@ which phase the precheck found: `propose`, `ship`, or `publish`.
    date (the freeze should prevent this) and move the ticket to `blocked`.
 2. `gh pr merge --squash --delete-branch`. Read the merge commit SHA.
 3. `git tag -a vX.Y.Z <merge-sha> -m "capz vX.Y.Z" && git push origin vX.Y.Z`.
-   This starts `build.yml` (draft release + `publish-meta`).
+   This starts `build.yml` (draft release with `latest.json` attached). The
+   update channel is **not** touched yet — a draft's assets are not public.
 4. Wait for the run: `gh run list -R wadjakorn/capz --workflow build.yml
    --branch vX.Y.Z` → `gh run watch <id> --exit-status`. Failure → STATUS with
    the failing job, ticket `blocked`, stop (the draft stays; a re-run reuses it).
@@ -47,8 +48,11 @@ which phase the precheck found: `propose`, `ship`, or `publish`.
 
 1. `gh release edit vX.Y.Z --draft=false --latest --notes-file <notes>` —
    notes = the changelog in plain user language (what changed, not PR jargon).
-2. Check `curl -sL https://wadjakorn.github.io/capz/latest.json` → `"version": "X.Y.Z"`.
-   `update-cask.yml` runs by itself on `release: published`; confirm it started.
+2. Publishing fires `publish-update-channel.yml` (gh-pages `latest.json`) and
+   `update-cask.yml`, both on `release: published`. Wait for the channel run
+   (`gh run list --workflow publish-update-channel.yml`), then check
+   `curl -sL https://wadjakorn.github.io/capz/latest.json` → `"version": "X.Y.Z"`.
+   If it did not fire, dispatch it: `gh workflow run publish-update-channel.yml -f tag=vX.Y.Z`.
 3. Tickets: each included ticket `tested → released`; `[release]` ticket
    walked to `released`.
 4. Inbox: for each source issue — comment "Released in vX.Y.Z", label
@@ -56,3 +60,10 @@ which phase the precheck found: `propose`, `ship`, or `publish`.
 5. Remove the release worktree.
 
 Print: version, run id, asset check, publish URL, issues closed.
+
+## Withdrawing a draft
+
+If the owner rejects a built draft (as with v0.17.0), nothing user-facing
+changed: the update channel only moves on publish. The owner decides whether
+to delete the draft + tag (`gh release delete vX.Y.Z --cleanup-tag`, owner
+action) and ship the fix as the next patch — never reuse the tag.
