@@ -1,0 +1,25 @@
+{
+  "$comment": "capz-loop verify: works only from owner-approved tickets, as the bot account. GitHub (CODEOWNERS + ruleset) enforces the merge/release gates; these denies keep it off the owner's checkout, credentials and gate bypasses. Run with --permission-mode dontAsk.",
+  "permissions": {
+    "allow": [
+      "Read", "Grep", "Glob", "Edit", "Write", "Skill", "TodoWrite", "Bash"
+    ],
+    "deny": [
+      "Edit(/home/wadjakorn/development/capz/**)",
+      "Write(/home/wadjakorn/development/capz/**)",
+      "Read(/home/wadjakorn/.config/capz-loop/**)",
+      "Bash(gh auth:*)",
+      "Bash(gh pr merge --admin:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh api -X DELETE:*)",
+      "Bash(gh api --method DELETE:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(gh release delete:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(pm task delete:*)",
+      "Bash(pm project:*)",
+      "WebSearch"
+    ]
+  }
+}

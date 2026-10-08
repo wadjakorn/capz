@@ -60,3 +60,4 @@ hud-default.png
 # (verifyDepsBeforeRun:false). It must never reach the repo: committing it turns
 # the project into a pnpm workspace and breaks the Cloudflare Pages install.
 pnpm-workspace.yaml
+e2e/visual-out/

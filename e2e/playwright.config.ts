@@ -48,6 +48,12 @@ export default defineConfig({
       use: { ...devices["Pixel 5"], ...channelOverride },
     },
     {
+      // capz-loop L4: screenshot walkthroughs for human review (not in CI).
+      name: "visual",
+      testMatch: /visual\/.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], ...channelOverride },
+    },
+    {
       name: "tauri",
       testMatch: /tauri\/.*\.spec\.ts/,
       // Tier 2: separate runner sets up tauri-driver; skipped unless explicitly invoked.

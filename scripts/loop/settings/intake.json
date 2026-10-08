@@ -1,0 +1,26 @@
+{
+  "$comment": "capz-loop intake: reads anonymous inbox text, so it gets no file writes, no git, and cannot delete or move tickets. Run with --permission-mode dontAsk: anything not allowed here is denied.",
+  "permissions": {
+    "allow": [
+      "Read", "Grep", "Glob", "Skill",
+      "Bash(gh api repos/wadjakorn/capz-inbox/issues:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(pm task create:*)",
+      "Bash(pm task update:*)",
+      "Bash(pm task get:*)",
+      "Bash(pm task list:*)",
+      "Bash(pm status list:*)",
+      "Bash(git grep:*)",
+      "Bash(git log:*)",
+      "Bash(jq:*)",
+      "Bash(date:*)"
+    ],
+    "deny": [
+      "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch",
+      "Bash(pm task delete:*)", "Bash(pm task move:*)", "Bash(pm task restore:*)",
+      "Bash(pm project:*)", "Bash(git push:*)", "Bash(gh auth:*)", "Bash(gh api -X:*)",
+      "Bash(gh pr:*)", "Bash(gh repo:*)", "Bash(curl:*)", "Bash(rm:*)"
+    ]
+  }
+}
