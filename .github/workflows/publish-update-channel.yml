@@ -1,0 +1,60 @@
+name: Publish update channel
+
+# Points the updater at a release only once it is PUBLISHED. Copies the
+# release's latest.json (built by tauri-action in build.yml) to the gh-pages
+# branch, which https://wadjakorn.github.io/capz/latest.json and the capz-api
+# Worker serve. gh-pages avoids the Azure-Blob redirect that breaks
+# tauri-plugin-updater 2.10.1.
+#
+# This used to run in build.yml right after the tag build, while the release
+# was still a draft — so for as long as a draft waited for its manual test
+# (v0.17.0, 2026-10-08) every installed app was offered an update whose assets
+# 404. Publishing (gh release edit --draft=false, as the capz-release skill
+# does with the bot's token) now fires this. Like update-cask.yml, a release
+# published with the workflow GITHUB_TOKEN would not trigger it; use
+# workflow_dispatch then.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag to point the channel at (e.g. v0.17.1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-channel:
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Download latest.json from the published release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)
+          if [ "$draft" = "true" ]; then
+            echo "::error::$TAG is still a draft — refusing to point the update channel at it"
+            exit 1
+          fi
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            -p latest.json -O latest.json --clobber
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Commit + push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(pages): update channel to ${TAG}"
+          git push origin gh-pages
