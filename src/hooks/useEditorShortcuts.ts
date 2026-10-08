@@ -16,6 +16,7 @@ import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
 import { useWorkspaces } from "@/stores/workspaces";
 import { nudgeDelta } from "@/lib/nudge";
+import { currentPlatform } from "@/lib/shortcuts";
 
 const ESC_HIDE_WINDOW_MS = 2000;
 const ESC_TOAST_ID = "editor-esc-hide-arm";
@@ -97,6 +98,21 @@ export function useEditorShortcuts() {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+        return;
+      }
+
+      // CP-0059: Ctrl+Y is the Windows redo convention. macOS keeps Cmd+Y
+      // unbound (it means "history" in Safari/Chrome there).
+      if (
+        key === "y" &&
+        e.ctrlKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        !e.altKey &&
+        currentPlatform() !== "mac"
+      ) {
+        e.preventDefault();
+        redo();
         return;
       }
 
