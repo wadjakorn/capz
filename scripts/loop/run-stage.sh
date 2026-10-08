@@ -33,6 +33,9 @@ esac
 # n8n reaches us over a forced-command SSH key: a non-interactive shell whose
 # PATH lacks ~/.local/bin (pm, claude, node, pnpm) and ~/.cargo/bin.
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+# …and no XDG_RUNTIME_DIR, without which `systemd-run --user` cannot reach the
+# user bus (the user has lingering enabled, so the manager is always up).
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 ENV_FILE="${CAPZ_LOOP_ENV:-$HOME/.config/capz-loop/env}"
 CLONE="${CAPZ_LOOP_CLONE:-$HOME/development/capz-loop}"
@@ -62,8 +65,13 @@ notify() {
     --data-urlencode "text=$1" >/dev/null || log "telegram notify failed"
 }
 
+# Any failure before the agent starts (precheck, refresh, dispatch) would
+# otherwise only reach the scheduler's stdout — alert on it too.
+trap 'rc=$?; ((rc)) && notify "capz-loop $STAGE runner failed (exit $rc) before the agent started — see the n8n execution log"' EXIT
+
 # ---------------------------------------------------------------- agent mode
 if ((AGENT_MODE)); then
+  trap - EXIT
   exec 9>"$LOCKS/$STAGE.lock"
   if ! flock -n 9; then log "another $STAGE run holds the lock — skipping"; exit 0; fi
   case "$STAGE" in intake) LIMIT=15m ;; build) LIMIT=3h ;; *) LIMIT=1h ;; esac
