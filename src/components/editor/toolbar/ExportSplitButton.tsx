@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Copy as CopyIcon,
   Save,
@@ -8,7 +7,8 @@ import {
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
-import { currentPlatform, formatShortcut, type Platform } from "@/lib/shortcuts";
+import { formatShortcut } from "@/lib/shortcuts";
+import { usePlatform } from "@/hooks/usePlatform";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,11 +53,8 @@ export function ExportSplitButton({
   const PrimaryIcon = primary.icon;
   const primaryLabel = t(primary.labelKey);
 
-  // Shortcut glyphs are platform-specific (⌘ vs Ctrl). navigator is absent
-  // during prerender, so pin to the prerender value ("win") until mounted to
-  // avoid a hydration mismatch, then switch to the real platform.
-  const [platform, setPlatform] = useState<Platform>("win");
-  useEffect(() => setPlatform(currentPlatform()), []);
+  // Shortcut glyphs are platform-specific (⌘ vs Ctrl).
+  const platform = usePlatform();
 
   return (
     <div className="inline-flex items-stretch overflow-hidden rounded-lg">

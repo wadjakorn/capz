@@ -22,6 +22,8 @@ import type { CaptureSource } from "@/stores/editor";
 import { t } from "@/i18n/store";
 import type { TKey } from "@/i18n/store";
 import { useT } from "@/i18n/useT";
+import { usePlatform } from "@/hooks/usePlatform";
+import { formatShortcut } from "@/lib/shortcuts";
 
 /** Below this window height the bar starts collapsed (once — see barPrefUserSet). */
 const SHORT_WINDOW_PX = 600;
@@ -77,6 +79,7 @@ export type WorkspaceBarProps = {
  */
 export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
   useT(); // re-render on language change; copy below uses the store `t`
+  const platform = usePlatform();
   const order = useWorkspaces((s) => s.order);
   const activeId = useWorkspaces((s) => s.activeId);
   /**
@@ -213,7 +216,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
             title={
               atMax
                 ? t("editor.ws.max", { max })
-                : `${t("editor.ws.new")} (⌘⇧N)`
+                : `${t("editor.ws.new")} (${formatShortcut("CmdOrCtrl+Shift+N", platform)})`
             }
             className={
               full
