@@ -16,6 +16,7 @@ import { AfterCapturePage } from "./pages/AfterCapturePage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { AppPage } from "./pages/AppPage";
 import { pageDef } from "./registry";
+import { shortcutKey } from "@/lib/shortcutKey";
 
 /**
  * Settings, as a view inside the editor window (CP-0053).
@@ -67,7 +68,7 @@ export function SettingsView({
   // and the editor's own shortcuts do not claim this one.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
+      if (!(e.metaKey || e.ctrlKey) || shortcutKey(e).toLowerCase() !== "f") return;
       e.preventDefault();
       searchRef.current?.focus();
       searchRef.current?.select();
