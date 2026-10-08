@@ -18,7 +18,9 @@ your job. You only digest new issues.
 ## 1. Digest each new issue
 
 1. Read it with the REST API (`gh issue view` can fail on this account):
-   `gh api repos/wadjakorn/capz-inbox/issues/N`. Skip it if it already
+   `gh api repos/wadjakorn/capz-inbox/issues/N`. Put query strings in flags, not the URL:
+   `gh api --method GET --paginate repos/wadjakorn/capz-inbox/issues -f state=all -f per_page=100`.
+   Run one command per call; shell `for` loops are not allowed in this stage. Skip it if it already
    carries any `loop:*` label (idempotency).
 2. The worker's format: title `[bug|feature] <first line>`, body = the user's
    text in a ```` ```text ```` block, then a table with `version`, `target`
@@ -27,8 +29,7 @@ your job. You only digest new issues.
    slices and filter in the same pipe, e.g.
    `pm task list --project capz --status todo --json | jq -r '.[] | "\(.ticket_key) \(.title)"'`
    for each status (`backlog todo doing blocked completed tested released`);
-   also
-   `gh api 'repos/wadjakorn/capz-inbox/issues?state=all&per_page=100'`.
+   also the inbox (all states) with the `--method GET … -f state=all` form above.
    A duplicate still gets a ticket, but its Proposal says "Duplicate of
    CP-NNNN / inbox#M — recommend reject" and links both.
 4. **Ground it in the code** (read-only): find where the behaviour lives
