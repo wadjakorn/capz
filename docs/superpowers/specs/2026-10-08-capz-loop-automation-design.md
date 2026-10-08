@@ -189,7 +189,15 @@ The loop runs as a **separate bot account** (`capz-bot`, a machine user with **w
    TELEGRAM_BOT_TOKEN=…   # optional, failure alerts
    TELEGRAM_CHAT_ID=…
    ```
-6. **Clone.** Run `git clone https://github.com/wadjakorn/capz ~/development/capz-loop`. The runner keeps it detached at origin/main.
+6. **Clone.** Run `git clone https://github.com/wadjakorn/capz ~/development/capz-loop`. The runner keeps it detached at origin/main. **Make it push as the bot**: this box's global git config rewrites `https://github.com/wadjakorn/` to SSH with the owner's key (`url.*.insteadof`). A push over that SSH remote would land as wadjakorn and skip the CODEOWNERS gate. Set it in the clone, which every loop worktree shares:
+   ```
+   git -C ~/development/capz-loop config remote.origin.url https://x-access-token@github.com/wadjakorn/capz   # userinfo dodges insteadOf
+   git -C ~/development/capz-loop config --add credential.https://github.com.helper ''
+   git -C ~/development/capz-loop config --add credential.https://github.com.helper '!f(){ test -n "$GH_TOKEN" || exit 1; echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
+   git -C ~/development/capz-loop config user.name capz-bot
+   git -C ~/development/capz-loop config user.email wadjakorn.tonsri+capzbot@gmail.com
+   ```
+   Verify: `git ls-remote --get-url origin` shows the https URL. A test branch push shows "CreateEvent by capz-bot" in the repo events.
 7. **Optional L5.** Install `cargo install tauri-driver --locked` and `sudo apt install webkit2gtk-driver`.
 8. **Smoke test.** Run `~/development/capz-loop/scripts/loop/run-stage.sh intake --dry-run`.
 9. **n8n.**
