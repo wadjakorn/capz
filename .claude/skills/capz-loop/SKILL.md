@@ -24,7 +24,7 @@ completed ──verify──▶ (👤 approve if CODEOWNERS) ──▶ merged = 
 | Gate | How the owner acts | How you detect it |
 |---|---|---|
 | Triage | moves a `backlog` proposal to `todo` (accept) or deletes it (reject) | `pm task get --id <id> --include-deleted` |
-| Merge (conditional) | approves a PR that touches `.github/CODEOWNERS` paths, or one labelled `needs-owner-test` | `gh pr view N --json reviewDecision,reviews` — an APPROVED review by `wadjakorn` on the head SHA |
+| Merge (conditional) | approves a PR that touches `.github/CODEOWNERS` paths, or one labelled `needs-owner-test` | `gh pr view N --json mergeStateStatus,reviews` — `BLOCKED` with green checks = waiting; an APPROVED review by `wadjakorn` whose `commit.oid` is the head SHA = cleared (`reviewDecision` stays empty under rulesets) |
 | Release | approves the release PR `chore(release): vX.Y.Z` | same as above |
 
 GitHub enforces the merge and release gates (ruleset "protect main": code-owner
