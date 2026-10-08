@@ -1,3 +1,4 @@
+// capz-loop gate test — DO NOT MERGE
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
