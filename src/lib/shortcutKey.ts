@@ -28,7 +28,6 @@ export function shortcutKey(e: KeyboardEvent): string {
   if (e.altKey || !e.code) return key;
   const physical = physicalKey(e.code);
   if (!physical) return key;
-  // eslint-disable-next-line no-control-regex
   if (/[^\x00-\x7f]/.test(key)) return physical;
   // Thai Shift+Z types "(" — Ctrl/⌘+Shift+letter on a Latin layout always
   // yields a letter, so this only kicks in for non-Latin layouts.

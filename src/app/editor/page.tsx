@@ -35,6 +35,7 @@ import { useUpdateCheckListener } from "@/lib/updater";
 import { useInstallIdNudge } from "@/hooks/use-install-id-nudge";
 import { t } from "@/i18n/store";
 import { useT } from "@/i18n/useT";
+import { shortcutKey } from "@/lib/shortcutKey";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -482,7 +483,7 @@ export default function EditorPage() {
 
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
-      if (!(e.key === "c" || e.key === "C")) return;
+      if (shortcutKey(e).toLowerCase() !== "c") return;
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.shiftKey || e.altKey) return;
       if (!file) return;

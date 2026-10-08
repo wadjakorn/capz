@@ -66,6 +66,7 @@ import type {
 import { isTauriRuntime } from "@/lib/platform";
 import { usePlatform } from "@/hooks/usePlatform";
 import { stickyToolLabel } from "@/lib/stickyTools";
+import { shortcutKey } from "@/lib/shortcutKey";
 
 // macOS-only: the system area capture mode delegates to `screencapture -i`,
 // which exists only on macOS. `currentPlatform` is prerender-safe (navigator is
@@ -1151,7 +1152,7 @@ export function Toolbar({
     function onKey(e: KeyboardEvent) {
       if (isTyping(e.target)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const k = e.key;
+      const k = shortcutKey(e);
       if (k === "[" || k === "]") {
         const c = widthRef.current;
         if (!c) return;

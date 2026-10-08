@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useOcr, currentResult } from "@/stores/ocr";
 import { ocrBoxStyle, computeFitScaleX } from "@/lib/ocr";
+import { shortcutKey } from "@/lib/shortcutKey";
 
 const FONT_STACK = '"Noto Sans Thai", system-ui, -apple-system, sans-serif';
 // Font size (image-pixel space) for measurement & rendering, as a fraction of
@@ -68,7 +69,7 @@ export function OcrLayer({
   useEffect(() => {
     if (!mode) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "a" && e.key !== "A") return;
+      if (shortcutKey(e).toLowerCase() !== "a") return;
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {

@@ -14,6 +14,7 @@ import { useEditor } from "@/stores/editor";
 import { extractImageBlob, readClipboardPng } from "@/lib/webExport";
 import { getStage } from "@/lib/stageBridge";
 import { copyOnly } from "@/lib/exportImage";
+import { shortcutKey } from "@/lib/shortcutKey";
 import {
   captureScreen,
   isWebCaptureSupported,
@@ -203,7 +204,7 @@ export default function PastePage() {
   // Cmd/Ctrl+C with no selection copies the flattened result.
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
-      if (!(e.key === "c" || e.key === "C")) return;
+      if (shortcutKey(e).toLowerCase() !== "c") return;
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.shiftKey || e.altKey) return;
       if (!srcRef.current) return;
