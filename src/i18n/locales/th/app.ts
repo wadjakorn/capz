@@ -125,7 +125,11 @@ export const app: Record<keyof typeof en, string> = {
   "app.feedback.timedOut": "หมดเวลา",
   "app.feedback.desktopOnly": "ส่งความคิดเห็นได้เฉพาะในแอปเดสก์ท็อป",
 
-  "app.updater.prompt": "มีเวอร์ชัน {version} ให้อัปเดต\n\n{body}\n\nดาวน์โหลดและติดตั้งเลยหรือไม่",
+  "app.updater.prompt": "มีเวอร์ชัน {version} ให้อัปเดต\n\n{body}{warning}\n\nดาวน์โหลดและติดตั้งเลยหรือไม่",
+  "app.updater.unsavedLost":
+    "ภาพและองค์ประกอบที่กำลังแก้ไขยังไม่ได้บันทึก และจะหายไปเมื่อ capz เปิดใหม่หลังอัปเดต ส่งออกหรือคัดลอกไว้ก่อน หรือเปิด หลายเวิร์กสเปซ ในการตั้งค่า → คลัง เพื่อเก็บงานไว้",
+  "app.updater.unsavedPasted":
+    "ภาพปัจจุบันถูกวางมาจากคลิปบอร์ด และจะไม่ถูกเก็บไว้เมื่อ capz เปิดใหม่หลังอัปเดต ส่งออกหรือคัดลอกไว้ก่อน",
   "app.updater.title": "มีอัปเดตใหม่",
   "app.updater.install": "ติดตั้ง",
   "app.updater.later": "ภายหลัง",
