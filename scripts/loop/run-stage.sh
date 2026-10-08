@@ -86,7 +86,7 @@ $(cat "$WORK_FILE")"
   timeout --kill-after=2m "$LIMIT" claude -p "$PROMPT" \
     --settings "$CLONE/scripts/loop/settings/$STAGE.json" \
     --permission-mode dontAsk \
-    ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} >"$LOG" 2>&1
+    ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} </dev/null >"$LOG" 2>&1
   rc=$?
   set -e
   rm -f "$WORK_FILE"

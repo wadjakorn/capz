@@ -2,8 +2,12 @@
   "$comment": "capz-loop intake: reads anonymous inbox text, so it gets no file writes, no git, and cannot delete or move tickets. Run with --permission-mode dontAsk: anything not allowed here is denied.",
   "permissions": {
     "allow": [
-      "Read", "Grep", "Glob", "Skill",
-      "Bash(gh api repos/wadjakorn/capz-inbox/issues:*)",
+      "Read",
+      "Grep",
+      "Glob",
+      "Skill",
+      "Bash(gh api repos/wadjakorn/capz-inbox/*)",
+      "Bash(gh api --method GET repos/wadjakorn/capz-inbox/*)",
       "Bash(gh issue comment:*)",
       "Bash(gh issue edit:*)",
       "Bash(pm task create:*)",
@@ -17,10 +21,33 @@
       "Bash(date:*)"
     ],
     "deny": [
-      "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch",
-      "Bash(pm task delete:*)", "Bash(pm task move:*)", "Bash(pm task restore:*)",
-      "Bash(pm project:*)", "Bash(git push:*)", "Bash(gh auth:*)", "Bash(gh api -X:*)",
-      "Bash(gh pr:*)", "Bash(gh repo:*)", "Bash(curl:*)", "Bash(rm:*)"
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "WebSearch",
+      "Bash(pm task delete:*)",
+      "Bash(pm task move:*)",
+      "Bash(pm task restore:*)",
+      "Bash(pm project:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh api -X:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh repo:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(gh api --method POST:*)",
+      "Bash(gh api --method PATCH:*)",
+      "Bash(gh api --method DELETE:*)",
+      "Bash(gh api --method PUT:*)",
+      "Bash(gh api repos/* -X *)",
+      "Bash(gh api repos/* --method *)",
+      "Bash(gh api repos/* -f *)",
+      "Bash(gh api repos/* -F *)",
+      "Bash(gh api repos/* --raw-field *)",
+      "Bash(gh api repos/* --field *)",
+      "Bash(gh api repos/* --input *)"
     ]
   }
 }
