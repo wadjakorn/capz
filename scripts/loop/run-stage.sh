@@ -56,7 +56,15 @@ export CAPZ_LOOP_E2E_LOCK="$LOCKS/e2e.lock"
 # Playwright ships no Chromium for this Ubuntu; use the system Chrome.
 export PLAYWRIGHT_CHANNEL="${PLAYWRIGHT_CHANNEL:-chrome}"
 
-log() { printf '%s [%s] %s\n' "$(date -Is)" "$STAGE" "$*" >&2; }
+# Every runner decision also lands in runner.log: the scheduler (n8n) keeps no
+# output for successful executions, so "no work" vs "dispatched" vs "lock held"
+# is otherwise invisible after the fact.
+log() {
+  local line
+  line="$(printf '%s [%s] %s' "$(date -Is)" "$STAGE" "$*")"
+  printf '%s\n' "$line" >&2
+  ((DRY_RUN)) || printf '%s\n' "$line" >>"$STATE/runner.log"
+}
 
 notify() {
   [[ -n "${TELEGRAM_BOT_TOKEN:-}" && -n "${TELEGRAM_CHAT_ID:-}" ]] || return 0
