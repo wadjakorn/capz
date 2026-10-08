@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { t } from "@/i18n/store";
 import { useSettings } from "@/stores/settings";
+import { useEditor } from "@/stores/editor";
+import { useWorkspaces } from "@/stores/workspaces";
 import { installIdHeaders } from "@/lib/installId";
 import { setUpdateStatus } from "@/lib/appVersion";
 
@@ -34,7 +36,12 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
       version: update.version,
       body: update.body ?? undefined,
       downloadAndInstall: async () => {
-        await update.downloadAndInstall();
+        // Download and install separately so the save lands between them:
+        // edits made while the download runs are included, and on Windows the
+        // installer may take the process down as soon as install starts.
+        await update.download();
+        await saveEditorWorkForRestart();
+        await update.install();
         const { relaunch } = await import("@tauri-apps/plugin-process");
         await relaunch();
       },
@@ -50,6 +57,38 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
   }
 }
 
+/**
+ * The paragraph the update prompt adds when installing would lose editor work,
+ * or "" when there is nothing to lose. capz has no "exported since the last
+ * change" flag, so any image or annotation counts.
+ */
+export function unsavedWorkWarning(): string {
+  if (useSettings.getState().config.workspaces.enabled) {
+    // Workspaces are saved before install — except a pasted image, which
+    // lives only as a blob URL and is never written out.
+    const { activeId, docs } = useWorkspaces.getState();
+    const image = activeId ? docs[activeId]?.image : null;
+    return image?.kind === "blob" ? `\n\n${t("app.updater.unsavedPasted")}` : "";
+  }
+  const { hasImage, annotations } = useEditor.getState();
+  return hasImage || annotations.length > 0 ? `\n\n${t("app.updater.unsavedLost")}` : "";
+}
+
+/**
+ * Get the current workspace onto disk before the update restarts capz. Never
+ * blocks the update: the user has already chosen Install.
+ */
+async function saveEditorWorkForRestart(): Promise<void> {
+  if (!useSettings.getState().config.workspaces.enabled) return;
+  try {
+    const ws = useWorkspaces.getState();
+    ws.commitActive();
+    await ws.flushPersist();
+  } catch (e) {
+    console.error("saving workspaces before update failed", e);
+  }
+}
+
 export async function promptAndInstall(
   available: Extract<UpdateCheckResult, { kind: "available" }>,
 ): Promise<boolean> {
@@ -57,7 +96,11 @@ export async function promptAndInstall(
   if (skipped === available.version) return false;
   const { ask } = await import("@tauri-apps/plugin-dialog");
   const ok = await ask(
-    t("app.updater.prompt", { version: available.version, body: available.body ?? "" }),
+    t("app.updater.prompt", {
+      version: available.version,
+      body: available.body ?? "",
+      warning: unsavedWorkWarning(),
+    }),
     {
       title: t("app.updater.title"),
       kind: "info",

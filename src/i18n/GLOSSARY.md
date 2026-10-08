@@ -70,6 +70,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | history | ประวัติ |
 | library | คลัง |
 | settings | การตั้งค่า |
+| restart (the app, e.g. after an update) | เปิดใหม่ (not รีสตาร์ต) |
 | advanced | ขั้นสูง |
 | shortcut / hotkey | ปุ่มลัด |
 | reset to defaults | คืนค่าเริ่มต้น |

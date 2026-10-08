@@ -135,7 +135,11 @@ export const app = {
   "app.feedback.desktopOnly": "Feedback is only available in the desktop app.",
 
   // Updater
-  "app.updater.prompt": "Version {version} is available.\n\n{body}\n\nDownload and install now?",
+  "app.updater.prompt": "Version {version} is available.\n\n{body}{warning}\n\nDownload and install now?",
+  "app.updater.unsavedLost":
+    "Your current image and annotations aren't saved and will be lost when capz restarts. Export or copy them first, or turn on Multiple workspaces in Settings → Library to keep them.",
+  "app.updater.unsavedPasted":
+    "The current image was pasted and can't be kept when capz restarts. Export or copy it first.",
   "app.updater.title": "Update Available",
   "app.updater.install": "Install",
   "app.updater.later": "Later",
