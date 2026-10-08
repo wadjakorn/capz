@@ -1,0 +1,53 @@
+# Merge gate for the capz-loop automation (see .claude/skills/capz-loop).
+#
+# The ruleset "protect main" requires a Code Owner review, so a PR touching any
+# path below cannot merge until @wadjakorn approves it — these are the areas an
+# agent on a headless Linux box cannot verify (real OS capture, permissions,
+# hotkeys, persistence, privacy, release plumbing). Everything else merges on
+# green checks. Approvals are dismissed on push, so they bind to the head SHA.
+# The owner is on the ruleset bypass list and can still push directly.
+
+# Native shell: capture, shortcuts, windows, capabilities, updater config.
+/src-tauri/                                   @wadjakorn
+
+# Helper windows that only exist on desktop.
+/src/app/overlay/                             @wadjakorn
+/src/app/ring/                                @wadjakorn
+/src/app/scroll-hud/                          @wadjakorn
+/src/app/scroll-guide/                        @wadjakorn
+
+# Platform-split I/O: clipboard, files, OCR, updater, capture archive.
+/src/lib/platform.ts                          @wadjakorn
+/src/lib/exportImage.ts                       @wadjakorn
+/src/lib/webExport.ts                         @wadjakorn
+/src/lib/importImage.ts                       @wadjakorn
+/src/lib/captureArchive.ts                    @wadjakorn
+/src/lib/ocr.ts                               @wadjakorn
+/src/lib/updater.ts                           @wadjakorn
+/src/lib/accessibility.ts                     @wadjakorn
+
+# Persistence (tauri-plugin-store, workspaces) — data loss is not testable on /paste.
+/src/stores/settings.ts                       @wadjakorn
+/src/stores/workspaces.ts                     @wadjakorn
+/src/stores/history.ts                        @wadjakorn
+/src/hooks/useWorkspaceSession.ts             @wadjakorn
+
+# Hotkeys and OS permission onboarding.
+/src/components/settings/HotkeyRecorder.tsx   @wadjakorn
+/src/components/settings/applyHotkey.ts       @wadjakorn
+/src/components/onboarding/                   @wadjakorn
+
+# Privacy: telemetry, feedback, the Worker (README privacy policy, SignPath terms).
+/src/lib/installId.ts                         @wadjakorn
+/src/lib/feedback.ts                          @wadjakorn
+/src/components/settings/FeedbackTab.tsx      @wadjakorn
+/worker/                                      @wadjakorn
+
+# Dependencies, CI and release plumbing.
+/package.json                                 @wadjakorn
+/pnpm-lock.yaml                               @wadjakorn
+/.github/                                     @wadjakorn
+/scripts/release.mjs                          @wadjakorn
+/scripts/release-lib.mjs                      @wadjakorn
+/scripts/loop/                                @wadjakorn
+/.claude/                                     @wadjakorn
