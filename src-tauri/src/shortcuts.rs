@@ -488,3 +488,4 @@ mod tests {
         assert_eq!(default_accel(HotkeyAction::CaptureScroll), "");
     }
 }
+// second push
