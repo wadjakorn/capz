@@ -30,6 +30,10 @@ case "$STAGE" in intake|build|verify|release) ;; *)
   exit 64 ;;
 esac
 
+# n8n reaches us over a forced-command SSH key: a non-interactive shell whose
+# PATH lacks ~/.local/bin (pm, claude, node, pnpm) and ~/.cargo/bin.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
 ENV_FILE="${CAPZ_LOOP_ENV:-$HOME/.config/capz-loop/env}"
 CLONE="${CAPZ_LOOP_CLONE:-$HOME/development/capz-loop}"
 WT_ROOT="$HOME/development/capz-loop-wt"
