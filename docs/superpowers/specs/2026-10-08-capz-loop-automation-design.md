@@ -65,7 +65,7 @@ The agent cannot check real OS behavior (capture, macOS permissions, global hotk
 
 ## Merge gate (conditional, enforced by GitHub)
 
-The loop runs as a **separate bot account** (`capz-loop-bot`, a machine user with **write** but not admin on capz and capz-inbox; its fine-grained PAT covers contents, PRs, issues and actions:read). Because PRs belong to the bot, the owner (wadjakorn) can approve them normally, and the bot cannot fake an approval or merge past GitHub's rules.
+The loop runs as a **separate bot account** (`capz-bot`, a machine user with **write** but not admin on capz and capz-inbox; its **classic** PAT with only the `repo` scope; fine-grained PATs cannot reach another user's repos as a collaborator). Because PRs belong to the bot, the owner (wadjakorn) can approve them normally, and the bot cannot fake an approval or merge past GitHub's rules.
 
 **GitHub setup:**
 - **`.github/CODEOWNERS`** maps the gated paths to `@wadjakorn`: `src-tauri/**`, `src/app/overlay/**`, `src/app/ring/**`, `src/app/scroll-hud/**`, `src/app/scroll-guide/**`, the platform-split `src/lib/` files (exportImage, captureArchive, the updater, …), `worker/**`, `.github/**`, `scripts/release.mjs`, `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.*`. This file *is* the gate rule (`gate-rules.json` is no longer needed).
@@ -112,7 +112,7 @@ The loop runs as a **separate bot account** (`capz-loop-bot`, a machine user wit
 **n8n** (`../n8n`): `workflows/capz-loop.json` with 4 Schedule Triggers → SSH node → `run-stage.sh <stage>`, which returns immediately because it detaches. `docker-compose.yml` adds `extra_hosts: host.docker.internal:host-gateway`. The n8n key goes in `authorized_keys` with `command="…/run-stage.sh $SSH_ORIGINAL_COMMAND"`, restricted to the 4 stage names. sshd is already listening on :22.
 
 **One-time setup:**
-0. **(owner)** Create the machine user `capz-loop-bot` → collaborator (write) on capz + capz-inbox → fine-grained PAT → `~/.config/capz-loop/env`. Enable the ruleset "protect main" per the Merge gate section. Install `tauri-driver` (`cargo install tauri-driver --locked`) and `webkit2gtk-driver` (apt) for L5, and create the label `needs-owner-test`.
+0. **(owner)** Create the machine user `capz-bot` → collaborator (write) on capz + capz-inbox → classic PAT (`repo` scope) → `~/.config/capz-loop/env`. Enable the ruleset "protect main" per the Merge gate section. Install `tauri-driver` (`cargo install tauri-driver --locked`) and `webkit2gtk-driver` (apt) for L5, and create the label `needs-owner-test`.
 1. Create the `~/development/capz-loop` clone.
 2. Create PM user `capz-loop` and its token.
 3. Create the labels on capz-inbox and capz.
@@ -174,8 +174,8 @@ The loop runs as a **separate bot account** (`capz-loop-bot`, a machine user wit
 
 ## Setup runbook (owner)
 
-1. **Bot account.** Create the GitHub machine user `capz-loop-bot`. Invite it as a **Write** collaborator on `wadjakorn/capz` and `wadjakorn/capz-inbox`. Then create a fine-grained PAT for it covering both repos, with contents RW, pull requests RW, issues RW, actions R and metadata R.
-2. **Ruleset.** Under Settings → Rules → "protect main" (it exists but is disabled), set:
+1. **Bot account.** ✅ done 2026-10-08: `capz-bot` (wadjakorn.tonsri+capzbot@gmail.com), Write collaborator on capz + capz-inbox, classic PAT with `repo` scope only (fine-grained PATs can't access another user's repos as a collaborator).
+2. **Ruleset.** ✅ active 2026-10-08. Under Settings → Rules → "protect main" (it exists but is disabled), set:
    - require a pull request, 0 approvals, **require review from Code Owners**, **dismiss stale approvals**;
    - require status check `tier 1 — web`, branch up to date;
    - bypass list = `wadjakorn`;
