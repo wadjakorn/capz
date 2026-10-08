@@ -64,6 +64,7 @@ import type {
   ArrowHeadsCtx,
 } from "./toolbar/panels/types";
 import { isTauriRuntime } from "@/lib/platform";
+import { usePlatform } from "@/hooks/usePlatform";
 import { stickyToolLabel } from "@/lib/stickyTools";
 
 // macOS-only: the system area capture mode delegates to `screencapture -i`,
@@ -161,6 +162,8 @@ export function Toolbar({
   const [tauriUi, setTauriUi] = useState(true);
   useEffect(() => setTauriUi(isTauriRuntime()), []);
   const { t: tr } = useT();
+  // CP-0059: ⌘ glyphs on macOS, Ctrl+… elsewhere (Windows, non-Mac /paste).
+  const platform = usePlatform();
   const tool = useEditor((s) => s.tool);
   const setTool = useEditor((s) => s.setTool);
   const undo = useEditor((s) => s.undo);
@@ -1472,8 +1475,8 @@ export function Toolbar({
           </>
         )}
         {/* History group */}
-        <ToolButton icon={Undo2} label={tr("editor.toolbar.undo")} hint="⌘Z" disabled={!past} onClick={undo} />
-        <ToolButton icon={Redo2} label={tr("editor.toolbar.redo")} hint="⇧⌘Z" disabled={!future} onClick={redo} />
+        <ToolButton icon={Undo2} label={tr("editor.toolbar.undo")} hint={formatShortcut("CmdOrCtrl+Z", platform)} disabled={!past} onClick={undo} />
+        <ToolButton icon={Redo2} label={tr("editor.toolbar.redo")} hint={formatShortcut("CmdOrCtrl+Shift+Z", platform)} disabled={!future} onClick={redo} />
         <Divider />
         {/* Zoom, rulers, image import, backdrop, OCR and clear-workspace now
             live in the sidebar's GlobalToolsPanel (CP-0044). Undo/redo stay
@@ -1496,7 +1499,7 @@ export function Toolbar({
           <ToolButton
             icon={SquarePlus}
             label={tr("editor.ws.new")}
-            hint="⇧⌘N"
+            hint={formatShortcut("CmdOrCtrl+Shift+N", platform)}
             onClick={onNewWorkspace}
           />
         )}
