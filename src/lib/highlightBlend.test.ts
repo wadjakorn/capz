@@ -34,11 +34,36 @@ describe("darkWeight", () => {
 describe("toDarkMask", () => {
   it("rewrites each pixel to black with alpha = dark weight", () => {
     const data = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 255, 128, 128, 128, 255]);
-    toDarkMask(data);
+    toDarkMask(data, 3, 1);
     expect(Array.from(data.slice(0, 4))).toEqual([0, 0, 0, 255]);
     expect(Array.from(data.slice(4, 8))).toEqual([0, 0, 0, 0]);
     expect(data[11]).toBeGreaterThan(110);
     expect(data[11]).toBeLessThan(145);
+  });
+
+  it("follows the local background, not single glyph pixels", () => {
+    // 21×21 field with a 1-px light 'glyph' column through the middle.
+    const field = (bg: number, glyph: number) => {
+      const d = new Uint8ClampedArray(21 * 21 * 4);
+      for (let i = 0; i < 21 * 21; i++) {
+        const v = i % 21 === 10 ? glyph : bg;
+        d.set([v, v, v, 255], i * 4);
+      }
+      return d;
+    };
+    const centre = (10 * 21 + 10) * 4 + 3;
+    const dark = field(20, 230); // light text on a dark panel
+    toDarkMask(dark, 21, 21, 5);
+    expect(dark[centre]).toBe(255); // the glyph is screened with its panel
+    const light = field(245, 20); // dark text on a light page
+    toDarkMask(light, 21, 21, 5);
+    expect(light[centre]).toBe(0); // the glyph is multiplied with its page
+  });
+
+  it("without a radius, splits per pixel", () => {
+    const d = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 255]);
+    toDarkMask(d, 2, 1, 0);
+    expect([d[3], d[7]]).toEqual([255, 0]);
   });
 });
 

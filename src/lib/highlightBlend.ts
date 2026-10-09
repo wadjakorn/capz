@@ -4,14 +4,22 @@ import type Konva from "konva";
  * Highlighter blending (CP-0066). `multiply` keeps dark text crisp on light
  * backgrounds but can only darken, so on dark surfaces the stroke vanishes;
  * `screen` tints dark surfaces but washes out on light ones. Each pixel of a
- * stroke is therefore split by the base image's luminance under it: the dark
- * share is drawn with `screen`, the light share with `multiply`, with a soft
- * ramp between so a stroke crossing light and dark has no seam.
+ * stroke is therefore split by the base image's *local background* luminance:
+ * the dark share is drawn with `screen`, the light share with `multiply`, with
+ * a soft ramp between so a stroke crossing light and dark has no seam.
+ *
+ * The luminance is box-blurred over about a line of text first. Splitting by
+ * the raw pixel would multiply light glyphs and screen the dark panel around
+ * them, pulling both towards the same yellow (no contrast, soft edges); with
+ * the blur a whole dark panel — text included — takes one mode, which keeps
+ * the text lighter than its background.
  */
 
 /** Luminance at or below LO → all screen; at or above HI → all multiply. */
 const LO = 0.4;
 const HI = 0.6;
+/** Box-blur radius of the background luminance, in source px (≈ a text line). */
+const BG_RADIUS = 24;
 /** Long side of the cached mask, in px (it is scaled up with smoothing). */
 const MASK_MAX = 2048;
 /** Largest offscreen buffer side, in device px. */
@@ -19,17 +27,43 @@ const BUF_MAX = 8192;
 
 /** Share of a pixel (0..1) that should be screened. Transparent counts as white. */
 export function darkWeight(r: number, g: number, b: number, a: number): number {
-  const alpha = a / 255;
-  const l = ((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255) * alpha + (1 - alpha);
+  const l = luminance(r, g, b, a);
   return Math.min(1, Math.max(0, (HI - l) / (HI - LO)));
 }
 
-/** In place: every pixel becomes black with alpha = its dark weight. */
-export function toDarkMask(data: Uint8ClampedArray): void {
-  for (let o = 0; o < data.length; o += 4) {
-    const w = darkWeight(data[o], data[o + 1], data[o + 2], data[o + 3]);
-    data[o] = data[o + 1] = data[o + 2] = 0;
-    data[o + 3] = Math.round(w * 255);
+/** Luminance (0..1) of one RGBA pixel; transparent counts as white. */
+function luminance(r: number, g: number, b: number, a: number): number {
+  const alpha = a / 255;
+  return ((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255) * alpha + (1 - alpha);
+}
+
+/** In place, for a `w`×`h` RGBA buffer: every pixel becomes black with alpha =
+ *  the dark weight of the mean luminance within `radius` px of it. */
+export function toDarkMask(data: Uint8ClampedArray, w: number, h: number, radius = 0): void {
+  // Summed-area table of luminance, (w+1)×(h+1) with a zero first row/column.
+  const W = w + 1;
+  const sat = new Float64Array(W * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let row = 0;
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      row += luminance(data[o], data[o + 1], data[o + 2], data[o + 3]);
+      sat[(y + 1) * W + x + 1] = sat[y * W + x + 1] + row;
+    }
+  }
+  const r = Math.max(0, Math.round(radius));
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r);
+    const y1 = Math.min(h, y + r + 1);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - r);
+      const x1 = Math.min(w, x + r + 1);
+      const sum = sat[y1 * W + x1] - sat[y0 * W + x1] - sat[y1 * W + x0] + sat[y0 * W + x0];
+      const l = sum / ((x1 - x0) * (y1 - y0));
+      const o = (y * w + x) * 4;
+      data[o] = data[o + 1] = data[o + 2] = 0;
+      data[o + 3] = Math.round(Math.min(1, Math.max(0, (HI - l) / (HI - LO))) * 255);
+    }
   }
 }
 
@@ -101,7 +135,7 @@ export function darkMaskFor(img: HTMLImageElement): HTMLCanvasElement | null {
     if (g) {
       g.drawImage(img, 0, 0, canvas.width, canvas.height);
       const data = g.getImageData(0, 0, canvas.width, canvas.height);
-      toDarkMask(data.data);
+      toDarkMask(data.data, canvas.width, canvas.height, BG_RADIUS * s);
       g.putImageData(data, 0, 0);
       mask = canvas;
     }

@@ -57,3 +57,14 @@ test("one stroke across black and white highlights both halves", async ({ page }
   await expect.poll(async () => brightOnBlack(await pixel(page, -60))).toBe(true);
   expect(yellowOnWhite(await pixel(page, 60))).toBe(true);
 });
+
+test("light text on a dark panel stays light under the highlight", async ({ page }) => {
+  // The mode follows the panel, not the glyph: the light bar is screened with
+  // its dark surroundings (stays near-white) instead of multiplied to yellow.
+  await loadImage(page, "#1a2238", undefined, "#e5e7eb");
+  await drawHighlight(page);
+  await snap(page, "dark-text-after-highlight");
+  await expect.poll(async () => brightOnBlack(await pixel(page, -60))).toBe(true);
+  const glyph = await pixel(page, 0);
+  expect(glyph[2]).toBeGreaterThan(180);
+});
