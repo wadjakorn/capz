@@ -401,10 +401,10 @@ function AreaMode({
       ) : (
         // No selection on this display yet → a single centered prompt to draw.
         <div
-          className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-white/85"
+          className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-[var(--fg-2)]"
           style={{
             background: "var(--surface-overlay)",
-            border: "1px solid rgba(255,255,255,0.10)",
+            border: "1px solid var(--border-strong)",
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
           }}
         >
@@ -424,8 +424,8 @@ const KEYCAP: React.CSSProperties = {
   height: 16,
   padding: "0 4px",
   borderRadius: 4,
-  background: "rgba(255,255,255,0.12)",
-  border: "1px solid rgba(255,255,255,0.20)",
+  background: "var(--surface-raised)",
+  border: "1px solid var(--border-strong)",
   fontSize: 10,
   lineHeight: 1,
   fontWeight: 600,
@@ -473,10 +473,10 @@ function TemplateRect({
         }}
       >
         <div
-          className="absolute -top-7 left-0 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/90"
+          className="absolute -top-7 left-0 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-[var(--fg)]"
           style={{
             background: "var(--surface-overlay)",
-            border: "1px solid rgba(255,255,255,0.10)",
+            border: "1px solid var(--border-strong)",
             boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
           }}
         >
@@ -488,7 +488,7 @@ function TemplateRect({
             style={{
               ...(actionsBelow ? { top: "calc(100% + 6px)" } : { bottom: 6, left: 6 }),
               background: "var(--surface-overlay)",
-              border: "1px solid rgba(255,255,255,0.10)",
+              border: "1px solid var(--border-strong)",
               boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
               pointerEvents: "auto",
             }}
@@ -506,24 +506,24 @@ function TemplateRect({
             <button
               type="button"
               onClick={scrollActions.onAutoScroll}
-              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90"
-              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-[var(--fg)]"
+              style={{ background: "var(--surface-raised)", border: "1px solid var(--border-strong)" }}
               title={t("app.overlay.autoScrollTitle")}
             >
               {t("app.overlay.autoScroll")}
             </button>
-            <span className="flex items-center gap-1 pl-1 text-[11px] text-white/70">
+            <span className="flex items-center gap-1 pl-1 text-[11px] text-[var(--fg-3)]">
               <span style={KEYCAP}>esc</span>
               {t("app.overlay.cancel")}
             </span>
           </div>
         ) : (
           <div
-            className="absolute left-0 flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium text-white/85"
+            className="absolute left-0 flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium text-[var(--fg-2)]"
             style={{
               ...(actionsBelow ? { top: "calc(100% + 6px)" } : { bottom: 6, left: 6 }),
               background: "var(--surface-overlay)",
-              border: "1px solid rgba(255,255,255,0.10)",
+              border: "1px solid var(--border-strong)",
               boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
             }}
           >
@@ -649,10 +649,10 @@ function PickMode({ monitorId }: { monitorId: number }) {
           }}
         >
           <div
-            className="absolute -top-7 left-0 max-w-[80vw] truncate rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-white/90"
+            className="absolute -top-7 left-0 max-w-[80vw] truncate rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide text-[var(--fg)]"
             style={{
               background: "var(--surface-overlay)",
-              border: "1px solid rgba(255,255,255,0.10)",
+              border: "1px solid var(--border-strong)",
               boxShadow: "0 8px 24px -10px rgba(0,0,0,0.55)",
             }}
           >
@@ -661,10 +661,10 @@ function PickMode({ monitorId }: { monitorId: number }) {
         </div>
       )}
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-white/85"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg px-3.5 py-2 text-[12px] text-[var(--fg-2)]"
         style={{
           background: "var(--surface-overlay)",
-          border: "1px solid rgba(255,255,255,0.10)",
+          border: "1px solid var(--border-strong)",
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px -14px rgba(0,0,0,0.6)",
         }}
       >
