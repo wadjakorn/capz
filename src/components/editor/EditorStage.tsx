@@ -679,8 +679,8 @@ export function EditorStage({ src }: Props) {
   const imgW = cropBase.w;
   const imgH = cropBase.h;
   const highlightScene = useMemo(
-    () => highlighterSceneFunc(image, cropBase.x, cropBase.y),
-    [image, cropBase.x, cropBase.y],
+    () => highlighterSceneFunc(image, cropBase),
+    [image, cropBase.x, cropBase.y, cropBase.w, cropBase.h],
   );
 
   // When Crop is entered with a single (unrotated) image annotation selected,
@@ -1617,6 +1617,8 @@ export function EditorStage({ src }: Props) {
                 bgImage: image,
                 cropOffX: cropBase.x,
                 cropOffY: cropBase.y,
+                cropW: cropBase.w,
+                cropH: cropBase.h,
                 selected: selectedId === a.id,
                 interactive: tool === "select",
                 scale,
@@ -2095,6 +2097,9 @@ type ShapeCtx = {
   /** Offset from cropped-image space to source-image pixels (for blur sampling). */
   cropOffX: number;
   cropOffY: number;
+  /** Size of the visible (cropped) base image, in its own px. */
+  cropW: number;
+  cropH: number;
   /** Whether this annotation is the selected one (drives inline arrow handles). */
   selected: boolean;
   /** True only when the Select tool is active. Magnify gates its drag/select
@@ -2573,8 +2578,14 @@ function HighlighterShape({
 }) {
   const { ref, handlers } = usePathShape(a, ctx);
   const sceneFunc = useMemo(
-    () => highlighterSceneFunc(ctx.bgImage, ctx.cropOffX, ctx.cropOffY),
-    [ctx.bgImage, ctx.cropOffX, ctx.cropOffY],
+    () =>
+      highlighterSceneFunc(ctx.bgImage, {
+        x: ctx.cropOffX,
+        y: ctx.cropOffY,
+        w: ctx.cropW,
+        h: ctx.cropH,
+      }),
+    [ctx.bgImage, ctx.cropOffX, ctx.cropOffY, ctx.cropW, ctx.cropH],
   );
   return (
     <Line

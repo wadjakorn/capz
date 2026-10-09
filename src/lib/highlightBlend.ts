@@ -145,15 +145,15 @@ function strokePart(
 
 /**
  * Konva `sceneFunc` for a highlighter `Line` (straight segments, no tension)
- * over the base image `img`, whose source pixel (0,0) sits at
- * (-offX, -offY) in the line's parent coordinates. Falls back to a plain
+ * over the base image `img`, cropped to `crop` (source px) and drawn at the
+ * origin of the line's parent. Only the visible image is sampled; over the
+ * backdrop beyond it the stroke multiplies. Falls back to a plain
  * multiply stroke when the image can't be sampled. Pair it with
  * {@link highlighterHitFunc} so hit-testing keeps the normal stroke shape.
  */
 export function highlighterSceneFunc(
   img: HTMLImageElement | undefined,
-  offX: number,
-  offY: number,
+  crop: Rect,
 ) {
   return (context: Konva.Context, shape: Konva.Shape) => {
     const line = shape as Konva.Line;
@@ -186,10 +186,22 @@ export function highlighterSceneFunc(
     const inv = line.getTransform().copy().invert().getMatrix();
     const srcW = img.naturalWidth || img.width;
     const srcH = img.naturalHeight || img.height;
+    const sx = mask.width / srcW;
+    const sy = mask.height / srcH;
     const maskOn = (g: CanvasRenderingContext2D) => () => {
       g.transform(inv[0], inv[1], inv[2], inv[3], inv[4], inv[5]);
       g.imageSmoothingEnabled = true;
-      g.drawImage(mask, -offX, -offY, srcW, srcH);
+      g.drawImage(
+        mask,
+        crop.x * sx,
+        crop.y * sy,
+        crop.w * sx,
+        crop.h * sy,
+        0,
+        0,
+        crop.w,
+        crop.h,
+      );
     };
     strokePart(dg, line, r, m, maskOn(dg), "destination-in");
     strokePart(lg, line, r, m, maskOn(lg), "destination-out");
