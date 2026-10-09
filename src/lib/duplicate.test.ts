@@ -41,6 +41,10 @@ describe("duplicateOffset", () => {
     expect(duplicateOffset({ x: 5, y: 5, w: 95, h: 95 }, bounds)).toEqual({ dx: 10, dy: 10 });
   });
 
+  it("takes a custom distance", () => {
+    expect(duplicateOffset({ x: 10, y: 75, w: 20, h: 20 }, bounds, 16)).toEqual({ dx: 16, dy: -16 });
+  });
+
   it("is +10,+10 when the bounds or the box are unknown", () => {
     expect(duplicateOffset(null, bounds)).toEqual({ dx: DUPLICATE_OFFSET, dy: DUPLICATE_OFFSET });
     expect(duplicateOffset({ x: 95, y: 95, w: 20, h: 20 }, null)).toEqual({ dx: 10, dy: 10 });
