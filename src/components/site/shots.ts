@@ -33,7 +33,7 @@ export const HERO_CLIPS: HeroClip[] = [
     caption: "site.clip.import.caption",
     src: "/landing/hero-1-import.mp4",
     poster: "/landing/hero-1-import.jpg",
-    duration: 1.15,
+    duration: 1,
     camera: [{ t: 0, x: 0.5, y: 0.5, s: 1 }],
   },
   {

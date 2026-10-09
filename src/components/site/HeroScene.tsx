@@ -301,15 +301,14 @@ export function HeroScene() {
                     </a>
                     <a className="link" href={macAlt.href}>{t(`hero.otherChip.${macAlt.chip}`)}</a>
                   </div>
-                  <span className="mono k">{t("hero.orBrew")}</span>
-                  <div className="cmd">
+                  <div className="cmd" aria-label={t("hero.orBrew")} role="group">
                     <code>{BREW_CMD}</code>
                     <button className="btn btn-copy" type="button" onClick={copy} aria-label={t("hero.copyCmd")} data-done={copied || undefined}>
                       {copied ? t("hero.copied") : t("hero.copy")}
                     </button>
                   </div>
                   <div className="row">
-                    <a className="btn btn-quiet" href="/paste">{t("hero.tryWeb")}</a>
+                    <a className="link" href="/paste">{t("hero.tryWeb")}</a>
                     <a className="link" href={windowsAssetUrl}>{t("hero.downloadWin")}</a>
                   </div>
                 </>
