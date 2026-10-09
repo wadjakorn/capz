@@ -108,7 +108,7 @@ export const site: Record<keyof typeof en, string> = {
     "ลูกศร หมุดเลข ข้อความไทย แว่นขยาย และเบลอข้อมูลส่วนตัว ทั้งหมดบนภาพเดียว แล้วกดคัดลอกหรือบันทึก",
 
   "site.cap.title": "รูปเข้ามา\u200Bได้ทุกทาง",
-  "site.cap.desc": "ก๊อปรูปจากแอปไหนก็ได้แล้วกดวาง ลากไฟล์มาปล่อย หรือแคปจอเองด้วยปุ่มลัด บน Windows ใช้ Ctrl แทน ⌘ และ Alt แทน ⌥",
+  "site.cap.desc": "ก๊อปรูปจากแอปไหนก็ได้แล้วกดวาง ลากไฟล์มาปล่อย หรือแคปจอเองด้วยปุ่มลัด",
   "site.cap.modes": "โหมดจับภาพ",
   "site.cap.openEditor": "เปิด editor",
   "site.mode.full": "ทั้งจอ",
@@ -232,7 +232,7 @@ export const site: Record<keyof typeof en, string> = {
   "site.key.undo": "เลิกทำ /\u200B ทำซ้ำ",
   "site.key.dup": "ทำสำเนา\u200Bชิ้นที่เลือก",
   "site.key.nudge": "ขยับทีละ 1px\u200B (กด Shift = 10px)",
-  "site.key.note": "บน Windows ใช้ Ctrl แทน ⌘ และกด Ctrl+Y เพื่อทำซ้ำได้ด้วย",
+  "site.key.note": "บน Windows กด Ctrl+Y เพื่อทำซ้ำได้ด้วย",
 
   "hero.kicker": "แอปแคปจอ สำหรับ macOS และ Windows",
   "nav.edit": "ชี้จุด",
@@ -261,6 +261,10 @@ export const site: Record<keyof typeof en, string> = {
 
   "site.thai.search.title": "ค้นหาการตั้งค่า\u200Bเป็นภาษาไทย",
   "site.thai.search.desc": "กด ⌘F ในหน้าตั้งค่าแล้วพิมพ์ เช่น “ปุ่มลัด” จะเห็นเฉพาะรายการที่เกี่ยวข้อง ค้นด้วยคำไทยได้แม้ตั้งเมนูเป็นภาษาอังกฤษ บน Windows ใช้ Ctrl+F",
+
+  "site.key.platform": "ปุ่มลัดของ",
+  "site.cap.custom": "ปุ่มลัดทุกตัวในส่วนนี้เปลี่ยนเองได้ใน Settings กดคีย์ที่ต้องการเพื่อตั้งใหม่ และคืนค่าเริ่มต้นได้ทุกเมื่อ",
+  "site.ring.modes": "เลือกได้ใน Settings ว่าวงล้อมีโหมดไหนบ้าง",
 
   "footer.copyright": "© {year} capz",
   "footer.oss": "ฟรี โอเพนซอร์ส (MIT)",

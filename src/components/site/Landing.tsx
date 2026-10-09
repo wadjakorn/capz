@@ -6,6 +6,7 @@ import { Annotate, Loop, Ocr, ThaiFirst, TryWeb, Workspaces } from "./Sections";
 import { Install } from "./Install";
 import { Footer } from "./Footer";
 import { chonburi } from "./fonts";
+import { KeyPlatformProvider } from "./keyPlatform";
 
 /**
  * Direction contract (impeccable). Rendered as an HTML comment at the top of
@@ -25,18 +26,20 @@ export function Landing() {
     <div className={`site-landing ${chonburi.variable}`} data-app-theme="light">
       <div hidden dangerouslySetInnerHTML={{ __html: CONTRACT }} />
       <Nav />
-      <main>
-        <HeroScene />
-        <CaptureChapter />
-        <Annotate />
-        <Loop />
-        <BackdropPlayground />
-        <ThaiFirst />
-        <Ocr />
-        <Workspaces />
-        <TryWeb />
-        <Install />
-      </main>
+      <KeyPlatformProvider>
+        <main>
+          <HeroScene />
+          <CaptureChapter />
+          <Annotate />
+          <Loop />
+          <BackdropPlayground />
+          <ThaiFirst />
+          <Ocr />
+          <Workspaces />
+          <TryWeb />
+          <Install />
+        </main>
+      </KeyPlatformProvider>
       <Footer />
     </div>
   );

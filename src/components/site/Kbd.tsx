@@ -1,8 +1,15 @@
+"use client";
+
+import { useKeyPlat } from "./keyPlatform";
 import { ArrowBigUp, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Command, Option, type LucideIcon } from "lucide-react";
 
+/** Windows keyboards print the modifier names, not glyphs. */
+const WIN: Record<string, string> = { "⌘": "Ctrl", "⌥": "Alt", "⇧": "Shift" };
+
 /**
- * A keycap. Modifier and arrow glyphs are drawn as icons: the display and mono
- * faces don't carry ⇧ ⌥ or the arrows, and a fallback font renders them tiny.
+ * A keycap, written once in Mac glyphs. On the Mac keyboard, modifier and
+ * arrow glyphs are drawn as icons (the display and mono faces don't carry ⇧ ⌥
+ * or the arrows); on the Windows keyboard the modifiers become Ctrl/Alt/Shift.
  */
 const ICONS: Record<string, [LucideIcon, string]> = {
   "⌘": [Command, "Command"],
@@ -15,6 +22,8 @@ const ICONS: Record<string, [LucideIcon, string]> = {
 };
 
 export function Kbd({ k }: { k: string }) {
+  const { plat } = useKeyPlat();
+  if (plat === "win" && WIN[k]) return <kbd className="wide">{WIN[k]}</kbd>;
   const icon = ICONS[k];
   if (icon) {
     const [Icon, name] = icon;

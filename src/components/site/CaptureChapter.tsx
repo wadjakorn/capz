@@ -2,6 +2,7 @@
 
 import { FileDown, ScanLine } from "lucide-react";
 import { Kbd } from "./Kbd";
+import { KeyToggle } from "./keyPlatform";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { MediaSlot } from "./MediaSlot";
 import { RingWheel } from "./RingWheel";
@@ -82,6 +83,11 @@ export function CaptureChapter() {
           </li>
         </ul>
 
+        <div className="keybar">
+          <KeyToggle />
+          <p>{t("site.cap.custom")}</p>
+        </div>
+
         <div className="modes">
           <div className="mode-list" role="tablist" aria-label={t("site.cap.modes")} onKeyDown={onKey}>
             {MODES.map((x, i) => (
@@ -119,6 +125,7 @@ export function CaptureChapter() {
           <div>
             <h3><ThaiText>{t("site.ring.title")}</ThaiText></h3>
             <p>{t("site.ring.desc")}</p>
+            <p className="fine">{t("site.ring.modes")}</p>
           </div>
           <RingWheel />
         </div>

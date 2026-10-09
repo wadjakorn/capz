@@ -267,6 +267,8 @@ Paper is flat: depth there comes from 1.5px ink borders and hairline rules, neve
 ### Keycaps
 `kbd` uses the app-raised fill, `app-border-2` border, 9px radius, 2em square minimum, mono 600, and the key-shadow edge. A `.wide` variant switches to the body face for word keys. Hotkeys are always shown as rows of keycaps, never as inline text.
 
+**Two keyboards.** Keycaps are written once in Mac glyphs and rendered per keyboard (`keyPlatform.tsx`): Mac shows ⌘ ⌥ ⇧ as icons; Windows shows `Ctrl` / `Alt` / `Shift` as `.wide` word keys, the way Windows keyboards print them. It defaults to the visitor's OS, and a `Mac | Windows` segmented switch (`.keytoggle`, `pill` when pressed) sits beside the capture hotkeys and the editor keys, changing every keycap on the page at once for this visit only (no storage). The command-ring diagram drops the macOS-only Quick area segment on Windows.
+
 ### Editor Frame (signature)
 A faithful replica of the capz editor chrome around a shot or placeholder. It has a 44px toolbar in the app's real tool order (select, arrow, shapes, text, blur, pen, highlighter, magnify, sticker, pin, crop). Tools are 32px squares with 8px radius, the active tool in `app-pill`, and dim tools in `app-fg-4`. A 190px settings sidebar shows the active tool's panel with the app's real defaults (arrow #ef4444 at 4px, blur 16, magnify 2× with a yellow border, pin #E5342B numbered 1-2-3, text Sans 24px at 1.35×). The canvas is 16:9.4 with 6% padding. Under 600px the sidebar hides, optional tools (pen, sticker, monitor, undo/redo) drop out, and tools shrink to 24×26.
 

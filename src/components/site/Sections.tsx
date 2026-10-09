@@ -7,6 +7,7 @@ import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 import { ThaiText } from "./ThaiText";
 import { Kbd } from "./Kbd";
+import { KeyToggle } from "./keyPlatform";
 import { SpecimenHero } from "./SpecimenHero";
 
 /**
@@ -109,6 +110,7 @@ export function Annotate() {
             </div>
           ))}
           <p className="ek-note">{t("site.key.note")}</p>
+          <KeyToggle />
         </div>
         <div className="mosaic">
           {PLATES.map(([cls, id, label]) => (

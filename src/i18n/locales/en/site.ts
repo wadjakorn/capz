@@ -107,7 +107,7 @@ export const site = {
     "Arrows, numbered pins, Thai text, a magnifier and blur for private details, all on one image. Then copy or save.",
 
   "site.cap.title": "Get the image in, any way",
-  "site.cap.desc": "Copy an image from any app and paste it, drop a file in, or capture the screen with a hotkey. On Windows use Ctrl for ⌘ and Alt for ⌥.",
+  "site.cap.desc": "Copy an image from any app and paste it, drop a file in, or capture the screen with a hotkey.",
   "site.cap.modes": "Capture modes",
   "site.cap.openEditor": "Open editor",
   "site.mode.full": "Full screen",
@@ -231,7 +231,7 @@ export const site = {
   "site.key.undo": "Undo / redo",
   "site.key.dup": "Duplicate the selection",
   "site.key.nudge": "Nudge 1px (Shift = 10px)",
-  "site.key.note": "On Windows use Ctrl for ⌘; Ctrl+Y redoes too.",
+  "site.key.note": "On Windows, Ctrl+Y redoes too.",
 
   "hero.kicker": "Screen capture for macOS and Windows",
   "nav.edit": "Mark up",
@@ -260,6 +260,10 @@ export const site = {
 
   "site.thai.search.title": "Search settings in Thai",
   "site.thai.search.desc": "Press ⌘F in Settings and type, say, “ปุ่มลัด” (hotkey) to see only the matching rows. Thai search terms work even with the English UI. On Windows use Ctrl+F.",
+
+  "site.key.platform": "Keys for",
+  "site.cap.custom": "Every hotkey in this section can be changed in Settings — press the keys you want — and reset to the defaults any time.",
+  "site.ring.modes": "Choose which modes the ring shows in Settings.",
 
   "footer.copyright": "© {year} capz",
   "footer.oss": "Free & open source (MIT)",
