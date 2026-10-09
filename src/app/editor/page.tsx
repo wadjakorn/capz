@@ -36,6 +36,7 @@ import { useInstallIdNudge } from "@/hooks/use-install-id-nudge";
 import { t } from "@/i18n/store";
 import { useT } from "@/i18n/useT";
 import { shortcutKey } from "@/lib/shortcutKey";
+import { isTauriRuntime } from "@/lib/platform";
 
 const EditorStage = dynamic(
   () => import("@/components/editor/EditorStage").then((m) => m.EditorStage),
@@ -461,15 +462,8 @@ export default function EditorPage() {
       const stop = await win.onCloseRequested((e) => {
         e.preventDefault();
         void (async () => {
-          // Get the current workspace onto disk before anything else. The
-          // periodic commit is debounced, so without this the last strokes
-          // before a close can be lost.
-          const ws = useWorkspaces.getState();
-          ws.commitActive();
-          await ws.flushPersist();
-          const { runPreCloseAction } = await import("@/lib/preClose");
-          await runPreCloseAction();
-          await win.hide();
+          const { closeEditor } = await import("@/lib/closeEditor");
+          await closeEditor();
         })();
       });
       if (cancelled) stop();
@@ -507,6 +501,12 @@ export default function EditorPage() {
         if (!stage) return;
         await copyOnly(stage);
         toast.success(t("editor.history.copied"));
+        // Optional: the whole-image copy also closes the editor (CP-0067).
+        // Only on success — a failed copy keeps the window open with the toast.
+        if (useSettings.getState().config.general.copyClosesEditor && isTauriRuntime()) {
+          const { closeEditor } = await import("@/lib/closeEditor");
+          await closeEditor({ alreadyCopied: true });
+        }
       } catch (err) {
         console.error("copy shortcut failed", err);
         const { describeExportError } = await import("@/lib/exportErrors");

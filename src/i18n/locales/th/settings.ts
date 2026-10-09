@@ -39,6 +39,7 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.editor.ontop": "ให้ตัวแก้ไขอยู่บนสุด",
   "settings.editor.size": "ขนาดหน้าต่างเริ่มต้น",
   "settings.after.onClose": "เมื่อปิดตัวแก้ไข",
+  "settings.after.copyCloses": "ปิดตัวแก้ไขหลังคัดลอกด้วย ⌘C / Ctrl+C",
   "settings.after.folder": "โฟลเดอร์ที่บันทึก",
   "settings.after.format": "รูปแบบไฟล์",
   "settings.after.filename": "ชื่อไฟล์",
@@ -161,6 +162,8 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.after.onClose.copy": "คัดลอกไปคลิปบอร์ด",
   "settings.after.onClose.file": "บันทึกเป็นไฟล์",
   "settings.after.onClose.both": "บันทึกและคัดลอก",
+  "settings.after.copyCloses.hint":
+    "คัดลอกทั้งภาพแล้วปิด ถ้าเลือกองค์ประกอบไว้ ⌘C จะคัดลอกเฉพาะองค์ประกอบนั้นและไม่ปิดตัวแก้ไข",
   "settings.after.folder.hint": "ไฟล์จะบันทึกที่นี่ทันที ถ้าชื่อซ้ำจะเติม -1, -2 ต่อท้าย",
   "settings.after.folder.placeholder": "กำลังหาโฟลเดอร์เริ่มต้น…",
   "settings.after.folder.open": "เปิด",

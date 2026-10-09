@@ -150,6 +150,8 @@ export type AppConfig = {
     onboardingCompleted: boolean;
     alwaysOnTopEditor: boolean;
     closeAction: "none" | "copy" | "file" | "both";
+    /** ⌘C / Ctrl+C copies the whole image and then closes the editor (CP-0067). */
+    copyClosesEditor: boolean;
     editorWindow: { width: number; height: number };
     showRulers: boolean;
     snapEnabled: boolean;
@@ -316,7 +318,8 @@ export type AppConfig = {
 
 // v2 (CP-0038): added `hotkeys.commandRingV2` and the `ring` section.
 // v4: added `general.language`.
-export const CONFIG_SCHEMA_VERSION = 4;
+// v5 (CP-0067): added `general.copyClosesEditor`.
+export const CONFIG_SCHEMA_VERSION = 5;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -388,6 +391,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     onboardingCompleted: false,
     alwaysOnTopEditor: false,
     closeAction: "copy",
+    copyClosesEditor: false,
     editorWindow: { width: 1024, height: 680 },
     showRulers: false,
     snapEnabled: true,
@@ -530,6 +534,8 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
     if (general.language !== undefined) return o;
     return { ...o, general: { ...general, language: "en" } };
   },
+  // v4 → v5 (CP-0067): only ADDED `general.copyClosesEditor` (default off).
+  4: (o) => o,
 };
 
 /** Throws when a version between 0 and `version - 1` has no migration step. */
@@ -798,6 +804,7 @@ function vGeneral(
       onboardingCompleted: isBool,
       alwaysOnTopEditor: isBool,
       closeAction: inSet("none", "copy", "file", "both"),
+      copyClosesEditor: isBool,
       showRulers: isBool,
       snapEnabled: isBool,
       canvasBackground: isStr,

@@ -6,14 +6,16 @@ import { drawRect, loadImage, rectPositions, snap } from "./helpers";
 // ("ผ" for the Z key). Playwright can't switch layouts, so dispatch the
 // KeyboardEvent a Thai layout produces: Thai key + physical code.
 
-function thaiKey(page: Page, key: string, code: string, opts: KeyboardEventInit = {}) {
+// A plain-data subset of KeyboardEventInit: the full type (with `view`) makes
+// page.evaluate's serializable-argument check recurse forever (TS2589).
+type KeyInit = { key: string; code: string; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean };
+
+function thaiKey(page: Page, key: string, code: string, opts: Omit<KeyInit, "key" | "code"> = {}) {
   return page.evaluate(
-    ([key, code, opts]) => {
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", { key, code, bubbles: true, cancelable: true, ...opts }),
-      );
+    (init: KeyInit) => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { ...init, bubbles: true, cancelable: true }));
     },
-    [key, code, opts] as const,
+    { key, code, ...opts },
   );
 }
 

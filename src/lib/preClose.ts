@@ -10,10 +10,19 @@ import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
  * Run the configured pre-close action (Save/Copy/Both) if any.
  * Returns once the action completes (or no-op for "none").
  * Errors are surfaced via toast but never rethrown — caller proceeds to hide.
+ *
+ * `alreadyCopied`: the image was just copied (⌘C closing the editor, CP-0067),
+ * so the copy half of "copy"/"both" is skipped; "both" still saves.
  */
-export async function runPreCloseAction(): Promise<void> {
+export async function runPreCloseAction(
+  opts: { alreadyCopied?: boolean } = {},
+): Promise<void> {
   const cfg = useSettings.getState().config;
-  const action = cfg.general.closeAction;
+  let action = cfg.general.closeAction;
+  if (opts.alreadyCopied) {
+    if (action === "copy") action = "none";
+    else if (action === "both") action = "file";
+  }
   if (action === "none") return;
   const stage = getStage();
   if (!stage) return;

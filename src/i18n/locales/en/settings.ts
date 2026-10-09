@@ -39,6 +39,7 @@ export const settings = {
   "settings.editor.ontop": "Keep editor on top",
   "settings.editor.size": "Default window size",
   "settings.after.onClose": "When you close the editor",
+  "settings.after.copyCloses": "Close the editor after copying with ⌘C / Ctrl+C",
   "settings.after.folder": "Save folder",
   "settings.after.format": "File format",
   "settings.after.filename": "Filename",
@@ -163,6 +164,8 @@ export const settings = {
   "settings.after.onClose.copy": "Copy to clipboard",
   "settings.after.onClose.file": "Save to file",
   "settings.after.onClose.both": "Save and copy",
+  "settings.after.copyCloses.hint":
+    "Copies the whole image, then closes. With an element selected, ⌘C copies just that element and the editor stays open.",
   "settings.after.folder.hint": "Files save here directly. Repeat names get -1, -2 added.",
   "settings.after.folder.placeholder": "Resolving default…",
   "settings.after.folder.open": "Open",

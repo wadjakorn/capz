@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { SettingRow } from "@/components/settings/SettingRow";
+import { SettingToggle } from "@/components/settings/SettingToggle";
 import { AdvancedSection } from "@/components/settings/AdvancedSection";
 import { useSettings } from "@/stores/settings";
 import { useT } from "@/i18n/useT";
@@ -71,6 +72,13 @@ export function AfterCapturePage() {
             </SelectContent>
           </Select>
         </SettingRow>
+
+        <SettingToggle
+          id="after.copyCloses"
+          hint={t("settings.after.copyCloses.hint")}
+          checked={general.copyClosesEditor}
+          onChange={(v) => update("general", { copyClosesEditor: v })}
+        />
 
         <SettingRow
           id="after.folder"
