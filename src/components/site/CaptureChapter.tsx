@@ -1,5 +1,6 @@
 "use client";
 
+import { Kbd } from "./Kbd";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { MediaSlot } from "./MediaSlot";
 import { RingWheel } from "./RingWheel";
@@ -22,7 +23,7 @@ const MODES: Mode[] = [
 export function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="keys">
-      {keys.map((k) => <kbd key={k} className={k.length > 1 ? "wide" : undefined}>{k}</kbd>)}
+      {keys.map((k) => <Kbd key={k} k={k} />)}
     </span>
   );
 }

@@ -226,6 +226,16 @@ export const site = {
     "Note: once SAC is off it can't be turned back on without resetting Windows. SAC only exists on clean Windows 11 installs — if you don't see the menu, your PC doesn't have it and nothing needs changing.",
   "install.copy": "Copy command",
 
+  "site.thai.keys.title": "Shortcuts that ignore your layout",
+  "site.thai.keys.desc": "Editor shortcuts work with the Thai (Kedmanee) layout active. Press ⌘Z or Ctrl+Z without switching to English first.",
+  "site.ann.keys": "Editor shortcuts",
+  "site.key.undo": "Undo / redo",
+  "site.key.dup": "Duplicate the selection",
+  "site.key.nudge": "Nudge 1px (Shift = 10px)",
+  "site.key.note": "On Windows use Ctrl for ⌘; Ctrl+Y redoes too.",
+  "site.ws.update.title": "Update without losing work",
+  "site.ws.update.desc": "Before installing an update, capz saves your workspaces. If something can't survive the relaunch, it warns you to export or copy it first.",
+
   "footer.copyright": "© {year} capz",
   "footer.oss": "Free & open source (MIT)",
   "footer.feedback": "Report a bug / request a feature",

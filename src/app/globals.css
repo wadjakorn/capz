@@ -532,6 +532,7 @@
   & code.inl { font-family: var(--measure); font-size: .88em; background: var(--app-raised); padding: 1px 6px; border-radius: 5px; }
   & kbd { font: 600 clamp(17px, 1.8vw, 22px)/1 var(--measure); min-width: 2em; height: 2em; padding: 0 .5em; display: inline-grid; place-items: center; color: var(--app-fg); background: var(--app-raised); border: 1px solid var(--app-border-2); border-radius: 9px; box-shadow: var(--app-key-shadow); }
   & kbd.wide { font-family: var(--body); font-size: clamp(15px, 1.4vw, 18px); }
+  & kbd svg { width: .9em; height: .9em; }
   & .keys { display: flex; gap: 8px; flex-wrap: wrap; }
   /* display text breaks only at spaces and U+200B (ThaiText) */
   & .nw { white-space: nowrap; }
@@ -826,6 +827,16 @@
   & .toolrail li { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; border-radius: 10px; background: var(--app-surface); border: 1px solid var(--app-border); font-size: 16px; color: var(--app-fg); }
   & .toolrail svg { width: 18px; height: 18px; color: var(--app-fg-2); }
   & .pin-ico { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--a-pin); color: #fff; font: 700 12px/1 var(--body); box-shadow: 0 0 0 1.5px #fff; }
+  /* editor keys row (annotate chapter) */
+  & .editkeys { display: flex; flex-wrap: wrap; align-items: center; gap: 16px clamp(24px, 4vw, 56px); padding-top: clamp(24px, 3vw, 36px); }
+  & .ek { display: flex; align-items: center; gap: 14px; }
+  & .ek .keys { gap: 14px; }
+  & .ek .kgroup { display: inline-flex; gap: 4px; }
+  & .ek kbd { font-size: 16px; }
+  & .ek-label { font-size: 17px; color: var(--app-fg); }
+  & .ek-note { flex-basis: 100%; margin: 0; font-size: 16px; color: var(--app-fg-3); }
+  & .ws-update { grid-column: 1 / -1; border-top: 1px solid var(--app-border-2); padding-top: 24px; }
+  & .ws-update h3 { margin-top: 0; }
   & .mosaic { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: clamp(16px, 2.5vw, 32px); padding-block: clamp(32px, 5vw, 56px) clamp(56px, 9vw, 112px); align-items: start; }
   & .m-a { grid-column: 1 / span 7; }
   & .m-b { grid-column: 8 / span 5; margin-top: clamp(0px, 8vw, 120px); }

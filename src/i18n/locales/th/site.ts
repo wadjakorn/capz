@@ -227,6 +227,16 @@ export const site: Record<keyof typeof en, string> = {
     "หมายเหตุ: เมื่อปิด SAC แล้วเปิดกลับไม่ได้จนกว่าจะรีเซ็ต Windows — SAC มีเฉพาะเครื่องที่ลง Windows 11 แบบ clean install ถ้าไม่เห็นเมนูนี้ แปลว่าเครื่องไม่มี SAC ไม่ต้องทำอะไร",
   "install.copy": "คัดลอกคำสั่ง",
 
+  "site.thai.keys.title": "คีย์ลัด​ไม่ต้องสลับภาษา",
+  "site.thai.keys.desc": "คีย์ลัดใน editor ใช้ได้แม้แป้นพิมพ์เป็นภาษาไทย (เกษมณี) กด ⌘Z หรือ Ctrl+Z ได้เลย ไม่ต้องสลับเป็นภาษาอังกฤษก่อน",
+  "site.ann.keys": "คีย์ลัดใน editor",
+  "site.key.undo": "เลิกทำ /​ ทำซ้ำ",
+  "site.key.dup": "ทำสำเนา​ชิ้นที่เลือก",
+  "site.key.nudge": "ขยับทีละ 1px​ (กด Shift = 10px)",
+  "site.key.note": "บน Windows ใช้ Ctrl แทน ⌘ และกด Ctrl+Y เพื่อทำซ้ำได้ด้วย",
+  "site.ws.update.title": "อัปเดตแอป​โดยงานไม่หาย",
+  "site.ws.update.desc": "ก่อนติดตั้งอัปเดต capz เซฟ workspace ไว้ให้ก่อน ถ้ามีภาพที่เก็บข้ามการเปิดใหม่ไม่ได้ แอปจะเตือนให้ส่งออกหรือคัดลอกก่อน",
+
   "footer.copyright": "© {year} capz",
   "footer.oss": "ฟรี โอเพนซอร์ส (MIT)",
   "footer.feedback": "แจ้งบั๊ก / ขอฟีเจอร์",

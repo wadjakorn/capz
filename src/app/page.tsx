@@ -4,6 +4,7 @@ import { site as th } from "@/i18n/locales/th/site";
 
 // Static export: metadata can't follow the in-page TH/EN switch, so it leads in Thai (the default).
 export const metadata: Metadata = {
+  metadataBase: new URL("https://capz-web.pages.dev"),
   title: th["meta.title"],
   description: th["meta.desc"],
   openGraph: {
@@ -11,9 +12,11 @@ export const metadata: Metadata = {
     description: th["meta.desc"],
     type: "website",
     locale: "th_TH",
+    images: [{ url: "/landing/og.png", width: 1200, height: 630, alt: th["meta.title"] }],
   },
   twitter: {
     card: "summary_large_image",
+    images: ["/landing/og.png"],
   },
 };
 

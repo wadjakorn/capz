@@ -5,6 +5,7 @@ import { MediaSlot } from "./MediaSlot";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 import { ThaiText } from "./ThaiText";
+import { Kbd } from "./Kbd";
 
 /** Thai-first: the claim neighbouring apps can't make, told honestly (Thai OCR is macOS-only). */
 export function ThaiFirst() {
@@ -13,6 +14,7 @@ export function ThaiFirst() {
     ["site.thai.ui.title", "site.thai.ui.desc"],
     ["site.thai.text.title", "site.thai.text.desc"],
     ["site.thai.ocr.title", "site.thai.ocr.desc"],
+    ["site.thai.keys.title", "site.thai.keys.desc"],
   ];
   return (
     <section className="paper thai" id="thai" aria-labelledby="thai-title">
@@ -44,6 +46,13 @@ const TOOLS: Array<[LucideIcon, TKey]> = [
   [ImageIcon, "site.tool.image"], [Crop, "site.tool.crop"], [Magnet, "site.tool.snap"],
 ];
 
+/** Editor keys (v0.16–v0.17): undo/redo, duplicate, nudge. Mac glyphs; the note covers Windows. */
+const EDIT_KEYS: Array<[string[][], TKey]> = [
+  [[["⌘", "Z"], ["⌘", "⇧", "Z"]], "site.key.undo"],
+  [[["⌘", "D"]], "site.key.dup"],
+  [[["←", "↑", "↓", "→"]], "site.key.nudge"],
+];
+
 /** The editor's tools as its own toolbar, plus four close-ups in a mosaic of unequal plates. */
 export function Annotate() {
   const { t } = useT();
@@ -60,6 +69,19 @@ export function Annotate() {
           ))}
           <li><span className="pin-ico" aria-hidden>1</span>{t("site.tool.pin")}</li>
         </ul>
+        <div className="editkeys" role="group" aria-label={t("site.ann.keys")}>
+          {EDIT_KEYS.map(([groups, label]) => (
+            <div key={label} className="ek">
+              <span className="keys">
+                {groups.map((g, i) => (
+                  <span key={i} className="kgroup">{g.map((k) => <Kbd key={k} k={k} />)}</span>
+                ))}
+              </span>
+              <span className="ek-label"><ThaiText>{t(label)}</ThaiText></span>
+            </div>
+          ))}
+          <p className="ek-note">{t("site.key.note")}</p>
+        </div>
         <div className="mosaic">
           <div className="m-a"><MediaSlot id="tool-arrow" /></div>
           <div className="m-b"><MediaSlot id="tool-pins" /></div>
@@ -106,6 +128,10 @@ export function Workspaces() {
             <MediaSlot id="history-preview" />
             <h3><ThaiText>{t("site.ws.hist.title")}</ThaiText></h3>
             <p>{t("site.ws.hist.desc")}</p>
+          </div>
+          <div className="ws-update">
+            <h3><ThaiText>{t("site.ws.update.title")}</ThaiText></h3>
+            <p>{t("site.ws.update.desc")}</p>
           </div>
         </div>
       </div>
