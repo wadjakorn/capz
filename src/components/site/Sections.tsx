@@ -1,14 +1,18 @@
 "use client";
 
-import { ArrowRight, Crop, Droplet, Highlighter, Image as ImageIcon, Magnet, Pencil, Search, Shapes, Smile, Type, ArrowUpRight, type LucideIcon } from "lucide-react";
+import { ArrowRight, Crop, RotateCcw, Droplet, Highlighter, Image as ImageIcon, Magnet, Pencil, Search, Shapes, Smile, Type, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { MediaSlot } from "./MediaSlot";
 import type { SlotId } from "./shots";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 import { ThaiText } from "./ThaiText";
 import { Kbd } from "./Kbd";
+import { SpecimenHero } from "./SpecimenHero";
 
-/** Thai-first: the claim neighbouring apps can't make, told honestly (Thai OCR is macOS-only). */
+/**
+ * Thai-first: the reason to pick capz over neighbouring apps, told honestly
+ * (Thai OCR is macOS-only). The measured specimen is the proof of "สระไม่ลอย".
+ */
 export function ThaiFirst() {
   const { t } = useT();
   const items: Array<[TKey, TKey]> = [
@@ -24,6 +28,10 @@ export function ThaiFirst() {
           <h2 id="thai-title"><ThaiText>{t("site.thai.title")}</ThaiText></h2>
           <p>{t("site.thai.desc")}</p>
         </div>
+        <figure className="thai-spec">
+          <SpecimenHero />
+          <figcaption>{t("site.thai.specCap")}</figcaption>
+        </figure>
         <div className="thai-grid">
           <MediaSlot id="thai-text" />
           <dl className="facts">
@@ -66,11 +74,18 @@ const PLATES: Array<[string, SlotId, TKey]> = [
 export function Annotate() {
   const { t } = useT();
   return (
-    <section className="screen ann" aria-labelledby="ann-title">
+    <section className="screen ann" id="edit" aria-labelledby="ann-title">
       <div className="wrap">
         <div className="ch-head">
           <h2 id="ann-title"><ThaiText>{t("site.ann.title")}</ThaiText></h2>
           <p>{t("site.ann.desc")}</p>
+        </div>
+        <div className="lead-row">
+          <MediaSlot id="hero-editor" />
+          <div>
+            <h3><ThaiText>{t("site.lead.title")}</ThaiText></h3>
+            <p>{t("site.lead.desc")}</p>
+          </div>
         </div>
         <ul className="toolrail" aria-label={t("site.ann.tools")}>
           {TOOLS.map(([Icon, key]) => (
@@ -98,6 +113,51 @@ export function Annotate() {
               <p className="m-cap"><ThaiText>{t(label)}</ThaiText></p>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** The loop: paste → point it out → copy → next. Stacking images and the whole-image copy. */
+const LOOP: Array<[string[] | null, TKey]> = [
+  [["⌘", "V"], "site.loop.s1"],
+  [null, "site.loop.s2"],
+  [["⌘", "C"], "site.loop.s3"],
+  [["⌘", "V"], "site.loop.s4"],
+];
+
+export function Loop() {
+  const { t } = useT();
+  return (
+    <section className="paper loop" id="copy" aria-labelledby="loop-title">
+      <div className="wrap">
+        <div className="paper-head">
+          <h2 id="loop-title"><ThaiText>{t("site.loop.title")}</ThaiText></h2>
+          <p>{t("site.loop.desc")}</p>
+        </div>
+        <ol className="loop-steps" aria-label={t("site.loop.steps")}>
+          {LOOP.map(([keys, label], i) => (
+            <li key={label}>
+              <span className="keys">
+                {keys ? keys.map((k) => <Kbd key={k} k={k} />) : <span className="pin-ico" aria-hidden>1</span>}
+              </span>
+              <span className="ls-label"><ThaiText>{t(label)}</ThaiText></span>
+              {i === LOOP.length - 1 && <RotateCcw className="ls-again" aria-hidden />}
+            </li>
+          ))}
+        </ol>
+        <div className="loop-grid">
+          <div>
+            <MediaSlot id="combine" />
+            <h3><ThaiText>{t("site.loop.combine.title")}</ThaiText></h3>
+            <p>{t("site.loop.combine.desc")}</p>
+          </div>
+          <div className="loop-copy">
+            <span className="keys big" aria-hidden><Kbd k="⌘" /><Kbd k="C" /></span>
+            <h3><ThaiText>{t("site.loop.copy.title")}</ThaiText></h3>
+            <p>{t("site.loop.copy.desc")}</p>
+          </div>
         </div>
       </div>
     </section>

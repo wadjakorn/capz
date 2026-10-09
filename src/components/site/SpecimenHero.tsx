@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 
-/** The specimen's three layers, moved at different rates by the hero scene. */
+/** The specimen's three SVG layers (levels, glyphs, annotations) and the pin wrappers. */
 export type SpecimenLayers = { lv: SVGSVGElement; gl: SVGSVGElement; an: SVGSVGElement; pins: SVGGElement[] };
 
 const NS = "http://www.w3.org/2000/svg";
@@ -32,7 +32,7 @@ function build(host: HTMLElement, t: (k: TKey) => string, reduced: boolean): Spe
   const iw = window.innerWidth;
   const tier = iw <= 600 ? "phone" : iw <= 1024 ? "tablet" : "desk";
   const mobile = tier !== "desk";
-  const line = tier === "phone" ? "ผู้ใหญ่" : "ผู้ใหญ่ปั้นน้ำเป็นตัว";
+  const line = tier === "phone" ? "ผู้ใหญ่" : "ผู้ใหญ่ปั้นดินน้ำมัน";
   const FS = 200;
   const ctx = document.createElement("canvas").getContext("2d");
   if (!ctx) return null;
@@ -235,8 +235,10 @@ export function SpecimenHero({ onLayers }: { onLayers?: (l: SpecimenLayers | nul
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const run = () => {
       const family = getComputedStyle(host).getPropertyValue("--font-display").trim();
-      document.fonts.load(`200px ${family || "serif"}`, "ผู้ใหญ่ปั้นน้ำเป็นตัว").catch(() => {}).finally(() => {
-        if (alive) cb.current?.(build(host, t, reduced));
+      document.fonts.load(`200px ${family || "serif"}`, "ผู้ใหญ่ปั้นดินน้ำมัน").catch(() => {}).finally(() => {
+        if (!alive) return;
+        const layers = build(host, t, reduced); // always build: the callback is optional
+        cb.current?.(layers);
       });
     };
     run();
@@ -253,7 +255,7 @@ export function SpecimenHero({ onLayers }: { onLayers?: (l: SpecimenLayers | nul
 
   return (
     <div className="specimen" ref={ref}>
-      <div className="fallback" aria-hidden>ผู้ใหญ่ปั้นน้ำเป็นตัว</div>
+      <div className="fallback" aria-hidden>ผู้ใหญ่ปั้นดินน้ำมัน</div>
     </div>
   );
 }

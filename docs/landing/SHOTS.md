@@ -27,6 +27,7 @@ placeholder showing the slot id and one line saying what the shot will show.
 | `import` | Pasting a screenshot into the editor | `camera`: whole frame |
 | `annotate` | An arrow, pins 1-2-3, a blurred email, the magnifier, a Thai text label | On phones the camera zooms to the action. Keyframes use normalised x/y (0–1). |
 | `backdrop` | Turning on the backdrop, then switching art styles | `camera`: whole frame |
+| `copy` | ⌘C → the "คัดลอกแล้ว" toast, clear, ⌘V lands the next image (a keycast badge shows the keys) | On phones the camera zooms to the toast, then backs out |
 
 The clips are recorded in the `/paste` web editor (light theme): annotate first, then turn on the backdrop.
 
@@ -44,7 +45,8 @@ Status: ✅ = captured from `/paste` (light) and `ready: true`; 🖥 = needs the
 | ★★ 🖥 | `full-screen` | A full-screen capture just opened in the editor |
 | ★★ 🖥 | `area-overlay` | The area overlay on a busy desktop, with the template rect and the action pill |
 | ★★ 🖥 | `window-corners` | A macOS window capture on a backdrop, with transparent corners |
-| ★★ ✅ | `thai-text` | The text tool with a mark-heavy Thai line, plus the line-spacing panel |
+| ★★ ✅ | `thai-text` | The text tool with a mark-heavy Thai line ("ผู้ใหญ่ปั้นดินน้ำมัน สระไม่ลอย", 48px), plus the line-spacing panel |
+| ★★ ✅ | `combine` | A chat screenshot pasted onto a docs page as a layer, joined by an arrow and pins 1-2 |
 | ★★ 🖥 | `ocr` | Detect text on Thai content: a line selected and the "copied" toast showing |
 | ★★ ✅ | `workspaces` (loop) | Switching workspaces (captured on the web; History preview is desktop-only and has its own slot) |
 | ★ 🖥 | `settings-th` | Settings in Thai, with a search query typed |

@@ -577,7 +577,7 @@
     & .index ol a[aria-current="true"] b { text-decoration: none; }
   }
 
-  /* ---------- hero: the specimen sheet ---------- */
+  /* ---------- the Thai specimen (proof in the Thai chapter) ---------- */
   & .specimen { position: relative; margin-top: 6px; }
   & .specimen .fallback { font: 400 clamp(48px, 10vw, 180px)/1.6 var(--display); }
   & .spec-stack { position: relative; }
@@ -593,7 +593,11 @@
     & .draw .a-stroke { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); animation: landing-stroke 800ms cubic-bezier(.16, 1, .3, 1) forwards; animation-delay: var(--d, 0ms); }
     & .draw .a-pop { transform-box: fill-box; transform-origin: center; animation: landing-pop 520ms cubic-bezier(.16, 1, .3, 1) both; animation-delay: var(--d, 0ms); }
   }
-  & .hero-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px clamp(24px, 4vw, 72px); align-items: start; padding-block: 26px 48px; border-top: 1.5px solid var(--ink); }
+  /* ---------- hero ---------- */
+  & .hero-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px clamp(24px, 4vw, 72px); align-items: end; padding-block: clamp(28px, 4vw, 56px) 28px; }
+  & .kicker { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 14px; font: 600 16px/1.4 var(--body); color: var(--ink-2); }
+  /* the app's pin, as the category mark */
+  & .kicker::before { content: ""; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--a-pin); box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(12, 12, 16, .12); }
   & h1 { font: 400 clamp(38px, 4.4vw, 66px)/1.42 var(--display); margin: 0; text-wrap: balance; }
   /* the app's highlighter default: #facc15 @ 50%, round caps */
   & h1 .hl { background: rgba(250, 204, 21, .5); border-radius: 14px; padding: 0 .12em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
@@ -655,9 +659,9 @@
   & .scene.phone .clipcap, & .scene.phone .chips, & .scene.phone figcaption { padding-inline: var(--gut); }
   @media (max-width: 760px) {
     & .scene-copy { display: flex; flex-direction: column; }
-    & .hero-body { order: -1; border-top: 0; padding-block: 16px 14px; gap: 12px; }
+    & .hero-body { padding-block: 16px 14px; gap: 12px; }
+    & .kicker { font-size: 15px; margin-bottom: 8px; }
     & .cmd, & .install-cta .k, & .ver, & .proofstrip { display: none; }
-    & .specimen { border-top: 1.5px solid var(--ink); padding-top: 4px; margin-top: 0; }
     & .lede { font-size: 16px; margin-top: 8px; line-height: 1.7; }
     & .btn-primary { font-size: 18px; padding: 14px 18px; }
   }
@@ -819,6 +823,36 @@
   & .paper-head p { margin: 0; font-size: clamp(17px, 1.4vw, 20px); color: var(--ink-2); max-width: 32em; }
   & .thai-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px clamp(28px, 5vw, 72px); padding-block: clamp(32px, 5vw, 56px) clamp(56px, 9vw, 112px); align-items: start; }
   & .thai-grid > .slot:last-child { grid-column: 2; }
+  & .thai-spec { margin: 0; padding-block: clamp(24px, 4vw, 48px) 0; }
+  & .thai-spec figcaption { margin-top: 14px; font-size: 16px; color: var(--ink-2); max-width: 40em; }
+
+  /* ways in: paste, drop, capture */
+  & .ways { list-style: none; margin: 0; padding: clamp(28px, 4vw, 44px) 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; border-bottom: 1px solid var(--app-border); }
+  & .ways li { display: grid; align-content: start; gap: 12px; padding: 22px; border-radius: 12px; background: var(--app-surface); border: 1px solid var(--app-border); }
+  & .ways h3 { font: 400 clamp(22px, 2vw, 28px)/1.45 var(--display); margin: 0; }
+  & .ways p { margin: 0; font-size: 16px; color: var(--app-fg-2); }
+  & .way-ico { width: 2.1em; height: 2.1em; padding: .45em; box-sizing: border-box; color: var(--app-fg); background: var(--app-raised); border: 1px solid var(--app-border-2); border-radius: 9px; box-shadow: var(--app-key-shadow); font-size: clamp(17px, 1.8vw, 22px); }
+
+  /* the loop: paste → point it out → copy → next */
+  & .loop-steps { list-style: none; margin: 0; padding: clamp(28px, 4vw, 44px) 0; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 0; border-bottom: 1px solid var(--rule); }
+  & .loop-steps li { display: inline-flex; align-items: center; gap: 12px; font: 400 clamp(20px, 1.9vw, 26px)/1.4 var(--display); }
+  & .loop-steps li + li::before { content: ""; width: clamp(22px, 3vw, 48px); height: 2px; margin-inline: 14px; background: var(--a-red); border-radius: 1px; }
+  & .loop-steps .pin-ico { width: 2em; height: 2em; font-size: clamp(14px, 1.3vw, 17px); }
+  & .ls-again { width: 22px; height: 22px; color: var(--ink-2); }
+  & .loop-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 40px clamp(28px, 5vw, 72px); padding-block: clamp(32px, 5vw, 56px) clamp(56px, 9vw, 112px); align-items: start; }
+  & .loop-grid h3 { font: 400 clamp(26px, 2.6vw, 38px)/1.45 var(--display); margin: 18px 0 10px; }
+  & .loop-grid p { margin: 0; font-size: 17px; max-width: 30em; color: var(--ink-2); }
+  & .loop-copy { align-self: center; }
+  @media (max-width: 600px) {
+    /* phones: the loop as a 2×2 grid, no connectors to strand at a line start */
+    & .loop-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+    & .loop-steps li + li::before { display: none; }
+    & .loop-steps li { font-size: 19px; gap: 8px; }
+    & .loop-steps kbd { font-size: 15px; }
+    & .loop-steps .keys { flex-wrap: nowrap; gap: 5px; }
+    & .ls-again { display: none; }
+  }
+  & .keys.big kbd { font-size: clamp(30px, 3.6vw, 48px); border-radius: 14px; }
   & .facts { margin: 0; display: grid; gap: 0; }
   & .facts div { padding-block: 18px; border-bottom: 1px solid var(--rule); }
   & .facts div:first-child { padding-top: 0; }
@@ -923,7 +957,7 @@
     & .action { min-height: 48px; }
   }
   @media (max-width: 900px) {
-    & .hero-body, & .lead-row, & .ch-head, & .paper-head, & .ring-row, & .thai-grid, & .ocr-grid, & .web-grid, & .ws-grid { grid-template-columns: minmax(0, 1fr); }
+    & .hero-body, & .lead-row, & .ch-head, & .paper-head, & .ring-row, & .thai-grid, & .ocr-grid, & .web-grid, & .ws-grid, & .loop-grid, & .ways { grid-template-columns: minmax(0, 1fr); }
     & .thai-grid > .slot:last-child { grid-column: auto; }
     & .ws-side { margin-top: 0; }
     & .bd-grid { grid-template-columns: minmax(0, 1fr); }

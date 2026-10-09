@@ -8,7 +8,7 @@ import type { TKey } from "@/i18n/store";
 const SECTIONS: Array<[string, TKey]> = [
   ["top", "nav.specimen"],
   ["capture", "nav.capture"],
-  ["backdrops", "nav.backdrops"],
+  ["edit", "nav.edit"],
   ["thai", "nav.thai"],
   ["install", "nav.install"],
 ];

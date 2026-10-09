@@ -1,5 +1,6 @@
 "use client";
 
+import { FileDown, ScanLine } from "lucide-react";
 import { Kbd } from "./Kbd";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { MediaSlot } from "./MediaSlot";
@@ -28,7 +29,10 @@ export function Keys({ keys }: { keys: string[] }) {
   );
 }
 
-/** Capture modes as tabs driving one plate: a list on wide screens, pills on phones. */
+/**
+ * How an image gets in: paste, drop, or capture. The capture modes follow as
+ * tabs driving one plate: a list on wide screens, pills on phones.
+ */
 export function CaptureChapter() {
   const { t } = useT();
   const [cur, setCur] = useState(0);
@@ -55,18 +59,28 @@ export function CaptureChapter() {
   return (
     <section className="screen" id="capture" aria-labelledby="cap-title">
       <div className="wrap">
-        <div className="lead-row">
-          <MediaSlot id="hero-editor" />
-          <div>
-            <h3><ThaiText>{t("site.lead.title")}</ThaiText></h3>
-            <p>{t("site.lead.desc")}</p>
-          </div>
-        </div>
-
         <div className="ch-head">
           <h2 id="cap-title"><ThaiText>{t("site.cap.title")}</ThaiText></h2>
           <p>{t("site.cap.desc")}</p>
         </div>
+
+        <ul className="ways" aria-label={t("site.in.ways")}>
+          <li>
+            <Keys keys={["⌘", "V"]} />
+            <h3><ThaiText>{t("site.in.paste.title")}</ThaiText></h3>
+            <p>{t("site.in.paste.desc")}</p>
+          </li>
+          <li>
+            <span className="keys"><FileDown className="way-ico" aria-hidden /></span>
+            <h3><ThaiText>{t("site.in.drop.title")}</ThaiText></h3>
+            <p>{t("site.in.drop.desc")}</p>
+          </li>
+          <li>
+            <span className="keys"><ScanLine className="way-ico" aria-hidden /></span>
+            <h3><ThaiText>{t("site.in.cap.title")}</ThaiText></h3>
+            <p>{t("site.in.cap.desc")}</p>
+          </li>
+        </ul>
 
         <div className="modes">
           <div className="mode-list" role="tablist" aria-label={t("site.cap.modes")} onKeyDown={onKey}>

@@ -10,10 +10,12 @@ web
 Primary: Thai-speaking people on macOS and Windows who capture the screen and explain something with it every day: support staff, QA testers, people writing docs or tutorials, people posting on social media. Secondary: international users who want a free CleanShot/Shottr-class tool on both macOS and Windows.
 
 ## Product Purpose
-capz is a native screen capture and annotation app (Tauri) for macOS and Windows. It captures the screen, lets you mark up the capture, makes it presentable, and gets it out to a file or the clipboard fast. This surface is the public landing page (capz-web.pages.dev). Success means a visitor understands what the app does in seconds, sees the real features, and installs it (Homebrew on Mac, an .exe on Windows) or tries the browser editor at /paste.
+capz is a native screen capture and annotation app (Tauri) for macOS and Windows. Capture is the entry, not the product: every OS already captures the screen. The product is what happens after — any image in (paste from any app, drop a file, or capture here), point it out (crop, arrows, pins, blur, magnify, text, several images combined), and copy it straight back out, then paste the next one. This surface is the public landing page (capz-web.pages.dev). Success means a visitor understands what the app does in seconds, sees the real features, and installs it (Homebrew on Mac, an .exe on Windows) or tries the browser editor at /paste.
 
 ## Positioning
-A free, MIT-licensed capture app that runs on both macOS and Windows and is Thai-first:
+Lead with the job: *any image, from anywhere → point it out → copy it on* (hero: "รูปจากไหนก็ได้ / ชี้จุดเสร็จ ก๊อปส่ง", with a small "แอปแคปจอ" kicker so the category stays clear). Decided with the owner on 2026-10-09; it replaces the earlier Thai-first lead ("ที่พูดภาษาไทย", which read as a translation, and a hero type specimen that read as a Thai-lesson app).
+
+Thai is the reason to pick capz over neighbouring apps, told second. A free, MIT-licensed capture app that runs on both macOS and Windows and is Thai-first:
 - the UI is in Thai by default, with English selectable
 - the text tool lays out Thai vowels and tone marks above and below the line without collisions
 - on-device OCR reads Thai on macOS

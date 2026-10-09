@@ -59,12 +59,27 @@ export const HERO_CLIPS: HeroClip[] = [
     duration: 8.4,
     camera: [{ t: 0, x: 0.5, y: 0.5, s: 1 }],
   },
+  {
+    id: "copy",
+    label: "site.clip.copy",
+    caption: "site.clip.copy.caption",
+    src: "/landing/hero-4-copy.mp4",
+    poster: "/landing/hero-4-copy.jpg",
+    duration: 5.9,
+    // follow the "copied" toast, then back out for the next image landing
+    camera: [
+      { t: 0, x: 0.5, y: 0.5, s: 1 },
+      { t: 0.6, x: 0.72, y: 0.2, s: 1.7 },
+      { t: 2.6, x: 0.72, y: 0.2, s: 1.7 },
+      { t: 3.3, x: 0.5, y: 0.5, s: 1 },
+    ],
+  },
 ];
 
 export type SlotId =
   | "hero-editor" | "full-screen" | "area-overlay" | "window-corners" | "ring-v2" | "scroll-capture"
   | "backdrop-base" | "thai-text" | "settings-th" | "ocr" | "tool-arrow" | "tool-pins" | "tool-magnify"
-  | "tool-blur" | "workspaces" | "history-preview" | "paste-mobile";
+  | "tool-blur" | "workspaces" | "history-preview" | "paste-mobile" | "combine";
 
 export type Slot = {
   id: SlotId;
@@ -119,4 +134,5 @@ export const SLOTS: Record<SlotId, Slot> = {
   workspaces: slot("workspaces", "16 / 10", { video: true, ready: true }),
   "history-preview": slot("history-preview", "16 / 10"),
   "paste-mobile": slot("paste-mobile", "9 / 19.5", { ready: true }),
+  combine: slot("combine", "16 / 10", { tool: "arrow", ready: true, shot: "crop" }),
 };

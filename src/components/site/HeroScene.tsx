@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Play } from "lucide-react";
-import { SpecimenHero, type SpecimenLayers } from "./SpecimenHero";
 import { HERO_CLIPS } from "./shots";
 import { useT } from "@/i18n/useT";
 import { useOS } from "@/hooks/use-os";
@@ -15,14 +14,15 @@ import { ThaiText } from "./ThaiText";
 const BREW_CMD = "brew install wadjakorn/capz/capz";
 /** Each chapter's share of the rail = its share of the scrub scroll. */
 const RAIL = heroSegments(HERO_CLIPS.map((c) => c.duration)).map((s) => s.b - s.a);
-const RISE_VH = 90;
+const RISE_VH = 60;
 const PER_CLIP_VH = 60;
 type Mode = "scrub" | "playlist" | "poster";
 
 /**
  * The hero as a scroll scene. Wide screens with a mouse or trackpad scrub the
- * clips with scroll (sticky stage: specimen parallax → editor window rises →
- * scroll split across the clips by duration). Phones and touch get a normal
+ * clips with scroll (sticky stage: the editor window starts just under the
+ * headline, rises to centre as the copy fades → scroll split across the clips
+ * by duration). Phones and touch get a normal
  * page flow with an autoplay playlist and a guided camera; reduced motion gets
  * posters and a play button. `?mode=scrub|playlist|poster` forces a mode.
  */
@@ -46,13 +46,7 @@ export function HeroScene() {
   const miniRef = useRef<HTMLDivElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
   const vidRefs = [useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null)];
-  const layersRef = useRef<SpecimenLayers | null>(null);
   const api = useRef<{ jump: (i: number) => void; play: () => void; tick: () => void } | null>(null);
-
-  const onLayers = useCallback((l: SpecimenLayers | null) => {
-    layersRef.current = l;
-    api.current?.tick();
-  }, []);
 
   useEffect(() => {
     const sec = secRef.current!, stage = stageRef.current!, copyEl = copyRef.current!, demo = demoRef.current!;
@@ -66,7 +60,7 @@ export function HeroScene() {
     const sm = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
     const blobs = new Map<string, Promise<string>>();
     const durs = HERO_CLIPS.map((c) => c.duration);
-    let mode: Mode = "poster", isPhone = false, sh = 0, fh = 0, R = 0.5, ticking = false, inView = false;
+    let mode: Mode = "poster", isPhone = false, sh = 0, fh = 0, y0 = 0, R = 0.5, ticking = false, inView = false;
     let segs: Segment[] = heroSegments(durs);
     let cur = -1, front = 0, dir = 1, raf = 0, lastCam = "";
     let io: IntersectionObserver | null = null;
@@ -134,22 +128,16 @@ export function HeroScene() {
       const fw = Math.min(innerWidth * 0.9, ((sh - 34 - 168) * 16) / 10);
       demo.style.setProperty("--fw", `${fw}px`);
       fh = (fw * 10) / 16 + 34 + 150;
+      // first viewport: the window sits right under the headline, so the product shows before any scroll
+      y0 = Math.min(sh - 46, copyEl.offsetHeight + 8);
     };
     const apply = (p: number) => {
       const pp = Math.min(1, p / R);
-      const L = layersRef.current;
-      if (L) {
-        L.lv.style.transform = `translate3d(0, ${-pp * 0.06 * sh}px, 0)`;
-        L.gl.style.transform = `translate3d(0, ${-pp * 0.14 * sh}px, 0)`;
-        L.an.style.transform = `translate3d(0, ${-pp * 0.26 * sh}px, 0)`;
-        const ps = 1 + 0.15 * sm(pp / 0.9);
-        for (const w of L.pins) w.style.transform = `scale(${ps})`;
-      }
-      const f = sm((pp - 0.36) / 0.55);
+      const f = sm((pp - 0.2) / 0.55);
       copyEl.style.opacity = String(1 - f);
       copyEl.style.transform = `translate3d(0, ${-f * 90}px, 0)`;
       copyEl.style.pointerEvents = f > 0.6 ? "none" : "";
-      const q = sm(pp), y0 = sh - 46, y1 = Math.max(10, (sh - fh) / 2);
+      const q = sm(pp), y1 = Math.max(10, (sh - fh) / 2);
       demo.style.transform = `translate3d(-50%, ${y0 + (y1 - y0) * q}px, 0) scale(${0.62 + 0.38 * q})`;
       const { index, local } = locateSegment(segs, (p - R) / (1 - R));
       fill(index, local);
@@ -196,8 +184,6 @@ export function HeroScene() {
       R = RISE_VH / (RISE_VH + PER_CLIP_VH * N);
       if (flow) {
         for (const n of [copyEl, demo]) { n.style.transform = ""; n.style.opacity = ""; n.style.pointerEvents = ""; }
-        const L = layersRef.current;
-        if (L) [L.lv, L.gl, L.an, ...L.pins].forEach((n) => (n.style.transform = ""));
       }
       io?.disconnect(); io = null;
       vids.forEach((v) => { v.pause(); v.loop = false; v.controls = false; meta.get(v)!.key = ""; });
@@ -275,9 +261,9 @@ export function HeroScene() {
     <section className="scene" id="top" ref={secRef} aria-labelledby="hero-title">
       <div className="stage" ref={stageRef}>
         <div className="wrap scene-copy" ref={copyRef}>
-          <SpecimenHero onLayers={onLayers} />
           <div className="hero-body">
             <div>
+              <p className="kicker">{t("hero.kicker")}</p>
               <h1 id="hero-title">
                 <ThaiText>{t("hero.title1")}</ThaiText> <span className="hl"><ThaiText>{t("hero.title2")}</ThaiText></span>
               </h1>
