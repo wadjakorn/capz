@@ -114,6 +114,22 @@ export function AppPage({
             })}
           </div>
         </SettingRow>
+        <SettingRow id="app.theme" hint={t("settings.app.theme.hint")}>
+          <select
+            className="field"
+            value={config.general.theme}
+            onChange={(e) =>
+              update("general", {
+                theme: e.target.value as "light" | "dark" | "system",
+              })
+            }
+            aria-label={t("settings.app.theme")}
+          >
+            <option value="dark">{t("settings.app.theme.dark")}</option>
+            <option value="light">{t("settings.app.theme.light")}</option>
+            <option value="system">{t("settings.app.theme.system")}</option>
+          </select>
+        </SettingRow>
         <SettingToggle
           id="app.login"
           checked={config.general.autostart}

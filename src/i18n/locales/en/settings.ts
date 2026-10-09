@@ -30,7 +30,7 @@ export const settings = {
   "settings.capture.sound": "Play sound on capture",
   "settings.capture.ringModes": "Command ring modes",
   "settings.capture.backdrop": "Add backdrop automatically",
-  "settings.editor.theme": "Appearance",
+  "settings.app.theme": "Appearance",
   "settings.editor.remember": "Remember last tool, color and size",
   "settings.editor.snap": "Snap to edges and other elements",
   "settings.editor.rulers": "Show rulers",
@@ -144,10 +144,10 @@ export const settings = {
   "settings.ringModes.full": " — uncheck one to swap in another",
 
   // ── Editor page ────────────────────────────────────────────────────────────
-  "settings.editor.theme.hint": "System follows your operating system.",
-  "settings.editor.theme.dark": "Dark",
-  "settings.editor.theme.light": "Light",
-  "settings.editor.theme.system": "System",
+  "settings.app.theme.hint": "Applies to the whole app. System follows your operating system.",
+  "settings.app.theme.dark": "Dark",
+  "settings.app.theme.light": "Light",
+  "settings.app.theme.system": "System",
   "settings.editor.snap.hint": "Hold Alt to bypass.",
   "settings.editor.keepToolActive.hint":
     "Off returns to Select after one use. Also on the editor sidebar, or press K.",

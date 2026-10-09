@@ -19,22 +19,6 @@ export function EditorPage() {
   return (
     <div className="grid gap-4">
       <SectionCard>
-        <SettingRow id="editor.theme" hint={t("settings.editor.theme.hint")}>
-          <select
-            className="field"
-            value={g.theme}
-            onChange={(e) =>
-              update("general", {
-                theme: e.target.value as "light" | "dark" | "system",
-              })
-            }
-            aria-label={t("settings.editor.theme")}
-          >
-            <option value="dark">{t("settings.editor.theme.dark")}</option>
-            <option value="light">{t("settings.editor.theme.light")}</option>
-            <option value="system">{t("settings.editor.theme.system")}</option>
-          </select>
-        </SettingRow>
         <SettingToggle
           id="editor.remember"
           checked={g.rememberLastTool}
