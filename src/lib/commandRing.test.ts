@@ -14,6 +14,7 @@ import {
   holdRingSlots,
   type RingWedge,
 } from "./commandRing";
+import { LANGS, dictionaries, translate, type TKey } from "@/i18n/store";
 
 describe("wedgeAtPoint", () => {
   const cx = 180;
@@ -126,6 +127,20 @@ describe("ring mode metadata", () => {
     for (const m of RING_MODE_IDS) {
       expect(RING_LABELS[m]).toBeTruthy();
       expect(RING_MODE_LABELS[m]).toBeTruthy();
+    }
+  });
+
+  // Wedge labels are SVG text that cannot wrap; a name too wide for the wedge
+  // breaks with "\n" into at most two lines (ring/page.tsx). The Settings
+  // checkbox labels are HTML and must stay on one line.
+  it("keeps wedge labels to two lines and Settings mode labels to one", () => {
+    for (const lang of LANGS) {
+      for (const k of Object.keys(dictionaries[lang]) as TKey[]) {
+        if (!k.startsWith("app.ring.")) continue;
+        const lines = translate(lang, k).split("\n").length;
+        const max = k.startsWith("app.ring.mode.") ? 1 : 2;
+        expect(lines, `${lang} ${k}`).toBeLessThanOrEqual(max);
+      }
     }
   });
 
