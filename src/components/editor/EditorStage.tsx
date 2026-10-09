@@ -36,6 +36,7 @@ import {
   isStickyTool,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
+import { highlighterHitFunc, highlighterSceneFunc } from "@/lib/highlightBlend";
 import { formatPinLabel } from "@/lib/pinLabel";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -677,6 +678,10 @@ export function EditorStage({ src }: Props) {
   const cropBase = imageCrop ?? { x: 0, y: 0, w: srcW, h: srcH };
   const imgW = cropBase.w;
   const imgH = cropBase.h;
+  const highlightScene = useMemo(
+    () => highlighterSceneFunc(image, cropBase),
+    [image, cropBase.x, cropBase.y, cropBase.w, cropBase.h],
+  );
 
   // When Crop is entered with a single (unrotated) image annotation selected,
   // the crop targets THAT image's on-screen box instead of the base screenshot.
@@ -1612,6 +1617,8 @@ export function EditorStage({ src }: Props) {
                 bgImage: image,
                 cropOffX: cropBase.x,
                 cropOffY: cropBase.y,
+                cropW: cropBase.w,
+                cropH: cropBase.h,
                 selected: selectedId === a.id,
                 interactive: tool === "select",
                 scale,
@@ -1760,9 +1767,7 @@ export function EditorStage({ src }: Props) {
                 opacity={
                   draft.tool === "highlighter" ? toolsCfg.highlighter.opacity : 1
                 }
-                globalCompositeOperation={
-                  draft.tool === "highlighter" ? "multiply" : undefined
-                }
+                sceneFunc={draft.tool === "highlighter" ? highlightScene : undefined}
                 lineCap="round"
                 lineJoin="round"
                 tension={draft.tool === "pen" && toolsCfg.pen.mode === "curve" ? 0.5 : 0}
@@ -2092,6 +2097,9 @@ type ShapeCtx = {
   /** Offset from cropped-image space to source-image pixels (for blur sampling). */
   cropOffX: number;
   cropOffY: number;
+  /** Size of the visible (cropped) base image, in its own px. */
+  cropW: number;
+  cropH: number;
   /** Whether this annotation is the selected one (drives inline arrow handles). */
   selected: boolean;
   /** True only when the Select tool is active. Magnify gates its drag/select
@@ -2569,6 +2577,16 @@ function HighlighterShape({
   ctx: ShapeCtx;
 }) {
   const { ref, handlers } = usePathShape(a, ctx);
+  const sceneFunc = useMemo(
+    () =>
+      highlighterSceneFunc(ctx.bgImage, {
+        x: ctx.cropOffX,
+        y: ctx.cropOffY,
+        w: ctx.cropW,
+        h: ctx.cropH,
+      }),
+    [ctx.bgImage, ctx.cropOffX, ctx.cropOffY, ctx.cropW, ctx.cropH],
+  );
   return (
     <Line
       ref={ref}
@@ -2579,7 +2597,8 @@ function HighlighterShape({
       opacity={a.opacity ?? 0.5}
       lineCap="round"
       lineJoin="round"
-      globalCompositeOperation="multiply"
+      sceneFunc={sceneFunc}
+      hitFunc={highlighterHitFunc}
       hitStrokeWidth={Math.max(16, a.strokeWidth)}
       {...handlers}
     />
