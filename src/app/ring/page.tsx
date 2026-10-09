@@ -357,7 +357,19 @@ export default function CommandRingPage() {
                   letterSpacing: "normal",
                 }}
               >
-                {ringLabel(w)}
+                {/* A label may carry "\n" where a Thai name is too wide for the
+                    wedge; each line is a tspan, the block centred on (lx, ly). */}
+                {ringLabel(w)
+                  .split("\n")
+                  .map((line, li, lines) => (
+                    <tspan
+                      key={li}
+                      x={lx}
+                      dy={`${li === 0 ? -(lines.length - 1) * 0.55 : 1.1}em`}
+                    >
+                      {line}
+                    </tspan>
+                  ))}
               </text>
             );
           })}

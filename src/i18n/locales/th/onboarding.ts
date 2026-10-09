@@ -16,7 +16,7 @@ export const onboarding: Record<keyof typeof en, string> = {
   "onboarding.welcome.lead": "จับภาพหน้าจอได้รวดเร็ว พร้อมใส่คำอธิบาย ปุ่มลัดเริ่มต้น:",
   "onboarding.welcome.full": "จับภาพทั้งหน้าจอ",
   "onboarding.welcome.area": "จับภาพบางส่วน",
-  "onboarding.welcome.window": "จับภาพหน้าต่าง",
+  "onboarding.welcome.window": "จับภาพหน้าต่างแอป",
   "onboarding.welcome.changeLater": "เปลี่ยนได้ทุกเมื่อในการตั้งค่า",
   "onboarding.next": "ถัดไป",
 
@@ -58,7 +58,7 @@ export const onboarding: Record<keyof typeof en, string> = {
 
   "onboarding.ax.title": "เลื่อนอัตโนมัติ (ไม่บังคับ)",
   "onboarding.ax.lead":
-    "การจับภาพแบบเลื่อนสามารถเลื่อนหน้ายาว ๆ ให้เองโดยไม่ต้องเลื่อนด้วยมือ macOS ต้องการสิทธิ์ <b>การช่วยการเข้าถึง (Accessibility)</b> เพื่อเลื่อนหน้า ข้ามขั้นตอนนี้ได้และยังจับภาพแบบเลื่อนเองได้ตามปกติ — หรือให้สิทธิ์ที่นี่ หรือภายหลังในการตั้งค่า",
+    "โหมดจับภาพหน้ายาวเลื่อนหน้าและต่อภาพให้เองได้ macOS ต้องใช้สิทธิ์ <b>การช่วยการเข้าถึง (Accessibility)</b> เพื่อสั่งเลื่อนหน้า ข้ามขั้นตอนนี้ได้และยังเลื่อนจับภาพเองได้ตามปกติ — หรือให้สิทธิ์ที่นี่ หรือภายหลังในการตั้งค่า",
   "onboarding.ax.ready": "เลื่อนอัตโนมัติพร้อมใช้งาน",
   "onboarding.ax.notGranted": "ยังไม่ได้รับสิทธิ์ — จะใช้การเลื่อนเองแทน",
   "onboarding.ax.guide.ask":

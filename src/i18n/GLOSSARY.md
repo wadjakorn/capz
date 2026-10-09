@@ -8,7 +8,9 @@ one concept always gets one Thai word. Add to it when you introduce a new term.
 - Short, plain, polite-neutral. No ค่ะ/ครับ/นะ, no exclamation marks.
 - Buttons are verbs: บันทึก, คัดลอก, ยกเลิก — not "กดเพื่อบันทึก".
 - Keep it as short as the English where the space is tight (toolbar, tabs,
-  ring wedges). Prefer a common loanword over a long native phrase when Thai
+  ring wedges). A ring wedge fits ~70px per line (Noto Sans Thai 21px semibold,
+  about "บางส่วน"); break a longer one with "\n" into at most two lines
+  (`app.ring.*`). Prefer a common loanword over a long native phrase when Thai
   users already say it that way (เลเยอร์, สติกเกอร์, ไฟล์).
 - No space before/after Thai text inside a sentence except between clauses,
   as normal Thai typography. Put a space between Thai and Latin words/numbers:
@@ -33,8 +35,10 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | screenshot | ภาพหน้าจอ |
 | full screen | ทั้งหน้าจอ |
 | area / region | บางส่วน (menu) · พื้นที่ (in sentences) |
-| window | หน้าต่าง |
-| scrolling capture | จับภาพแบบเลื่อน |
+| window (capture mode) | หน้าต่างแอป (mode name) · จับภาพหน้าต่างแอป (command) |
+| window (the editor's own window, a target window) | หน้าต่าง |
+| scrolling capture | หน้ายาว (mode name) · จับภาพหน้ายาว (command) — not "แบบเลื่อน" |
+| system area capture (macOS) | บางส่วนแบบเร็ว — not "ด้วยเครื่องมือระบบ": users care that it is quick, not whose tool it is |
 | editor | ตัวแก้ไข |
 | canvas | แคนวาส |
 | backdrop | พื้นหลัง |
