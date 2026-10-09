@@ -827,7 +827,9 @@
   & .paper-head { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px 64px; align-items: end; padding-block: clamp(56px, 9vw, 128px) clamp(20px, 3vw, 36px); border-bottom: 1.5px solid var(--ink); }
   & .paper-head p { margin: 0; font-size: clamp(17px, 1.4vw, 20px); color: var(--ink-2); max-width: 32em; }
   & .thai-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px clamp(28px, 5vw, 72px); padding-block: clamp(32px, 5vw, 56px) clamp(56px, 9vw, 112px); align-items: start; }
-  & .thai-grid > .slot:last-child { grid-column: 2; }
+  & .thai-grid > .thai-search { grid-column: 2; }
+  & .thai-search h3 { font: 400 clamp(22px, 2.2vw, 30px)/1.45 var(--display); margin: 18px 0 6px; }
+  & .thai-search p { margin: 0; font-size: 17px; color: var(--ink-2); }
   & .thai-spec { margin: 0; padding-block: clamp(24px, 4vw, 48px) 0; }
   & .thai-spec figcaption { margin-top: 14px; font-size: 16px; color: var(--ink-2); max-width: 40em; }
 
@@ -875,8 +877,6 @@
   & .ek kbd { font-size: 16px; }
   & .ek-label { font-size: 17px; color: var(--app-fg); }
   & .ek-note { flex-basis: 100%; margin: 0; font-size: 16px; color: var(--app-fg-3); }
-  & .ws-update { grid-column: 1 / -1; border-top: 1px solid var(--app-border-2); padding-top: 24px; }
-  & .ws-update h3 { margin-top: 0; }
   & .mosaic { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: clamp(16px, 2.5vw, 32px); padding-block: clamp(32px, 5vw, 56px) clamp(56px, 9vw, 112px); align-items: start; }
   /* zigzag rows: wide (7:5) beside square (1:1) so each row's plates end level — no voids */
   & .m-a { grid-column: 1 / span 7; }
@@ -963,7 +963,7 @@
   }
   @media (max-width: 900px) {
     & .hero-body, & .lead-row, & .ch-head, & .paper-head, & .ring-row, & .thai-grid, & .ocr-grid, & .web-grid, & .ws-grid, & .loop-grid, & .ways { grid-template-columns: minmax(0, 1fr); }
-    & .thai-grid > .slot:last-child { grid-column: auto; }
+    & .thai-grid > .thai-search { grid-column: auto; }
     & .ws-side { margin-top: 0; }
     & .bd-grid { grid-template-columns: minmax(0, 1fr); }
     & .panel { border-left: 0; border-top: 1px solid var(--app-border); font-size: 16px; padding: 16px 14px 20px; }

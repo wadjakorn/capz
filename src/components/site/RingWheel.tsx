@@ -5,6 +5,13 @@ import type { TKey } from "@/i18n/store";
 
 const MODES: TKey[] = ["site.mode.full", "site.mode.area", "site.mode.window", "site.mode.scroll", "site.ring.system"];
 
+/** A segment label on up to two lines: at a U+200B in Thai, at the first space in a long English label. */
+function lines(label: string): string[] {
+  if (label.includes("\u200B")) return label.split("\u200B");
+  const sp = label.indexOf(" ");
+  return label.length > 10 && sp > 0 ? [label.slice(0, sp), label.slice(sp + 1)] : [label];
+}
+
 /** Diagram of command ring v2, drawn in the app-screen tokens (Area selected). */
 export function RingWheel() {
   const { t } = useT();
@@ -20,7 +27,11 @@ export function RingWheel() {
         return (
           <g key={key} className={i === sel ? "seg on" : "seg"}>
             <path d={`M${x0} ${y0} A${R} ${R} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${r} ${r} 0 0 0 ${x3} ${y3} Z`} />
-            <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central">{t(key)}</text>
+            <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central">
+              {lines(t(key)).map((l, j, all) => (
+                <tspan key={j} x={tx} dy={j === 0 ? `${-(all.length - 1) * 0.6}em` : "1.2em"}>{l}</tspan>
+              ))}
+            </text>
           </g>
         );
       })}

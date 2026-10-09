@@ -42,7 +42,11 @@ export function ThaiFirst() {
               </div>
             ))}
           </dl>
-          <MediaSlot id="settings-th" />
+          <div className="thai-search">
+            <MediaSlot id="settings-th" />
+            <h3><ThaiText>{t("site.thai.search.title")}</ThaiText></h3>
+            <p>{t("site.thai.search.desc")}</p>
+          </div>
         </div>
       </div>
     </section>
@@ -199,10 +203,6 @@ export function Workspaces() {
             <MediaSlot id="history-preview" />
             <h3><ThaiText>{t("site.ws.hist.title")}</ThaiText></h3>
             <p>{t("site.ws.hist.desc")}</p>
-          </div>
-          <div className="ws-update">
-            <h3><ThaiText>{t("site.ws.update.title")}</ThaiText></h3>
-            <p>{t("site.ws.update.desc")}</p>
           </div>
         </div>
       </div>

@@ -119,7 +119,6 @@ export function CaptureChapter() {
           <div>
             <h3><ThaiText>{t("site.ring.title")}</ThaiText></h3>
             <p>{t("site.ring.desc")}</p>
-            <p className="fine">{t("site.ring.note")}</p>
           </div>
           <RingWheel />
         </div>
