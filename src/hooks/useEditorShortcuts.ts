@@ -162,9 +162,10 @@ export function useEditorShortcuts() {
           escArmedAt.current = 0;
           toast.dismiss(ESC_TOAST_ID);
           select(null);
+          // CP-0069: one press also leaves any drawing tool, sticky or not.
+          // Clicking empty canvas is the way to deselect and keep drawing.
           const { tool, setTool } = useEditor.getState();
-          const keep = useSettings.getState().config.general.keepToolActive;
-          if (tool !== "select" && !isStickyTool(tool, keep)) setTool("select");
+          if (tool !== "select") setTool("select");
           return;
         }
         // No selection on a sticky tool → Esc drops back to Select.
