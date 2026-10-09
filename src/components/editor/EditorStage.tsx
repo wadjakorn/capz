@@ -36,6 +36,7 @@ import {
   isStickyTool,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
+import { highlightBox, lumaGridFor, pickHighlightBlend } from "@/lib/highlightBlend";
 import { formatPinLabel } from "@/lib/pinLabel";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
@@ -677,6 +678,13 @@ export function EditorStage({ src }: Props) {
   const cropBase = imageCrop ?? { x: 0, y: 0, w: srcW, h: srcH };
   const imgW = cropBase.w;
   const imgH = cropBase.h;
+  const draftBlend = useHighlightBlend(
+    image,
+    draft?.kind === "freehand" && draft.tool === "highlighter" ? draft.points : NO_POINTS,
+    toolsCfg.highlighter.strokeWidth,
+    cropBase.x,
+    cropBase.y,
+  );
 
   // When Crop is entered with a single (unrotated) image annotation selected,
   // the crop targets THAT image's on-screen box instead of the base screenshot.
@@ -1761,7 +1769,7 @@ export function EditorStage({ src }: Props) {
                   draft.tool === "highlighter" ? toolsCfg.highlighter.opacity : 1
                 }
                 globalCompositeOperation={
-                  draft.tool === "highlighter" ? "multiply" : undefined
+                  draft.tool === "highlighter" ? draftBlend : undefined
                 }
                 lineCap="round"
                 lineJoin="round"
@@ -2561,6 +2569,28 @@ function FreehandShape({ a, ctx }: { a: FreehandAnnotation; ctx: ShapeCtx }) {
   );
 }
 
+const NO_POINTS: number[] = [];
+
+/** Blend mode for a highlighter stroke (CP-0066): `screen` over a dark base
+ *  image, `multiply` otherwise. Derived from the points, so drag/nudge/undo
+ *  and export follow without storing anything on the annotation. */
+function useHighlightBlend(
+  img: HTMLImageElement | undefined,
+  points: number[],
+  strokeWidth: number,
+  offX: number,
+  offY: number,
+) {
+  return useMemo(
+    () =>
+      pickHighlightBlend(
+        img ? lumaGridFor(img) : null,
+        highlightBox(points, strokeWidth, offX, offY),
+      ),
+    [img, points, strokeWidth, offX, offY],
+  );
+}
+
 function HighlighterShape({
   a,
   ctx,
@@ -2569,6 +2599,13 @@ function HighlighterShape({
   ctx: ShapeCtx;
 }) {
   const { ref, handlers } = usePathShape(a, ctx);
+  const blend = useHighlightBlend(
+    ctx.bgImage,
+    a.points,
+    a.strokeWidth,
+    ctx.cropOffX,
+    ctx.cropOffY,
+  );
   return (
     <Line
       ref={ref}
@@ -2579,7 +2616,7 @@ function HighlighterShape({
       opacity={a.opacity ?? 0.5}
       lineCap="round"
       lineJoin="round"
-      globalCompositeOperation="multiply"
+      globalCompositeOperation={blend}
       hitStrokeWidth={Math.max(16, a.strokeWidth)}
       {...handlers}
     />
