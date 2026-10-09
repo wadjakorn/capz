@@ -220,6 +220,7 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.toast.capture": "จับภาพ",
   "editor.toast.clipboardAddFailed": "เพิ่มภาพจากคลิปบอร์ดไม่สำเร็จ",
   "editor.toast.clipboardNoImage": "ไม่มีภาพในคลิปบอร์ด",
+  "editor.toast.elementCopied": "คัดลอกองค์ประกอบแล้ว",
   "editor.toast.importFailed": "นำเข้าไม่สำเร็จ",
   "editor.toast.importFailedShort": "นำเข้าภาพไม่สำเร็จ",
   "editor.toast.notImage": "ไม่ใช่ไฟล์ภาพ",

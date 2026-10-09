@@ -42,6 +42,7 @@ import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
 import {
   setStage,
+  setAnnotationNodeLookup,
   getStage,
   runPrepareExport,
   setPrepareExport,
@@ -412,6 +413,12 @@ export function EditorStage({ src }: Props) {
     setStage(stageRef.current);
     return () => setStage(null);
   }, [image]);
+
+  // Element copy (CP-0068) renders the selected node through the bridge.
+  useEffect(() => {
+    setAnnotationNodeLookup((id) => nodeRefs.current.get(id));
+    return () => setAnnotationNodeLookup(null);
+  }, []);
 
   // Cursor: switch to grabbing while dragging an existing element.
   useEffect(() => {
@@ -1495,18 +1502,10 @@ export function EditorStage({ src }: Props) {
       return;
     }
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      if (useEditor.getState().hasImage) {
-        // Canvas has a base image: overlay the clipboard image instead of
-        // replacing it.
-        const dataUrl = await invoke<string>("read_clipboard_image_data_url");
-        const { addOverlayImage } = await import("@/lib/addImage");
-        const id = await addOverlayImage(dataUrl);
-        if (!id) toast.error(tx("editor.toast.clipboardAddFailed"));
-      } else {
-        // Empty canvas: the pasted image becomes the base.
-        await invoke<string>("paste_into_editor");
-      }
+      // Same decision as ⌘V: base image on an empty canvas, the copied
+      // element while it is still the latest copy (CP-0068), else an overlay.
+      const { desktopPaste } = await import("@/lib/elementClipboard");
+      if ((await desktopPaste()) === "failed") toast.error(tx("editor.toast.clipboardAddFailed"));
     } catch (err) {
       console.warn("clipboard paste failed", err);
       toast.error(tx("editor.toast.clipboardNoImage"));

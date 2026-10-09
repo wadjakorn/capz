@@ -9,16 +9,17 @@ export const DUPLICATE_OFFSET = 10;
 export const DUPLICATE_SHORTCUT = "CmdOrCtrl+D";
 
 /**
- * Offset for a copy of a box `aabb` on an image of size `bounds`: +10 on each
- * axis, flipped to -10 on an axis where the copy would run past the
- * right/bottom edge AND the flipped copy still starts inside the image. With
- * either side unknown it stays +10 (the canvas grows to show overflow anyway).
+ * Offset for a copy of a box `aabb` on an image of size `bounds`: +d on each
+ * axis (default 10), flipped to -d on an axis where the copy would run past
+ * the right/bottom edge AND the flipped copy still starts inside the image.
+ * With either side unknown it stays +d (the canvas grows to show overflow
+ * anyway). Paste (CP-0068) reuses it with d = 16.
  */
 export function duplicateOffset(
   aabb: AABB | null,
   bounds: { w: number; h: number } | null,
+  d: number = DUPLICATE_OFFSET,
 ): { dx: number; dy: number } {
-  const d = DUPLICATE_OFFSET;
   if (!aabb || !bounds) return { dx: d, dy: d };
   const axis = (start: number, size: number, limit: number) =>
     start + size + d > limit && start - d >= 0 ? -d : d;

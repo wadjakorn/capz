@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type Konva from "konva";
 import { copyOnly, saveOnly } from "./exportImage";
 import { DEFAULT_CONFIG } from "./config";
+import { getElementClipboard, setElementClipboard } from "./elementClipboard";
 import {
   setStageExportBox,
   setStageImageSize,
@@ -62,6 +63,16 @@ describe("exportImage on the web runtime (no Tauri)", () => {
     expect(written).toHaveLength(1);
     const item = written[0][0] as { types: Record<string, unknown> };
     expect(item.types["image/png"]).toBeDefined();
+  });
+
+  it("a whole-image copy clears the element clipboard (CP-0068)", async () => {
+    setElementClipboard({
+      annotation: { id: "a", type: "rect", x: 0, y: 0, w: 1, h: 1, stroke: "#000", strokeWidth: 1 },
+      workspaceId: null,
+      fingerprint: null,
+    });
+    await copyOnly(fakeStage());
+    expect(getElementClipboard()).toBeNull();
   });
 
   it("copyOnly falls back to a PNG download when the browser clipboard is unavailable (Linux/Firefox)", async () => {

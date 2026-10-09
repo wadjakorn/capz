@@ -494,6 +494,13 @@ export default function EditorPage() {
       if (sel && sel.toString().length > 0) return;
       e.preventDefault();
       try {
+        // A selected element is copied on its own (CP-0068); otherwise the
+        // whole rendered image, as before.
+        const { copySelectedElement } = await import("@/lib/elementClipboard");
+        if (await copySelectedElement()) {
+          toast.success(t("editor.toast.elementCopied"));
+          return;
+        }
         const { getStage } = await import("@/lib/stageBridge");
         const { copyOnly } = await import("@/lib/exportImage");
         const stage = getStage();
@@ -530,18 +537,11 @@ export default function EditorPage() {
       }
       ev.preventDefault();
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
-        if (useEditor.getState().hasImage) {
-          // Canvas already has a base image: layer the clipboard image as a
-          // movable overlay object on top.
-          const dataUrl = await invoke<string>("read_clipboard_image_data_url");
-          const { addOverlayImage } = await import("@/lib/addImage");
-          const id = await addOverlayImage(dataUrl);
-          if (!id) toast.error(t("editor.toast.clipboardAddFailed"));
-        } else {
-          // Empty canvas: the pasted image becomes the base.
-          await invoke<string>("paste_into_editor");
-        }
+        // Empty canvas: the pasted image becomes the base. Otherwise the
+        // copied element while it is still the latest copy (CP-0068), else the
+        // clipboard image layered on top as a movable object.
+        const { desktopPaste } = await import("@/lib/elementClipboard");
+        if ((await desktopPaste()) === "failed") toast.error(t("editor.toast.clipboardAddFailed"));
       } catch (err) {
         console.warn("clipboard paste failed", err);
         toast.error(t("editor.toast.clipboardNoImage"));
