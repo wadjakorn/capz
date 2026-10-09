@@ -4,6 +4,7 @@ import { applyFilenameTemplate, extensionFor } from "@/lib/filename";
 import { getStageExportBox, getStageImageSize } from "@/lib/stageBridge";
 import { isTauriRuntime } from "@/lib/platform";
 import { copyPngWithFallback, downloadPng } from "@/lib/webExport";
+import { clearElementClipboard } from "@/lib/elementClipboard";
 
 type ExportResult = {
   saved?: string;
@@ -76,6 +77,9 @@ async function copyToClipboard(
   stage: Konva.Stage,
   allowDownloadFallback = true,
 ): Promise<CopyOutcome> {
+  // The whole image is now the latest copy — ⌘V must not paste a copied
+  // element any more (CP-0068).
+  clearElementClipboard();
   const dataUrl = exportRegion(stage, { mimeType: "image/png" });
   const bytes = dataUrlToBytes(dataUrl);
   if (!isTauriRuntime()) {

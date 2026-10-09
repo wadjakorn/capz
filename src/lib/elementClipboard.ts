@@ -289,3 +289,21 @@ export async function desktopPaste(
   if (!dataUrl) throw readErr ?? new Error("clipboard has no image");
   return (await d.addOverlay(dataUrl)) ? "image" : "failed";
 }
+
+/**
+ * Web paste (`/paste`): paste the copied element if it is still the latest
+ * copy, given the image blob the paste carried (null = none). Returns true
+ * when the element was pasted; false means "handle the image as before".
+ */
+export async function pasteElementIfLatest(
+  blob: Blob | null,
+  fingerprint: (src: Blob, expect?: { w: number; h: number }) => Promise<Fingerprint | null> = fingerprintImage,
+): Promise<boolean> {
+  const clip = current;
+  const s = useEditor.getState();
+  if (!clip || !s.hasImage || s.tool === "crop") return false;
+  const os = !blob ? "none" : clip.fingerprint ? await fingerprint(blob, clip.fingerprint) : null;
+  if (!shouldPasteElement(clip, useEditor.getState(), os)) return false;
+  pasteElement();
+  return true;
+}

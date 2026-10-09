@@ -219,6 +219,7 @@ export const editor = {
   "editor.toast.capture": "Capture",
   "editor.toast.clipboardAddFailed": "Couldn't add clipboard image",
   "editor.toast.clipboardNoImage": "Clipboard has no image",
+  "editor.toast.elementCopied": "Element copied",
   "editor.toast.importFailed": "Import failed",
   "editor.toast.importFailedShort": "Couldn't import image",
   "editor.toast.notImage": "Not an image",

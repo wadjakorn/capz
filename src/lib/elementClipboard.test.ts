@@ -19,6 +19,7 @@ import {
   getElementClipboard,
   pasteDelta,
   pasteElement,
+  pasteElementIfLatest,
   setElementClipboard,
   shouldPasteElement,
   type Fingerprint,
@@ -337,5 +338,40 @@ describe("desktopPaste", () => {
       }),
     });
     expect(await desktopPaste(d)).toBe("element");
+  });
+});
+
+describe("pasteElementIfLatest (web)", () => {
+  const blob = new Blob(["x"], { type: "image/png" });
+  beforeEach(() => {
+    clearElementClipboard();
+    setStageImageSize(100, 100);
+    useWorkspaces.setState({ activeId: "w1" });
+    load([rect("a", 10, 10)], null);
+  });
+  afterEach(() => clearStageImageSize());
+
+  it("is false with nothing copied, without fingerprinting", async () => {
+    const fp = vi.fn(async () => FP);
+    expect(await pasteElementIfLatest(blob, fp)).toBe(false);
+    expect(fp).not.toHaveBeenCalled();
+  });
+
+  it("pastes the element when the pasted image matches", async () => {
+    setElementClipboard({ annotation: rect("a", 10, 10), workspaceId: "w1", fingerprint: FP });
+    expect(await pasteElementIfLatest(blob, async () => FP)).toBe(true);
+    expect(useEditor.getState().annotations).toHaveLength(2);
+  });
+
+  it("leaves a foreign image to the caller", async () => {
+    setElementClipboard({ annotation: rect("a", 10, 10), workspaceId: "w1", fingerprint: FP });
+    const other = fingerprintRgba(solid(16, 16, [0, 255, 0, 255]), 16, 16);
+    expect(await pasteElementIfLatest(blob, async () => other)).toBe(false);
+    expect(useEditor.getState().annotations).toHaveLength(1);
+  });
+
+  it("pastes a fingerprint-less element when the paste carried no image", async () => {
+    setElementClipboard({ annotation: rect("a", 10, 10), workspaceId: "w1", fingerprint: null });
+    expect(await pasteElementIfLatest(null)).toBe(true);
   });
 });

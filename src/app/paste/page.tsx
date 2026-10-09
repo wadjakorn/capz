@@ -14,6 +14,11 @@ import { useEditor } from "@/stores/editor";
 import { extractImageBlob, readClipboardPng } from "@/lib/webExport";
 import { getStage } from "@/lib/stageBridge";
 import { copyOnly } from "@/lib/exportImage";
+import {
+  copySelectedElement,
+  getElementClipboard,
+  pasteElementIfLatest,
+} from "@/lib/elementClipboard";
 import { shortcutKey } from "@/lib/shortcutKey";
 import {
   captureScreen,
@@ -159,6 +164,16 @@ export default function PastePage() {
         return;
       }
       const blob = extractImageBlob(ev.clipboardData?.items);
+      if (getElementClipboard()) {
+        // A copied element pastes while it is still the latest copy (CP-0068).
+        ev.preventDefault();
+        void pasteElementIfLatest(blob).then((pasted) => {
+          if (pasted) return;
+          if (blob) acceptBlob(blob);
+          else toast.error(tNow("app.paste.noImage"));
+        });
+        return;
+      }
       if (!blob) {
         toast.error(tNow("app.paste.noImage"));
         return;
@@ -173,7 +188,8 @@ export default function PastePage() {
   // Context-menu Paste inside the stage dispatches this (see EditorStage).
   useEffect(() => {
     const onWebPaste = () => {
-      void readClipboardPng().then((blob) => {
+      void readClipboardPng().then(async (blob) => {
+        if (await pasteElementIfLatest(blob)) return;
         if (blob) acceptBlob(blob);
         else toast.error(tNow("app.paste.noImage"), {
           description: tNow("app.paste.noImageDesc"),
@@ -201,7 +217,8 @@ export default function PastePage() {
     };
   }, [acceptBlob]);
 
-  // Cmd/Ctrl+C with no selection copies the flattened result.
+  // Cmd/Ctrl+C copies the selected element, or the flattened result with no
+  // selection.
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
       if (shortcutKey(e).toLowerCase() !== "c") return;
@@ -214,6 +231,12 @@ export default function PastePage() {
       if (sel && sel.toString().length > 0) return;
       e.preventDefault();
       try {
+        // A selected element is copied on its own (CP-0068). Its clipboard
+        // write starts synchronously inside this keydown (Safari activation).
+        if (await copySelectedElement()) {
+          toast.success(tNow("editor.toast.elementCopied"));
+          return;
+        }
         const stage = getStage();
         if (!stage) return;
         const r = await copyOnly(stage);
