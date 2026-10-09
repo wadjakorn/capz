@@ -19,6 +19,9 @@ on:
 
 jobs:
   update-cask:
+    # Only app releases (tags v*). Other releases — e.g. the bundled Tesseract
+    # asset (tesseract-win64-*) — carry no .dmg and must not touch the tap.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout capz (cask template source of truth)
