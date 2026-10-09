@@ -144,3 +144,18 @@ export function setScrollContainer(el: HTMLDivElement | null) {
 export function getScrollContainer(): HTMLDivElement | null {
   return scrollContainer;
 }
+
+/**
+ * Konva node for an annotation id. EditorStage owns the node map and publishes
+ * a lookup; element copy (CP-0068) renders the selected node through it.
+ */
+type AnnotationNodeLookup = (id: string) => Konva.Node | undefined;
+let annotationNodeLookup: AnnotationNodeLookup | null = null;
+
+export function setAnnotationNodeLookup(fn: AnnotationNodeLookup | null) {
+  annotationNodeLookup = fn;
+}
+
+export function getAnnotationNode(id: string): Konva.Node | undefined {
+  return annotationNodeLookup?.(id);
+}
