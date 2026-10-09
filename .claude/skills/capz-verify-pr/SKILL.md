@@ -6,7 +6,7 @@ description: capz-loop verify stage — review, fix, and merge open capz-loop PR
 # capz-verify-pr (verify)
 
 Read `capz-loop` first. The prompt lists PRs the precheck flagged (new head
-SHA, failed check, new human comment, owner approval, merged by the owner).
+SHA, failed check, new human comment or owner review, owner approval, merged by the owner).
 Handle them oldest first. You merge as the bot — GitHub enforces the owner's
 gates; you never try to get around a "review required".
 
@@ -32,11 +32,13 @@ approach (correctness first; no style nits). Post one PR comment with the
 findings (or "No blocking findings") ending in that marker.
 
 ### C. Fix
-- Your findings, failing checks (`gh run view --log-failed`), and every human
-  comment newer than your last reply → fix in the worktree using
+- Your findings, failing checks (`gh run view --log-failed`), every human
+  comment newer than your last reply, and every owner review newer than it
+  (`CHANGES_REQUESTED` / `COMMENTED` in `reviews` — read the body and its inline
+  comments: `gh api repos/wadjakorn/capz/pulls/N/comments`) → fix in the worktree using
   `superpowers:receiving-code-review` (verify each claim; push back with
   reasons when a comment is wrong). Rerun the layers from `capz-build-ticket`
-  §5 for what you touched. Push. Reply on the PR to each human comment.
+  §5 for what you touched. Push. Reply on the PR to each human comment and review.
 - Count fix rounds in STATUS. After **3** rounds still red → STATUS note,
   PR comment explaining what is stuck, ticket → `blocked`. Stop for this PR.
 - Pushing dismisses existing approvals — that is intended.
@@ -44,7 +46,7 @@ findings (or "No blocking findings") ending in that marker.
 ### D. Merge when ALL hold
 - `statusCheckRollup` green (incl. `tier 1 — web`), `mergeable` = MERGEABLE.
 - Latest review marker = head SHA, no blocking findings open.
-- No human comment newer than your last reply.
+- No human comment or owner review newer than your last reply.
 - **No merge freeze:** no open PR titled `chore(release): v*`.
 - **Gate:** if `mergeStateStatus` is `BLOCKED` while checks are green (the
   ruleset wants a code-owner review — `requested_reviewers` lists `wadjakorn`),

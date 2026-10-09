@@ -190,7 +190,11 @@ precheck_verify() {
     | ($c | map(select(. == "FAILURE" or . == "ERROR" or . == "CANCELLED" or . == "TIMED_OUT")) | length > 0) as $failed
     | ($c | map(select(. == "" or . == "PENDING" or . == "IN_PROGRESS" or . == "QUEUED" or . == "EXPECTED")) | length > 0) as $pending
     | ([.comments[] | select(.author.login == $bot)] | last | .createdAt // "") as $lastBot
-    | ([.comments[] | select(.author.login != $bot and .createdAt > $lastBot)] | length > 0) as $human
+    # Owner feedback also arrives as a PR review (Request changes / Comment,
+    # incl. inline comments), which never shows up in .comments.
+    | ([.comments[] | select(.author.login != $bot and .createdAt > $lastBot)]
+       + [.reviews[] | select(.author.login == $owner and .state != "APPROVED" and .submittedAt > $lastBot)]
+       | length > 0) as $human
     | ([.comments[] | select(.author.login == $bot) | .body | select(contains("capz-loop:reviewed sha=" + $p.headRefOid))] | length > 0) as $reviewed
     | ([.reviews[] | select(.author.login == $owner and .state == "APPROVED" and .commit.oid == $p.headRefOid)] | length > 0) as $approved
     # Rulesets leave reviewDecision empty, so a code-owner gate shows up only as
