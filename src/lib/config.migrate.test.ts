@@ -10,13 +10,16 @@ import {
 import v0 from "./__fixtures__/config/v0.json";
 import v1 from "./__fixtures__/config/v1.json";
 import v2 from "./__fixtures__/config/v2.json";
+import v4 from "./__fixtures__/config/v4.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
 // a silent fall-back to a default shows up as a failure:
 //   v0  — shape of v0.5.0 (no schemaVersion)
 //   v1  — shape of v0.9.2
-//   v2  — current schema (v0.10.0+)
+//   v2  — schema of v0.10.0+
+//   v4  — schema of v0.15.0+
+//   v5  — current schema (CP-0067)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -133,6 +136,21 @@ describe("v3 → v4: general.language", () => {
 
   it("a fresh install (nothing persisted) gets the Thai default", () => {
     expect(load(undefined).config.general.language).toBe("th");
+  });
+});
+
+describe("v4 → v5: general.copyClosesEditor (CP-0067)", () => {
+  it("a v4 store gains the setting switched off and keeps its values", () => {
+    const { config, issues } = load(v4);
+    expect(issues).toEqual([]);
+    expect(config.schemaVersion).toBe(5);
+    expect(config.general.copyClosesEditor).toBe(false);
+    expect(config.general).toMatchObject(v4.general);
+  });
+
+  it("keeps a stored true", () => {
+    const { config } = load({ schemaVersion: 5, general: { copyClosesEditor: true } });
+    expect(config.general.copyClosesEditor).toBe(true);
   });
 });
 
