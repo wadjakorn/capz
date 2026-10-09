@@ -349,6 +349,12 @@ export default function CommandRingPage() {
                         ? "var(--muted-foreground)"
                         : "var(--fg)",
                   pointerEvents: "none",
+                  // The body's -0.01em tracking is inherited into SVG <text>,
+                  // and WebKit's SVG text layout then spaces each code point on
+                  // its own: a stacked Thai mark (the mai ek over sara ue in
+                  // "เลื่อน") collapses into its neighbour. HTML text is unaffected,
+                  // so only the ring needs this. (CP-0071)
+                  letterSpacing: "normal",
                 }}
               >
                 {ringLabel(w)}
