@@ -10,6 +10,7 @@ import { useMacArch } from "@/hooks/use-mac-arch";
 import { cameraAt, cameraTransform, viewportRect } from "@/lib/heroCamera";
 import { heroSegments, locateSegment, type Segment } from "@/lib/heroSegments";
 import { ThaiText } from "./ThaiText";
+import { copyText } from "./copyText";
 
 const BREW_CMD = "brew install wadjakorn/capz/capz";
 /** Each chapter's share of the rail = its share of the scrub scroll. */
@@ -234,12 +235,16 @@ export function HeroScene() {
     let rt = 0;
     const onResize = () => { window.clearTimeout(rt); rt = window.setTimeout(() => { layout(); tick(); }, 120); };
     addEventListener("resize", onResize);
+    // the headline's height changes with the language and once fonts load: re-place the window under it
+    const ro = new ResizeObserver(() => { layout(); tick(); });
+    ro.observe(copyEl);
     const mqs = [phoneMq, fineMq, rmMq];
     mqs.forEach((q) => q.addEventListener("change", configure));
     configure();
 
     return () => {
       cancelAnimationFrame(raf);
+      ro.disconnect();
       io?.disconnect();
       removeEventListener("scroll", onScroll);
       removeEventListener("resize", onResize);
@@ -253,7 +258,7 @@ export function HeroScene() {
   }, []);
 
   const copy = async () => {
-    try { await navigator.clipboard.writeText(BREW_CMD); setCopied(true); window.setTimeout(() => setCopied(false), 1600); } catch { /* clipboard blocked */ }
+    if (await copyText(BREW_CMD)) { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }
   };
   const clip = HERO_CLIPS[active];
 

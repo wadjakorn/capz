@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { copyText } from "./copyText";
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
+    // if both paths are blocked, the command stays selectable
+    if (await copyText(text)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // clipboard blocked: the command stays selectable
     }
   };
 
