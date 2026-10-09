@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { splitUnits } from "./thaiText";
+import { splitUnits } from "./thaiUnits";
 
 /**
  * Renders a display string as unbreakable word units so Thai headings never

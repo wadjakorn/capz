@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BREAK, splitUnits } from "./thaiText";
+import { BREAK, splitUnits } from "./thaiUnits";
 
 describe("splitUnits", () => {
   it("keeps an unspaced Thai heading as one unit", () => {
