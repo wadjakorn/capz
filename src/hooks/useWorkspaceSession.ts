@@ -40,12 +40,17 @@ async function loadConvertFileSrc(): Promise<ConvertFileSrc | null> {
  * The exact `src` string EditorStage is handed for a doc. Preloading must use
  * the same string, or the preload cache misses and the stage loads it again.
  */
-function srcForDoc(doc: WorkspaceDoc, cfs: ConvertFileSrc | null): string {
+export function srcForDoc(doc: WorkspaceDoc, cfs: ConvertFileSrc | null): string {
   if (!doc.image) return "";
   if (doc.image.kind === "blob") return doc.image.url;
-  // Cache-bust: two workspaces can legitimately point at the same path after
-  // an undo, and the webview would otherwise serve a stale decode.
-  return cfs ? `${cfs(doc.image.path)}?w=${doc.id}` : doc.image.path;
+  if (!cfs) return doc.image.path;
+  // Cache-bust per workspace AND per image. Two workspaces can legitimately
+  // point at the same path after an undo; and one workspace reuses its path
+  // `<id>.png` when it is cleared and then filled by a capture, so without the
+  // capture's own source path the URL is unchanged and the webview serves the
+  // previous capture's decode (CP-0074).
+  const v = doc.sourcePath ? `&s=${encodeURIComponent(doc.sourcePath)}` : "";
+  return `${cfs(doc.image.path)}?w=${doc.id}${v}`;
 }
 
 export type WorkspaceSessionOptions = {
