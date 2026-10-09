@@ -61,3 +61,6 @@ hud-default.png
 # the project into a pnpm workspace and breaks the Cloudflare Pages install.
 pnpm-workspace.yaml
 e2e/visual-out/
+
+# impeccable review captures
+.impeccable/review/

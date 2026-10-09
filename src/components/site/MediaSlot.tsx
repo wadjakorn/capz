@@ -1,0 +1,64 @@
+"use client";
+
+import { EditorFrame } from "./EditorFrame";
+import { SLOTS, type SlotId } from "./shots";
+import { useT } from "@/i18n/useT";
+
+/**
+ * A shot from SHOTS.md. Until `ready` is flipped in shots.ts the designed
+ * placeholder (slot id + one line on what the shot will show) stands in,
+ * framed the way the real shot will be.
+ */
+export function MediaSlot({ id, frame = "editor", caption = true }: { id: SlotId; frame?: "editor" | "phone" | "bare"; caption?: boolean }) {
+  const { t } = useT();
+  const slot = SLOTS[id];
+  const line = t(slot.line);
+  const media = slot.ready ? (
+    slot.video ? (
+      <video className="shot" src={`/landing/${id}.mp4`} muted playsInline autoPlay loop preload="metadata" aria-label={line} />
+    ) : (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img className="shot" src={`/landing/${id}.webp`} alt={line} loading="lazy" decoding="async" />
+    )
+  ) : (
+    <div className="ph-img">
+      <div>
+        <div className="ph-id">{id}</div>
+        <div className="ph-line">{line}</div>
+      </div>
+    </div>
+  );
+  return (
+    <figure className={`slot slot--${frame}`}>
+      {frame === "editor" && slot.ready ? (
+        // A real capture already shows the editor's own toolbar: frame it as a
+        // plain window (whole-editor shots) or a bare card (canvas close-ups).
+        // macOS window captures bring their own chrome and are shown as is.
+        slot.shot === "native" ? (
+          <div className="native-card" style={{ aspectRatio: slot.aspect }}>{media}</div>
+        ) : slot.shot === "screen" ? (
+          <div className="bare screen-card" style={{ aspectRatio: slot.aspect }}>{media}</div>
+        ) : slot.shot === "window" ? (
+          <div className="win win--slot">
+            <div className="win-bar" aria-hidden><i /><i /><i /><span>capz</span></div>
+            <div className="slot-body" style={{ aspectRatio: slot.aspect }}>{media}</div>
+          </div>
+        ) : (
+          <div className="bare crop-card" style={{ aspectRatio: slot.aspect }}>{media}</div>
+        )
+      ) : frame === "editor" ? (
+        <EditorFrame tool={slot.tool} label={line}>{media}</EditorFrame>
+      ) : (
+        <div className={frame === "phone" ? "phone-frame" : "bare"} style={{ aspectRatio: slot.aspect }} role={slot.ready ? undefined : "img"} aria-label={slot.ready ? undefined : line}>
+          {media}
+        </div>
+      )}
+      {caption && !slot.ready && (
+        <figcaption>
+          <b>{id}</b>
+          <span>{t("site.slot.pending")}</span>
+        </figcaption>
+      )}
+    </figure>
+  );
+}
