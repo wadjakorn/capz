@@ -607,9 +607,10 @@
   & .cmd code::before { content: "$ "; color: var(--ink-2); }
   & .ver { display: inline-flex; gap: 10px; align-items: center; color: var(--ink-2); }
   & .ver i { width: 8px; height: 8px; border-radius: 50%; background: var(--app-accent); display: inline-block; }
-  & .proofstrip { list-style: none; margin: 8px 0 0; padding: 14px 0 0; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 4px 0; font-size: 16px; font-weight: 500; }
+  & .proofstrip { list-style: none; margin: 8px 0 0; padding: 14px 0 0; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 16px; font-weight: 500; }
   & .proofstrip li { display: inline-flex; align-items: center; }
-  & .proofstrip li + li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ink); margin-inline: 12px; }
+  /* every item carries its own mark, so a wrapped line never starts with a stray separator */
+  & .proofstrip li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--pill); margin-right: 9px; }
 
   /* ---------- hero scroll scene ---------- */
   & .scene { position: relative; background: var(--sheet); }
@@ -767,7 +768,7 @@
     & .mode-list::-webkit-scrollbar { display: none; }
     & .mode { flex: none; display: inline-flex; scroll-snap-align: start; scroll-margin-inline: var(--gut); min-height: 44px; padding: 0 16px; border-radius: 999px; border-color: var(--app-border-2); }
     & .mode .name { font: 600 16px/1 var(--body); white-space: nowrap; }
-    & .mode .keys, & .mode .note, & .mode .tag { display: none; }
+    & .mode .keys, & .mode .note, & .mode .tag, & .mode[aria-selected="true"] .note { display: none; }
     & .mode[aria-selected="true"] { background: var(--app-pill); border-color: var(--app-pill); color: #fff; }
     & .mode-foot { display: none; }
     & .mode-plate { position: static; }
@@ -838,10 +839,14 @@
   & .ws-update { grid-column: 1 / -1; border-top: 1px solid var(--app-border-2); padding-top: 24px; }
   & .ws-update h3 { margin-top: 0; }
   & .mosaic { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: clamp(16px, 2.5vw, 32px); padding-block: clamp(32px, 5vw, 56px) clamp(56px, 9vw, 112px); align-items: start; }
+  /* zigzag rows: wide (7:5) beside square (1:1) so each row's plates end level — no voids */
   & .m-a { grid-column: 1 / span 7; }
-  & .m-b { grid-column: 8 / span 5; margin-top: clamp(0px, 8vw, 120px); }
-  & .m-c { grid-column: 2 / span 5; }
-  & .m-d { grid-column: 7 / span 6; margin-top: clamp(0px, 4vw, 56px); }
+  & .m-b { grid-column: 8 / span 5; }
+  & .m-c { grid-column: 1 / span 5; }
+  & .m-d { grid-column: 6 / span 7; }
+  & .m-cap { margin: 12px 0 0; font: 600 17px/1.4 var(--body); color: var(--app-fg); }
+  /* a close-up is a loupe on the page: fade its edges so cut glyphs read as framing, not damage */
+  & .crop-card .shot { mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent); mask-composite: intersect; -webkit-mask-composite: source-in; }
   & .ocr-grid, & .web-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.4fr); gap: 32px clamp(28px, 5vw, 80px); align-items: center; padding-block: clamp(56px, 9vw, 128px); }
   & .web-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); border-top: 1.5px solid var(--ink); }
   & .ocr-grid { border-top: 0; }
@@ -933,6 +938,7 @@
     & .slider input::-moz-range-thumb { width: 24px; height: 24px; }
     & .mosaic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     & .m-a, & .m-b, & .m-c, & .m-d { grid-column: auto; margin-top: 0; }
+    & .mosaic .crop-card { aspect-ratio: 4 / 3 !important; } /* equal columns: one shape keeps each row level */
   }
   @media (max-width: 600px) {
     & h2 { font-size: clamp(40px, 13vw, 52px); }

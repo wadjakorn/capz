@@ -2,6 +2,7 @@
 
 import { ArrowRight, Crop, Droplet, Highlighter, Image as ImageIcon, Magnet, Pencil, Search, Shapes, Smile, Type, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { MediaSlot } from "./MediaSlot";
+import type { SlotId } from "./shots";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 import { ThaiText } from "./ThaiText";
@@ -53,6 +54,14 @@ const EDIT_KEYS: Array<[string[][], TKey]> = [
   [[["←", "↑", "↓", "→"]], "site.key.nudge"],
 ];
 
+/** Close-ups in two rows; each row's plates share a height (aspect ∝ column span: 7:5 beside 1:1). */
+const PLATES: Array<[string, SlotId, TKey]> = [
+  ["m-a", "tool-arrow", "site.tool.arrow"],
+  ["m-b", "tool-pins", "site.tool.pin"],
+  ["m-c", "tool-magnify", "site.tool.magnify"],
+  ["m-d", "tool-blur", "site.tool.blur"],
+];
+
 /** The editor's tools as its own toolbar, plus four close-ups in a mosaic of unequal plates. */
 export function Annotate() {
   const { t } = useT();
@@ -83,10 +92,12 @@ export function Annotate() {
           <p className="ek-note">{t("site.key.note")}</p>
         </div>
         <div className="mosaic">
-          <div className="m-a"><MediaSlot id="tool-arrow" /></div>
-          <div className="m-b"><MediaSlot id="tool-pins" /></div>
-          <div className="m-c"><MediaSlot id="tool-magnify" /></div>
-          <div className="m-d"><MediaSlot id="tool-blur" /></div>
+          {PLATES.map(([cls, id, label]) => (
+            <div key={id} className={cls}>
+              <MediaSlot id={id} />
+              <p className="m-cap"><ThaiText>{t(label)}</ThaiText></p>
+            </div>
+          ))}
         </div>
       </div>
     </section>

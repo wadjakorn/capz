@@ -192,7 +192,7 @@ export const site: Record<keyof typeof en, string> = {
   "site.ws.title": "เก็บงาน",
   "site.ws.desc": "ทำหลายภาพพร้อมกันได้ โดยไม่มีภาพไหนหาย",
   "site.ws.ws.title": "Workspace",
-  "site.ws.ws.desc": "สูงสุดห้า workspace แต่ละอันมี canvas ของตัวเอง สลับได้ทันที และภาพใหม่จะลงใน workspace ที่ว่าง",
+  "site.ws.ws.desc": "เปิดใช้ได้ใน Settings แต่ละ workspace มี canvas ของตัวเอง ค่าเริ่มต้น 5 อัน ปรับได้สูงสุด 9 สลับได้ทันที และภาพใหม่จะลงใน workspace ที่ว่าง",
   "site.ws.hist.title": "ประวัติ",
   "site.ws.hist.desc": "ทุกภาพที่เก็บไว้ พร้อมพรีวิวเพื่อเปิดดูในโฟลเดอร์ คัดลอก ลบ หรือเพิ่มเข้า workspace ปัจจุบัน เปิดเก็บทุกภาพอัตโนมัติได้",
 

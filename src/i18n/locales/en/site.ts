@@ -191,7 +191,7 @@ export const site = {
   "site.ws.title": "Keep your work",
   "site.ws.desc": "Several captures in progress without losing any of them.",
   "site.ws.ws.title": "Workspaces",
-  "site.ws.ws.desc": "Up to five workspaces, each with its own canvas. Switching is instant, and a new capture fills an empty one.",
+  "site.ws.ws.desc": "Turn them on in Settings. Each workspace has its own canvas: 5 by default, up to 9. Switching is instant, and a new capture fills an empty one.",
   "site.ws.hist.title": "History",
   "site.ws.hist.desc": "Every capture you keep, with a preview to reveal, copy, trash, or add it to the current workspace. Optional archive of everything.",
 
