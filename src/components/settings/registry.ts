@@ -157,12 +157,6 @@ export const SETTINGS = {
   },
 
   // ── Editor ───────────────────────────────────────────────────────────────
-  "editor.theme": {
-    page: "editor",
-    labelKey: "settings.editor.theme",
-    keywords: ["theme", "dark mode", "light", "colour", "color"],
-    keywordsTh: ["ธีม", "มืด", "สว่าง", "สี"],
-  },
   "editor.remember": {
     page: "editor",
     labelKey: "settings.editor.remember",
@@ -355,6 +349,12 @@ export const SETTINGS = {
     keywords: ["language", "thai", "english", "locale"],
     keywordsTh: ["ภาษา", "ไทย", "อังกฤษ"],
     addedIn: "0.15.0",
+  },
+  "app.theme": {
+    page: "app",
+    labelKey: "settings.app.theme",
+    keywords: ["theme", "dark mode", "light", "colour", "color"],
+    keywordsTh: ["ธีม", "มืด", "สว่าง", "สี"],
   },
   "app.login": {
     page: "app",

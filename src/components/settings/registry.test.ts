@@ -95,7 +95,7 @@ describe("settings registry", () => {
   describe("search", () => {
     it("finds a row by a keyword that is not in its label", () => {
       expect(searchSettings("webp", "mac")).toContain("after.format");
-      expect(searchSettings("dark mode", "mac")).toContain("editor.theme");
+      expect(searchSettings("dark mode", "mac")).toContain("app.theme");
     });
 
     it("ignores case and surrounding space", () => {
@@ -110,7 +110,7 @@ describe("settings registry", () => {
       // Label ("รูปแบบไฟล์") and a keywordsTh entry, whatever the UI language.
       expect(searchSettings("รูปแบบไฟล์", "mac")).toContain("after.format");
       expect(searchSettings("ภาษา", "mac")).toContain("app.language");
-      expect(searchSettings("มืด", "mac")).toContain("editor.theme");
+      expect(searchSettings("มืด", "mac")).toContain("app.theme");
     });
 
     it("still matches English labels", () => {

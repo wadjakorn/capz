@@ -30,7 +30,7 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.capture.sound": "เล่นเสียงเมื่อจับภาพ",
   "settings.capture.ringModes": "โหมดในวงคำสั่ง",
   "settings.capture.backdrop": "ใส่พื้นหลังอัตโนมัติ",
-  "settings.editor.theme": "ธีม",
+  "settings.app.theme": "ธีม",
   "settings.editor.remember": "จำเครื่องมือ สี และขนาดล่าสุด",
   "settings.editor.snap": "จัดแนวอัตโนมัติกับขอบและองค์ประกอบอื่น",
   "settings.editor.rulers": "แสดงไม้บรรทัด",
@@ -142,10 +142,10 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.ringModes.full": " — เอาเครื่องหมายออกหนึ่งช่องเพื่อเปลี่ยนเป็นโหมดอื่น",
 
   // ── Editor page ────────────────────────────────────────────────────────────
-  "settings.editor.theme.hint": "ตามระบบจะใช้ธีมเดียวกับระบบปฏิบัติการ",
-  "settings.editor.theme.dark": "มืด",
-  "settings.editor.theme.light": "สว่าง",
-  "settings.editor.theme.system": "ตามระบบ",
+  "settings.app.theme.hint": "ใช้กับทั้งแอป ตามระบบจะใช้ธีมเดียวกับระบบปฏิบัติการ",
+  "settings.app.theme.dark": "มืด",
+  "settings.app.theme.light": "สว่าง",
+  "settings.app.theme.system": "ตามระบบ",
   "settings.editor.snap.hint": "กด Alt ค้างไว้เพื่อข้าม",
   "settings.editor.keepToolActive.hint":
     "ถ้าปิด จะกลับไปที่เครื่องมือเลือกหลังใช้หนึ่งครั้ง ตั้งได้ที่แถบข้างของตัวแก้ไขหรือกด K ด้วย",
