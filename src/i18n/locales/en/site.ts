@@ -73,7 +73,7 @@ export const site = {
   "site.slot.backdrop-base": "A plain window capture with no backdrop",
   "site.slot.thai-text": "The text tool with a mark-heavy Thai line and the line-spacing panel",
   "site.slot.settings-th": "Settings in Thai, with a search typed in",
-  "site.slot.ocr": "Detect text on Thai content: a line selected, the copied toast showing",
+  "site.slot.ocr": "Text detection on a Thai web page: every line it reads is highlighted, ready to select and copy",
   "site.slot.tool-arrow": "A curved arrow with its mid handle",
   "site.slot.tool-pins": "Pins 1-2-3 and A-B-C",
   "site.slot.tool-magnify": "The magnifier on a small detail",

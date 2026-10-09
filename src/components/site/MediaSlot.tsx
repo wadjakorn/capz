@@ -33,7 +33,12 @@ export function MediaSlot({ id, frame = "editor", caption = true }: { id: SlotId
       {frame === "editor" && slot.ready ? (
         // A real capture already shows the editor's own toolbar: frame it as a
         // plain window (whole-editor shots) or a bare card (canvas close-ups).
-        slot.shot === "window" ? (
+        // macOS window captures bring their own chrome and are shown as is.
+        slot.shot === "native" ? (
+          <div className="native-card" style={{ aspectRatio: slot.aspect }}>{media}</div>
+        ) : slot.shot === "screen" ? (
+          <div className="bare screen-card" style={{ aspectRatio: slot.aspect }}>{media}</div>
+        ) : slot.shot === "window" ? (
           <div className="win win--slot">
             <div className="win-bar" aria-hidden><i /><i /><i /><span>capz</span></div>
             <div className="slot-body" style={{ aspectRatio: slot.aspect }}>{media}</div>

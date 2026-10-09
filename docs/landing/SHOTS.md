@@ -13,8 +13,10 @@ placeholder showing the slot id and one line saying what the shot will show.
 ## รายการที่เหลือ (เจ้าของถ่ายเองทั้งหมด)
 
 อัปเดต 2026-10-09: เจ้าของจะถ่ายทุกภาพเองบนแอปเดสก์ท็อป ภาพที่ agent ถ่ายจาก `/paste` ตอนนี้ใช้เป็นตัวแทนชั่วคราว รอเปลี่ยนเป็นของจริง
-- ✅ **ถ่ายแล้ว (รอส่งไฟล์):** `area-overlay`, `window-corners`, `ocr`, `full-screen`, `history-preview`, `settings-th`
-- ⬜ **เหลือ 17 รายการ** ตามตารางด้านล่าง
+- ✅ **ใส่แล้ว (ภาพจากเจ้าของ, 2026-10-10):** `ring-v2`, `scroll-capture`, `area-overlay`, `window-corners`, `ocr`, `full-screen`, `history-preview`, `settings-th`
+  - ภาพหน้าต่างครอปจากขอบเทาเข้ม ใส่มุมโค้งโปร่งใส แสดงแบบ `native` (ใช้กรอบ macOS ของภาพเอง) สัดส่วน 3:2
+  - คลิปตัดช่วงรอ เร่ง 1.15–1.3× ครอปเป็น 3:2 ที่ 1500×1000
+- ⬜ **เลื่อนไปก่อน (ใช้ภาพจาก `/paste` ไปพลาง):** หมวด A, C และคลิป `workspaces` ตามตารางด้านล่าง
 
 **กติการ่วม**
 - **ธีมและภาษา:** ธีมสว่าง เมนูภาษาไทย วอลเปเปอร์เรียบ ปิดการแจ้งเตือน
@@ -39,8 +41,8 @@ placeholder showing the slot id and one line saying what the shot will show.
 
 | # | id | ความยาว | ถ่ายอะไร |
 |---|---|---|---|
-| 5 | `ring-v2` | ~6 วินาที | กด ⌘⇧Space ค้าง → แตะ Space วน 2–3 ครั้ง → ปล่อยที่ "เลือกพื้นที่" → ลากกรอบ → editor เปิด |
-| 6 | `scroll-capture` | ~8 วินาที | ตั้งปุ่มลัด "จับภาพแบบเลื่อน" ใน Settings ก่อน → จับหน้าเว็บไทยยาว ๆ → ให้เห็น HUD → จบที่ภาพยาวใน editor |
+| 5 ✅ | `ring-v2` | ~6 วินาที | กด ⌘⇧Space ค้าง → แตะ Space วน 2–3 ครั้ง → ปล่อยที่ "เลือกพื้นที่" → ลากกรอบ → editor เปิด |
+| 6 ✅ | `scroll-capture` | ~8 วินาที | ตั้งปุ่มลัด "จับภาพแบบเลื่อน" ใน Settings ก่อน → จับหน้าเว็บไทยยาว ๆ → ให้เห็น HUD → จบที่ภาพยาวใน editor |
 | 7 | `workspaces` | 6–7 วินาที | เปิด workspace ใน Settings ก่อน → สลับ workspace 2–3 อัน (ให้เห็นภาพในแต่ละอัน) |
 
 ### C. ภาพนิ่ง (ตอนนี้ agent ถ่ายจาก `/paste` รอเปลี่ยน)
@@ -96,17 +98,17 @@ Status: ✅ = captured from `/paste` (light) and `ready: true`; 🖥 = needs the
 | Priority | id | What to capture |
 |---|---|---|
 | ★★★ ✅ | `hero-editor` | The editor marking up a Thai page: an arrow, pins 1-2-3, a Thai label, a blurred email, the magnifier, a Risograph backdrop |
-| ★★★ 🖥 | `ring-v2` (loop) | Hold ⌘⇧Space, tap to cycle, release, and the area overlay appears |
-| ★★★ 🖥 | `scroll-capture` (loop) | The scroll HUD stitching a long Thai page, ending on the tall result |
-| ★★ 🖥 | `full-screen` | A full-screen capture just opened in the editor |
-| ★★ 🖥 | `area-overlay` | The area overlay on a busy desktop, with the template rect and the action pill |
-| ★★ 🖥 | `window-corners` | A macOS window capture on a backdrop, with transparent corners |
+| ★★★ ✅ (owner) | `ring-v2` (loop) | Hold ⌘⇧Space, tap to cycle, release, and the area overlay appears |
+| ★★★ ✅ (owner) | `scroll-capture` (loop) | The scroll HUD stitching a long Thai page, ending on the tall result |
+| ★★ ✅ (owner) | `full-screen` | A full-screen capture just opened in the editor |
+| ★★ ✅ (owner) | `area-overlay` | The area overlay on a busy desktop, with the template rect and the action pill |
+| ★★ ✅ (owner) | `window-corners` | A macOS window capture on a backdrop, with transparent corners |
 | ★★ ✅ | `thai-text` | The text tool with a mark-heavy Thai line ("ผู้ใหญ่ปั้นดินน้ำมัน สระไม่ลอย", 48px), plus the line-spacing panel |
 | ★★ ✅ | `combine` | A chat screenshot pasted onto a docs page as a layer, joined by an arrow and pins 1-2 |
-| ★★ 🖥 | `ocr` | Detect text on Thai content: a line selected and the "copied" toast showing |
+| ★★ ✅ (owner) | `ocr` | Detect text on Thai content: a line selected and the "copied" toast showing |
 | ★★ ✅ | `workspaces` (loop) | Switching workspaces (captured on the web; History preview is desktop-only and has its own slot) |
-| ★ 🖥 | `settings-th` | Settings in Thai, with a search query typed |
-| ★ 🖥 | `history-preview` | The History preview with Reveal, Copy, Trash and Add to workspace |
+| ★ ✅ (owner) | `settings-th` | Settings in Thai, with a search query typed |
+| ★ ✅ (owner) | `history-preview` | The History preview with Reveal, Copy, Trash and Add to workspace |
 | ★ ✅ | `tool-arrow`, `tool-pins`, `tool-magnify`, `tool-blur` | One 1:1 close-up per tool |
 | ★ ✅ | `paste-mobile` | `/paste` on a phone (portrait) |
 | — ✅ | `backdrop-base` | The annotated capture with no backdrop, 1600×1000. The backdrop playground draws it on every style. |

@@ -94,11 +94,13 @@ export type Slot = {
   /** Clip instead of a still: public/landing/<id>.mp4 (looped, muted). */
   video?: boolean;
   /**
-   * How a ready shot is framed: "window" = a capture of the whole editor,
-   * shown in a plain window (it already has the real toolbar); "crop" = a
-   * close-up of the canvas, shown as a bare card.
+   * How a ready shot is framed: "window" = a /paste capture of the editor
+   * (no OS chrome), shown in a plain window; "crop" = a close-up of the
+   * canvas, shown as a bare card; "native" = a real macOS window capture that
+   * already carries its own title bar and transparent rounded corners, shown
+   * as is; "screen" = a recording or capture of the whole desktop.
    */
-  shot: "window" | "crop";
+  shot: "window" | "crop" | "native" | "screen";
 };
 
 export type EditorTool = "select" | "arrow" | "shapes" | "text" | "blur" | "pen" | "highlighter" | "magnify" | "sticker" | "pin" | "crop";
@@ -114,25 +116,26 @@ const slot = (id: SlotId, aspect: string, o: SlotOpts = {}): Slot => ({
   shot: o.shot ?? "window",
 });
 
-// Ready shots were captured from the web editor (/paste, light theme) with
-// Playwright; the rest need the desktop app (see docs/landing/SHOTS.md).
+// Most ready shots were captured from the web editor (/paste, light theme)
+// with Playwright; the desktop-only ones (3:2) come from the owner's Mac
+// (see docs/landing/SHOTS.md).
 export const SLOTS: Record<SlotId, Slot> = {
   "hero-editor": slot("hero-editor", "16 / 10", { tool: "arrow", ready: true }),
-  "full-screen": slot("full-screen", "16 / 10"),
-  "area-overlay": slot("area-overlay", "16 / 10", { tool: "crop" }),
-  "window-corners": slot("window-corners", "16 / 10"),
-  "ring-v2": slot("ring-v2", "16 / 10", { video: true }),
-  "scroll-capture": slot("scroll-capture", "16 / 10", { video: true }),
+  "full-screen": slot("full-screen", "3 / 2", { ready: true, shot: "native" }),
+  "area-overlay": slot("area-overlay", "3 / 2", { tool: "crop", ready: true, shot: "screen" }),
+  "window-corners": slot("window-corners", "3 / 2", { ready: true, shot: "native" }),
+  "ring-v2": slot("ring-v2", "3 / 2", { video: true, ready: true, shot: "screen" }),
+  "scroll-capture": slot("scroll-capture", "3 / 2", { video: true, ready: true, shot: "screen" }),
   "backdrop-base": slot("backdrop-base", "16 / 10", { ready: true }),
   "thai-text": slot("thai-text", "16 / 10", { tool: "text", ready: true }),
-  "settings-th": slot("settings-th", "16 / 10"),
-  ocr: slot("ocr", "16 / 10"),
+  "settings-th": slot("settings-th", "3 / 2", { ready: true, shot: "native" }),
+  ocr: slot("ocr", "3 / 2", { ready: true, shot: "native" }),
   "tool-arrow": slot("tool-arrow", "7 / 5", { tool: "arrow", ready: true, shot: "crop" }),
   "tool-pins": slot("tool-pins", "1 / 1", { tool: "pin", ready: true, shot: "crop" }),
   "tool-magnify": slot("tool-magnify", "1 / 1", { tool: "magnify", ready: true, shot: "crop" }),
   "tool-blur": slot("tool-blur", "7 / 5", { tool: "blur", ready: true, shot: "crop" }),
   workspaces: slot("workspaces", "16 / 10", { video: true, ready: true }),
-  "history-preview": slot("history-preview", "16 / 10"),
+  "history-preview": slot("history-preview", "3 / 2", { ready: true, shot: "native" }),
   "paste-mobile": slot("paste-mobile", "9 / 19.5", { ready: true }),
   combine: slot("combine", "16 / 10", { tool: "arrow", ready: true, shot: "crop" }),
 };
