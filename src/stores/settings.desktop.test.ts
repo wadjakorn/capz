@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import v1 from "@/lib/__fixtures__/config/v1.json";
 import v2 from "@/lib/__fixtures__/config/v2.json";
-import current from "@/lib/__fixtures__/config/v4.json";
+import current from "@/lib/__fixtures__/config/v5.json";
 import { CONFIG_SCHEMA_VERSION } from "@/lib/config";
 import v99 from "@/lib/__fixtures__/config/v99.json";
 

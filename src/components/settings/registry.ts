@@ -218,6 +218,13 @@ export const SETTINGS = {
     keywords: ["esc", "escape", "hide", "export", "auto", "after capture", "clipboard", "copy", "save"],
     keywordsTh: ["ปิด", "ส่งออก", "อัตโนมัติ", "คลิปบอร์ด", "คัดลอก", "บันทึก"],
   },
+  "after.copyCloses": {
+    page: "after",
+    labelKey: "settings.after.copyCloses",
+    keywords: ["cmd+c", "ctrl+c", "copy", "close", "hide", "shortcut", "clipboard"],
+    keywordsTh: ["คัดลอก", "ปิด", "ปุ่มลัด", "คลิปบอร์ด"],
+    addedIn: "0.18.0",
+  },
   "after.folder": {
     page: "after",
     labelKey: "settings.after.folder",
