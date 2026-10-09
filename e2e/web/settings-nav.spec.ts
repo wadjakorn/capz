@@ -28,7 +28,7 @@ test("sidebar pages are named, not just icons", async ({ page }) => {
 test("switching page swaps the heading and its one-line description", async ({ page }) => {
   await page
     .getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "Saving", exact: true })
+    .getByRole("button", { name: /^Saving\b/ })
     .click();
   await expect(page.getByRole("heading", { name: "Saving", level: 2 })).toBeVisible();
   await expect(page.getByText("What happens to a screenshot when you leave the editor, and where files go.")).toBeVisible();
@@ -37,7 +37,7 @@ test("switching page swaps the heading and its one-line description", async ({ p
 test("everyday rows are visible and the rest sit behind Advanced", async ({ page }) => {
   await page
     .getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "Saving", exact: true })
+    .getByRole("button", { name: /^Saving\b/ })
     .click();
 
   await expect(page.locator('[data-setting-id="after.folder"]')).toBeVisible();
