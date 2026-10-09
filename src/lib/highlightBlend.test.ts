@@ -1,95 +1,84 @@
 import { describe, expect, it } from "vitest";
-import {
-  highlightBox,
-  lumaGridFromRGBA,
-  pickHighlightBlend,
-} from "./highlightBlend";
+import { darkWeight, strokeDeviceRect, toDarkMask } from "./highlightBlend";
 
-/** RGBA buffer for a cols×rows grid where `px(c, r)` gives [r, g, b, a]. */
-function rgba(cols: number, rows: number, px: (c: number, r: number) => number[]) {
-  const data = new Uint8ClampedArray(cols * rows * 4);
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols; c++) data.set(px(c, r), (r * cols + c) * 4);
-  return data;
-}
+const ID = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
 
-const solid = (v: number) => () => [v, v, v, 255];
-// Grid of 4×4 cells over a 400×400 source image (100 px per cell).
-const grid = (px: (c: number, r: number) => number[]) =>
-  lumaGridFromRGBA(rgba(4, 4, px), 4, 4, 400, 400);
-const whole = { x: 0, y: 0, w: 400, h: 400 };
-
-describe("pickHighlightBlend", () => {
-  it("screens over black", () => {
-    expect(pickHighlightBlend(grid(solid(0)), whole)).toBe("screen");
+describe("darkWeight", () => {
+  it("is fully screen over black", () => {
+    expect(darkWeight(0, 0, 0, 255)).toBe(1);
   });
 
-  it("multiplies over white", () => {
-    expect(pickHighlightBlend(grid(solid(255)), whole)).toBe("multiply");
+  it("is fully multiply over white", () => {
+    expect(darkWeight(255, 255, 255, 255)).toBe(0);
   });
 
-  it("multiplies over mid-grey (#808080 is just above 0.5)", () => {
-    expect(pickHighlightBlend(grid(solid(128)), whole)).toBe("multiply");
+  it("blends evenly at mid-grey", () => {
+    expect(darkWeight(128, 128, 128, 255)).toBeCloseTo(0.5, 1);
   });
 
-  it("follows the majority of a mixed region", () => {
-    // Columns 0–2 black, column 3 white.
-    const g = grid((c) => (c < 3 ? [0, 0, 0, 255] : [255, 255, 255, 255]));
-    expect(pickHighlightBlend(g, whole)).toBe("screen");
-    // Only the white column → multiply; only a black column → screen.
-    expect(pickHighlightBlend(g, { x: 300, y: 0, w: 100, h: 400 })).toBe("multiply");
-    expect(pickHighlightBlend(g, { x: 0, y: 0, w: 100, h: 400 })).toBe("screen");
-    // Mostly white: 1 black column of 4 → multiply.
-    const g2 = grid((c) => (c < 1 ? [0, 0, 0, 255] : [255, 255, 255, 255]));
-    expect(pickHighlightBlend(g2, whole)).toBe("multiply");
+  it("is fully screen below 0.4 and fully multiply above 0.6", () => {
+    expect(darkWeight(90, 90, 90, 255)).toBe(1); // ~0.35
+    expect(darkWeight(166, 166, 166, 255)).toBe(0); // ~0.65
   });
 
-  it("samples a small box inside a single cell", () => {
-    const g = grid((c) => (c < 2 ? [0, 0, 0, 255] : [255, 255, 255, 255]));
-    expect(pickHighlightBlend(g, { x: 10, y: 10, w: 5, h: 5 })).toBe("screen");
-    expect(pickHighlightBlend(g, { x: 390, y: 10, w: 5, h: 5 })).toBe("multiply");
+  it("counts transparent pixels as white", () => {
+    expect(darkWeight(0, 0, 0, 0)).toBe(0);
   });
 
-  it("multiplies when the box is outside the image or there is no grid", () => {
-    expect(pickHighlightBlend(grid(solid(0)), { x: 500, y: 500, w: 50, h: 50 })).toBe(
-      "multiply",
-    );
-    expect(pickHighlightBlend(null, whole)).toBe("multiply");
-    expect(pickHighlightBlend(grid(solid(0)), null)).toBe("multiply");
-  });
-
-  it("treats transparent pixels as white", () => {
-    expect(pickHighlightBlend(grid(() => [0, 0, 0, 0]), whole)).toBe("multiply");
-  });
-
-  it("weights channels by perceived luminance", () => {
-    // Pure blue is dark (0.07), pure green is light (0.72).
-    expect(pickHighlightBlend(grid(() => [0, 0, 255, 255]), whole)).toBe("screen");
-    expect(pickHighlightBlend(grid(() => [0, 255, 0, 255]), whole)).toBe("multiply");
+  it("uses Rec. 709 luminance (pure blue is dark, pure green is light)", () => {
+    expect(darkWeight(0, 0, 255, 255)).toBe(1);
+    expect(darkWeight(0, 255, 0, 255)).toBe(0);
   });
 });
 
-describe("highlightBox", () => {
+describe("toDarkMask", () => {
+  it("rewrites each pixel to black with alpha = dark weight", () => {
+    const data = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 255, 128, 128, 128, 255]);
+    toDarkMask(data);
+    expect(Array.from(data.slice(0, 4))).toEqual([0, 0, 0, 255]);
+    expect(Array.from(data.slice(4, 8))).toEqual([0, 0, 0, 0]);
+    expect(data[11]).toBeGreaterThan(110);
+    expect(data[11]).toBeLessThan(145);
+  });
+});
+
+describe("strokeDeviceRect", () => {
   it("pads the points' bounds by half the stroke width", () => {
-    expect(highlightBox([10, 20, 110, 40], 20, 0, 0)).toEqual({
+    expect(strokeDeviceRect([10, 20, 110, 20], 20, ID, 1000, 1000)).toEqual({
       x: 0,
       y: 10,
       w: 120,
-      h: 40,
+      h: 20,
     });
   });
 
-  it("shifts into source-image pixels by the crop offset", () => {
-    expect(highlightBox([10, 20, 110, 40], 20, 50, 5)).toEqual({
-      x: 50,
-      y: 15,
-      w: 120,
-      h: 40,
+  it("maps through the device transform (scale + translate)", () => {
+    const m = { a: 2, b: 0, c: 0, d: 2, e: 5, f: 7 };
+    expect(strokeDeviceRect([10, 10, 20, 10], 4, m, 1000, 1000)).toEqual({
+      x: 21,
+      y: 23,
+      w: 28,
+      h: 8,
     });
   });
 
-  it("handles a single point (a dot) and returns null with no points", () => {
-    expect(highlightBox([10, 10], 4, 0, 0)).toEqual({ x: 8, y: 8, w: 4, h: 4 });
-    expect(highlightBox([], 4, 0, 0)).toBeNull();
+  it("covers a rotated stroke", () => {
+    // 90° rotation: (x, y) → (-y, x), shifted into view.
+    const m = { a: 0, b: 1, c: -1, d: 0, e: 100, f: 0 };
+    expect(strokeDeviceRect([10, 10, 50, 10], 10, m, 1000, 1000)).toEqual({
+      x: 85,
+      y: 5,
+      w: 10,
+      h: 50,
+    });
+  });
+
+  it("clips to the canvas and returns null when off-canvas", () => {
+    expect(strokeDeviceRect([-50, 5, 50, 5], 10, ID, 30, 30)).toEqual({ x: 0, y: 0, w: 30, h: 10 });
+    expect(strokeDeviceRect([500, 500, 600, 500], 10, ID, 30, 30)).toBeNull();
+  });
+
+  it("returns null without a point", () => {
+    expect(strokeDeviceRect([], 10, ID, 30, 30)).toBeNull();
   });
 });

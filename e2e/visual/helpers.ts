@@ -13,17 +13,22 @@ import { expect } from "../fixtures/test";
  */
 const OUT = process.env.CAPZ_VISUAL_OUT ?? path.join(__dirname, "..", "visual-out");
 
-/** Open /paste and paste a solid 800×600 image so the stage mounts. */
-export async function loadImage(page: Page, fill = "#3355ff") {
+/** Open /paste and paste a solid 800×600 image so the stage mounts
+ *  (`right` paints the right half a second colour). */
+export async function loadImage(page: Page, fill = "#3355ff", right?: string) {
   await page.goto("/paste");
   await page.waitForLoadState("networkidle");
-  await page.evaluate(async (fill) => {
+  await page.evaluate(async ({ fill, right }) => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = fill;
     ctx.fillRect(0, 0, 800, 600);
+    if (right) {
+      ctx.fillStyle = right;
+      ctx.fillRect(400, 0, 400, 600);
+    }
     const blob: Blob = await new Promise((r) =>
       canvas.toBlob((b) => r(b!), "image/png"),
     );
@@ -32,7 +37,7 @@ export async function loadImage(page: Page, fill = "#3355ff") {
     window.dispatchEvent(
       new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
     );
-  }, fill);
+  }, { fill, right });
   await expect(page.locator("canvas").first()).toBeVisible();
 }
 

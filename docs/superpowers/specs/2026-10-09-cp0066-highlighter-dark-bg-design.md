@@ -55,14 +55,24 @@ field is added; older workspaces need no handling.
 
 ### Per-stroke vs per-pixel
 
-Per-stroke (the ticket's recommendation, accepted with the ticket). A stroke
-crossing light and dark areas uses the majority. Per-pixel blending is out of
-scope.
+~~Per-stroke (the ticket's recommendation, accepted with the ticket). A stroke
+crossing light and dark areas uses the majority.~~
+
+**Revised after owner test (PR #114 review):** per-stroke looked better on dark
+areas but worse on light ones, because a stroke over mixed content got one mode
+for all of it. Now **per pixel**: a cached dark mask of the base image (alpha =
+dark share, soft ramp from luminance 0.4 → all `screen` to 0.6 → all
+`multiply`) splits each stroke into a dark share drawn with `screen` and a
+light share drawn with `multiply`, in a custom Konva `sceneFunc`
+(`highlighterSceneFunc`; hit-testing keeps the plain stroke via
+`highlighterHitFunc`). Export renders the same nodes, so it matches. `overlay`
+was considered and rejected: it multiplies dark pixels, which is the original
+bug.
 
 ## Decided defaults
 
-- Threshold 0.5. Exactly 0.5 → multiply (a mid-grey `#808080` is 0.502 →
-  multiply).
+- Soft ramp 0.4–0.6 (mid-grey is about half screen, half multiply). Outside
+  the base image, or when it can't be read, the stroke multiplies as before.
 - No settings key → no `CONFIG_SCHEMA_VERSION` bump.
 - No user-visible string → no i18n change.
 
