@@ -99,8 +99,21 @@ $(cat "$WORK_FILE")"
   set -e
   rm -f "$WORK_FILE"
   if ((rc != 0)); then
-    notify "capz-loop $STAGE failed (exit $rc). Log: $LOG"
-    log "agent exit $rc — $LOG"
+    # Out of Claude quota (shared with the owner's own sessions) is not a loop
+    # bug: say so plainly, once per reset window, not once per stage run.
+    limit="$(grep -m1 -oE "hit your [a-z ]*limit.*" "$LOG" || true)"
+    if [[ -n "$limit" ]]; then
+      reset="$(sed -nE 's/.*resets (.*)$/\1/p' <<<"$limit")"
+      seen="$STATE/quota-alert"
+      if [[ "$(cat "$seen" 2>/dev/null)" != "$limit" ]] || [[ -n "$(find "$seen" -mmin +360 2>/dev/null)" ]]; then
+        notify "capz-loop paused: Claude quota used up${reset:+, back at $reset}. Stages retry on their own after that ($STAGE run skipped)."
+        printf '%s' "$limit" >"$seen"
+      fi
+      log "quota exhausted${reset:+ (resets $reset)} — $LOG"
+    else
+      notify "capz-loop $STAGE failed (exit $rc). Log: $LOG"
+      log "agent exit $rc — $LOG"
+    fi
   fi
   exit "$rc"
 fi
