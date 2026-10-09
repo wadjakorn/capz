@@ -28,7 +28,9 @@ placeholder showing the slot id and one line saying what the shot will show.
 | `annotate` | An arrow, pins 1-2-3, a blurred email, the magnifier, a Thai text label | On phones the camera zooms to the action. Keyframes use normalised x/y (0–1). |
 | `backdrop` | Turning on the backdrop, then switching art styles | `camera`: whole frame |
 
-The clips are recorded in the `/paste` web editor (light theme). Annotations are drawn **before** the backdrop is turned on, which works around the blur/magnify offset bug when a backdrop is active (see the PR notes).
+The clips are recorded in the `/paste` web editor (light theme): annotate first, then turn on the backdrop.
+
+**Automation note:** map image coordinates to the screen with the `.bg-image` node's `getAbsoluteTransform().point()`. Don't use `getClientRect()`: with a backdrop on it includes the image's drop shadow, which shifts every point by up to ~15px and makes magnify/blur look misplaced. That isn't an app bug.
 
 ## Stills and loops (`SLOTS`)
 
