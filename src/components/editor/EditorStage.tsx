@@ -79,6 +79,7 @@ import { anchoredScrollOffset } from "@/lib/zoomAnchor";
 import { snapAxis, snapResizedBox } from "@/lib/snap";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
+import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
 import { getPreloaded } from "@/lib/imagePreload";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
@@ -97,11 +98,36 @@ type Draft =
 type TextEditor = {
   imgX: number;
   imgY: number;
-  screenX: number;
-  screenY: number;
   value: string;
   id?: string;
 };
+
+// The annotation a text editor stands for: the edited one with its live text,
+// or — for new text — exactly what `commitTextEditor` would add. The overlay
+// renders this, so editing and committed text share one layout (CP-0065).
+function draftTextAnnotation(
+  te: TextEditor,
+  textCfg: AppConfig["tools"]["text"],
+  existing?: TextAnnotation,
+): TextAnnotation {
+  if (existing) return { ...existing, text: te.value };
+  return {
+    id: "",
+    type: "text",
+    x: te.imgX,
+    y: te.imgY,
+    text: te.value,
+    fontSize: textCfg.fontSize,
+    fill: textCfg.color,
+    fontStyle: textCfg.fontStyle,
+    textDecoration: textCfg.textDecoration,
+    fontFamily: textCfg.fontFamily,
+    backgroundColor: textCfg.backgroundColor,
+    bgPadding: textCfg.backgroundPadding,
+    align: textCfg.align,
+    lineHeight: textCfg.lineHeight,
+  };
+}
 
 function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
   switch (a.type) {
@@ -633,7 +659,8 @@ export function EditorStage({ src }: Props) {
     if (!tr) return;
     // Crop mode owns the canvas: hide the normal box Transformer even though the
     // selection is preserved (so per-object image crop knows its target).
-    if (!selectedId || tool === "crop") {
+    // A text being edited is hidden under its overlay — don't frame it.
+    if (!selectedId || tool === "crop" || textEditor?.id === selectedId) {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -651,13 +678,16 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(selectedId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [selectedId, annotations, tool]);
+  }, [selectedId, annotations, tool, textEditor?.id]);
 
   useEffect(() => {
     const tr = hoverTrRef.current;
     if (!tr) return;
     const showId =
-      tool !== "crop" && hoveredId && hoveredId !== selectedId
+      tool !== "crop" &&
+      hoveredId &&
+      hoveredId !== selectedId &&
+      hoveredId !== textEditor?.id
         ? hoveredId
         : null;
     if (!showId) {
@@ -668,7 +698,7 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(showId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [hoveredId, selectedId, annotations, tool]);
+  }, [hoveredId, selectedId, annotations, tool, textEditor?.id]);
 
   const srcW = image?.naturalWidth ?? 0;
   const srcH = image?.naturalHeight ?? 0;
@@ -1196,17 +1226,7 @@ export function EditorStage({ src }: Props) {
       return;
     }
     if (tool === "text") {
-      const stage = stageRef.current;
-      const ptr = stage?.getPointerPosition();
-      const rect = stage?.container().getBoundingClientRect();
-      if (!stage || !ptr || !rect) return;
-      setTextEditor({
-        imgX: p.x,
-        imgY: p.y,
-        screenX: rect.left + ptr.x,
-        screenY: rect.top + ptr.y,
-        value: "",
-      });
+      setTextEditor({ imgX: p.x, imgY: p.y, value: "" });
     }
   }
 
@@ -1217,20 +1237,8 @@ export function EditorStage({ src }: Props) {
       if (v) update(textEditor.id, { text: v });
     } else if (v) {
       const a: TextAnnotation = {
+        ...draftTextAnnotation({ ...textEditor, value: v }, toolsCfg.text),
         id: uid(),
-        type: "text",
-        x: textEditor.imgX,
-        y: textEditor.imgY,
-        text: v,
-        fontSize: toolsCfg.text.fontSize,
-        fill: toolsCfg.text.color,
-        fontStyle: toolsCfg.text.fontStyle,
-        textDecoration: toolsCfg.text.textDecoration,
-        fontFamily: toolsCfg.text.fontFamily,
-        backgroundColor: toolsCfg.text.backgroundColor,
-        bgPadding: toolsCfg.text.backgroundPadding,
-        align: toolsCfg.text.align,
-        lineHeight: toolsCfg.text.lineHeight,
       };
       add(a);
       scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1649,15 +1657,14 @@ export function EditorStage({ src }: Props) {
                   scheduleLastUsedWrite(lastUsedPatchForAnnotation(merged));
                 },
                 setRef: (n) => setNodeRef(a.id, n),
-                onEditText: (t, sx, sy) =>
+                onEditText: (t) =>
                   setTextEditor({
                     imgX: t.x,
                     imgY: t.y,
-                    screenX: sx,
-                    screenY: sy,
                     value: t.text,
                     id: t.id,
                   }),
+                editing: textEditor?.id === a.id,
                 snapDrag,
                 snapResize,
                 endSnap,
@@ -1951,71 +1958,90 @@ export function EditorStage({ src }: Props) {
           originPxX={-contentBox.x * scale}
           originPxY={-contentBox.y * scale}
         />
+        {textEditor && (() => {
+          // WYSIWYG: the overlay is laid out from the same `textBoxLayout` as
+          // TextShape and lives in the stage's own coordinate wrapper, so it
+          // sits on the committed node and scrolls/zooms with the canvas.
+          const existing = textEditor.id
+            ? (annotations.find(
+                (an) => an.id === textEditor.id && an.type === "text",
+              ) as TextAnnotation | undefined)
+            : undefined;
+          const ta = draftTextAnnotation(textEditor, toolsCfg.text, existing);
+          const layout = textBoxLayout(ta);
+          const o = textEditorOverlay(layout, ta.fontSize, scale);
+          return (
+            <div
+              data-testid="text-editor-box"
+              style={{
+                position: "absolute",
+                left: (ta.x - contentBox.x) * scale,
+                top: (ta.y - contentBox.y) * scale,
+                width: o.box.w,
+                height: o.box.h,
+                background: layout.bg ?? "transparent",
+                borderRadius: o.box.radius,
+                // Konva rotates the Group about its (x, y) origin.
+                transform: ta.rotation ? `rotate(${ta.rotation}deg)` : undefined,
+                transformOrigin: "0 0",
+                // Outline never affects layout, unlike a border.
+                outline: `1px dashed ${ta.fill}`,
+                outlineOffset: 2,
+                zIndex: 50,
+              }}
+            >
+              <textarea
+                ref={textareaRef}
+                value={textEditor.value}
+                wrap="off"
+                spellCheck={false}
+                onChange={(e) =>
+                  setTextEditor({ ...textEditor, value: e.target.value })
+                }
+                onBlur={commitTextEditor}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    commitTextEditor();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setTextEditor(null);
+                  }
+                }}
+                style={{
+                  position: "absolute",
+                  left: o.text.left,
+                  top: o.text.top,
+                  width: o.text.width,
+                  height: o.text.height,
+                  margin: 0,
+                  padding: 0,
+                  border: "none",
+                  outline: "none",
+                  background: "transparent",
+                  overflow: "hidden",
+                  resize: "none",
+                  whiteSpace: "pre",
+                  fontFamily: layout.fontFamily,
+                  fontSize: o.text.fontSize,
+                  lineHeight: layout.lineHeight,
+                  textAlign: layout.align,
+                  fontWeight: layout.fontStyle.includes("bold") ? 700 : 400,
+                  fontStyle: layout.fontStyle.includes("italic")
+                    ? "italic"
+                    : "normal",
+                  textDecoration: layout.textDecoration || "none",
+                  letterSpacing: 0,
+                  color: ta.fill,
+                  caretColor: ta.fill,
+                }}
+              />
+            </div>
+          );
+        })()}
           </div>
         </div>
       )}
-      {textEditor && (() => {
-        const editing = textEditor.id
-          ? (annotations.find(
-              (an) => an.id === textEditor.id && an.type === "text",
-            ) as TextAnnotation | undefined)
-          : undefined;
-        const teFontSize = editing?.fontSize ?? toolsCfg.text.fontSize;
-        const teColor = editing?.fill ?? toolsCfg.text.color;
-        const teStyle = editing?.fontStyle ?? toolsCfg.text.fontStyle;
-        const teDeco = editing?.textDecoration ?? toolsCfg.text.textDecoration;
-        const teFamily = editing?.fontFamily ?? toolsCfg.text.fontFamily;
-        const teAlign = editing?.align ?? toolsCfg.text.align;
-        const teLineHeight = editing?.lineHeight ?? toolsCfg.text.lineHeight;
-        const teBg =
-          editing?.backgroundColor !== undefined
-            ? editing.backgroundColor
-            : toolsCfg.text.backgroundColor;
-        const bold = teStyle.includes("bold");
-        const italic = teStyle.includes("italic");
-        return (
-        <textarea
-          ref={textareaRef}
-          value={textEditor.value}
-          onChange={(e) =>
-            setTextEditor({ ...textEditor, value: e.target.value })
-          }
-          onBlur={commitTextEditor}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              commitTextEditor();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              setTextEditor(null);
-            }
-          }}
-          style={{
-            position: "fixed",
-            left: textEditor.screenX,
-            top: textEditor.screenY,
-            fontFamily: teFamily,
-            fontSize: Math.max(14, teFontSize * scale),
-            lineHeight: teLineHeight,
-            textAlign: teAlign,
-            fontWeight: bold ? 700 : 400,
-            fontStyle: italic ? "italic" : "normal",
-            textDecoration: teDeco || "none",
-            color: teColor,
-            background: teBg ?? "rgba(20,20,20,0.92)",
-            border: `2px dashed ${toolsCfg.text.color}`,
-            outline: "none",
-            padding: teBg ? "8px 12px" : 4,
-            borderRadius: teBg ? 10 : 0,
-            minWidth: 140,
-            minHeight: Math.max(28, toolsCfg.text.fontSize * scale + 12),
-            resize: "none",
-            zIndex: 50,
-            caretColor: teColor,
-          }}
-        />
-        );
-      })()}
     </div>
     {showRulers && (
       <Rulers
@@ -2114,7 +2140,9 @@ type ShapeCtx = {
   onHover: (hovered: boolean) => void;
   onChange: (patch: Partial<Annotation>) => void;
   setRef: (n: Konva.Node | null) => void;
-  onEditText?: (a: TextAnnotation, screenX: number, screenY: number) => void;
+  onEditText?: (a: TextAnnotation) => void;
+  /** This text's on-canvas editor is open: hide the node (the overlay draws it). */
+  editing?: boolean;
   snapDrag: (id: string, b: AABB, altKey: boolean) => { dx: number; dy: number };
   snapResize: (
     id: string,
@@ -2816,97 +2844,25 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
   );
 }
 
-// Shared offscreen canvas for measuring real glyph ink bounds. Konva sizes
-// text by font em-box (≈ fontSize per line), which clips scripts whose marks
-// stack outside the em box — e.g. Thai upper vowels + tone marks. measureText's
-// actualBoundingBox ascent/descent report the true ink extent.
-const _inkCanvas: HTMLCanvasElement | null =
-  typeof document !== "undefined" ? document.createElement("canvas") : null;
-
-function measureTextInk(
-  text: string,
-  fontSize: number,
-  fontStyle: string,
-  fontFamily: string,
-): {
-  ascent: number;
-  descent: number;
-  width: number;
-  fontAscent: number;
-  fontDescent: number;
-} {
-  const ctx = _inkCanvas?.getContext("2d");
-  const lines = (text || " ").split("\n");
-  if (!ctx) {
-    // SSR / no canvas: fall back to em-box estimate.
-    return {
-      ascent: fontSize * 0.8,
-      descent: fontSize * 0.2,
-      width: 0,
-      fontAscent: fontSize * 0.8,
-      fontDescent: fontSize * 0.2,
-    };
-  }
-  const cssStyle = fontStyle && fontStyle !== "normal" ? `${fontStyle} ` : "";
-  ctx.font = `${cssStyle}${fontSize}px ${fontFamily}`;
-  let ascent = 0;
-  let descent = 0;
-  let width = 0;
-  let fontAscent = 0;
-  let fontDescent = 0;
-  for (const ln of lines) {
-    const m = ctx.measureText(ln || " ");
-    ascent = Math.max(ascent, m.actualBoundingBoxAscent || fontSize * 0.8);
-    descent = Math.max(descent, m.actualBoundingBoxDescent || fontSize * 0.2);
-    width = Math.max(width, m.width);
-    // Font-global metrics — Konva positions its alphabetic baseline from these.
-    fontAscent = Math.max(fontAscent, m.fontBoundingBoxAscent || fontSize * 0.8);
-    fontDescent = Math.max(
-      fontDescent,
-      m.fontBoundingBoxDescent || fontSize * 0.2,
-    );
-  }
-  return { ascent, descent, width, fontAscent, fontDescent };
-}
-
 function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   const ref = useRef<Konva.Group>(null);
   useEffect(() => {
     ctx.setRef(ref.current);
     return () => ctx.setRef(null);
   });
-  const bg = a.backgroundColor ?? null;
-  // User-adjustable horizontal padding (px); vertical derived to keep the label
-  // shape balanced. Falls back to a roomy default for pre-existing annotations.
-  const padX = bg ? Math.max(0, a.bgPadding ?? 14) : 0;
-  const padY = bg ? Math.round(padX * 0.66) : 0;
-  const fontStyle = a.fontStyle ?? "normal";
-  const textDecoration = a.textDecoration ?? "";
-  const fontFamily = a.fontFamily ?? THAI_SANS_STACK;
-  const align = a.align ?? "left";
-  const lineHeight = a.lineHeight ?? DEFAULT_TEXT_LINE_HEIGHT;
-
-  // Size the content box to Konva's own line-box height (lines × lineHeight ×
-  // fontSize) — the Text node's intrinsic height. Matching it means the
-  // background Rect, the Text node, and the selection/transformer all coincide
-  // at any lineHeight, so the transformer hugs the visible background + padding.
-  // (An ink-tight height made the transformer overshoot by the line leading; a
-  // smaller explicit height on <Text> would make Konva truncate overflow lines.)
-  // Width still comes from real glyph ink (max advance across lines) so it hugs
-  // tall/stacked scripts like Thai and drives per-line alignment.
-  const box = useMemo(() => {
-    const ink = measureTextInk(a.text, a.fontSize, fontStyle, fontFamily);
-    const lines = (a.text || " ").split("\n").length;
-    const innerW = Math.ceil(ink.width);
-    const innerH = Math.ceil(lines * a.fontSize * lineHeight);
-    const w = innerW + padX * 2;
-    const h = innerH + padY * 2;
-    return { w, h, innerW, innerH };
-  }, [a.text, a.fontSize, fontStyle, fontFamily, lineHeight, padX, padY]);
-
-  const cornerRadius = bg
-    ? Math.min(22, Math.max(6, Math.round(Math.min(box.w, box.h) * 0.18)))
-    : 0;
+  // Same layout the editing overlay uses (see textBoxLayout).
+  const box = useMemo(() => textBoxLayout(a), [a]);
+  const {
+    bg,
+    padX,
+    padY,
+    cornerRadius,
+    fontStyle,
+    fontFamily,
+    textDecoration,
+    align,
+    lineHeight,
+  } = box;
 
   return (
     <Group
@@ -2914,6 +2870,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       x={a.x}
       y={a.y}
       rotation={a.rotation ?? 0}
+      visible={!ctx.editing}
       draggable
       {...hoverHandlers(ctx)}
       onPointerDown={(e) => {
@@ -2926,7 +2883,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
       // existing text un-editable on a phone. `pointerdblclick` also fires for
       // a desktop double-click, so this covers both with one handler.
       onPointerDblClick={(e) => {
-        ctx.onEditText?.(a, e.evt.clientX, e.evt.clientY);
+        ctx.onEditText?.(a);
       }}
       onDragMove={(e) => {
         const node = e.target;
