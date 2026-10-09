@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { drawRect, loadImage, stageBox } from "../visual/helpers";
 
 // 1x1 red PNG
 const PNG_B64 =
@@ -90,4 +91,24 @@ test("choosing a file via the picker mounts the stage", async ({ page }) => {
   });
 
   await expect(page.locator("canvas").first()).toBeVisible();
+});
+
+test("Ctrl+C copies the selected element, and the whole image with nothing selected (CP-0068)", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await loadImage(page);
+  await drawRect(page, { x: 60, y: 60 }, { x: 220, y: 180 });
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const box = await stageBox(page);
+  await page.mouse.click(box.x + 140, box.y + 120);
+
+  await page.keyboard.press("Control+c");
+  await expect(page.getByText("Element copied")).toBeVisible();
+
+  // Click empty canvas to deselect → whole-image copy as before.
+  await page.mouse.click(box.x + 600, box.y + 450);
+  await page.keyboard.press("Control+c");
+  await expect(page.getByText(/^Copied$/)).toBeVisible();
 });
