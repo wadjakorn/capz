@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 import {
   ACTIVE,
@@ -80,6 +81,7 @@ export function useTemplateDrag(tpl: EditTemplate): {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", cancel);
+        window.removeEventListener("blur", blur);
         ghost?.remove();
         ghost = null;
         hint()?.setAttribute("data-on", "false");
@@ -121,6 +123,8 @@ export function useTemplateDrag(tpl: EditTemplate): {
         useDragStore.getState().setDropTarget(dt?.kind === "tile" ? dt.id : null);
       }
 
+      const blur = () => teardown();
+
       function cancel() {
         teardown();
       }
@@ -130,7 +134,7 @@ export function useTemplateDrag(tpl: EditTemplate): {
         const dt = wasLive ? locate(ev.clientX, ev.clientY) : null;
         teardown();
         if (!dt) return;
-        void prepared.then((cfs) => {
+        prepared.then((cfs) => {
           const ws = useWorkspaces.getState();
           const target = dt.kind === "canvas" ? (ws.activeId ?? ACTIVE) : dt.id;
           // State may have moved while sizes decoded.
@@ -143,13 +147,16 @@ export function useTemplateDrag(tpl: EditTemplate): {
             cfs,
           );
           showApplyToast(summary, t);
-          if (dt.kind === "tile") useDragStore.getState().flash(dt.id);
+          if (dt.kind === "tile" && summary.applied > 0) useDragStore.getState().flash(dt.id);
+        }).catch(() => {
+          toast(t("editor.templates.toast.aborted"));
         });
       }
 
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", cancel);
+      window.addEventListener("blur", blur);
       cleanupRef.current = teardown;
     },
     [tpl],

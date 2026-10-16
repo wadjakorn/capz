@@ -179,11 +179,11 @@ export function showApplyToast(s: ApplySummary, t: (k: TKey, v?: TVars) => strin
   if (s.cropSkipped) parts.push(t("editor.templates.toast.cropSkipped", { n: s.cropSkipped }));
   const desc: string[] = [];
   if (s.scaleMismatch) desc.push(t("editor.templates.toast.scaleMismatch"));
-  desc.push(t("editor.templates.toast.undoHint"));
+  if (s.applied > 0) desc.push(t("editor.templates.toast.undoHint"));
   const prev = s.previousLook;
   toast(parts.join(" · "), {
     id: TOAST_ID,
-    description: desc.join(" "),
+    ...(desc.length ? { description: desc.join(" ") } : {}),
     ...(prev
       ? {
           duration: REVERT_MS,

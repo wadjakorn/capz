@@ -60,6 +60,44 @@ const mk = (over = {}) =>
   render(<TemplateCard tpl={tpl} onRename={vi.fn()} onDelete={vi.fn()} {...over} />);
 
 describe("TemplateCard", () => {
+  it("Apply to… is enabled without an active image when another tile has one", async () => {
+    const { useSettings } = await import("@/stores/settings");
+    const { DEFAULT_CONFIG } = await import("@/lib/config");
+    useSettings.setState({
+      config: { ...DEFAULT_CONFIG, workspaces: { ...DEFAULT_CONFIG.workspaces, enabled: true } },
+    });
+    useEditor.setState({ hasImage: false });
+    useWorkspaces.setState({
+      order: ["A", "B"],
+      activeId: "A",
+      docs: {
+        A: { id: "A", image: null },
+        B: { id: "B", image: { kind: "file", path: "/b" } },
+      } as unknown as ReturnType<typeof useWorkspaces.getState>["docs"],
+    });
+    mk();
+    expect((screen.getByRole("button", { name: "Apply to…" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Apply to this" }) as HTMLButtonElement).disabled).toBe(true);
+    useWorkspaces.setState({ order: [], activeId: null, docs: {} });
+  });
+
+  it("Apply to… is disabled when no target has an image", () => {
+    useEditor.setState({ hasImage: false });
+    mk();
+    expect((screen.getByRole("button", { name: "Apply to…" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("renders a placeholder, not a broken img, when thumb is empty", () => {
+    const { container } = mk({ tpl: { ...tpl, thumb: "" } });
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByTestId("thumb-placeholder")).toBeTruthy();
+  });
+
+  it("uses the singular item label for one item", () => {
+    mk({ tpl: { ...tpl, backdropOn: undefined, backdropLook: undefined } });
+    expect(screen.getByText(/^1 item ·/)).toBeTruthy();
+  });
+
   it("Apply to this passes picker defaults (backdropLook false)", () => {
     mk();
     fireEvent.click(screen.getByRole("button", { name: "Apply to this" }));

@@ -429,6 +429,12 @@ describe("showApplyToast", () => {
     expect(msg).toBe("Applied to 1 image");
   });
 
+  it("omits the undo hint when nothing was applied", () => {
+    showApplyToast({ ...base, applied: 0, skipped: 2 }, t);
+    const [, opts] = toastMock.mock.calls[0];
+    expect(JSON.stringify(opts.description ?? "")).not.toContain("Ctrl+Z");
+  });
+
   it("aborted toast asks to retry", () => {
     showApplyToast({ ...base, applied: 0, aborted: true }, t);
     const [msg, opts] = toastMock.mock.calls[0];

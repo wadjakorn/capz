@@ -10,7 +10,7 @@ import { templateItemCount, type EditTemplate } from "@/lib/template";
 import { useEditor } from "@/stores/editor";
 import { useWorkspaces } from "@/stores/workspaces";
 import { useT } from "@/i18n/useT";
-import { ApplyTemplatePopover } from "./ApplyTemplatePopover";
+import { ApplyTemplatePopover, useWorkspacesOn } from "./ApplyTemplatePopover";
 import { defaultSelection, itemsFromTemplate } from "./pickerItems";
 import { useTemplateDrag } from "./useTemplateDrag";
 
@@ -30,6 +30,12 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
   const hasImage = useEditor((s) => s.hasImage);
   const activeId = useWorkspaces((s) => s.activeId);
   const sourceSize = useStageSourceSize((s) => s.size);
+  const wsOn = useWorkspacesOn();
+  const otherHasImage = useWorkspaces((s) =>
+    s.order.some((id) => id !== s.activeId && !!s.docs[id]?.image),
+  );
+  // A template can target other tiles, so "Apply to…" only needs some image.
+  const anyTargetHasImage = hasImage || (wsOn && otherHasImage);
   const [cooling, setCooling] = useState(false);
   const coolingRef = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,8 +84,12 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
       className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-raised)]"
     >
       <div className="aspect-[108/68] bg-[var(--bg-canvas)]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={tpl.thumb} alt="" draggable={false} className="h-full w-full object-contain" />
+        {tpl.thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={tpl.thumb} alt="" draggable={false} className="h-full w-full object-contain" />
+        ) : (
+          <div data-testid="thumb-placeholder" aria-hidden className="h-full w-full bg-[var(--surface)]" />
+        )}
       </div>
       <div className="flex flex-col gap-1.5 p-2">
         {renaming ? (
@@ -104,13 +114,16 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
           </div>
         )}
         <div className="text-[10px] text-[var(--fg-3)]">
-          {t("editor.templates.items", { n: templateItemCount(tpl) })} ·{" "}
+          {t(templateItemCount(tpl) === 1 ? "editor.templates.itemsOne" : "editor.templates.items", {
+            n: templateItemCount(tpl),
+          })}{" "}
+          ·{" "}
           {t("editor.templates.fromSize", { w: tpl.sourceSize.w, h: tpl.sourceSize.h })}
         </div>
         {!confirming && (
           <Popover.Root open={applyOpen} onOpenChange={setApplyOpen}>
             <Popover.Trigger
-              disabled={!hasImage}
+              disabled={!anyTargetHasImage}
               className="h-6 truncate rounded border border-[var(--border)] px-2 text-[10px] font-medium text-[var(--fg-2)] hover:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {t("editor.templates.applyTo")}

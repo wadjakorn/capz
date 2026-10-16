@@ -11,7 +11,7 @@ import {
   showApplyToast,
 } from "@/lib/applyTemplateTo";
 import { getImageSize } from "@/lib/imageSizeCache";
-import { getStageSourceSize, runPrepareExport, useStageSourceSize } from "@/lib/stageBridge";
+import { getStageSourceSize, useStageSourceSize } from "@/lib/stageBridge";
 import {
   captureTemplate,
   type EditTemplate,
@@ -56,7 +56,6 @@ export function ApplyTemplatePopover({
   const stageSize = useStageSourceSize((s) => s.size);
 
   const [init] = useState(() => {
-    if (source.kind === "live") runPrepareExport();
     const items =
       source.kind === "live"
         ? itemsFromDoc(useEditor.getState(), useSettings.getState().config.general.backdrop)
