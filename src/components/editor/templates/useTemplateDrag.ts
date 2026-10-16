@@ -14,6 +14,8 @@ import { t } from "@/i18n/store";
 import { defaultSelection, itemsFromTemplate } from "./pickerItems";
 
 const DRAG_THRESHOLD_PX = 4;
+const NO_DRAG_SELECTOR =
+  'button, input, textarea, select, label, [role="dialog"], [contenteditable]';
 
 export type DropTarget = { kind: "canvas" } | { kind: "tile"; id: string } | null;
 
@@ -57,7 +59,11 @@ export function useTemplateDrag(tpl: EditTemplate): {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if ((e.target as Element).closest("button")) return;
+      const target = e.target as Element;
+      // React events bubble through portals (the Apply popover renders inside
+      // the card's JSX); a portaled DOM node is not contained by the card.
+      if (!(e.currentTarget as Element).contains(target)) return;
+      if (target.closest(NO_DRAG_SELECTOR)) return;
       if (e.button !== 0) return;
       cleanupRef.current?.();
       const sx = e.clientX;
