@@ -100,6 +100,16 @@ export function ApplyTemplatePopover({
   }, []);
 
   // The item snapshot goes stale if the user switches workspaces.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const busyRef = useRef(false);
+  const [busy, setBusy] = useState(false);
+
   const firstActive = useRef(activeId);
   useEffect(() => {
     if (activeId !== firstActive.current) onClose();
@@ -145,27 +155,36 @@ export function ApplyTemplatePopover({
   const empty =
     !sel.crop && !sel.backdropOn && !sel.backdropLook && sel.annotationIds.size === 0;
   const liveNoSize = live && stageSize === null;
-  const canConfirm = !empty && !liveNoSize && targets.length > 0;
+  const canConfirm = !empty && !liveNoSize && targets.length > 0 && !busy;
 
   const confirm = async () => {
-    if (!canConfirm) return;
-    const cfs = await (readyRef.current ?? prepareApply());
-    let tpl: EditTemplate;
-    if (source.kind === "live") {
-      const size = getStageSourceSize();
-      if (!size) return;
-      tpl = captureTemplate(
-        useEditor.getState(),
-        size,
-        useSettings.getState().config.general.backdrop,
-        sel,
-        { id: uid(), name: "", createdAt: Date.now(), thumb: "" },
-      );
-    } else {
-      tpl = source.tpl;
+    if (busyRef.current || !canConfirm) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const cfs = await (readyRef.current ?? prepareApply());
+      // The popover may have closed or the workspace changed while waiting.
+      if (!mounted.current || useWorkspaces.getState().activeId !== init.activeAtOpen) return;
+      let tpl: EditTemplate;
+      if (source.kind === "live") {
+        const size = getStageSourceSize();
+        if (!size) return;
+        tpl = captureTemplate(
+          useEditor.getState(),
+          size,
+          useSettings.getState().config.general.backdrop,
+          sel,
+          { id: uid(), name: "", createdAt: Date.now(), thumb: "" },
+        );
+      } else {
+        tpl = source.tpl;
+      }
+      showApplyToast(applyTemplateTo(targets, tpl, sel, cfs), t);
+      onClose();
+    } finally {
+      busyRef.current = false;
+      if (mounted.current) setBusy(false);
     }
-    showApplyToast(applyTemplateTo(targets, tpl, sel, cfs), t);
-    onClose();
   };
 
   return (
@@ -232,6 +251,7 @@ export function ApplyTemplatePopover({
         </p>
       )}
       <button type="button" className={btn} disabled={!canConfirm} onClick={() => void confirm()}>
+        {busy && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />}
         {t("editor.templates.confirm")}
       </button>
     </div>
