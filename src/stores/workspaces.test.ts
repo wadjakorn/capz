@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useEditor } from "@/stores/editor";
-import { barModeFor, hasEdits, useWorkspaces, type WorkspaceDoc } from "@/stores/workspaces";
+import { HISTORY_LIMIT, useEditor, type Snapshot } from "@/stores/editor";
+import type { TemplatePatch } from "@/lib/template";
+import { setStage, setStageExportBox } from "@/lib/stageBridge";
+import { barModeFor, hasEdits, renderThumb, restoreHistory, useWorkspaces, type WorkspaceDoc } from "@/stores/workspaces";
 
 // The store persists through tauri-plugin-store and renders thumbnails from a
 // Konva stage; neither exists under vitest. isTauriRuntime() is false here, so
@@ -449,5 +451,110 @@ describe("adoptCapture into an empty workspace", () => {
       .getState()
       .adoptCapture("/tmp/capz-temp-9.png", "window", "replace", MAX);
     expect(res).toEqual({ id: a, outcome: "replaced" });
+  });
+});
+
+describe("patchDoc", () => {
+  beforeEach(reset);
+
+  const tp = (over: Partial<TemplatePatch> = {}): TemplatePatch => ({
+    annotations: [{ id: "n1", type: "rect", x: 0, y: 0, w: 5, h: 5 } as never],
+    nextPinNumber: 7,
+    imageCrop: { x: 1, y: 1, w: 9, h: 9 },
+    backdropOn: false,
+    cropChanged: false,
+    maxPinNumber: 6,
+    ...over,
+  });
+  const pre = (): Snapshot => ({ annotations: [], nextPinNumber: 1, imageCrop: null });
+
+  it("merges, keeps thumb, resets view on crop change", () => {
+    const id = add();
+    useWorkspaces.setState({
+      docs: {
+        ...useWorkspaces.getState().docs,
+        [id]: { ...useWorkspaces.getState().docs[id], thumb: "data:x", displayScale: 2, userZoomed: true, scroll: { left: 1, top: 2 } },
+      },
+    });
+    expect(useWorkspaces.getState().patchDoc(id, tp({ cropChanged: true }), pre())).toBe(true);
+    const d = useWorkspaces.getState().docs[id];
+    expect(d.thumb).toBe("data:x");
+    expect(d.nextPinNumber).toBe(7);
+    expect(d.annotations).toHaveLength(1);
+    expect(d.backdropOn).toBe(false);
+    expect(d.displayScale).toBe(0);
+    expect(d.userZoomed).toBe(false);
+    expect(d.scroll).toBeNull();
+  });
+
+  it("does not store cropChanged/maxPinNumber on the doc", () => {
+    const id = add();
+    useWorkspaces.getState().patchDoc(id, tp(), pre());
+    const d = useWorkspaces.getState().docs[id];
+    expect("cropChanged" in d).toBe(false);
+    expect("maxPinNumber" in d).toBe(false);
+  });
+
+  it("unknown id returns false and writes nothing", () => {
+    const id = add();
+    const before = useWorkspaces.getState().docs;
+    expect(useWorkspaces.getState().patchDoc("nope", tp(), pre())).toBe(false);
+    expect(useWorkspaces.getState().docs).toBe(before);
+    expect(useWorkspaces.getState().docs[id]).toBeDefined();
+  });
+
+  it("caps history at HISTORY_LIMIT", () => {
+    const id = add();
+    for (let i = 0; i < 101; i++) useWorkspaces.getState().patchDoc(id, tp(), pre());
+    switchNow(id);
+    useEditor.getState().hydrate(useWorkspaces.getState().docs[id]);
+    restoreHistory(id);
+    expect(useEditor.getState().past.length).toBe(HISTORY_LIMIT);
+  });
+
+  it("undo after switching to a patched workspace restores pre-apply state", () => {
+    const a = add();
+    add();
+    useWorkspaces.getState().patchDoc(a, tp(), pre());
+    switchNow(a);
+    useEditor.getState().hydrate(useWorkspaces.getState().docs[a]);
+    restoreHistory(a);
+    expect(useEditor.getState().annotations).toHaveLength(1);
+    useEditor.getState().undo();
+    expect(useEditor.getState().annotations).toEqual([]);
+    expect(useEditor.getState().nextPinNumber).toBe(1);
+    expect(useEditor.getState().imageCrop).toBeNull();
+  });
+});
+
+describe("renderThumb hover outline", () => {
+  beforeEach(reset);
+
+  it("restores hover-tr nodes even when toDataURL throws", () => {
+    const original = [{ id: "n" }];
+    const fakeTr = {
+      current: original as unknown[],
+      nodes(n?: unknown[]) {
+        if (n) this.current = n;
+        return this.current;
+      },
+    };
+    const calls: unknown[][] = [];
+    const stage = {
+      findOne: (sel: string) => (sel === ".hover-tr" ? fakeTr : null),
+      scaleX: () => 1,
+      toDataURL: () => {
+        calls.push([...fakeTr.current]);
+        throw new Error("tainted");
+      },
+    };
+    setStage(stage as never);
+    setStageExportBox({ x: 0, y: 0, w: 100, h: 80 });
+    useWorkspaces.setState({ swapping: false });
+    expect(renderThumb()).toBe("");
+    expect(calls[0]).toEqual([]);
+    expect(fakeTr.current).toBe(original);
+    setStage(null);
+    setStageExportBox(null);
   });
 });

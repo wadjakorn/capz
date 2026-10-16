@@ -5,6 +5,7 @@ import type { PinLabelStyle } from "@/lib/pinLabel";
 import type { KeepToolActive } from "@/lib/config";
 import { NUDGE_COALESCE_MS } from "@/lib/nudge";
 import { uid } from "@/lib/uid";
+import type { TemplatePatch } from "@/lib/template";
 
 export type Tool =
   | "select"
@@ -295,7 +296,7 @@ export const STICKERS = [
   "🎯",
 ] as const;
 
-type Snapshot = {
+export type Snapshot = {
   annotations: Annotation[];
   nextPinNumber: number;
   imageCrop: ImageCrop | null;
@@ -476,6 +477,11 @@ type State = {
     sel: ImageCrop,
     natural: { w: number; h: number },
   ) => void;
+  /**
+   * Apply a template patch as one undo entry. Copies exactly the four state
+   * fields (never spreads) so the patch's bookkeeping fields stay out of state.
+   */
+  applyPatch: (patch: TemplatePatch) => void;
   undo: () => void;
   redo: () => void;
   setDisplayScale: (s: number) => void;
@@ -488,9 +494,9 @@ export const ZOOM_MIN = 0.05;
 export const ZOOM_MAX = 32;
 export const clampZoom = (s: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, s));
 
-const HISTORY_LIMIT = 100;
+export const HISTORY_LIMIT = 100;
 
-function pushHistory(past: Snapshot[], snap: Snapshot): Snapshot[] {
+export function pushHistory(past: Snapshot[], snap: Snapshot): Snapshot[] {
   const next = [...past, snap];
   if (next.length > HISTORY_LIMIT) next.shift();
   return next;
@@ -713,6 +719,27 @@ export const useEditor = create<State>((set, get) => ({
       future: [],
       selectedId: id,
       tool: "select",
+    });
+  },
+
+  applyPatch: (patch) => {
+    const { annotations, nextPinNumber, past, imageCrop } = get();
+    set({
+      annotations: patch.annotations,
+      nextPinNumber: patch.nextPinNumber,
+      imageCrop: patch.imageCrop,
+      backdropOn: patch.backdropOn,
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
+      ...(patch.cropChanged
+        ? {
+            displayScale: 0,
+            userZoomed: false,
+            selectedId: null,
+            tool: "select" as const,
+            nudgeRun: null,
+          }
+        : {}),
     });
   },
 

@@ -1918,6 +1918,7 @@ export function EditorStage({ src }: Props) {
             )}
             <Transformer
               ref={hoverTrRef}
+              name="hover-tr"
               anchorSize={anchorSize}
               resizeEnabled={false}
               rotateEnabled={false}

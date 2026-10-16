@@ -1,19 +1,23 @@
 "use client";
 
+import type Konva from "konva";
 import { create } from "zustand";
 import { load, type Store } from "@tauri-apps/plugin-store";
 
 import {
+  pushHistory,
   readEditorDoc,
   useEditor,
   type Annotation,
   type CaptureSource,
   type EditorDoc,
   type ImageCrop,
+  type Snapshot,
 } from "@/stores/editor";
 import { isTauriRuntime } from "@/lib/platform";
 import { getScrollContainer, getStage, getStageExportBox } from "@/lib/stageBridge";
 import { uid } from "@/lib/uid";
+import type { TemplatePatch } from "@/lib/template";
 
 export const WORKSPACE_STORE_FILE = "workspaces.json";
 
@@ -124,6 +128,11 @@ type State = {
   clearActive: () => void;
   closeOthers: () => void;
   setThumb: (id: string, thumb: string) => void;
+  /**
+   * Apply a template patch to a (usually background) workspace as one undo
+   * entry. `pre` is the doc's pre-apply snapshot. False = unknown id.
+   */
+  patchDoc: (id: string, patch: TemplatePatch, pre: Snapshot) => boolean;
   setBarPref: (pref: Exclude<BarMode, "hidden">, userSet?: boolean) => void;
   setSwapping: (v: boolean) => void;
   /**
@@ -276,7 +285,11 @@ export function renderThumb(maxWidth = 160): string {
   const stage = getStage();
   const box = getStageExportBox();
   if (!stage || !box || box.w <= 0 || box.h <= 0) return "";
+  // The hover outline is editor chrome; keep it out of the tile.
+  const hoverTr = stage.findOne(".hover-tr") as Konva.Transformer | undefined;
+  const hoverNodes = hoverTr ? hoverTr.nodes() : [];
   try {
+    if (hoverTr) hoverTr.nodes([]);
     // Same geometry as exportRegion() in lib/exportImage.ts, and for the same
     // reason: the stage's offsetX/Y pin the content box to stage-local (0, 0),
     // so the region is (0, 0, w*scale, h*scale) — NOT the box's image-space
@@ -297,6 +310,8 @@ export function renderThumb(maxWidth = 160): string {
     // Konva throws on a tainted canvas; a missing thumbnail is survivable.
     console.warn("thumbnail render failed", e);
     return "";
+  } finally {
+    if (hoverTr) hoverTr.nodes(hoverNodes);
   }
 }
 
@@ -562,6 +577,33 @@ export const useWorkspaces = create<State>((set, get) => ({
     if (!docs[id] || !thumb || docs[id].thumb === thumb) return;
     set({ docs: { ...docs, [id]: { ...docs[id], thumb } } });
     schedulePersist();
+  },
+
+  patchDoc: (id, patch, pre) => {
+    const { docs } = get();
+    const prev = docs[id];
+    if (!prev) return false;
+    set({
+      docs: {
+        ...docs,
+        [id]: {
+          ...prev,
+          annotations: patch.annotations,
+          nextPinNumber: patch.nextPinNumber,
+          imageCrop: patch.imageCrop,
+          backdropOn: patch.backdropOn,
+          updatedAt: Date.now(),
+          ...(patch.cropChanged ? { displayScale: 0, userZoomed: false, scroll: null } : {}),
+        },
+      },
+    });
+    const stacks = historyStacks.get(id);
+    historyStacks.set(id, {
+      past: pushHistory((stacks?.past ?? []) as Snapshot[], pre),
+      future: [],
+    });
+    schedulePersist();
+    return true;
   },
 
   setBarPref: (pref, userSet = true) => {
