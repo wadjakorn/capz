@@ -117,6 +117,19 @@ export function resolveGradient(presetId: string | null | undefined): GradientPr
  * capture, larger for Retina/4K captures so the pattern keeps its size relative
  * to the screenshot instead of shrinking to noise.
  */
+/**
+ * Whether a Konva stage of `stageW × stageH` CSS px can back a buffer canvas.
+ * Konva draws a shape with both a corner radius and a shadow through a
+ * stage-sized buffer canvas whose pixel size is `size × pixelRatio`, truncated
+ * by the DOM. A stage under 1px on either axis — the unmeasured first frame,
+ * or a wide capture fitted into a hidden/collapsed editor window — yields a 0px
+ * buffer, and `drawImage(buffer)` throws `InvalidStateError`. Konva's
+ * pixelRatio is ≥ 1 in the app, so ≥ 1 CSS px always rounds to ≥ 1 device px.
+ */
+export function stageFitsBufferCanvas(stageW: number, stageH: number): boolean {
+  return Number.isFinite(stageW) && Number.isFinite(stageH) && stageW >= 1 && stageH >= 1;
+}
+
 export function patternUnit(imageWidth: number): number {
   return Number.isFinite(imageWidth) && imageWidth > 1600 ? imageWidth / 1600 : 1;
 }
