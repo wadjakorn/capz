@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Popover } from "@base-ui/react/popover";
 
 import { ACTIVE, applyTemplateTo, showApplyToast } from "@/lib/applyTemplateTo";
 import { useStageSourceSize } from "@/lib/stageBridge";
@@ -9,6 +10,7 @@ import { templateItemCount, type EditTemplate } from "@/lib/template";
 import { useEditor } from "@/stores/editor";
 import { useWorkspaces } from "@/stores/workspaces";
 import { useT } from "@/i18n/useT";
+import { ApplyTemplatePopover } from "./ApplyTemplatePopover";
 import { defaultSelection, itemsFromTemplate } from "./pickerItems";
 
 const COOLDOWN_MS = 400;
@@ -33,6 +35,7 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(tpl.name);
   const [confirming, setConfirming] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
 
   useEffect(
     () => () => {
@@ -101,6 +104,26 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
           {t("editor.templates.items", { n: templateItemCount(tpl) })} ·{" "}
           {t("editor.templates.fromSize", { w: tpl.sourceSize.w, h: tpl.sourceSize.h })}
         </div>
+        {!confirming && (
+          <Popover.Root open={applyOpen} onOpenChange={setApplyOpen}>
+            <Popover.Trigger
+              disabled={!hasImage}
+              className="h-6 truncate rounded border border-[var(--border)] px-2 text-[10px] font-medium text-[var(--fg-2)] hover:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {t("editor.templates.applyTo")}
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Positioner sideOffset={6} className="z-50">
+                <Popover.Popup className="flex max-h-[70vh] w-72 flex-col gap-2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 shadow-lg">
+                  <ApplyTemplatePopover
+                    source={{ kind: "template", tpl }}
+                    onClose={() => setApplyOpen(false)}
+                  />
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
+        )}
         {confirming ? (
           <div className="flex items-center gap-1">
             <span className="flex-1 text-[10px] text-[var(--fg-2)]">

@@ -2,7 +2,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditTemplate } from "@/lib/template";
+import { DEFAULT_CONFIG } from "@/lib/config";
+import { useSettings } from "@/stores/settings";
 import { useTemplates } from "@/stores/templates";
+import { useWorkspaces, type WorkspaceDoc } from "@/stores/workspaces";
 import { TemplatesPanel } from "./TemplatesPanel";
 
 vi.mock("./TemplateCard", () => ({
@@ -48,5 +51,30 @@ describe("TemplatesPanel", () => {
     window.dispatchEvent(new Event("blur"));
     window.dispatchEvent(new Event("beforeunload"));
     expect(flush).toHaveBeenCalledTimes(2);
+  });
+
+  it("apply-from-image button needs workspaces on and another image", () => {
+    const d = (id: string, image: WorkspaceDoc["image"]) => ({ id, image }) as WorkspaceDoc;
+    const setWs = (enabled: boolean, bImage: WorkspaceDoc["image"]) => {
+      useSettings.setState({
+        config: { ...DEFAULT_CONFIG, workspaces: { ...DEFAULT_CONFIG.workspaces, enabled } },
+      });
+      useWorkspaces.setState({
+        order: ["A", "B"],
+        activeId: "A",
+        docs: { A: d("A", { kind: "file", path: "/a" }), B: d("B", bImage) },
+      });
+    };
+    setWs(false, { kind: "file", path: "/b" });
+    const { unmount } = render(<TemplatesPanel active />);
+    expect(screen.queryByText("Apply this image's edits to…")).toBeNull();
+    unmount();
+    setWs(true, null);
+    const r2 = render(<TemplatesPanel active />);
+    expect(screen.queryByText("Apply this image's edits to…")).toBeNull();
+    r2.unmount();
+    setWs(true, { kind: "file", path: "/b" });
+    render(<TemplatesPanel active />);
+    expect(screen.getByText("Apply this image's edits to…")).toBeTruthy();
   });
 });
