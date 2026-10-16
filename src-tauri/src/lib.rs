@@ -4,6 +4,7 @@ mod commands;
 mod i18n;
 mod modifiers;
 mod notice;
+mod panel;
 mod ring;
 mod services;
 mod shortcuts;
@@ -192,6 +193,9 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // Non-activating capture panels (see `panel.rs`).
+            #[cfg(target_os = "macos")]
+            app.handle().plugin(tauri_nspanel::init())?;
             app.handle().plugin(
                 tauri_plugin_log::Builder::default()
                     .level(if cfg!(debug_assertions) {

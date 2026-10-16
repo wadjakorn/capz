@@ -37,10 +37,10 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         .collect();
     if !existing.is_empty() {
         for w in &existing {
-            let _ = w.show();
+            let _ = crate::panel::show(app, w);
         }
         if let Some(w) = existing.first() {
-            let _ = w.set_focus();
+            crate::panel::make_key(app, w);
         }
         return Ok(());
     }
@@ -139,8 +139,11 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         #[cfg(target_os = "windows")]
         disable_dwm_transitions(&win);
 
-        win.show()?;
-
+        // Non-activating panel (macOS): the overlay can take keys without
+        // activating capz, so a buried editor is never pulled in front of the
+        // app being captured. Level + Spaces behaviour are set before the
+        // first show so the overlay lands on the right Space.
+        crate::panel::make_nonactivating(&win)?;
         #[cfg(target_os = "macos")]
         {
             use objc2::{msg_send, runtime::AnyObject};
@@ -153,6 +156,8 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
                 let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
             }
         }
+
+        crate::panel::show(app, &win)?;
     }
 
     // Focus an overlay so keyboard (Esc) works without a click. Prefer the
@@ -165,7 +170,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         .or_else(|| specs.first().map(|s| s.label.clone()));
     if let Some(label) = focus_label {
         if let Some(w) = app.get_webview_window(&label) {
-            let _ = w.set_focus();
+            crate::panel::make_key(app, &w);
         }
     }
 
@@ -216,7 +221,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
                         let app2 = app_clone.clone();
                         let _ = app_clone.run_on_main_thread(move || {
                             if let Some(w) = app2.get_webview_window(&label) {
-                                let _ = w.set_focus();
+                                crate::panel::make_key(&app2, &w);
                             }
                         });
                     }
@@ -705,6 +710,23 @@ pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<()
     Ok(())
 }
 
+/// Wait for one compositor frame so windows just hidden/closed are gone from
+/// the buffer xcap reads. Windows: `DwmFlush` (deterministic); elsewhere a short
+/// fixed delay, matching `hide_overlays_and_wait`.
+pub async fn settle_frame() {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = tokio::task::spawn_blocking(|| unsafe {
+            let _ = windows_sys::Win32::Graphics::Dwm::DwmFlush();
+        })
+        .await;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+}
+
 /// Hide the editor window (if it exists and is visible) and wait until the
 /// OS reports it invisible. Used before xcap reads the screen so the editor
 /// chrome doesn't appear in captures initiated from inside the editor.
@@ -803,7 +825,7 @@ pub fn close_overlays<R: Runtime>(app: &AppHandle<R>) {
     let _ = app.run_on_main_thread(move || {
         for (label, win) in app_close.webview_windows() {
             if is_overlay_label(&label) {
-                if let Err(e) = win.close() {
+                if let Err(e) = crate::panel::close(&app_close, &win) {
                     log::warn!("close {label} failed: {e}");
                 }
             }
