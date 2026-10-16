@@ -61,6 +61,24 @@ describe("templates store", () => {
     expect(useTemplates.getState().loaded).toBe(true);
   });
 
+  it("retries load after a failure and keeps existing templates", async () => {
+    const b = fake({
+      load: vi
+        .fn<TemplatesBackend["load"]>()
+        .mockRejectedValueOnce(new Error("boom"))
+        .mockResolvedValue({ has: true, value: [tpl("old")] }),
+    });
+    __setTemplatesBackend(b);
+    await expect(useTemplates.getState().ensureLoaded()).rejects.toThrow("boom");
+    expect(useTemplates.getState().loaded).toBe(false);
+    await useTemplates.getState().ensureLoaded();
+    expect(useTemplates.getState().loaded).toBe(true);
+    await useTemplates.getState().save(tpl("new"));
+    await useTemplates.getState().flush();
+    expect(b.set.mock.calls.at(-1)![0].map((t) => t.id)).toEqual(["old", "new"]);
+    expect(b.load).toHaveBeenCalledTimes(2);
+  });
+
   it("save during a slow load keeps existing templates", async () => {
     let release!: (v: { has: boolean; value: unknown }) => void;
     const b = fake({ load: vi.fn(() => new Promise<{ has: boolean; value: unknown }>((r) => (release = r))) });

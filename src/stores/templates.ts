@@ -189,7 +189,8 @@ export const useTemplates = create<State>((set, get) => {
     templates: [],
     loaded: false,
     ensureLoaded() {
-      return (loadP ??= (async () => {
+      if (loadP) return loadP;
+      const p: Promise<void> = (async () => {
         const { has, value } = await backend().load();
         hadValue = has;
         const look = pickBackdropLook(useSettings.getState().config.general.backdrop);
@@ -198,7 +199,12 @@ export const useTemplates = create<State>((set, get) => {
           .map((r) => reviveTemplate(r, look))
           .filter((r): r is EditTemplate => r !== null);
         set({ templates: revived, loaded: true });
-      })());
+      })();
+      loadP = p;
+      p.catch(() => {
+        if (loadP === p) loadP = null;
+      });
+      return p;
     },
     save: (tpl) => mutate((cur) => [...cur, tpl]),
     rename: (id, name) => mutate((cur) => cur.map((x) => (x.id === id ? { ...x, name } : x))),
