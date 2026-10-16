@@ -22,6 +22,8 @@ export const settings = {
   "settings.capture.full": "Full screen",
   "settings.capture.area": "Area",
   "settings.capture.window": "Window",
+  "settings.capture.backdrop.paste": "Pasted images",
+  "settings.capture.backdrop.import": "Opened or dropped images",
   "settings.capture.scroll": "Scrolling capture",
   "settings.capture.ring": "Command ring",
   "settings.capture.sysArea": "System area capture",
@@ -136,7 +138,7 @@ export const settings = {
   "settings.capture.ringModes.hint":
     "Which modes sit on the hold ring, clockwise from the top.",
   "settings.capture.backdrop.hint":
-    "Starts the padded backdrop on for these captures; still togglable per image.",
+    "Starts the padded backdrop on for these images; still togglable per image.",
   "settings.ringModes.title": "Ring slots",
   "settings.ringModes.hint":
     "Modes on the hold ring, clockwise from the top. Choose {min}–{max}; a cancel slot is always added last.",
