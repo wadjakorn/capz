@@ -295,4 +295,7 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.templates.toast.aborted": "กำลังสลับเวิร์กสเปซ — ลองอีกครั้ง",
   "editor.templates.toast.revertBackdrop": "คืนพื้นหลังเดิม",
   "editor.templates.toast.undoHint": "กด Ctrl+Z ในแต่ละภาพเพื่อเลิกทำองค์ประกอบและการครอบตัด",
+  "editor.templates.defaultName": "เทมเพลต {n}",
+  "editor.templates.corruptBackup": "อ่านเทมเพลตที่บันทึกไว้ไม่ได้ — เก็บข้อมูลสำรองไว้แล้ว",
+  "editor.templates.saveFailed": "บันทึกเทมเพลตไม่ได้ — จะลองใหม่",
 };

@@ -294,4 +294,7 @@ export const editor = {
   "editor.templates.toast.aborted": "Workspace is switching — try again",
   "editor.templates.toast.revertBackdrop": "Revert backdrop",
   "editor.templates.toast.undoHint": "Ctrl+Z on each image undoes annotations and crop",
+  "editor.templates.defaultName": "Template {n}",
+  "editor.templates.corruptBackup": "Couldn't read saved templates — a backup was kept",
+  "editor.templates.saveFailed": "Couldn't save templates — will retry",
 };
