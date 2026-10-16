@@ -23,6 +23,10 @@ export const defaultHandlers: InvokeHandlers = {
   clear_editor_workspace: () => null,
   paste_into_editor: () => null,
   set_editor_always_on_top: () => null,
+
+  // workspaces.rs — copies a capture out of the temp dir; args `{ path, id }`.
+  persist_workspace_image: (args: any) =>
+    `/ws/${args?.id}-${String(args?.path ?? "").split("/").pop()}`,
   default_save_dir: () => "/Users/test/Pictures",
 
   // output.rs
