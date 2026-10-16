@@ -144,19 +144,39 @@ describe("validateConfig general.backdrop", () => {
           autoForFull: true,
           autoForArea: true,
           autoForWindow: false,
+          autoForPaste: true,
+          autoForImport: true,
         },
       },
     });
     expect(config.general.backdrop.autoForFull).toBe(true);
     expect(config.general.backdrop.autoForArea).toBe(true);
     expect(config.general.backdrop.autoForWindow).toBe(false);
+    expect(config.general.backdrop.autoForPaste).toBe(true);
+    expect(config.general.backdrop.autoForImport).toBe(true);
     expect(issues.join(" ")).not.toMatch(/backdrop/);
   });
 
-  it("defaults auto-enable to full/area off, window on", () => {
+  it("defaults auto-enable to full/area/paste/import off, window on", () => {
     expect(DEFAULT_CONFIG.general.backdrop.autoForFull).toBe(false);
     expect(DEFAULT_CONFIG.general.backdrop.autoForArea).toBe(false);
     expect(DEFAULT_CONFIG.general.backdrop.autoForWindow).toBe(true);
+    expect(DEFAULT_CONFIG.general.backdrop.autoForPaste).toBe(false);
+    expect(DEFAULT_CONFIG.general.backdrop.autoForImport).toBe(false);
+  });
+
+  it("drops a non-boolean paste/import auto-enable to default and records an issue", () => {
+    const { config, issues } = validateConfig({
+      schemaVersion: 1,
+      general: {
+        ...DEFAULT_CONFIG.general,
+        backdrop: { ...DEFAULT_CONFIG.general.backdrop, autoForPaste: "yes", autoForImport: 1 },
+      },
+    });
+    expect(config.general.backdrop.autoForPaste).toBe(false);
+    expect(config.general.backdrop.autoForImport).toBe(false);
+    expect(issues.join(" ")).toMatch(/autoForPaste/);
+    expect(issues.join(" ")).toMatch(/autoForImport/);
   });
 
   it("drops invalid fields to default and records an issue", () => {

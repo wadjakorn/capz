@@ -183,6 +183,11 @@ export type AppConfig = {
       autoForArea: boolean;
       /** Auto-enable the backdrop for window captures. */
       autoForWindow: boolean;
+      /** Auto-enable the backdrop for an image pasted onto an empty canvas. */
+      autoForPaste: boolean;
+      /** Auto-enable the backdrop for an image opened onto an empty canvas
+       * (history drag, file drop, file pick). */
+      autoForImport: boolean;
     };
   };
   lastUsed?: {
@@ -316,10 +321,14 @@ export type AppConfig = {
   };
 };
 
+/** The padded-backdrop settings block (`general.backdrop`). */
+export type BackdropConfig = AppConfig["general"]["backdrop"];
+
 // v2 (CP-0038): added `hotkeys.commandRingV2` and the `ring` section.
 // v4: added `general.language`.
 // v5 (CP-0067): added `general.copyClosesEditor`.
-export const CONFIG_SCHEMA_VERSION = 5;
+// v6: added `general.backdrop.autoForPaste` / `autoForImport`.
+export const CONFIG_SCHEMA_VERSION = 6;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -408,6 +417,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       autoForFull: false,
       autoForArea: false,
       autoForWindow: true,
+      autoForPaste: false,
+      autoForImport: false,
     },
   },
   tools: {
@@ -536,6 +547,9 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
   },
   // v4 → v5 (CP-0067): only ADDED `general.copyClosesEditor` (default off).
   4: (o) => o,
+  // v5 → v6: only ADDED `general.backdrop.autoForPaste` / `autoForImport`
+  // (both default off).
+  5: (o) => o,
 };
 
 /** Throws when a version between 0 and `version - 1` has no migration step. */
@@ -864,6 +878,8 @@ function vGeneral(
       autoForFull: isBool,
       autoForArea: isBool,
       autoForWindow: isBool,
+      autoForPaste: isBool,
+      autoForImport: isBool,
     },
     issues,
   );

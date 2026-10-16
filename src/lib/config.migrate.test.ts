@@ -11,6 +11,8 @@ import v0 from "./__fixtures__/config/v0.json";
 import v1 from "./__fixtures__/config/v1.json";
 import v2 from "./__fixtures__/config/v2.json";
 import v4 from "./__fixtures__/config/v4.json";
+import v5 from "./__fixtures__/config/v5.json";
+import v6 from "./__fixtures__/config/v6.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
@@ -19,7 +21,8 @@ import v99 from "./__fixtures__/config/v99.json";
 //   v1  — shape of v0.9.2
 //   v2  — schema of v0.10.0+
 //   v4  — schema of v0.15.0+
-//   v5  — current schema (CP-0067)
+//   v5  — schema of v0.18.0+ (CP-0067)
+//   v6  — current schema (auto-backdrop for paste / import)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -143,7 +146,7 @@ describe("v4 → v5: general.copyClosesEditor (CP-0067)", () => {
   it("a v4 store gains the setting switched off and keeps its values", () => {
     const { config, issues } = load(v4);
     expect(issues).toEqual([]);
-    expect(config.schemaVersion).toBe(5);
+    expect(config.schemaVersion).toBe(CONFIG_SCHEMA_VERSION);
     expect(config.general.copyClosesEditor).toBe(false);
     expect(config.general).toMatchObject(v4.general);
   });
@@ -151,6 +154,23 @@ describe("v4 → v5: general.copyClosesEditor (CP-0067)", () => {
   it("keeps a stored true", () => {
     const { config } = load({ schemaVersion: 5, general: { copyClosesEditor: true } });
     expect(config.general.copyClosesEditor).toBe(true);
+  });
+});
+
+describe("v5 → v6: general.backdrop.autoForPaste / autoForImport", () => {
+  it("a v5 store gains both switched off and keeps its values", () => {
+    const { config, issues } = load(v5);
+    expect(issues).toEqual([]);
+    expect(config.schemaVersion).toBe(6);
+    expect(config.general.backdrop.autoForPaste).toBe(false);
+    expect(config.general.backdrop.autoForImport).toBe(false);
+    expect(config.general).toMatchObject(v5.general);
+  });
+
+  it("a v6 store keeps stored values", () => {
+    const { config, issues } = load(v6);
+    expect(issues).toEqual([]);
+    expect(config.general.backdrop).toEqual(v6.general.backdrop);
   });
 });
 
