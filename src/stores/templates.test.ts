@@ -116,6 +116,45 @@ describe("templates store", () => {
     expect(toast).toHaveBeenCalledTimes(1);
   });
 
+  it("backs up before set when the key is present but not an array", async () => {
+    const order: string[] = [];
+    const b = fake({
+      load: vi.fn(async () => ({ has: true, value: { future: 1 } as unknown })),
+      fileExists: vi.fn(async () => true),
+      backup: vi.fn(async () => void order.push("backup")),
+      set: vi.fn(async () => void order.push("set")),
+    });
+    __setTemplatesBackend(b);
+    await useTemplates.getState().save(tpl("a"));
+    await useTemplates.getState().flush();
+    expect(order).toEqual(["backup", "set"]);
+  });
+
+  it("backs up before set when a stored entry is malformed and dropped", async () => {
+    const order: string[] = [];
+    const b = fake({
+      load: vi.fn(async () => ({ has: true, value: [tpl("ok"), { id: 1 }] as unknown })),
+      fileExists: vi.fn(async () => true),
+      backup: vi.fn(async () => void order.push("backup")),
+      set: vi.fn(async () => void order.push("set")),
+    });
+    __setTemplatesBackend(b);
+    await useTemplates.getState().save(tpl("a"));
+    await useTemplates.getState().flush();
+    expect(order).toEqual(["backup", "set"]);
+  });
+
+  it("no backup when every stored entry revives", async () => {
+    const b = fake({
+      load: vi.fn(async () => ({ has: true, value: [tpl("ok")] as unknown })),
+      fileExists: vi.fn(async () => true),
+    });
+    __setTemplatesBackend(b);
+    await useTemplates.getState().save(tpl("a"));
+    await useTemplates.getState().flush();
+    expect(b.backup).not.toHaveBeenCalled();
+  });
+
   it("no backup when file absent", async () => {
     const b = fake();
     __setTemplatesBackend(b);

@@ -75,7 +75,7 @@ export function __setTemplatesBackend(b: TemplatesBackend | null): void {
   loadP = null;
   dirty = false;
   guardDone = false;
-  hadValue = false;
+  needsBackup = false;
   if (timer) clearTimeout(timer);
   timer = null;
   writing = Promise.resolve();
@@ -84,7 +84,7 @@ export function __setTemplatesBackend(b: TemplatesBackend | null): void {
 let loadP: Promise<void> | null = null;
 let dirty = false;
 let guardDone = false;
-let hadValue = false;
+let needsBackup = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let writing: Promise<void> = Promise.resolve();
 
@@ -155,7 +155,7 @@ async function doWrite(): Promise<void> {
   const b = backend();
   try {
     if (!guardDone) {
-      if (!hadValue && (await b.fileExists())) {
+      if (needsBackup && (await b.fileExists())) {
         await b.backup();
         toast(translate("editor.templates.corruptBackup"));
       }
@@ -192,12 +192,14 @@ export const useTemplates = create<State>((set, get) => {
       if (loadP) return loadP;
       const p: Promise<void> = (async () => {
         const { has, value } = await backend().load();
-        hadValue = has;
         const look = pickBackdropLook(useSettings.getState().config.general.backdrop);
         const list = has && Array.isArray(value) ? value : [];
         const revived = list
           .map((r) => reviveTemplate(r, look))
           .filter((r): r is EditTemplate => r !== null);
+        // Anything we cannot round-trip (absent key, non-array, dropped entries)
+        // would be destroyed by the next write, so keep a copy first.
+        needsBackup = !has || !Array.isArray(value) || revived.length < list.length;
         set({ templates: revived, loaded: true });
       })();
       loadP = p;

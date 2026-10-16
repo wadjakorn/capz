@@ -316,6 +316,8 @@ export const editor = {
   "editor.templates.delete": "Delete",
   "editor.templates.confirmDelete": "Delete this template?",
   "editor.templates.items": "{n} items",
+  "editor.templates.itemsOne": "{n} item",
+  "editor.templates.loadFailed": "Couldn't load saved templates",
   "editor.templates.fromSize": "{w}×{h}",
   "editor.templates.undoHelp": "Ctrl+Z on each image undoes an applied template",
   "editor.templates.picker.all": "All",
@@ -348,5 +350,5 @@ export const editor = {
   "editor.templates.picker.typeOne.pin": "Pin",
   "editor.templates.picker.typeOne.image": "Image",
   "editor.templates.corruptBackup": "Couldn't read saved templates — a backup was kept",
-  "editor.templates.saveFailed": "Couldn't save templates — will retry",
+  "editor.templates.saveFailed": "Couldn't save templates",
 };

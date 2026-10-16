@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditTemplate } from "@/lib/template";
 import { DEFAULT_CONFIG } from "@/lib/config";
@@ -36,6 +36,20 @@ describe("TemplatesPanel", () => {
   it("shows the empty state", () => {
     render(<TemplatesPanel active />);
     expect(screen.getByText(/No templates yet/)).toBeTruthy();
+  });
+
+  it("shows undo help text", () => {
+    render(<TemplatesPanel active />);
+    expect(screen.getByText("Ctrl+Z on each image undoes an applied template")).toBeTruthy();
+  });
+
+  it("shows an error line instead of the empty state when loading rejects", async () => {
+    ensureLoaded.mockRejectedValueOnce(new Error("boom"));
+    await act(async () => {
+      render(<TemplatesPanel active />);
+    });
+    expect(screen.getByRole("alert").textContent).toBe("Couldn't load saved templates");
+    expect(screen.queryByText(/No templates yet/)).toBeNull();
   });
 
   it("lists templates", () => {

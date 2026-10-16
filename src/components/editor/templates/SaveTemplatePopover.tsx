@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Popover } from "@base-ui/react/popover";
 
 import { captureTemplate, templateBytes, type TemplateSelection } from "@/lib/template";
@@ -10,7 +11,7 @@ import { useEditor } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { useTemplatePreview } from "@/stores/templatePreview";
 import { nextTemplateName, useTemplates } from "@/stores/templates";
-import { renderThumb } from "@/stores/workspaces";
+import { renderThumb, useWorkspaces } from "@/stores/workspaces";
 import { useT } from "@/i18n/useT";
 import { defaultSelection, itemsFromDoc, type PickerItem } from "./pickerItems";
 import { TemplateItemPicker } from "./TemplateItemPicker";
@@ -32,6 +33,16 @@ export function SaveTemplatePopover() {
   const [sel, setSel] = useState<TemplateSelection>(() => defaultSelection([]));
   const [name, setName] = useState("");
 
+  // The item snapshot goes stale if the user switches workspaces while open.
+  const activeId = useWorkspaces((s) => s.activeId);
+  const openedOn = useRef(activeId);
+  useEffect(() => {
+    if (open && activeId !== openedOn.current) {
+      setOpen(false);
+      setHighlight(null);
+    }
+  }, [activeId, open, setHighlight]);
+
   const cropActive = tool === "crop";
   const disabled = cropActive || !hasImage || sourceSize === null;
 
@@ -42,6 +53,7 @@ export function SaveTemplatePopover() {
       return;
     }
     runPrepareExport();
+    openedOn.current = useWorkspaces.getState().activeId;
     const its = itemsFromDoc(useEditor.getState(), useSettings.getState().config.general.backdrop);
     setItems(its);
     setSel(defaultSelection(its));
@@ -66,7 +78,9 @@ export function SaveTemplatePopover() {
   const warn = !refuse && bytes >= WARN_BYTES;
   const mb = (bytes / 1_000_000).toFixed(1);
 
-  const save = () => {
+  const saving = useRef(false);
+  const save = async () => {
+    if (saving.current) return;
     const size = getStageSourceSize();
     if (!size || empty || refuse) return;
     const tpl = captureTemplate(
@@ -81,7 +95,16 @@ export function SaveTemplatePopover() {
         thumb: renderThumb(160),
       },
     );
-    void useTemplates.getState().save(tpl);
+    saving.current = true;
+    try {
+      await useTemplates.getState().save(tpl);
+    } catch {
+      // Load failed: nothing was stored. Keep the popover so the user can retry.
+      toast(t("editor.templates.saveFailed"));
+      return;
+    } finally {
+      saving.current = false;
+    }
     handleOpen(false);
   };
 
@@ -114,7 +137,7 @@ export function SaveTemplatePopover() {
                 {t("editor.templates.sizeRefuse")}
               </p>
             )}
-            <button type="button" className={btn} disabled={empty || refuse} onClick={save}>
+            <button type="button" className={btn} disabled={empty || refuse} onClick={() => void save()}>
               {t("editor.templates.save")}
             </button>
           </Popover.Popup>

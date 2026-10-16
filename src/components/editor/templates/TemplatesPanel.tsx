@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 
-import { useStageSourceSize } from "@/lib/stageBridge";
+import { runPrepareExport, useStageSourceSize } from "@/lib/stageBridge";
 import { useEditor } from "@/stores/editor";
 import { useWorkspaces } from "@/stores/workspaces";
 import { useTemplates } from "@/stores/templates";
@@ -31,12 +31,16 @@ export function TemplatesPanel({ active }: { active: boolean }) {
     s.order.some((id) => id !== s.activeId && !!s.docs[id]?.image),
   );
   const [applyOpen, setApplyOpen] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const showFromImage = wsOn && otherHasImage;
 
   useEffect(() => {
     if (!active || requested.current) return;
     requested.current = true;
-    void useTemplates.getState().ensureLoaded();
+    useTemplates
+      .getState()
+      .ensureLoaded()
+      .catch(() => setLoadFailed(true));
   }, [active]);
 
   useEffect(() => {
@@ -53,7 +57,14 @@ export function TemplatesPanel({ active }: { active: boolean }) {
     <div className="flex flex-col gap-2.5">
       <SaveTemplatePopover />
       {showFromImage && (
-        <Popover.Root open={applyOpen} onOpenChange={setApplyOpen}>
+        <Popover.Root
+          open={applyOpen}
+          onOpenChange={(o) => {
+            // Flush pending text/live edits before the popup snapshots the doc.
+            if (o) runPrepareExport();
+            setApplyOpen(o);
+          }}
+        >
           <Popover.Trigger
             disabled={!hasImage || sourceSize === null || tool === "crop"}
             className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -69,8 +80,15 @@ export function TemplatesPanel({ active }: { active: boolean }) {
           </Popover.Portal>
         </Popover.Root>
       )}
-      {templates.length === 0 && (
-        <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t("editor.templates.empty")}</p>
+      <p className="text-[10px] leading-relaxed text-[var(--fg-3)]">{t("editor.templates.undoHelp")}</p>
+      {loadFailed ? (
+        <p role="alert" className="text-[11px] leading-relaxed text-red-500">
+          {t("editor.templates.loadFailed")}
+        </p>
+      ) : (
+        templates.length === 0 && (
+          <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t("editor.templates.empty")}</p>
+        )
       )}
       {templates.map((tpl) => (
         <TemplateCard

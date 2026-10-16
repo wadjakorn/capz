@@ -317,6 +317,8 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.templates.delete": "ลบ",
   "editor.templates.confirmDelete": "ลบเทมเพลตนี้",
   "editor.templates.items": "{n} รายการ",
+  "editor.templates.itemsOne": "{n} รายการ",
+  "editor.templates.loadFailed": "โหลดเทมเพลตที่บันทึกไว้ไม่ได้",
   "editor.templates.fromSize": "{w}×{h}",
   "editor.templates.undoHelp": "กด Ctrl+Z ในแต่ละภาพเพื่อเลิกทำเทมเพลตที่ใช้",
   "editor.templates.picker.all": "ทั้งหมด",
@@ -349,5 +351,5 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.templates.picker.typeOne.pin": "พิน",
   "editor.templates.picker.typeOne.image": "ภาพซ้อน",
   "editor.templates.corruptBackup": "อ่านเทมเพลตที่บันทึกไว้ไม่ได้ — เก็บข้อมูลสำรองไว้แล้ว",
-  "editor.templates.saveFailed": "บันทึกเทมเพลตไม่ได้ — จะลองใหม่",
+  "editor.templates.saveFailed": "บันทึกเทมเพลตไม่ได้",
 };

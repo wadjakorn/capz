@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: toastMock }));
 import { setPrepareExport, setStageSourceSize } from "@/lib/stageBridge";
 import { useEditor, type Annotation } from "@/stores/editor";
 import { useTemplatePreview } from "@/stores/templatePreview";
 import { useTemplates } from "@/stores/templates";
+import { useWorkspaces } from "@/stores/workspaces";
 import { SaveTemplatePopover } from "./SaveTemplatePopover";
 
 vi.mock("@/stores/workspaces", async (orig) => ({
@@ -45,6 +49,35 @@ const saveBtn = () => {
 };
 
 describe("SaveTemplatePopover", () => {
+  it("a rejected save toasts, keeps the popover open and leaks no rejection", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    toastMock.mockClear();
+    save.mockRejectedValueOnce(new Error("load failed"));
+    render(<SaveTemplatePopover />);
+    openIt();
+    await act(async () => {
+      fireEvent.click(saveBtn());
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(toastMock).toHaveBeenCalledWith("Couldn't save templates");
+    expect(screen.queryByRole("checkbox", { name: "Backdrop: on" })).not.toBeNull();
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off("unhandledRejection", unhandled);
+  });
+
+  it("closes when the active workspace changes while open", () => {
+    useWorkspaces.setState({ activeId: "A" });
+    render(<SaveTemplatePopover />);
+    openIt();
+    expect(screen.queryByRole("checkbox", { name: "Backdrop: on" })).not.toBeNull();
+    act(() => useWorkspaces.setState({ activeId: "B" }));
+    expect(screen.queryByRole("checkbox", { name: "Backdrop: on" })).toBeNull();
+    useWorkspaces.setState({ activeId: null });
+  });
+
   it("opening calls runPrepareExport", () => {
     const fn = vi.fn();
     setPrepareExport(fn);
