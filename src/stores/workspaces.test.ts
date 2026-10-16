@@ -79,6 +79,54 @@ describe("workspace ordering", () => {
   });
 });
 
+describe("adoptCapture seeds the auto-backdrop decision", () => {
+  beforeEach(reset);
+
+  // The session hook hydrates the editor from the doc, so whatever the doc
+  // starts with is what the user sees — the caller's backdrop decision has to
+  // land in the doc on every adopt path, not only in the editor store.
+  const adopt = (path: string, mode: "new" | "replace", backdropOn?: boolean) =>
+    useWorkspaces
+      .getState()
+      .adoptCapture(path, "other", mode, MAX, backdropOn === undefined ? undefined : { backdropOn });
+
+  it("added: a new workspace starts with the backdrop on", async () => {
+    const res = await adopt("/tmp/capz-temp-1.png", "new", true);
+    expect(res?.outcome).toBe("added");
+    expect(useWorkspaces.getState().docs[res!.id].backdropOn).toBe(true);
+  });
+
+  it("filled: an empty active workspace takes the backdrop decision", async () => {
+    const empty = add();
+    const res = await adopt("/tmp/capz-temp-1.png", "new", true);
+    expect(res).toEqual({ id: empty, outcome: "filled" });
+    expect(useWorkspaces.getState().docs[empty].backdropOn).toBe(true);
+  });
+
+  it("replaced: the active workspace takes the backdrop decision", async () => {
+    const a = add();
+    giveImage(a);
+    const res = await adopt("/tmp/capz-temp-1.png", "replace", true);
+    expect(res).toEqual({ id: a, outcome: "replaced" });
+    expect(useWorkspaces.getState().docs[a].backdropOn).toBe(true);
+  });
+
+  it("defaults to off when the caller passes no decision", async () => {
+    const res = await adopt("/tmp/capz-temp-1.png", "new");
+    expect(useWorkspaces.getState().docs[res!.id].backdropOn).toBe(false);
+  });
+
+  it("replacing a workspace whose backdrop was on resets it per the new decision", async () => {
+    const a = add();
+    giveImage(a);
+    useEditor.getState().setBackdropOn(true);
+    await adopt("/tmp/capz-temp-1.png", "replace", false);
+    expect(useWorkspaces.getState().docs[a].backdropOn).toBe(false);
+    // Undo still has the old doc, backdrop and all.
+    expect(useWorkspaces.getState().lastClosed?.doc.backdropOn).toBe(true);
+  });
+});
+
 describe("adoptCapture dedupe", () => {
   beforeEach(reset);
 

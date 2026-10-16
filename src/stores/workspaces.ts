@@ -105,6 +105,8 @@ type State = {
     source: CaptureSource,
     mode: "new" | "replace",
     max: number,
+    /** Seed for the new doc. `backdropOn` = the auto-backdrop decision. */
+    opts?: { backdropOn?: boolean },
   ) => Promise<{ id: string; outcome: AdoptOutcome } | null>;
   adoptBlob: (url: string, max: number) => string;
   /**
@@ -375,12 +377,13 @@ export const useWorkspaces = create<State>((set, get) => ({
     schedulePersist();
   },
 
-  adoptCapture: async (path, source, mode, max) => {
+  adoptCapture: async (path, source, mode, max, opts) => {
     // Adopt-once. Two independent paths can deliver the same capture almost
     // simultaneously — the `editor:load-image` event and the startup
     // `editor_current_image` probe — and each one used to mint a workspace.
     const { order, docs } = get();
     if (order.some((wid) => docs[wid]?.sourcePath === path)) return null;
+    const backdropOn = opts?.backdropOn ?? false;
     // An empty active workspace (made with + / ⇧⌘N, or cleared) is a slot the
     // user opened for exactly this: fill it rather than appending another.
     const active = get().activeId ? docs[get().activeId!] : undefined;
@@ -401,11 +404,11 @@ export const useWorkspaces = create<State>((set, get) => ({
       }
     }
     if (fill && get().docs[id]?.image === null) {
-      fillEmpty(set, get, id, image, source, path);
+      fillEmpty(set, get, id, image, source, path, backdropOn);
       return { id, outcome: "filled" };
     }
     if (mode === "replace" && get().activeId) {
-      const replaced = replaceActive(set, get, image, source, path);
+      const replaced = replaceActive(set, get, image, source, path, backdropOn);
       return replaced ? { id: replaced, outcome: "replaced" } : null;
     }
     if (fill) {
@@ -419,7 +422,7 @@ export const useWorkspaces = create<State>((set, get) => ({
     const added = addWorkspace(
       set,
       get,
-      { image, captureSource: source, id: fill ? uid() : id, sourcePath: path },
+      { image, captureSource: source, id: fill ? uid() : id, sourcePath: path, backdropOn },
       max,
     );
     return { id: added, outcome: wasFull ? "evicted" : "added" };
@@ -582,7 +585,7 @@ export const useWorkspaces = create<State>((set, get) => ({
 // ---------------------------------------------------------------------------
 
 type NewDocSeed = Partial<
-  Pick<WorkspaceDoc, "image" | "captureSource" | "sourcePath">
+  Pick<WorkspaceDoc, "image" | "captureSource" | "sourcePath" | "backdropOn">
 > & { id?: string };
 
 /**
@@ -608,6 +611,7 @@ function addWorkspace(
     image: seed.image ?? null,
     captureSource: seed.captureSource ?? "other",
     sourcePath: seed.sourcePath,
+    backdropOn: seed.backdropOn ?? false,
   };
   let nextOrder = [...order, id];
   const nextDocs = { ...docs, [id]: doc };
@@ -646,6 +650,7 @@ function fillEmpty(
   image: WorkspaceImage,
   source: CaptureSource,
   sourcePath: string,
+  backdropOn: boolean,
 ) {
   const { docs } = get();
   historyStacks.delete(id);
@@ -658,6 +663,7 @@ function fillEmpty(
         image,
         captureSource: source,
         sourcePath,
+        backdropOn,
       },
     },
     pendingId: null,
@@ -673,6 +679,7 @@ function replaceActive(
   image: WorkspaceImage,
   source: CaptureSource,
   sourcePath?: string,
+  backdropOn = false,
 ): string | null {
   const { activeId, docs } = get();
   if (!activeId || !docs[activeId]) return null;
@@ -689,6 +696,7 @@ function replaceActive(
         image,
         captureSource: source,
         sourcePath,
+        backdropOn,
       },
     },
     swapping: true,
