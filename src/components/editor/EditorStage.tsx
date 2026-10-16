@@ -1,5 +1,6 @@
 "use client";
 
+import { useTemplatePreview } from "@/stores/templatePreview";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -337,6 +338,7 @@ export function EditorStage({ src }: Props) {
   }, []);
   const [textEditor, setTextEditor] = useState<TextEditor | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const highlightId = useTemplatePreview((s) => s.highlightId);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const displayScale = useEditor((s) => s.displayScale);
@@ -684,12 +686,13 @@ export function EditorStage({ src }: Props) {
   useEffect(() => {
     const tr = hoverTrRef.current;
     if (!tr) return;
+    const wantId = highlightId ?? hoveredId;
     const showId =
       tool !== "crop" &&
-      hoveredId &&
-      hoveredId !== selectedId &&
-      hoveredId !== textEditor?.id
-        ? hoveredId
+      wantId &&
+      wantId !== selectedId &&
+      wantId !== textEditor?.id
+        ? wantId
         : null;
     if (!showId) {
       tr.nodes([]);
@@ -699,7 +702,7 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(showId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [hoveredId, selectedId, annotations, tool, textEditor?.id]);
+  }, [hoveredId, highlightId, selectedId, annotations, tool, textEditor?.id]);
 
   const srcW = image?.naturalWidth ?? 0;
   const srcH = image?.naturalHeight ?? 0;

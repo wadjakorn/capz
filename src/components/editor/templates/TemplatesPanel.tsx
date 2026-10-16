@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { useTemplates } from "@/stores/templates";
 import { useT } from "@/i18n/useT";
+import { SaveTemplatePopover } from "./SaveTemplatePopover";
 import { TemplateCard } from "./TemplateCard";
 
 /**
@@ -34,11 +35,12 @@ export function TemplatesPanel({ active }: { active: boolean }) {
     };
   }, []);
 
-  if (templates.length === 0) {
-    return <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t("editor.templates.empty")}</p>;
-  }
   return (
     <div className="flex flex-col gap-2.5">
+      <SaveTemplatePopover />
+      {templates.length === 0 && (
+        <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t("editor.templates.empty")}</p>
+      )}
       {templates.map((tpl) => (
         <TemplateCard
           key={tpl.id}

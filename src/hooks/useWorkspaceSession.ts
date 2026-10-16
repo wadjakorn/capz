@@ -1,5 +1,6 @@
 "use client";
 
+import { useTemplatePreview } from "@/stores/templatePreview";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useEditor } from "@/stores/editor";
@@ -132,6 +133,11 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
       clearTimeout(timer);
     };
   }, [enabled, pendingId]);
+
+  // A template-picker highlight belongs to the workspace it was opened on.
+  useEffect(() => {
+    useTemplatePreview.getState().setHighlight(null);
+  }, [activeId]);
 
   // --- apply the active workspace to the editor -----------------------------
   useEffect(() => {
