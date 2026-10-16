@@ -527,7 +527,7 @@ pub fn set_editor_always_on_top<R: Runtime>(app: AppHandle<R>, on: bool) -> Resu
 /// Which capture produced an image opened in the editor. Forwarded to the
 /// frontend with `editor:load-image` so it can, e.g., default the padded
 /// backdrop on for window captures. `Other` covers non-capture opens (paste,
-/// flatten-to-new).
+/// file import); `LoadOrigin` says which.
 #[derive(Clone, Copy)]
 pub enum CaptureSource {
     Full,
@@ -554,6 +554,17 @@ impl CaptureSource {
     }
 }
 
+/// How a non-capture image reached the editor. Only drives the frontend's
+/// auto-backdrop default; `None` (captures) means no hint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LoadOrigin {
+    /// Clipboard paste onto an empty canvas.
+    Paste,
+    /// A file opened onto an empty canvas (history drag, file drop / pick).
+    Import,
+}
+
 /// Payload for `editor:load-image`. Object form (was a bare path string) so the
 /// editor learns the capture source alongside the file.
 #[derive(Clone, serde::Serialize)]
@@ -565,6 +576,9 @@ struct LoadImagePayload {
     /// button: the frontend adds it as a new image layer and leaves the base
     /// image and its annotations alone.
     as_layer: bool,
+    /// Set for paste / import opens; omitted for captures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origin: Option<LoadOrigin>,
 }
 
 /// Set the active workspace image (replacing/removing any prior temp PNG),
@@ -573,11 +587,12 @@ pub fn load_editor_image<R: Runtime>(
     app: &AppHandle<R>,
     path: &str,
     source: CaptureSource,
+    origin: Option<LoadOrigin>,
 ) -> tauri::Result<()> {
     use tauri::Emitter;
 
     let state = app.state::<crate::state::AppState>();
-    // Non-capture opens (paste, flatten-to-new) always replace, and must not
+    // Non-capture opens (paste, file import) always replace, and must not
     // consume a layer intent left over from an unrelated dispatch.
     let as_layer = !matches!(source, CaptureSource::Other) && state.take_pending_layer();
 
@@ -603,6 +618,7 @@ pub fn load_editor_image<R: Runtime>(
         path: path.to_string(),
         source: source.as_str().to_string(),
         as_layer,
+        origin,
     };
     if let Err(e) = app.emit_to("editor", "editor:load-image", payload) {
         log::warn!("emit editor:load-image: {e}");
@@ -1174,7 +1190,38 @@ pub fn close_scroll_guide<R: Runtime>(app: &AppHandle<R>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{hud_position, ring_position};
+    use super::{hud_position, ring_position, LoadImagePayload, LoadOrigin};
+
+    #[test]
+    fn load_image_payload_carries_origin_only_when_set() {
+        let paste = serde_json::to_value(LoadImagePayload {
+            path: "p.png".into(),
+            source: "other".into(),
+            as_layer: false,
+            origin: Some(LoadOrigin::Paste),
+        })
+        .unwrap();
+        assert_eq!(paste["origin"], "paste");
+        assert_eq!(paste["asLayer"], false);
+
+        let import = serde_json::to_value(LoadImagePayload {
+            path: "p.png".into(),
+            source: "other".into(),
+            as_layer: false,
+            origin: Some(LoadOrigin::Import),
+        })
+        .unwrap();
+        assert_eq!(import["origin"], "import");
+
+        let capture = serde_json::to_value(LoadImagePayload {
+            path: "p.png".into(),
+            source: "window".into(),
+            as_layer: false,
+            origin: None,
+        })
+        .unwrap();
+        assert!(capture.get("origin").is_none());
+    }
 
     /// Do two axis-aligned rects (x, y, w, h) overlap with positive area?
     #[allow(clippy::too_many_arguments)] // two flat (x,y,w,h) rects
