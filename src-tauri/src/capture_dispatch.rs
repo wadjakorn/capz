@@ -39,14 +39,12 @@ pub fn dispatch_full<R: Runtime>(app: &AppHandle<R>) {
     });
 }
 
-/// Capture the sole display directly, bypassing the pick-a-screen overlay.
-/// Hides the editor first so a capture launched from it doesn't bake the editor
-/// chrome into the shot — this mirrors the hotkey path's pre-dispatch hide and
-/// also covers the tray entry point, which dispatches without hiding the editor.
+/// Capture the display under the cursor directly, with no overlay. The editor is
+/// captured as the user sees it (WYSIWYG) — only the editor-toolbar path hides
+/// it, in `trigger_capture`. Waits one compositor frame first so a just-closed
+/// command ring or tray menu has left the screen.
 async fn capture_single_monitor<R: Runtime>(app: AppHandle<R>, monitor_id: u32) {
-    if let Err(e) = windows::hide_editor_and_wait(&app).await {
-        log::warn!("hide editor before instant fullscreen: {e}");
-    }
+    windows::settle_frame().await;
     if let Err(e) =
         crate::commands::pickers::capture_full_monitor(app.clone(), monitor_id).await
     {
@@ -67,10 +65,13 @@ pub fn dispatch_scroll<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Hide the editor (if visible) then dispatch the overlay for the requested
-/// capture mode. Used by both the global hotkey path and the in-editor toolbar
-/// so a capture launched from the editor never bakes the editor into the shot.
-/// Editor re-show happens automatically: on success via
+/// Dispatch the requested capture mode. Captures are WYSIWYG: the editor stays
+/// in the shot exactly as it appears on screen. `hide_editor` is set only by the
+/// in-editor toolbar (`trigger_capture_command`) — clicking capture from inside
+/// the editor means "capture what's behind me". The overlays are non-activating
+/// panels on macOS (`panel.rs`), so an editor that isn't hidden is also never
+/// pulled in front of the app being captured.
+/// Editor re-show (when it was hidden) happens automatically: on success via
 /// `windows::load_editor_image` → `show_editor`, and on user-cancel via
 /// `commands::overlay::close_overlay_command` → `show_editor_if_hidden`.
 ///
@@ -83,10 +84,13 @@ pub async fn trigger_capture<R: Runtime>(
     app: AppHandle<R>,
     kind: CaptureKind,
     as_layer: bool,
+    hide_editor: bool,
 ) -> Result<(), String> {
     app.state::<crate::state::AppState>()
         .set_pending_layer(as_layer);
-    windows::hide_editor_and_wait(&app).await?;
+    if hide_editor {
+        windows::hide_editor_and_wait(&app).await?;
+    }
     let app_dispatch = app.clone();
     let res = app.run_on_main_thread(move || match kind {
         CaptureKind::Full => dispatch_full(&app_dispatch),

@@ -1,5 +1,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, Runtime};
+
+use crate::services::self_window;
 use xcap::Window as XcapWindow;
 
 use crate::services::{monitor_service, window_service};
@@ -40,12 +42,16 @@ fn window_zorder() -> std::collections::HashMap<u32, u32> {
 }
 
 /// Enumerate capturable windows on a given monitor in front-to-back order.
-/// Filters out own pid, minimized / zero-area windows, and windows whose
-/// `current_monitor()` is not `monitor_id`. Coordinates are converted to
-/// monitor-local logical pixels so the overlay frontend can hit-test in its
-/// own viewport space.
+/// Filters out our own windows (except the editor when it is on screen — see
+/// `services::self_window`), minimized / zero-area windows, and windows that
+/// don't overlap `monitor_id`. Coordinates are converted to monitor-local
+/// logical pixels so the overlay frontend can hit-test in its own viewport
+/// space.
 #[tauri::command]
-pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayInfo>, String> {
+pub async fn list_capture_windows<R: Runtime>(
+    app: AppHandle<R>,
+    monitor_id: u32,
+) -> Result<Vec<WindowOverlayInfo>, String> {
     #[cfg(target_os = "macos")]
     if !crate::commands::permissions::has_screen_recording() {
         return Err(crate::i18n::tr(crate::i18n::Msg::ScreenRecordingRequired).into());
@@ -68,11 +74,18 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
         #[cfg(target_os = "macos")]
         let div = 1.0_f32;
         let own_pid = std::process::id();
+        // The editor is captured as seen (WYSIWYG): listed whenever visible.
+        // A capture started from the editor toolbar hid it before the overlay
+        // opened, so it drops out on its own.
+        let editor = self_window::editor_target(&app);
+        let editor_id = editor.as_ref().map(|e| e.id);
+        log::info!("list_capture_windows: editor target {editor_id:?}");
         let wins = XcapWindow::all().map_err(|e| anyhow::anyhow!("Window::all: {e}"))?;
         let mut out = Vec::new();
         for w in wins {
             let pid = w.pid().unwrap_or(0);
-            if pid == own_pid {
+            let wid = w.id().unwrap_or(0);
+            if !self_window::include_window(pid, wid, own_pid, editor_id) {
                 continue;
             }
             if w.is_minimized().unwrap_or(false) {
@@ -109,7 +122,7 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
             // bundle name (`app` is the Tauri default) — never by title, since
             // user-app titles can contain "capz" if they happen to display the
             // working directory.
-            if app_name == "app" {
+            if app_name == "app" && editor_id != Some(wid) {
                 continue;
             }
             // Skip macOS system pseudo-windows that pass the size/pid filters
@@ -164,17 +177,35 @@ pub async fn list_capture_windows(monitor_id: u32) -> Result<Vec<WindowOverlayIn
                 height: (height as f32 / div).round().max(1.0) as u32,
             });
         }
-        // Windows: order by real OS z-order (topmost first) so the foreground
-        // app under the cursor wins the hit-test; a window behind another is
-        // ignored unless the cursor is over a part only it covers. Other
-        // platforms: smallest-area first so a small dialog over a larger window
-        // wins (the z-order helper is Windows-only).
+        // Windows: xcap never lists our own process's windows, so the editor
+        // entry is built from its HWND + DWM frame bounds (monitor coords are
+        // physical px here).
+        #[cfg(target_os = "windows")]
+        if let Some(e) = &editor {
+            let mon_rect = self_window::ScreenRect {
+                left: mx,
+                top: my,
+                right: mx + mon_w as i32,
+                bottom: my + mon_h as i32,
+            };
+            if let Some(entry) = self_window::editor_entry(e, mon_rect, div) {
+                out.push(entry);
+            }
+        }
+        // Order front-to-back so whatever is visibly on top under the cursor
+        // wins the hit-test. Windows: real OS z-order. macOS: the
+        // CGWindowList order, keeping only normal-layer windows (+ the editor)
+        // so other apps' floating overlays don't swallow every hover. Other
+        // platforms: smallest-area first, so a small dialog over a larger
+        // window wins.
         #[cfg(target_os = "windows")]
         {
             let z = window_zorder();
             out.sort_by_key(|w| z.get(&w.id).copied().unwrap_or(u32::MAX));
         }
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "macos")]
+        self_window::order_front_to_back(&mut out, &self_window::window_ranks(), editor_id);
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         out.sort_by_key(|w| (w.width as u64) * (w.height as u64));
         Ok(out)
     })
@@ -212,6 +243,15 @@ pub async fn capture_window_command<R: Runtime>(
     window_id: u32,
 ) -> Result<String, String> {
     hide_overlays_and_wait(&app).await?;
+    // Windows: xcap can't see (or capture) our own editor, so crop it from the
+    // monitor instead — the overlays are hidden, so the crop is exactly what
+    // the user sees. The rect is re-read now, not taken from the list call.
+    #[cfg(target_os = "windows")]
+    if let Some(editor) = self_window::editor_target(&app).filter(|e| e.id == window_id) {
+        let res = capture_editor_crop(&app, editor).await;
+        close_overlays(&app);
+        return res;
+    }
     let res = crate::commands::capture::capture_to_editor(
         app.clone(),
         format!("capture_window({window_id})"),
@@ -221,4 +261,35 @@ pub async fn capture_window_command<R: Runtime>(
     .await;
     close_overlays(&app);
     res
+}
+
+#[cfg(target_os = "windows")]
+async fn capture_editor_crop<R: Runtime>(
+    app: &AppHandle<R>,
+    editor: self_window::EditorTarget,
+) -> Result<String, String> {
+    let mons: Vec<(u32, self_window::ScreenRect)> = monitor_service::list_monitors()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|m| {
+            (
+                m.id,
+                self_window::ScreenRect {
+                    left: m.x,
+                    top: m.y,
+                    right: m.x + m.width as i32,
+                    bottom: m.y + m.height as i32,
+                },
+            )
+        })
+        .collect();
+    let (mon, x, y, w, h) =
+        self_window::editor_crop(editor.bounds, &mons).ok_or("editor is off screen")?;
+    crate::commands::capture::capture_to_editor(
+        app.clone(),
+        format!("capture_editor(mon={mon}, {x},{y} {w}x{h})"),
+        crate::windows::CaptureSource::Window,
+        move || crate::services::capture_service::capture_region(mon, x, y, w, h),
+    )
+    .await
 }

@@ -37,10 +37,10 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         .collect();
     if !existing.is_empty() {
         for w in &existing {
-            let _ = w.show();
+            let _ = crate::panel::show(app, w);
         }
         if let Some(w) = existing.first() {
-            let _ = w.set_focus();
+            crate::panel::make_key(app, w);
         }
         return Ok(());
     }
@@ -139,8 +139,11 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         #[cfg(target_os = "windows")]
         disable_dwm_transitions(&win);
 
-        win.show()?;
-
+        // Non-activating panel (macOS): the overlay can take keys without
+        // activating capz, so a buried editor is never pulled in front of the
+        // app being captured. Level + Spaces behaviour are set before the
+        // first show so the overlay lands on the right Space.
+        crate::panel::make_nonactivating(&win)?;
         #[cfg(target_os = "macos")]
         {
             use objc2::{msg_send, runtime::AnyObject};
@@ -153,6 +156,8 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
                 let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
             }
         }
+
+        crate::panel::show(app, &win)?;
     }
 
     // Focus an overlay so keyboard (Esc) works without a click. Prefer the
@@ -165,7 +170,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         .or_else(|| specs.first().map(|s| s.label.clone()));
     if let Some(label) = focus_label {
         if let Some(w) = app.get_webview_window(&label) {
-            let _ = w.set_focus();
+            crate::panel::make_key(app, &w);
         }
     }
 
@@ -216,7 +221,7 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
                         let app2 = app_clone.clone();
                         let _ = app_clone.run_on_main_thread(move || {
                             if let Some(w) = app2.get_webview_window(&label) {
-                                let _ = w.set_focus();
+                                crate::panel::make_key(&app2, &w);
                             }
                         });
                     }
@@ -306,11 +311,11 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
                 "command ring: focus mode changed (built_unfocused={built_unfocused}, \
                  want_unfocused={want_unfocused}), rebuilding window"
             );
-            let _ = win.close();
+            close_on_main(app, win);
         } else {
-            let _ = win.show();
+            let _ = crate::panel::show(app, &win);
             if focus {
-                let _ = win.set_focus();
+                crate::panel::make_key(app, &win);
             }
             return Ok(());
         }
@@ -399,11 +404,14 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
     #[cfg(target_os = "windows")]
     disable_dwm_transitions(&win);
 
-    win.show()?;
+    // Only the click ring (v1) takes keys, so only it becomes a non-activating
+    // panel (it would otherwise activate capz and pull a buried editor in
+    // front). The hold ring (v2) must never become key — a panel's `show()`
+    // would steal key from the source app (CP-0038) — so it stays a plain
+    // window that is only ordered front.
     if focus {
-        let _ = win.set_focus();
+        crate::panel::make_nonactivating(&win)?;
     }
-
     #[cfg(target_os = "macos")]
     {
         use objc2::{msg_send, runtime::AnyObject};
@@ -417,16 +425,31 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
         }
     }
 
+    crate::panel::show(app, &win)?;
+    if focus {
+        crate::panel::make_key(app, &win);
+    }
+
     Ok(())
+}
+
+/// Close `win` on the main thread (a converted panel must be handed back to a
+/// plain window there before closing — see `panel::close`).
+fn close_on_main<R: Runtime>(app: &AppHandle<R>, win: tauri::WebviewWindow<R>) {
+    let app_close = app.clone();
+    let label = win.label().to_string();
+    let _ = app.run_on_main_thread(move || {
+        if let Err(e) = crate::panel::close(&app_close, &win) {
+            log::warn!("close {label} failed: {e}");
+        }
+    });
 }
 
 /// Close the command-ring window if present. Safe to call when it does not
 /// exist. Used on cancel (Esc / blur) and after a wedge selection.
 pub fn close_command_ring<R: Runtime>(app: &AppHandle<R>) {
     if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
-        if let Err(e) = win.close() {
-            log::warn!("close command ring failed: {e}");
-        }
+        close_on_main(app, win);
     }
 }
 
@@ -705,6 +728,23 @@ pub async fn hide_overlays_and_wait<R: Runtime>(app: &AppHandle<R>) -> Result<()
     Ok(())
 }
 
+/// Wait for one compositor frame so windows just hidden/closed are gone from
+/// the buffer xcap reads. Windows: `DwmFlush` (deterministic); elsewhere a short
+/// fixed delay, matching `hide_overlays_and_wait`.
+pub async fn settle_frame() {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = tokio::task::spawn_blocking(|| unsafe {
+            let _ = windows_sys::Win32::Graphics::Dwm::DwmFlush();
+        })
+        .await;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+}
+
 /// Hide the editor window (if it exists and is visible) and wait until the
 /// OS reports it invisible. Used before xcap reads the screen so the editor
 /// chrome doesn't appear in captures initiated from inside the editor.
@@ -803,7 +843,7 @@ pub fn close_overlays<R: Runtime>(app: &AppHandle<R>) {
     let _ = app.run_on_main_thread(move || {
         for (label, win) in app_close.webview_windows() {
             if is_overlay_label(&label) {
-                if let Err(e) = win.close() {
+                if let Err(e) = crate::panel::close(&app_close, &win) {
                     log::warn!("close {label} failed: {e}");
                 }
             }
@@ -915,8 +955,8 @@ pub fn show_scroll_hud<R: Runtime>(
     auto: bool,
 ) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window(SCROLL_HUD_LABEL) {
-        let _ = win.show();
-        let _ = win.set_focus();
+        let _ = crate::panel::show(app, &win);
+        crate::panel::make_key(app, &win);
         return Ok(());
     }
 
@@ -1018,9 +1058,10 @@ pub fn show_scroll_hud<R: Runtime>(
         disable_dwm_transitions(&win);
     }
 
-    win.show()?;
-    let _ = win.set_focus();
-
+    // Non-activating panel (macOS): the HUD takes Enter/Esc without
+    // activating capz, so an editor left on screen is not pulled in front of
+    // the page being scrolled.
+    crate::panel::make_nonactivating(&win)?;
     #[cfg(target_os = "macos")]
     {
         use objc2::{msg_send, runtime::AnyObject};
@@ -1033,6 +1074,9 @@ pub fn show_scroll_hud<R: Runtime>(
         }
     }
 
+    crate::panel::show(app, &win)?;
+    crate::panel::make_key(app, &win);
+
     Ok(())
 }
 
@@ -1041,7 +1085,7 @@ pub fn close_scroll_hud<R: Runtime>(app: &AppHandle<R>) {
     let app_close = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(win) = app_close.get_webview_window(SCROLL_HUD_LABEL) {
-            if let Err(e) = win.close() {
+            if let Err(e) = crate::panel::close(&app_close, &win) {
                 log::warn!("close scroll HUD failed: {e}");
             }
         }

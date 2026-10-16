@@ -178,7 +178,9 @@ pub async fn trigger_capture_command<R: Runtime>(
         "systemArea" => crate::shortcuts::CaptureKind::SystemArea,
         other => return Err(format!("unknown capture kind: {other}")),
     };
-    crate::capture_dispatch::trigger_capture(app, parsed, as_layer.unwrap_or(false)).await
+    // Only the editor toolbar calls this command: hide the editor so the shot
+    // is of what's behind it.
+    crate::capture_dispatch::trigger_capture(app, parsed, as_layer.unwrap_or(false), true).await
 }
 
 /// Capture an area selection and open it in the editor.

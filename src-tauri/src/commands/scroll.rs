@@ -232,7 +232,7 @@ pub async fn scroll_capture_start_command<R: Runtime>(
             // but showing an always-on-top window can still steal activation on
             // Windows, and Enter/Esc (finish/cancel) must reach the HUD.
             if let Some(hud) = app_main.get_webview_window(windows::SCROLL_HUD_LABEL) {
-                let _ = hud.set_focus();
+                crate::panel::make_key(&app_main, &hud);
             }
         }
         let _ = tx.send(res);
