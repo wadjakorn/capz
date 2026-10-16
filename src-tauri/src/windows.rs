@@ -311,11 +311,11 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
                 "command ring: focus mode changed (built_unfocused={built_unfocused}, \
                  want_unfocused={want_unfocused}), rebuilding window"
             );
-            let _ = win.close();
+            close_on_main(app, win);
         } else {
-            let _ = win.show();
+            let _ = crate::panel::show(app, &win);
             if focus {
-                let _ = win.set_focus();
+                crate::panel::make_key(app, &win);
             }
             return Ok(());
         }
@@ -404,11 +404,14 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
     #[cfg(target_os = "windows")]
     disable_dwm_transitions(&win);
 
-    win.show()?;
+    // Only the click ring (v1) takes keys, so only it becomes a non-activating
+    // panel (it would otherwise activate capz and pull a buried editor in
+    // front). The hold ring (v2) must never become key — a panel's `show()`
+    // would steal key from the source app (CP-0038) — so it stays a plain
+    // window that is only ordered front.
     if focus {
-        let _ = win.set_focus();
+        crate::panel::make_nonactivating(&win)?;
     }
-
     #[cfg(target_os = "macos")]
     {
         use objc2::{msg_send, runtime::AnyObject};
@@ -422,16 +425,31 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
         }
     }
 
+    crate::panel::show(app, &win)?;
+    if focus {
+        crate::panel::make_key(app, &win);
+    }
+
     Ok(())
+}
+
+/// Close `win` on the main thread (a converted panel must be handed back to a
+/// plain window there before closing — see `panel::close`).
+fn close_on_main<R: Runtime>(app: &AppHandle<R>, win: tauri::WebviewWindow<R>) {
+    let app_close = app.clone();
+    let label = win.label().to_string();
+    let _ = app.run_on_main_thread(move || {
+        if let Err(e) = crate::panel::close(&app_close, &win) {
+            log::warn!("close {label} failed: {e}");
+        }
+    });
 }
 
 /// Close the command-ring window if present. Safe to call when it does not
 /// exist. Used on cancel (Esc / blur) and after a wedge selection.
 pub fn close_command_ring<R: Runtime>(app: &AppHandle<R>) {
     if let Some(win) = app.get_webview_window(COMMAND_RING_LABEL) {
-        if let Err(e) = win.close() {
-            log::warn!("close command ring failed: {e}");
-        }
+        close_on_main(app, win);
     }
 }
 
@@ -937,8 +955,8 @@ pub fn show_scroll_hud<R: Runtime>(
     auto: bool,
 ) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window(SCROLL_HUD_LABEL) {
-        let _ = win.show();
-        let _ = win.set_focus();
+        let _ = crate::panel::show(app, &win);
+        crate::panel::make_key(app, &win);
         return Ok(());
     }
 
@@ -1040,9 +1058,10 @@ pub fn show_scroll_hud<R: Runtime>(
         disable_dwm_transitions(&win);
     }
 
-    win.show()?;
-    let _ = win.set_focus();
-
+    // Non-activating panel (macOS): the HUD takes Enter/Esc without
+    // activating capz, so an editor left on screen is not pulled in front of
+    // the page being scrolled.
+    crate::panel::make_nonactivating(&win)?;
     #[cfg(target_os = "macos")]
     {
         use objc2::{msg_send, runtime::AnyObject};
@@ -1055,6 +1074,9 @@ pub fn show_scroll_hud<R: Runtime>(
         }
     }
 
+    crate::panel::show(app, &win)?;
+    crate::panel::make_key(app, &win);
+
     Ok(())
 }
 
@@ -1063,7 +1085,7 @@ pub fn close_scroll_hud<R: Runtime>(app: &AppHandle<R>) {
     let app_close = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(win) = app_close.get_webview_window(SCROLL_HUD_LABEL) {
-            if let Err(e) = win.close() {
+            if let Err(e) = crate::panel::close(&app_close, &win) {
                 log::warn!("close scroll HUD failed: {e}");
             }
         }
