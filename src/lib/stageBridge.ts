@@ -1,4 +1,5 @@
 import type Konva from "konva";
+import { create } from "zustand";
 
 /** Export region in image-pixel coords. Origin may be negative when an element
  *  overflows the image's top/left edge. Published by EditorStage; consumed by
@@ -123,6 +124,23 @@ export function setStageImageSize(w: number, h: number) {
 
 export function clearStageImageSize() {
   imageSize = null;
+}
+
+let sourceSize: { w: number; h: number } | null = null;
+
+/** Reactive mirror of the stage's source size, for UI disabled states. */
+export const useStageSourceSize = create<{ size: { w: number; h: number } | null }>(() => ({
+  size: null,
+}));
+
+/** Natural size of the bitmap currently loaded on the stage (null when none). */
+export function setStageSourceSize(size: { w: number; h: number } | null) {
+  sourceSize = size;
+  useStageSourceSize.setState({ size });
+}
+
+export function getStageSourceSize(): { w: number; h: number } | null {
+  return sourceSize;
 }
 
 export function getStageImageSize(): { w: number; h: number } | null {

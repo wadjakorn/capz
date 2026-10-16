@@ -48,6 +48,7 @@ import {
   runPrepareExport,
   setPrepareExport,
   setStageImageSize,
+  setStageSourceSize,
   notifyStageImageReady,
   notifyStageViewSettled,
   takePendingView,
@@ -829,6 +830,13 @@ export function EditorStage({ src }: Props) {
   const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
   // Layout effect: the restored zoom has to be in place before the new image is
   // first painted, or that first frame shows it at the old workspace's scale.
+  // Natural size of the loaded bitmap, for templates (declared before the
+  // effect below so it is set by the time notifyStageImageReady fires).
+  useLayoutEffect(() => {
+    setStageSourceSize(image ? { w: image.naturalWidth, h: image.naturalHeight } : null);
+    return () => setStageSourceSize(null);
+  }, [image]);
+
   useLayoutEffect(() => {
     if (!image) return;
     if (prevImageRef.current === image) return;

@@ -19,7 +19,7 @@ const THUMB_DEBOUNCE_MS = 500;
  */
 const PRELOAD_TIMEOUT_MS = 4000;
 
-type ConvertFileSrc = (path: string) => string;
+export type ConvertFileSrc = (path: string) => string;
 let convertFileSrcFn: ConvertFileSrc | null = null;
 
 /**
@@ -27,7 +27,7 @@ let convertFileSrcFn: ConvertFileSrc | null = null;
  * hydrate and src in the same tick — so the dynamic import cannot sit on that
  * path every time.
  */
-async function loadConvertFileSrc(): Promise<ConvertFileSrc | null> {
+export async function loadConvertFileSrc(): Promise<ConvertFileSrc | null> {
   if (!isTauriRuntime()) return null;
   if (!convertFileSrcFn) {
     const { convertFileSrc } = await import("@tauri-apps/api/core");
