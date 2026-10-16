@@ -66,7 +66,13 @@ import {
   DEFAULT_TEXT_LINE_HEIGHT,
   type AppConfig,
 } from "@/lib/config";
-import { canvasFill, paddedBox, patternUnit, resolvePreset } from "@/lib/backdrop";
+import {
+  canvasFill,
+  paddedBox,
+  patternUnit,
+  resolvePreset,
+  stageFitsBufferCanvas,
+} from "@/lib/backdrop";
 import { renderPattern } from "@/lib/backdropPatterns";
 import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
@@ -984,12 +990,13 @@ export function EditorStage({ src }: Props) {
   // Konva draws the image through a shared, Stage-sized buffer canvas whenever
   // it has BOTH a corner radius and a shadow (Image._useBufferCanvas). On the
   // first frame after the image loads, contentBox — and thus stageW/stageH — is
-  // still 0 (its measuring effect runs post-paint), so that buffer canvas is
-  // 0×0 and drawImage(bufferCanvas, …) throws "InvalidStateError". Gate the
-  // backdrop's buffer-triggering props on a non-zero stage so the transient
-  // frame draws the image directly (no buffer); the backdrop appears the same
-  // frame contentBox becomes non-zero.
-  const backdropRender = backdropOn && stageW > 0 && stageH > 0;
+  // still 0 (its measuring effect runs post-paint); and a wide capture fitted
+  // into a hidden or collapsed window can give a sub-pixel stage. Either way
+  // the buffer canvas truncates to 0px and drawImage(bufferCanvas, …) throws
+  // "InvalidStateError". Gate the backdrop's buffer-triggering props on a stage
+  // of at least 1px so those frames draw the image directly (no buffer); the
+  // backdrop appears as soon as the stage has a real size.
+  const backdropRender = backdropOn && stageFitsBufferCanvas(stageW, stageH);
 
   // Background fill for the canvas Rect. The exposed band (padded frame or an
   // overflow region around the image) follows the gradient/solid backdrop

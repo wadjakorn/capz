@@ -24,4 +24,6 @@ Open items first (actionable for agents). Landed history archived — see below.
 
 ## Landed
 
+- **Editor: `InvalidStateError` from `drawImage` with the backdrop on** (2026-10-16) — the backdrop's corner-radius + shadow make Konva draw the image through a stage-sized buffer canvas (`size × pixelRatio`, truncated). The guard only rejected a 0px stage, so a sub-pixel one (wide area capture fitted into a hidden/collapsed editor) still produced a 0px buffer and `drawImage` threw. Guard is now `stageFitsBufferCanvas` (≥ 1px per axis) in `src/lib/backdrop.ts`, unit-tested.
+
 Archived: [docs/archive/PROGRESS-BUG-LANDED.md](docs/archive/PROGRESS-BUG-LANDED.md).

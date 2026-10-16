@@ -10,6 +10,7 @@ import {
   BACKDROP_PRESETS,
   PATTERN_PRESETS,
   resolvePreset,
+  stageFitsBufferCanvas,
   patternUnit,
   type BackdropFill,
 } from "./backdrop";
@@ -193,5 +194,23 @@ describe("canvasFill with pattern presets", () => {
     expect(f.fillPatternRepeat).toBe("repeat");
     expect(f.fillPatternScaleX).toBe(1);
     expect(f.fillPatternScaleY).toBe(1);
+  });
+});
+
+describe("stageFitsBufferCanvas", () => {
+  it("rejects an unmeasured (0×0) stage", () => {
+    expect(stageFitsBufferCanvas(0, 0)).toBe(false);
+  });
+  it("rejects a sub-pixel stage — Konva's buffer canvas would truncate to 0px", () => {
+    // e.g. a wide area capture fitted into a hidden/collapsed editor window.
+    expect(stageFitsBufferCanvas(1, 0.3)).toBe(false);
+    expect(stageFitsBufferCanvas(0.5, 400)).toBe(false);
+  });
+  it("accepts a stage at least 1px on both axes", () => {
+    expect(stageFitsBufferCanvas(1, 1)).toBe(true);
+    expect(stageFitsBufferCanvas(1280, 720)).toBe(true);
+  });
+  it("rejects non-finite sizes", () => {
+    expect(stageFitsBufferCanvas(Number.NaN, 100)).toBe(false);
   });
 });
