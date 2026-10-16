@@ -287,6 +287,7 @@ export const editor = {
   "editor.preview.closeHint": "Close preview (Esc)",
   "editor.preview.close": "Close preview",
   "editor.templates.toast.applied": "Applied to {n} images",
+  "editor.templates.toast.appliedOne": "Applied to {n} image",
   "editor.templates.toast.skipped": "{n} skipped",
   "editor.templates.toast.cropSkipped": "crop didn't fit {n}",
   "editor.templates.toast.scaleMismatch": "Some images look like a different screen scale",

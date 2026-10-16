@@ -288,6 +288,7 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.preview.closeHint": "ปิดตัวอย่าง (Esc)",
   "editor.preview.close": "ปิดตัวอย่าง",
   "editor.templates.toast.applied": "ใช้กับ {n} ภาพแล้ว",
+  "editor.templates.toast.appliedOne": "ใช้กับ {n} ภาพแล้ว",
   "editor.templates.toast.skipped": "ข้าม {n} ภาพ",
   "editor.templates.toast.cropSkipped": "ครอบตัดไม่พอดี {n} ภาพ",
   "editor.templates.toast.scaleMismatch": "บางภาพดูเหมือนมาจากหน้าจอที่สเกลต่างกัน",

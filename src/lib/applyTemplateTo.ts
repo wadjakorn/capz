@@ -172,7 +172,9 @@ export function showApplyToast(s: ApplySummary, t: (k: TKey, v?: TVars) => strin
     toast(t("editor.templates.toast.aborted"), { id: TOAST_ID });
     return;
   }
-  const parts = [t("editor.templates.toast.applied", { n: s.applied })];
+  const appliedKey: TKey =
+    s.applied === 1 ? "editor.templates.toast.appliedOne" : "editor.templates.toast.applied";
+  const parts = [t(appliedKey, { n: s.applied })];
   if (s.skipped) parts.push(t("editor.templates.toast.skipped", { n: s.skipped }));
   if (s.cropSkipped) parts.push(t("editor.templates.toast.cropSkipped", { n: s.cropSkipped }));
   const desc: string[] = [];

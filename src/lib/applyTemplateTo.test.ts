@@ -423,6 +423,12 @@ describe("showApplyToast", () => {
     expect(opts.action).toBeUndefined();
   });
 
+  it("uses the singular for one applied image", () => {
+    showApplyToast({ ...base, applied: 1 }, t);
+    const [msg] = toastMock.mock.calls[0];
+    expect(msg).toBe("Applied to 1 image");
+  });
+
   it("aborted toast asks to retry", () => {
     showApplyToast({ ...base, applied: 0, aborted: true }, t);
     const [msg, opts] = toastMock.mock.calls[0];
