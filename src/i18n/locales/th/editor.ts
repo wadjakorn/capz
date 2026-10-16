@@ -287,4 +287,11 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.preview.add": "เพิ่มลงเวิร์กสเปซปัจจุบัน",
   "editor.preview.closeHint": "ปิดตัวอย่าง (Esc)",
   "editor.preview.close": "ปิดตัวอย่าง",
+  "editor.templates.toast.applied": "ใช้กับ {n} ภาพแล้ว",
+  "editor.templates.toast.skipped": "ข้าม {n} ภาพ",
+  "editor.templates.toast.cropSkipped": "ครอบตัดไม่พอดี {n} ภาพ",
+  "editor.templates.toast.scaleMismatch": "บางภาพดูเหมือนมาจากหน้าจอที่สเกลต่างกัน",
+  "editor.templates.toast.aborted": "กำลังสลับเวิร์กสเปซ — ลองอีกครั้ง",
+  "editor.templates.toast.revertBackdrop": "คืนพื้นหลังเดิม",
+  "editor.templates.toast.undoHint": "กด Ctrl+Z ในแต่ละภาพเพื่อเลิกทำองค์ประกอบและการครอบตัด",
 };

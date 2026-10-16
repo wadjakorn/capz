@@ -286,4 +286,11 @@ export const editor = {
   "editor.preview.add": "Add to current workspace",
   "editor.preview.closeHint": "Close preview (Esc)",
   "editor.preview.close": "Close preview",
+  "editor.templates.toast.applied": "Applied to {n} images",
+  "editor.templates.toast.skipped": "{n} skipped",
+  "editor.templates.toast.cropSkipped": "crop didn't fit {n}",
+  "editor.templates.toast.scaleMismatch": "Some images look like a different screen scale",
+  "editor.templates.toast.aborted": "Workspace is switching — try again",
+  "editor.templates.toast.revertBackdrop": "Revert backdrop",
+  "editor.templates.toast.undoHint": "Ctrl+Z on each image undoes annotations and crop",
 };
