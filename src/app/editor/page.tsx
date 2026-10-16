@@ -19,6 +19,7 @@ import { WorkspaceSwapOverlay } from "@/components/editor/WorkspaceSwapOverlay";
 import { CanvasDropHint } from "@/components/editor/CanvasDropHint";
 import { HistoryPreview } from "@/components/editor/HistoryPreview";
 import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
+import { TemplatesPanel } from "@/components/editor/templates/TemplatesPanel";
 import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
 import { useSidebar } from "@/stores/sidebar";
 import { autoBackdropFor, routeIncomingCapture, type LoadOrigin } from "@/lib/captureRouting";
@@ -66,8 +67,12 @@ export default function EditorPage() {
   // Sidebar panel selection. `remembered` is the last panel the user chose on
   // purpose; the tool panel never becomes that, so deselecting a tool returns
   // to where they actually were rather than to wherever they started.
+  // Templates are desktop-only (app-data store). Set in an effect, never read
+  // during render, so the prerendered HTML and first client render agree.
+  const [tauriUi, setTauriUi] = useState(false);
+  useEffect(() => setTauriUi(isTauriRuntime()), []);
   const toolPanel = useSidebar((s) => s.toolPanel);
-  const [rememberedTab, setRememberedTab] = useState<"canvas" | "history">("canvas");
+  const [rememberedTab, setRememberedTab] = useState<"canvas" | "history" | "templates">("canvas");
   const [showingTool, setShowingTool] = useState(false);
   const lastToolKey = useRef<string | null>(null);
   useEffect(() => {
@@ -683,6 +688,7 @@ export default function EditorPage() {
             <SidebarTabs
               active={activeTab}
               toolPanel={toolPanel}
+              showTemplates={tauriUi}
               onSelect={onSelectTab}
             />
           </div>
@@ -716,6 +722,16 @@ export default function EditorPage() {
               />
             )}
           </div>
+          {tauriUi && (
+            <div
+              id="sidebar-panel-templates"
+              role="tabpanel"
+              hidden={activeTab !== "templates"}
+              className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+            >
+              <TemplatesPanel active={activeTab === "templates"} />
+            </div>
+          )}
           <div
             id="sidebar-panel-tool"
             role="tabpanel"

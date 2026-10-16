@@ -1,17 +1,19 @@
 "use client";
 
-import { Clock, Image as ImageIcon } from "lucide-react";
+import { Clock, Image as ImageIcon, LayoutTemplate } from "lucide-react";
 
 import type { ToolPanelInfo } from "@/stores/sidebar";
 import { useT } from "@/i18n/useT";
 
-/** The two panels that are always there, plus the transient tool panel. */
-export type SidebarTab = "canvas" | "history" | "tool";
+/** Canvas and History, the desktop-only Templates, plus the transient tool panel. */
+export type SidebarTab = "canvas" | "history" | "templates" | "tool";
 
 export type SidebarTabsProps = {
   active: SidebarTab;
   /** Present only while a tool or selection has options of its own. */
   toolPanel: ToolPanelInfo | null;
+  /** Desktop only: templates need the app-data store. */
+  showTemplates: boolean;
   onSelect: (tab: SidebarTab) => void;
 };
 
@@ -24,12 +26,13 @@ export type SidebarTabsProps = {
  * which. Here the shape carries the hierarchy: an underline moves between
  * *panels*, a pill chooses *within* one.
  *
+ * Templates sits after History (desktop only) and before the tool tab.
  * The tool tab is icon-only and sits last, so Canvas and History never move.
  * The icon repeats the one just clicked in the toolbar, which is both the
  * shortest possible label and an honest signal that this tab is contextual —
  * it is the only one that comes and goes.
  */
-export function SidebarTabs({ active, toolPanel, onSelect }: SidebarTabsProps) {
+export function SidebarTabs({ active, toolPanel, showTemplates, onSelect }: SidebarTabsProps) {
   const { t } = useT();
   const ToolIcon = toolPanel?.icon;
   return (
@@ -52,6 +55,15 @@ export function SidebarTabs({ active, toolPanel, onSelect }: SidebarTabsProps) {
         icon={<Clock className="h-3.5 w-3.5" aria-hidden />}
         label={t("editor.sidebar.history")}
       />
+      {showTemplates && (
+        <Tab
+          id="templates"
+          active={active === "templates"}
+          onSelect={onSelect}
+          icon={<LayoutTemplate className="h-3.5 w-3.5" aria-hidden />}
+          label={t("editor.sidebar.templates")}
+        />
+      )}
       <span className="flex-1" />
       {toolPanel && ToolIcon && (
         <Tab
