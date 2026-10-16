@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageIcon, Layers } from "lucide-react";
+import { ImageIcon, Layers, LayoutTemplate } from "lucide-react";
 import { useT } from "@/i18n/useT";
 
 /**
@@ -32,11 +32,18 @@ export function CanvasDropHint() {
           className="hidden h-4 w-4 text-[var(--accent)] [[data-mode=base]_&]:block"
           aria-hidden
         />
+        <LayoutTemplate
+          className="hidden h-4 w-4 text-[var(--accent)] [[data-mode=template]_&]:block"
+          aria-hidden
+        />
         <span className="hidden [[data-mode=layer]_&]:inline">
           {t("editor.dropHint.layer")}
         </span>
         <span className="hidden [[data-mode=base]_&]:inline">
           {t("editor.dropHint.base")}
+        </span>
+        <span className="hidden [[data-mode=template]_&]:inline">
+          {t("editor.templates.dropHint")}
         </span>
       </div>
     </div>

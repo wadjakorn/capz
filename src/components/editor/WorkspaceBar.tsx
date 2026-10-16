@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEditor } from "@/stores/editor";
+import { useTemplateDrag } from "@/stores/templateDrag";
 import {
   barModeFor,
   hasEdits,
@@ -77,6 +78,13 @@ export type WorkspaceBarProps = {
  * keeps every workspace clickable, so the toggle never amounts to turning the
  * feature off.
  */
+/** Ring while a template card hovers a tile; green flash right after a drop. */
+function dragRing(id: string, dropTargetId: string | null, flashId: string | null): string {
+  if (flashId === id) return "ring-2 ring-[var(--success,#22c55e)]";
+  if (dropTargetId === id) return "ring-2 ring-[var(--accent)]";
+  return "";
+}
+
 export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
   useT(); // re-render on language change; copy below uses the store `t`
   const platform = usePlatform();
@@ -89,6 +97,8 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
    */
   const selectedId = useWorkspaces((s) => s.pendingId ?? s.activeId);
   const docs = useWorkspaces((s) => s.docs);
+  const dropTargetId = useTemplateDrag((s) => s.dropTargetId);
+  const flashId = useTemplateDrag((s) => s.flashId);
   const barPref = useWorkspaces((s) => s.barPref);
   const barPrefUserSet = useWorkspaces((s) => s.barPrefUserSet);
   const setBarPref = useWorkspaces((s) => s.setBarPref);
@@ -197,7 +207,7 @@ export function WorkspaceBar({ max, onNew }: WorkspaceBarProps) {
                 data-ws-tile={id}
                 title={caption(doc)}
                 onClick={() => switchTo(id)}
-                className={`h-[18px] min-w-[22px] flex-none rounded-[6px] px-1.5 text-[10px] font-semibold transition-colors ${
+                className={`h-[18px] min-w-[22px] flex-none rounded-[6px] px-1.5 text-[10px] font-semibold transition-colors ${dragRing(id, dropTargetId, flashId)} ${
                   id === selectedId
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                     : "bg-[var(--surface-raised)] text-[var(--fg-3)] hover:bg-[var(--surface-raised-hover)] hover:text-[var(--fg-2)]"
@@ -350,6 +360,8 @@ function WorkspaceTile({
   onClose: () => void;
 }) {
   useT(); // re-render on language change
+  const dropTargetId = useTemplateDrag((s) => s.dropTargetId);
+  const flashId = useTemplateDrag((s) => s.flashId);
   // One flex child, exactly 62px tall — the same height as the New tile. The
   // caption used to sit below the tile in a column wrapper, which made this
   // item ~77px while New stayed 62px; `items-center` then centred the two at
@@ -369,7 +381,7 @@ function WorkspaceTile({
           }
         }}
         data-ws-control
-        className={`relative h-[62px] w-[100px] cursor-pointer select-none overflow-hidden rounded-md border bg-[var(--bg-canvas)] transition-[opacity,transform,border-color] duration-150 focus-visible:outline-none ${
+        className={`relative h-[62px] w-[100px] cursor-pointer select-none overflow-hidden rounded-md border bg-[var(--bg-canvas)] transition-[opacity,transform,border-color] duration-150 focus-visible:outline-none ${dragRing(doc.id, dropTargetId, flashId)} ${
           active
             ? "translate-y-[-2px] border-[var(--accent)] opacity-100 shadow-[0_0_0_1px_var(--accent)]"
             : "border-[var(--border)] opacity-[.62] group-hover:border-[var(--border-strong)] group-hover:opacity-100"

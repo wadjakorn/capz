@@ -303,6 +303,7 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.templates.sizeRefuse": "ใหญ่เกินไปที่จะบันทึก (สูงสุด 5 MB)",
   "editor.templates.cropToolActive": "ครอบตัดให้เสร็จก่อน",
   "editor.templates.empty": "ยังไม่มีเทมเพลต ใส่คำอธิบายบนภาพ แล้วบันทึกการแก้ไขเป็นเทมเพลต",
+  "editor.templates.dropHint": "วางเพื่อใช้เทมเพลตนี้",
   "editor.templates.applyHere": "ใช้กับภาพนี้",
   "editor.templates.applyTo": "ใช้กับ…",
   "editor.templates.applyFromImage": "ใช้การแก้ไขของภาพนี้กับ…",

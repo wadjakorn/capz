@@ -12,6 +12,7 @@ import { useWorkspaces } from "@/stores/workspaces";
 import { useT } from "@/i18n/useT";
 import { ApplyTemplatePopover } from "./ApplyTemplatePopover";
 import { defaultSelection, itemsFromTemplate } from "./pickerItems";
+import { useTemplateDrag } from "./useTemplateDrag";
 
 const COOLDOWN_MS = 400;
 
@@ -36,6 +37,7 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
   const [draft, setDraft] = useState(tpl.name);
   const [confirming, setConfirming] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const { onPointerDown } = useTemplateDrag(tpl);
 
   useEffect(
     () => () => {
@@ -72,6 +74,7 @@ export function TemplateCard({ tpl, onRename, onDelete }: TemplateCardProps) {
   return (
     <div
       data-template-card
+      onPointerDown={onPointerDown}
       className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-raised)]"
     >
       <div className="aspect-[108/68] bg-[var(--bg-canvas)]">

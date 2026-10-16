@@ -302,6 +302,7 @@ export const editor = {
   "editor.templates.sizeRefuse": "Too large to save (max 5 MB)",
   "editor.templates.cropToolActive": "Finish cropping first",
   "editor.templates.empty": "No templates yet. Annotate an image, then save its edits as a template.",
+  "editor.templates.dropHint": "Drop to apply this template",
   "editor.templates.applyHere": "Apply to this",
   "editor.templates.applyTo": "Apply to…",
   "editor.templates.applyFromImage": "Apply this image's edits to…",
