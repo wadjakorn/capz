@@ -45,3 +45,40 @@ test("overlay window mode mounts without crash", async ({ page }) => {
   // list_capture_windows fires after settings.init resolves — gated on full store
   // plugin behaviour. Asserting the call here would couple the test to plugin internals.
 });
+
+// The selection border must be a crisp line — no purple glow/halo around it.
+test("area selection border has no glow", async ({ page }) => {
+  await page.goto("/overlay?monitor=0&mode=area&owner=1");
+  const rect = page.getByTestId("area-rect");
+  await expect(rect).toBeVisible();
+  expect(await rect.evaluate((el) => getComputedStyle(el).boxShadow)).toBe("none");
+});
+
+test("window mode borders have no glow", async ({ page }) => {
+  await installTauriMock(page, {
+    handlers: {
+      list_capture_windows: () => [
+        { id: 1, title: "Test Window", app_name: "Test", x: 200, y: 150, width: 400, height: 300 },
+      ],
+    },
+  });
+  await page.goto("/overlay?monitor=0&mode=window");
+  await page.waitForLoadState("networkidle");
+
+  // Pointer over empty desktop → monitor edge: thin, unblurred inset line.
+  await page.mouse.move(20, 20);
+  const edge = page.getByTestId("monitor-edge");
+  await expect(edge).toBeVisible();
+  const edgeShadow = await edge.evaluate((el) => getComputedStyle(el).boxShadow);
+  expect(edgeShadow).toMatch(/ 0px 0px 0px 2px inset$/);
+
+  // Pointer over the window → hover border, no glow.
+  await expect
+    .poll(async () => {
+      await page.mouse.move(400, 300);
+      return page.getByTestId("window-hover").count();
+    })
+    .toBe(1);
+  const hover = page.getByTestId("window-hover");
+  expect(await hover.evaluate((el) => getComputedStyle(el).boxShadow)).toBe("none");
+});

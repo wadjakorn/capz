@@ -460,7 +460,10 @@ function TemplateRect({
   const actionsBelow = rect.y + rect.h + 34 <= dispH;
   return (
     <>
+      {/* Crisp border only — no glow/halo, so the edge reads exactly where the
+          capture is cut. */}
       <div
+        data-testid="area-rect"
         className="pointer-events-none absolute"
         style={{
           left: rect.x,
@@ -468,8 +471,6 @@ function TemplateRect({
           width: rect.w,
           height: rect.h,
           border: "2px solid var(--accent)",
-          boxShadow:
-            "0 0 0 1px rgba(109, 124, 255, 0.25), 0 8px 24px -8px rgba(109, 124, 255, 0.45)",
         }}
       >
         <div
@@ -630,13 +631,17 @@ function PickMode({ monitorId }: { monitorId: number }) {
     >
       {active && !cutoutRect && (
         <div
+          data-testid="monitor-edge"
           className="pointer-events-none absolute inset-0"
-          style={{ boxShadow: "inset 0 0 0 3px rgba(109, 124, 255, 0.6)" }}
+          style={{
+            boxShadow: "inset 0 0 0 2px color-mix(in oklab, var(--accent) 60%, transparent)",
+          }}
         />
       )}
       {cutoutRect && <OuterDim rect={cutoutRect} />}
       {active && hovered && (
         <div
+          data-testid="window-hover"
           className="pointer-events-none absolute"
           style={{
             left: hovered.x,
@@ -644,8 +649,6 @@ function PickMode({ monitorId }: { monitorId: number }) {
             width: hovered.width,
             height: hovered.height,
             border: "2px solid var(--accent)",
-            boxShadow:
-              "0 0 0 1px rgba(109, 124, 255, 0.25), 0 8px 24px -8px rgba(109, 124, 255, 0.45)",
           }}
         >
           <div
