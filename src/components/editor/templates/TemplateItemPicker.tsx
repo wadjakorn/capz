@@ -1,6 +1,20 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  EyeOff,
+  Highlighter,
+  Image as ImageIcon,
+  MapPin,
+  MoveUpRight,
+  Pencil,
+  Smile,
+  Square,
+  Type,
+  ZoomIn,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
@@ -19,6 +33,19 @@ type Props = {
 type Row =
   | { key: string; kind: "annotation"; item: AnnotationItem }
   | { key: string; kind: "group"; type: AnnotationItem["type"]; members: AnnotationItem[] };
+
+const TYPE_ICON: Record<AnnotationItem["type"], LucideIcon> = {
+  rect: Square,
+  arrow: MoveUpRight,
+  text: Type,
+  blur: EyeOff,
+  pen: Pencil,
+  highlighter: Highlighter,
+  magnify: ZoomIn,
+  sticker: Smile,
+  pin: MapPin,
+  image: ImageIcon,
+};
 
 const TEXT_MAX = 24;
 
@@ -110,6 +137,7 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
 
   const flags = items.flatMap((i) => (i.kind === "annotation" ? [] : [isChecked(i)]));
   const states = [...flags, ...annotations.map((a) => isChecked(a))];
+  const annOn = annotations.filter((a) => value.annotationIds.has(a.id)).length;
   const nOn = states.filter(Boolean).length;
   const toggleAll = () => {
     const on = nOn !== states.length;
@@ -123,6 +151,9 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
 
   const typeLabel = (type: AnnotationItem["type"]) =>
     t(`editor.templates.picker.type.${type}` as TKey);
+
+  const typeLabelOne = (type: AnnotationItem["type"]) =>
+    t(`editor.templates.picker.typeOne.${type}` as TKey);
 
   const itemLabel = (item: PickerItem): string => {
     switch (item.kind) {
@@ -138,9 +169,16 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
       case "backdropLook":
         return t("editor.templates.picker.backdropLook");
       default:
-        return typeLabel(item.type);
+        return typeLabelOne(item.type);
     }
   };
+
+  const lookSummary = (item: PickerItem): string =>
+    item.kind === "backdropLook"
+      ? [item.look.style, item.look.style === "gradient" ? item.look.presetId : ""]
+          .filter(Boolean)
+          .join(" · ")
+      : "";
 
   const detail = (a: AnnotationItem): string => {
     if (a.type === "pin" && a.pinNumber !== undefined) return `#${a.pinNumber}`;
@@ -181,7 +219,8 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
 
   const renderAnnotation = (a: AnnotationItem, indent: boolean) => {
     const d = detail(a);
-    const label = d ? `${typeLabel(a.type)} ${d}` : typeLabel(a.type);
+    const label = d ? `${typeLabelOne(a.type)} ${d}` : typeLabelOne(a.type);
+    const Icon = TYPE_ICON[a.type];
     return (
       <div
         key={a.id}
@@ -200,8 +239,9 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
         onBlur={() => onHover?.(null)}
       >
         <Check checked={isChecked(a)} label={label} onToggle={() => toggleItem(a)} />
+        <Icon className="size-3.5 shrink-0" aria-hidden />
         <Swatch color={a.swatch} />
-        <span className="truncate">{typeLabel(a.type)}</span>
+        <span className="truncate">{typeLabelOne(a.type)}</span>
         {d && <span className="ml-auto truncate text-black/55 dark:text-white/55">{d}</span>}
       </div>
     );
@@ -224,9 +264,6 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
           <div className="px-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-black/55 dark:text-white/55">
             {t("editor.templates.picker.image")}
           </div>
-          <div className="px-1.5 text-[11px] text-black/55 dark:text-white/55">
-            {t("editor.templates.picker.changesAll")}
-          </div>
           {imageRows.map((r) => {
             const label = itemLabel(r.item);
             const on = isChecked(r.item);
@@ -245,6 +282,16 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
               >
                 <Check checked={on} label={label} onToggle={() => toggleItem(r.item)} />
                 <span className="truncate">{label}</span>
+                {r.item.kind === "backdropLook" && (
+                  <>
+                    <span className="truncate text-black/55 dark:text-white/55">
+                      {lookSummary(r.item)}
+                    </span>
+                    <span className="ml-auto shrink-0 text-amber-600">
+                      ⚠ {t("editor.templates.picker.changesAll")}
+                    </span>
+                  </>
+                )}
               </div>
             );
           })}
@@ -252,9 +299,17 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
       )}
 
       {annRows.length > 0 && (
-        <div className="px-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-black/55 dark:text-white/55">
+        <label
+          className={`${rowCls} pt-1 text-[11px] font-medium uppercase tracking-wide text-black/55 dark:text-white/55`}
+        >
+          <Check
+            checked={annOn === annotations.length}
+            indeterminate={annOn > 0 && annOn < annotations.length}
+            label={t("editor.templates.picker.annotations")}
+            onToggle={() => setAnnotations(annotations.map((a) => a.id), annOn !== annotations.length)}
+          />
           {t("editor.templates.picker.annotations")}
-        </div>
+        </label>
       )}
       {annRows.map((r) => {
         if (r.kind === "annotation") return renderAnnotation(r.item, false);
@@ -286,6 +341,10 @@ export function TemplateItemPicker({ items, value, onChange, onHover }: Props) {
                 label={label}
                 onToggle={() => toggleGroup(r.members)}
               />
+              {(() => {
+                const GIcon = TYPE_ICON[r.type];
+                return <GIcon className="size-3.5 shrink-0" aria-hidden />;
+              })()}
               <span className="truncate">{label}</span>
               <button
                 type="button"

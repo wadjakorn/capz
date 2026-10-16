@@ -25,7 +25,7 @@ describe("TemplateItemPicker", () => {
     const onChange = vi.fn();
     render(<TemplateItemPicker items={blurs} value={sel([])} onChange={onChange} />);
     expect(screen.getByText("Blurs (3)")).toBeTruthy();
-    expect(screen.getAllByRole("checkbox")).toHaveLength(2); // All + group
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3); // All + Annotations + group
     fireEvent.click(screen.getByRole("checkbox", { name: "Blurs (3)" }));
     expect([...onChange.mock.calls[0][0].annotationIds].sort()).toEqual(["b1", "b2", "b3"]);
   });
@@ -52,7 +52,7 @@ describe("TemplateItemPicker", () => {
     const onHover = vi.fn();
     const items: PickerItem[] = [{ kind: "annotation", id: "r1", type: "rect" }];
     render(<TemplateItemPicker items={items} value={sel([])} onChange={vi.fn()} onHover={onHover} />);
-    const row = screen.getByRole("treeitem", { name: /Rectangles|rect/i });
+    const row = screen.getByRole("treeitem", { name: "Rectangle" });
     fireEvent.mouseEnter(row);
     fireEvent.mouseLeave(row);
     expect(onHover.mock.calls).toEqual([["r1"], [null]]);
@@ -74,8 +74,39 @@ describe("TemplateItemPicker", () => {
     expect(row.getAttribute("aria-expanded")).toBe("false");
     fireEvent.keyDown(row, { key: " " });
     expect([...onChange.mock.calls[0][0].annotationIds].sort()).toEqual(["b1", "b2", "b3"]);
-    const single = screen.getByRole("treeitem", { name: /Rectangles/ });
+    const single = screen.getByRole("treeitem", { name: "Rectangle" });
     fireEvent.keyDown(single, { key: " " });
     expect([...onChange.mock.calls[1][0].annotationIds]).toEqual(["r1"]);
+  });
+
+  it("Annotations group checkbox toggles all and is indeterminate when partial", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <TemplateItemPicker items={blurs} value={sel(["b1"])} onChange={onChange} />,
+    );
+    const box = screen.getByRole("checkbox", { name: "Annotations" }) as HTMLInputElement;
+    expect(box.indeterminate).toBe(true);
+    fireEvent.click(box);
+    expect([...onChange.mock.calls[0][0].annotationIds].sort()).toEqual(["b1", "b2", "b3"]);
+    rerender(
+      <TemplateItemPicker items={blurs} value={sel(["b1", "b2", "b3"])} onChange={onChange} />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Annotations" }));
+    expect([...onChange.mock.calls[1][0].annotationIds]).toEqual([]);
+  });
+
+  it("backdrop look row carries the changes-all warning", () => {
+    const look = {
+      style: "solid", presetId: "sunset", solidColor: "#000", padding: 1, cornerRadius: 1, shadow: true,
+    } as never;
+    render(
+      <TemplateItemPicker
+        items={[{ kind: "backdropLook", look }]}
+        value={sel([])}
+        onChange={vi.fn()}
+      />,
+    );
+    const row = screen.getByRole("treeitem", { name: "Backdrop look" });
+    expect(row.textContent).toContain("⚠ Changes all images");
   });
 });
