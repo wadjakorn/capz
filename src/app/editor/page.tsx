@@ -21,7 +21,7 @@ import { HistoryPreview } from "@/components/editor/HistoryPreview";
 import { SidebarTabs, type SidebarTab } from "@/components/editor/SidebarTabs";
 import { CaptureHistorySection } from "@/components/editor/panels/CaptureHistorySection";
 import { useSidebar } from "@/stores/sidebar";
-import { routeIncomingCapture } from "@/lib/captureRouting";
+import { autoBackdropFor, routeIncomingCapture, type LoadOrigin } from "@/lib/captureRouting";
 import { useOcr } from "@/stores/ocr";
 import { useSettings } from "@/stores/settings";
 import {
@@ -182,6 +182,7 @@ export default function EditorPage() {
   const applyFile = useCallback(async (
     path: string | null,
     source: CaptureSource = "other",
+    backdropOn = false,
   ) => {
     if (!path) {
       setFile(null);
@@ -200,19 +201,10 @@ export default function EditorPage() {
     setHasImage(true);
     await useSettings.getState().init();
     const config = useSettings.getState().config;
-    // Seed the padded backdrop per capture kind (per config), off for anything
-    // else. Runs after resetEditor so it isn't clobbered.
+    // Seed the padded backdrop with the caller's auto-backdrop decision
+    // (autoBackdropFor). Runs after resetEditor so it isn't clobbered.
     useEditor.getState().setCaptureSource(source);
-    const bd = config.general.backdrop;
-    const autoBackdrop =
-      source === "full"
-        ? bd.autoForFull
-        : source === "area" || source === "systemArea"
-          ? bd.autoForArea
-          : source === "window"
-            ? bd.autoForWindow
-            : false;
-    useEditor.getState().setBackdropOn(autoBackdrop);
+    useEditor.getState().setBackdropOn(backdropOn);
     const pins = config.pins;
     const start =
       pins.continuityMode === "continue"
@@ -250,7 +242,12 @@ export default function EditorPage() {
   // it was explicitly requested as a layer (the editor's capture-as-layer
   // button) — intent is decided *before* capturing, never asked about after.
   const handleIncomingCapture = useCallback(
-    (path: string | null, source: CaptureSource = "other", asLayer = false) => {
+    (
+      path: string | null,
+      source: CaptureSource = "other",
+      asLayer = false,
+      origin?: LoadOrigin,
+    ) => {
       if (path && asLayer && useEditor.getState().hasImage) {
         // Archive BEFORE the overlay path: it reads the file with
         // `consumeTemp: true`, after which Rust deletes the temp and there is
@@ -268,11 +265,21 @@ export default function EditorPage() {
           void applyFile(null);
           return;
         case "base":
-          if (wsConfig.enabled && path) {
-            void (async () => {
+          void (async () => {
+            // Decided once, here, for both routes: the workspace path seeds it
+            // into the new doc (the session hook hydrates the editor from it),
+            // the single-image path sets it on the editor directly. Await the
+            // store first — the first capture can arrive as the editor opens.
+            await useSettings.getState().init();
+            const backdropOn = autoBackdropFor(
+              useSettings.getState().config.general.backdrop,
+              source,
+              origin,
+            );
+            if (wsConfig.enabled && path) {
               const res = await useWorkspaces
                 .getState()
-                .adoptCapture(path, source, wsConfig.onCapture, wsConfig.max);
+                .adoptCapture(path, source, wsConfig.onCapture, wsConfig.max, { backdropOn });
               // Both paths discard a document; say so, with a way back. No
               // modal — a capture has to stay a single keystroke. Filling an
               // empty workspace discards nothing, so it stays silent.
@@ -281,10 +288,10 @@ export default function EditorPage() {
               } else if (res?.outcome === "evicted") {
                 undoToast(t("editor.ws.oldestClosed"));
               }
-            })();
-            return;
-          }
-          void applyFile(path, source);
+              return;
+            }
+            await applyFile(path, source, backdropOn);
+          })();
           return;
       }
     },
@@ -366,16 +373,23 @@ export default function EditorPage() {
     (async () => {
       const { listen } = await import("@tauri-apps/api/event");
       const stop = await listen<
-        string | { path: string; source?: CaptureSource; asLayer?: boolean }
+        | string
+        | { path: string; source?: CaptureSource; asLayer?: boolean; origin?: LoadOrigin }
       >(
         "editor:load-image",
         (e) => {
-          // Payload is `{ path, source, asLayer }`; tolerate a bare string (legacy).
+          // Payload is `{ path, source, asLayer, origin? }` (Rust
+          // LoadImagePayload); tolerate a bare string (legacy).
           const p = e.payload;
           if (typeof p === "string") {
             captureHandlerRef.current(p);
           } else {
-            captureHandlerRef.current(p.path, p.source ?? "other", p.asLayer ?? false);
+            captureHandlerRef.current(
+              p.path,
+              p.source ?? "other",
+              p.asLayer ?? false,
+              p.origin,
+            );
           }
           setView("editor");
         },

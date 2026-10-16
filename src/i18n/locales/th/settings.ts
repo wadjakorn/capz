@@ -22,6 +22,8 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.capture.full": "ทั้งหน้าจอ",
   "settings.capture.area": "บางส่วน",
   "settings.capture.window": "หน้าต่างแอป",
+  "settings.capture.backdrop.paste": "ภาพที่วาง",
+  "settings.capture.backdrop.import": "ภาพที่เปิดหรือลากเข้ามา",
   "settings.capture.scroll": "หน้ายาว",
   "settings.capture.ring": "วงคำสั่ง",
   "settings.capture.sysArea": "บางส่วนแบบเร็ว (macOS)",
@@ -134,7 +136,7 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.capture.ringHold.hint": "กดปุ่มกำกับค้างไว้แล้วแตะเพื่อสลับโหมด ปล่อยเพื่อจับภาพ",
   "settings.capture.ringModes.hint": "โหมดบนวงคำสั่งแบบกดค้าง เรียงตามเข็มนาฬิกาจากด้านบน",
   "settings.capture.backdrop.hint":
-    "เปิดพื้นหลังพร้อมระยะขอบให้ภาพที่จับแบบนี้ ยังเปิดปิดเองได้ทีละภาพ",
+    "เปิดพื้นหลังพร้อมระยะขอบให้ภาพเหล่านี้ ยังเปิดปิดเองได้ทีละภาพ",
   "settings.ringModes.title": "ช่องในวงคำสั่ง",
   "settings.ringModes.hint":
     "โหมดบนวงคำสั่งแบบกดค้าง เรียงตามเข็มนาฬิกาจากด้านบน เลือก {min}–{max} โหมด ช่องยกเลิกจะอยู่ท้ายสุดเสมอ",

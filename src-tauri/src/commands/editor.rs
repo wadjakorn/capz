@@ -109,7 +109,12 @@ pub async fn paste_into_editor<R: Runtime>(app: AppHandle<R>) -> Result<String, 
     let p_open = path_str.clone();
     app.run_on_main_thread(move || {
         if let Err(e) =
-            windows::load_editor_image(&app2, &p_open, windows::CaptureSource::Other)
+            windows::load_editor_image(
+                &app2,
+                &p_open,
+                windows::CaptureSource::Other,
+                Some(windows::LoadOrigin::Paste),
+            )
         {
             log::error!("load_editor_image: {e}");
         }
@@ -160,7 +165,12 @@ pub async fn import_image_file<R: Runtime>(
     let p_open = path_str.clone();
     app.run_on_main_thread(move || {
         if let Err(e) =
-            windows::load_editor_image(&app2, &p_open, windows::CaptureSource::Other)
+            windows::load_editor_image(
+                &app2,
+                &p_open,
+                windows::CaptureSource::Other,
+                Some(windows::LoadOrigin::Import),
+            )
         {
             log::error!("load_editor_image: {e}");
         }

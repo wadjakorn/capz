@@ -152,8 +152,8 @@ export const SETTINGS = {
     page: "capture",
     labelKey: "settings.capture.backdrop",
     advanced: true,
-    keywords: ["padding", "gradient", "frame"],
-    keywordsTh: ["พื้นหลัง", "ระยะขอบ", "ไล่สี", "กรอบ"],
+    keywords: ["padding", "gradient", "frame", "paste", "import", "open", "drop", "history"],
+    keywordsTh: ["พื้นหลัง", "ระยะขอบ", "ไล่สี", "กรอบ", "วาง", "เปิด", "ลาก", "ประวัติ"],
   },
 
   // ── Editor ───────────────────────────────────────────────────────────────

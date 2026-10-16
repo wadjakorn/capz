@@ -80,6 +80,9 @@ export function CapturePage() {
                 ["autoForFull", "settings.capture.full"],
                 ["autoForArea", "settings.capture.area"],
                 ["autoForWindow", "settings.capture.window"],
+                // Non-capture opens onto an empty canvas.
+                ["autoForPaste", "settings.capture.backdrop.paste"],
+                ["autoForImport", "settings.capture.backdrop.import"],
               ] as const
             ).map(([key, label]) => (
               <label

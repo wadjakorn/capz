@@ -128,7 +128,7 @@ where
     let app_main = app.clone();
     let path_open = path_str.clone();
     let main_res = app.run_on_main_thread(move || {
-        if let Err(e) = windows::load_editor_image(&app_main, &path_open, source) {
+        if let Err(e) = windows::load_editor_image(&app_main, &path_open, source, None) {
             log::error!("load_editor_image: {e}");
         }
     });
