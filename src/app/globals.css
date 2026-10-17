@@ -222,6 +222,13 @@
     text-rendering: optimizeLegibility;
     background: var(--bg);
     min-height: 100vh;
+    /* Scrollbars and native controls follow the app theme, not the OS. On
+       body, not html: no window scrolls the viewport, and a dark root would
+       tint the canvas of transparent windows and the landing's scrollbar. */
+    color-scheme: dark;
+  }
+  .light body {
+    color-scheme: light;
   }
   html {
     @apply font-sans;

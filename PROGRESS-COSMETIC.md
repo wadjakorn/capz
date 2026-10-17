@@ -13,6 +13,8 @@ Open items first (actionable for agents). Landed history archived — see below.
 
 ## Landed
 
+- **Scrollbars follow the app theme** (2026-10-17) — `ThemeManager` only swapped CSS variables, so UA-drawn parts (vertical/horizontal scrollbars, `<select>` popups, color swatches, checkboxes) followed the OS appearance: a light OS gave bright scrollbars on the dark app. `body` now carries `color-scheme: dark`, `.light body` `light`. Set on `body`, not `html`: no window scrolls the viewport, and a dark root would tint the canvas of transparent windows and the landing's viewport scrollbar. Guarded by `e2e/web/theme-color-scheme.spec.ts`.
+
 - **Overlay: no purple glow on capture borders** (2026-10-16) — the area selection rect and the window-mode hover border were drawn with a blurred purple `box-shadow` halo (`0 8px 24px` + a faint ring) that read as a growing light around the edge. Both are now a crisp `2px solid var(--accent)` line only; the window-mode "this display is active" inset edge went from a 3px fixed-purple ring to a 2px unblurred line at 60% accent (follows light/dark). Guarded by `e2e/web/overlay.spec.ts` (computed `box-shadow` is `none` / unblurred).
 
 - **Settings revamp follow-ups** (2026-09-30) — after CP-0053: the Settings sidebar stays pinned while the page scrolls; the dead "After capturing" row (`output.defaultMode`, read by nothing) is gone and "When you close the editor" (`general.closeAction`, the only real auto-export) leads the page, renamed "After capture" → "Saving" (page id `after` kept for deep links); shortcut rows use a fixed-width keycap recorder with an always-reserved clear slot so bound and unbound rows line up. Orphaned `OutputPrefsForm.tsx` removed.

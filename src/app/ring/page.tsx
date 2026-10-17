@@ -276,7 +276,10 @@ export default function CommandRingPage() {
             style={{
               fill: "var(--surface-overlay)",
               stroke: "var(--border-strong)",
-              filter: "drop-shadow(0 10px 30px rgba(0,0,0,0.45))",
+              // Must fit the 6px between the disc (r = 0.9·half + 12) and the
+              // window edge: a wider shadow is clipped by the window into a
+              // visible rectangular fade (seen on Windows).
+              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))",
             }}
           />
 
