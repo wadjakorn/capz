@@ -70,16 +70,45 @@ notify() {
   [[ -n "${TELEGRAM_BOT_TOKEN:-}" && -n "${TELEGRAM_CHAT_ID:-}" ]] || return 0
   curl -sS -m 20 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-    --data-urlencode "text=$1" >/dev/null || log "telegram notify failed"
+    --data-urlencode "text=$1" >/dev/null || { log "telegram notify failed"; return 1; }
 }
 
 # Any failure before the agent starts (precheck, refresh, dispatch) would
-# otherwise only reach the scheduler's stdout — alert on it too.
-trap 'rc=$?; ((rc)) && notify "capz-loop $STAGE runner failed (exit $rc) before the agent started — see the n8n execution log"' EXIT
+# otherwise only reach the scheduler's stdout. Most of them are the host's
+# network dropping for a few minutes (git fetch / gh exit non-zero), which the
+# next scheduled run recovers from on its own — so every failure is logged with
+# the command that failed, but Telegram only hears about it once the stage has
+# failed CAPZ_LOOP_ALERT_AFTER runs in a row, and again when it recovers.
+ALERT_AFTER="${CAPZ_LOOP_ALERT_AFTER:-2}"
+FAILS="$STATE/$STAGE/fail-count"
+ALERTED="$STATE/$STAGE/fail-alerted"
+FAILED_CMD=""
+trap 'FAILED_CMD="$BASH_COMMAND"' ERR
+on_exit() {
+  local rc=$1 n cmd
+  ((DRY_RUN)) && return 0
+  if ((rc == 0)); then
+    if [[ -e "$ALERTED" ]]; then
+      notify "capz-loop $STAGE runner recovered after $(cat "$FAILS" 2>/dev/null || echo "?") failed run(s)" || true
+    fi
+    rm -f "$FAILS" "$ALERTED"
+    return 0
+  fi
+  n=$(( $(cat "$FAILS" 2>/dev/null || echo 0) + 1 ))
+  printf '%s' "$n" >"$FAILS"
+  cmd="$(head -c 200 <<<"${FAILED_CMD:-?}" | tr '\n' ' ')"
+  log "runner failed (exit $rc, $n in a row) at: $cmd"
+  if ((n >= ALERT_AFTER)) && [[ ! -e "$ALERTED" ]]; then
+    notify "capz-loop $STAGE runner failed $n runs in a row before the agent started (exit $rc) at: $cmd — see ~/.local/state/capz-loop/runner.log" \
+      && touch "$ALERTED"
+  fi
+  return 0
+}
+trap 'on_exit $?' EXIT
 
 # ---------------------------------------------------------------- agent mode
 if ((AGENT_MODE)); then
-  trap - EXIT
+  trap - EXIT ERR
   exec 9>"$LOCKS/$STAGE.lock"
   if ! flock -n 9; then log "another $STAGE run holds the lock — skipping"; exit 0; fi
   case "$STAGE" in intake) LIMIT=15m ;; build) LIMIT=3h ;; *) LIMIT=1h ;; esac
@@ -106,12 +135,12 @@ $(cat "$WORK_FILE")"
       reset="$(sed -nE 's/.*resets (.*)$/\1/p' <<<"$limit")"
       seen="$STATE/quota-alert"
       if [[ "$(cat "$seen" 2>/dev/null)" != "$limit" ]] || [[ -n "$(find "$seen" -mmin +360 2>/dev/null)" ]]; then
-        notify "capz-loop paused: Claude quota used up${reset:+, back at $reset}. Stages retry on their own after that ($STAGE run skipped)."
+        notify "capz-loop paused: Claude quota used up${reset:+, back at $reset}. Stages retry on their own after that ($STAGE run skipped)." || true
         printf '%s' "$limit" >"$seen"
       fi
       log "quota exhausted${reset:+ (resets $reset)} — $LOG"
     else
-      notify "capz-loop $STAGE failed (exit $rc). Log: $LOG"
+      notify "capz-loop $STAGE failed (exit $rc). Log: $LOG" || true
       log "agent exit $rc — $LOG"
     fi
   fi
@@ -265,6 +294,7 @@ WORK_FILE="$(mktemp "$STATE/$STAGE/work.XXXXXX")"
 printf '%s\n' "$WORK" >"$WORK_FILE"
 SELF="$CLONE/scripts/loop/run-stage.sh"
 if ((FOREGROUND)); then
+  on_exit 0; trap - EXIT ERR  # exec skips the EXIT trap
   exec "$SELF" "$STAGE" --agent "$WORK_FILE"
 fi
 systemd-run --user --quiet --collect \
