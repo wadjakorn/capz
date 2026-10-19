@@ -104,7 +104,7 @@ The loop runs as a **separate bot account** (`capz-bot`, a machine user with **w
 - `.claude/skills/capz-release/SKILL.md`: release PR + `[release]` ticket, release.mjs, tag/push, watch, asset diff, publish, latest.json, cask, close-out.
 - `.github/CODEOWNERS` (the merge-gate rules).
 - `scripts/release.mjs`: also bump the `app` entry in `src-tauri/Cargo.lock`, with a unit test or `--dry-run` check.
-- `scripts/loop/run-stage.sh <stage> [--dry-run]`: env (`~/.config/capz-loop/env` chmod 600: `PM_TOKEN` of capz-loop, Telegram), lock, refresh, precheck, `systemd-run --user --unit=capz-loop-<stage>-<ts> timeout … claude -p …`, logs to `~/.local/state/capz-loop/<stage>/`, Telegram on exit ≠ 0. `scripts/loop/settings/{intake,build,verify,release}.json` `scripts/loop/visual-check.ts`: Playwright script for L4 that opens `/paste`, loads a fixture image, runs the steps from the plan, and saves screenshots.
+- `scripts/loop/run-stage.sh <stage> [--dry-run]`: env (`~/.config/capz-loop/env` chmod 600: `PM_TOKEN` of capz-loop, Telegram), lock, refresh, precheck, `systemd-run --user --unit=capz-loop-<stage>-<ts> timeout … claude -p …`, logs to `~/.local/state/capz-loop/<stage>/`, Telegram on exit ≠ 0 (pre-agent failures: logged to `runner.log` every time, Telegram only after `CAPZ_LOOP_ALERT_AFTER` (default 2) failed runs in a row, plus a recovery message). `scripts/loop/settings/{intake,build,verify,release}.json` `scripts/loop/visual-check.ts`: Playwright script for L4 that opens `/paste`, loads a fixture image, runs the steps from the plan, and saves screenshots.
 - `docs/superpowers/specs/2026-10-08-capz-loop-automation-design.md` (this plan, readable on md-server) + an entry in PROGRESS-FEATURE.md.
 
 **automated-pm** (small separate PR): `cli/pm.ts` waits for stdout to drain before exiting. Today `pm task list --json | jq` gets truncated around line 444, while redirecting to a file works.
@@ -138,7 +138,7 @@ The loop runs as a **separate bot account** (`capz-bot`, a machine user with **w
 - **Release:** a release PR and a `[release]` ticket appear. While the PR is open, verify must hold other merges (freeze). Approve it. Then: tag, Build green, asset names match, `draft=false`, `latest.json` shows the new version, the cask workflow runs, and #10 is closed as `loop:released`.
 - **Merge gate:** a bot PR that touches `src-tauri/` → GitHub shows "Review required" and `gh pr merge` by the bot fails → the owner approves → it merges. A bot push after the approval → the approval is dismissed. Check that the owner can still push directly to main (bypass).
 - **L4:** a PR that changes the editor has before/after screenshots from `/paste` in a PR comment.
-- **Failure path:** force the runner to exit 1, and a Telegram notification should arrive.
+- **Failure path:** force the runner to exit 1 twice in a row, and a Telegram notification should arrive on the second run (the first only lands in `runner.log`).
 
 ## Scrutinize log (8 rounds)
 
