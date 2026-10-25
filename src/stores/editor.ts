@@ -50,10 +50,10 @@ export type CaptureSource =
 
 type Base = { id: string; rotation?: number };
 
-/** Shape variants offered by the (formerly "rect") Shapes tool. "line"/"dashline"
- *  draw a headless 2-point segment (stored as an arrow with heads:"none"),
- *  solid or dashed respectively — not a box. */
-export type RectShapeKind = "rect" | "ellipse" | "line" | "dashline";
+/** Shape variants offered by the (formerly "rect") Shapes tool. "line" draws a
+ *  headless 2-point segment (stored as an arrow with heads:"none"), not a box.
+ *  Solid/dashed/dotted is the separate StrokeStyle ("dashline" until v7). */
+export type RectShapeKind = "rect" | "ellipse" | "line";
 
 /** Stroke pattern for the Shapes tool's rect / ellipse / line. Absent = "solid". */
 export type StrokeStyle = "solid" | "dashed" | "dotted";
