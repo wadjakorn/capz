@@ -55,6 +55,9 @@ type Base = { id: string; rotation?: number };
  *  solid or dashed respectively — not a box. */
 export type RectShapeKind = "rect" | "ellipse" | "line" | "dashline";
 
+/** Stroke pattern for the Shapes tool's rect / ellipse / line. Absent = "solid". */
+export type StrokeStyle = "solid" | "dashed" | "dotted";
+
 export type RectAnnotation = Base & {
   type: "rect";
   x: number;
@@ -67,6 +70,8 @@ export type RectAnnotation = Base & {
   shape?: RectShapeKind;
   /** Corner radius for the rect variant, in image px. Absent = 0. Ignored for ellipse. */
   cornerRadius?: number;
+  /** Solid / dashed / dotted outline. Absent = "solid". */
+  strokeStyle?: StrokeStyle;
 };
 
 /** Arrowhead placement. "none" is the headless line variant of the Shapes tool. */
@@ -89,8 +94,11 @@ export type ArrowAnnotation = Base & {
   cy?: number;
   /** Which ends get an arrowhead. Absent = "end" (single head at the tip). */
   heads?: ArrowHeads;
-  /** Dashed/dotted stroke when true. */
+  /** Dashed stroke when true. Legacy: superseded by `strokeStyle` when set
+   *  (see arrowStrokeStyle); the Arrow tool still writes only this. */
   dash?: boolean;
+  /** Solid / dashed / dotted stroke — written by the Shapes tool's line. */
+  strokeStyle?: StrokeStyle;
 };
 
 /** How a freehand (pen) path is smoothed for rendering. */
