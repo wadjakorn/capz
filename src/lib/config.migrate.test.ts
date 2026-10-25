@@ -4,6 +4,7 @@ import {
   CONFIG_SCHEMA_VERSION,
   assertMigrationChain,
   deepMerge,
+  effectiveTools,
   migrateConfig,
   validateConfig,
 } from "./config";
@@ -13,6 +14,7 @@ import v2 from "./__fixtures__/config/v2.json";
 import v4 from "./__fixtures__/config/v4.json";
 import v5 from "./__fixtures__/config/v5.json";
 import v6 from "./__fixtures__/config/v6.json";
+import v7 from "./__fixtures__/config/v7.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
@@ -22,7 +24,8 @@ import v99 from "./__fixtures__/config/v99.json";
 //   v2  — schema of v0.10.0+
 //   v4  — schema of v0.15.0+
 //   v5  — schema of v0.18.0+ (CP-0067)
-//   v6  — current schema (auto-backdrop for paste / import)
+//   v6  — schema of v0.18.x (auto-backdrop for paste / import)
+//   v7  — current schema (CP-0076: Shapes stroke style)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -161,7 +164,7 @@ describe("v5 → v6: general.backdrop.autoForPaste / autoForImport", () => {
   it("a v5 store gains both switched off and keeps its values", () => {
     const { config, issues } = load(v5);
     expect(issues).toEqual([]);
-    expect(config.schemaVersion).toBe(6);
+    expect(config.schemaVersion).toBe(CONFIG_SCHEMA_VERSION);
     expect(config.general.backdrop.autoForPaste).toBe(false);
     expect(config.general.backdrop.autoForImport).toBe(false);
     expect(config.general).toMatchObject(v5.general);
@@ -171,6 +174,51 @@ describe("v5 → v6: general.backdrop.autoForPaste / autoForImport", () => {
     const { config, issues } = load(v6);
     expect(issues).toEqual([]);
     expect(config.general.backdrop).toEqual(v6.general.backdrop);
+  });
+});
+
+describe("v6 → v7: rect strokeStyle, dashline folded into line", () => {
+  it("tools.rect dashline becomes line + dashed", () => {
+    const { config, issues } = load({
+      ...v6,
+      tools: { ...v6.tools, rect: { ...v6.tools.rect, shape: "dashline" } },
+    });
+    expect(issues).toEqual([]);
+    expect(config.tools.rect).toMatchObject({
+      shape: "line",
+      strokeStyle: "dashed",
+      strokeColor: "#ef4444",
+      strokeWidth: 3,
+    });
+  });
+
+  it("lastUsed.rect dashline becomes line + dashed", () => {
+    const { config } = load({ ...v6, lastUsed: { rect: { shape: "dashline" } } });
+    expect(config.lastUsed?.rect).toEqual({ shape: "line", strokeStyle: "dashed" });
+  });
+
+  it("dashline in one slot does not make the other slot's rect dashed", () => {
+    const { config } = load({
+      ...v6,
+      general: { ...v6.general, rememberLastTool: true },
+      tools: { ...v6.tools, rect: { ...v6.tools.rect, shape: "dashline" } },
+      lastUsed: { rect: { shape: "rect" } },
+    });
+    expect(effectiveTools(config).rect).toMatchObject({ shape: "rect", strokeStyle: "solid" });
+    expect(config.tools.rect).toMatchObject({ shape: "line", strokeStyle: "dashed" });
+  });
+
+  it("a v6 rect/ellipse/line keeps its shape and gains solid", () => {
+    const { config, issues } = load(v6);
+    expect(issues).toEqual([]);
+    expect(config.schemaVersion).toBe(7);
+    expect(config.tools.rect).toEqual({ ...v6.tools.rect, strokeStyle: "solid" });
+  });
+
+  it("a v7 store keeps stored values", () => {
+    const { config, issues } = load(v7);
+    expect(issues).toEqual([]);
+    expect(config.tools.rect).toEqual(v7.tools.rect);
   });
 });
 

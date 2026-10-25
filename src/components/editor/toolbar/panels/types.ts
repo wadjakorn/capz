@@ -3,6 +3,7 @@ import type {
   PinShapeKind,
   PinTailDir,
   RectShapeKind,
+  StrokeStyle,
   FreehandMode,
   MagnifyShape,
   ArrowHeads,
@@ -61,6 +62,7 @@ export type PinLabelStyleCtx = {
   onChange: (v: PinLabelStyle) => void;
 };
 export type RectShapeCtx = { value: RectShapeKind; onChange: (v: RectShapeKind) => void };
+export type StrokeStyleCtx = { value: StrokeStyle; onChange: (v: StrokeStyle) => void };
 export type PenModeCtx = { value: FreehandMode; onChange: (v: FreehandMode) => void };
 export type MagnifyShapeCtx = { value: MagnifyShape; onChange: (v: MagnifyShape) => void };
 export type ArrowHeadsCtx = { value: ArrowHeads; onChange: (v: ArrowHeads) => void };

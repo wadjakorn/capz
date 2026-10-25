@@ -47,6 +47,29 @@ describe("effectiveTools remembers last-used per tool", () => {
   });
 });
 
+describe("tools.rect.strokeStyle (CP-0076)", () => {
+  it("rejects an unknown style with an issue and falls back to solid", () => {
+    const { config, issues } = validateConfig({
+      ...DEFAULT_CONFIG,
+      tools: { ...DEFAULT_CONFIG.tools, rect: { ...DEFAULT_CONFIG.tools.rect, strokeStyle: "wavy" } },
+    });
+    expect(config.tools.rect.strokeStyle).toBe("solid");
+    expect(issues.length).toBeGreaterThan(0);
+  });
+
+  it("uses lastUsed when remembering, the tool default otherwise", () => {
+    const cfg = {
+      ...DEFAULT_CONFIG,
+      tools: { ...DEFAULT_CONFIG.tools, rect: { ...DEFAULT_CONFIG.tools.rect, strokeStyle: "dashed" as const } },
+      lastUsed: { rect: { strokeStyle: "dotted" as const } },
+    };
+    expect(effectiveTools(cfg).rect.strokeStyle).toBe("dotted");
+    expect(
+      effectiveTools({ ...cfg, general: { ...cfg.general, rememberLastTool: false } }).rect.strokeStyle,
+    ).toBe("dashed");
+  });
+});
+
 describe("validateConfig hotkeys", () => {
   it("keeps a valid hotkey", () => {
     const { config, issues } = validateConfig({

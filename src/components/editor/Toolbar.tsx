@@ -28,8 +28,10 @@ import { formatShortcut, currentPlatform } from "@/lib/shortcuts";
 import {
   useEditor,
   STICKERS,
+  type StrokeStyle,
   type Tool,
 } from "@/stores/editor";
+import { arrowStrokeStyle, isShapesToolAnnotation } from "@/lib/strokeStyle";
 import { useSettings } from "@/stores/settings";
 import { openSettings } from "@/lib/settingsNav";
 import { useSidebar } from "@/stores/sidebar";
@@ -59,6 +61,7 @@ import type {
   PinShapeCtx,
   PinTailCtx,
   RectShapeCtx,
+  StrokeStyleCtx,
   PenModeCtx,
   MagnifyShapeCtx,
   ArrowHeadsCtx,
@@ -238,6 +241,12 @@ export function Toolbar({
   // preserving the loupe's default proportions from a single "Border" control.
   const srcFromOut = (out: number) => Math.max(1, Math.round(out * 0.6));
   let rectShapeCtx: RectShapeCtx | null = null;
+  let strokeStyleCtx: StrokeStyleCtx | null = null;
+  // The Shapes tool's line style (rect / ellipse / line share one default).
+  const persistRectStyle = (v: StrokeStyle) => {
+    if (remember) patchLastUsed({ rect: { strokeStyle: v } });
+    else void updateSettings("tools", { rect: { strokeStyle: v } } as Partial<AppConfig["tools"]>);
+  };
   let penModeCtx: PenModeCtx | null = null;
   let magnifyShapeCtx: MagnifyShapeCtx | null = null;
   let arrowHeadsCtx: ArrowHeadsCtx | null = null;
@@ -283,11 +292,18 @@ export function Toolbar({
         const rectSel = selected;
         const curShape = rectSel.shape ?? toolsCfg.rect.shape;
         // Shape is add-only: it decides the annotation's *type* at draw time
-        // (line/dashline draw a 2-point segment, rect/ellipse draw a box — see
+        // (line draws a 2-point segment, rect/ellipse draw a box — see
         // EditorStage's pointer-down), so it cannot be re-picked afterwards.
         // Switching it on an existing shape either did nothing (rect → line) or
         // silently squared off an ellipse, so the picker is hidden while a
         // shape is selected — pick the shape before drawing the next one.
+        strokeStyleCtx = {
+          value: rectSel.strokeStyle ?? "solid",
+          onChange: (v) => {
+            updateAnnotation(rectSel.id, { strokeStyle: v });
+            persistRectStyle(v);
+          },
+        };
         if (curShape === "rect") {
           cornerCtx = {
             label: tr("editor.ctl.radius"),
@@ -323,14 +339,14 @@ export function Toolbar({
         };
       }
       if (selected.type === "arrow" && selected.heads === "none") {
-        // Headless line (from the Shapes tool): only the dash toggle applies.
+        // Headless line (from the Shapes tool): the Shapes line style applies.
+        // `dash` is kept in step for anything that still reads only it.
         const lineSel = selected;
-        arrowDashCtx = {
-          value: lineSel.dash ?? false,
+        strokeStyleCtx = {
+          value: arrowStrokeStyle(lineSel),
           onChange: (v) => {
-            updateAnnotation(lineSel.id, { dash: v });
-            if (remember) patchLastUsed({ arrow: { dash: v } });
-            else void updateSettings("tools", { arrow: { dash: v } } as Partial<AppConfig["tools"]>);
+            updateAnnotation(lineSel.id, { strokeStyle: v, dash: v === "dashed" });
+            persistRectStyle(v);
           },
         };
       }
@@ -750,8 +766,7 @@ export function Toolbar({
           },
         };
       }
-      // Solid vs. dotted line is chosen via the shape picker (line / dashline),
-      // so no separate dash toggle here.
+      strokeStyleCtx = { value: toolsCfg.rect.strokeStyle, onChange: persistRectStyle };
     }
     if (tool === "arrow") {
       arrowHeadsCtx = {
@@ -1386,7 +1401,8 @@ export function Toolbar({
 
   // Resolved panel kind: a selected annotation's type wins over the active tool
   // (editing an element shows that element's controls).
-  const panelKind = selected ? selected.type : tool;
+  // A headless line is drawn by the Shapes tool, so it gets the Shapes panel.
+  const panelKind = isShapesToolAnnotation(selected) ? "rect" : selected ? selected.type : tool;
 
   // Tell the sidebar whether a contextual panel exists and what it is called,
   // so it can offer a tab for it. Crop is included even though it renders from
@@ -1562,6 +1578,7 @@ export function Toolbar({
           penLevelCtx={penLevelCtx}
           magnifyLinkCtx={magnifyLinkCtx}
           rectShapeCtx={rectShapeCtx}
+          strokeStyleCtx={strokeStyleCtx}
           penModeCtx={penModeCtx}
           magnifyShapeCtx={magnifyShapeCtx}
           arrowHeadsCtx={arrowHeadsCtx}

@@ -8,8 +8,8 @@ import type { ColorCtx, ArrowHeadsCtx, NumCtx, ToggleCtx } from "./types";
 import type { RefObject } from "react";
 import { useT } from "@/i18n/useT";
 
-/** Arrow tool: stroke color + width (1–20), plus two-way/dash toggles. Also
- * serves a headless "line" (Shapes) where only color/width/dash are set. */
+/** Arrow tool: stroke color + width (1–20), plus two-way/dash toggles. (A
+ * headless Shapes line uses the Shapes panel's line style instead.) */
 export function ArrowPanel({
   colorCtx,
   widthCtx,

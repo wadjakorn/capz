@@ -3,6 +3,7 @@ import type {
   PinLabelStyle,
   PinTailDir,
   RectShapeKind,
+  StrokeStyle,
   FreehandMode,
   MagnifyShape,
   ArrowHeads,
@@ -205,6 +206,7 @@ export type AppConfig = {
       strokeWidth?: number;
       shape?: RectShapeKind;
       cornerRadius?: number;
+      strokeStyle?: StrokeStyle;
     };
     arrow?: {
       strokeColor?: string;
@@ -260,6 +262,7 @@ export type AppConfig = {
       strokeWidth: number;
       shape: RectShapeKind;
       cornerRadius: number;
+      strokeStyle: StrokeStyle;
     };
     arrow: {
       strokeColor: string;
@@ -328,7 +331,9 @@ export type BackdropConfig = AppConfig["general"]["backdrop"];
 // v4: added `general.language`.
 // v5 (CP-0067): added `general.copyClosesEditor`.
 // v6: added `general.backdrop.autoForPaste` / `autoForImport`.
-export const CONFIG_SCHEMA_VERSION = 6;
+// v7 (CP-0076): added tools.rect.strokeStyle / lastUsed.rect.strokeStyle;
+//   removed RectShapeKind "dashline" (now line + dashed).
+export const CONFIG_SCHEMA_VERSION = 7;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -427,6 +432,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       strokeWidth: 3,
       shape: "rect",
       cornerRadius: 8,
+      strokeStyle: "solid",
     },
     arrow: { strokeColor: "#ef4444", strokeWidth: 4, heads: "end", dash: false },
     text: {
@@ -550,6 +556,25 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
   // v5 → v6: only ADDED `general.backdrop.autoForPaste` / `autoForImport`
   // (both default off).
   5: (o) => o,
+  // v6 → v7 (CP-0076): the Shapes tool's "dashline" kind is now line + a
+  // dashed stroke style. Each slot that names a shape gets an explicit style,
+  // so effectiveTools' field-by-field merge can't leak one slot's "dashed"
+  // into the other slot's rect.
+  6: (o) => {
+    const fold = (r: unknown) => {
+      if (!isPlainObject(r)) return r;
+      if (r.shape === "dashline") {
+        return { ...r, shape: "line", strokeStyle: r.strokeStyle ?? "dashed" };
+      }
+      if (r.shape === undefined || r.strokeStyle !== undefined) return r;
+      return { ...r, strokeStyle: "solid" };
+    };
+    const tools = isPlainObject(o.tools) ? { ...o.tools, rect: fold(o.tools.rect) } : o.tools;
+    const lastUsed = isPlainObject(o.lastUsed)
+      ? { ...o.lastUsed, rect: fold(o.lastUsed.rect) }
+      : o.lastUsed;
+    return { ...o, tools, lastUsed };
+  },
 };
 
 /** Throws when a version between 0 and `version - 1` has no migration step. */
@@ -898,8 +923,9 @@ function vTools(
     rect: vsec("tools.rect", r.rect, def.rect, {
       strokeColor: isStr,
       strokeWidth: isNum,
-      shape: inSet("rect", "ellipse", "line", "dashline"),
+      shape: inSet("rect", "ellipse", "line"),
       cornerRadius: isNum,
+      strokeStyle: inSet("solid", "dashed", "dotted"),
     }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
       strokeColor: isStr,
@@ -1004,8 +1030,9 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
   keep("rect", {
     strokeColor: isStr,
     strokeWidth: isNum,
-    shape: inSet("rect", "ellipse", "line", "dashline"),
+    shape: inSet("rect", "ellipse", "line"),
     cornerRadius: isNum,
+    strokeStyle: inSet("solid", "dashed", "dotted"),
   });
   keep("arrow", {
     strokeColor: isStr,
@@ -1162,6 +1189,7 @@ export type EffectiveTools = {
     strokeWidth: number;
     shape: RectShapeKind;
     cornerRadius: number;
+    strokeStyle: StrokeStyle;
   };
   arrow: {
     strokeColor: string;
@@ -1222,6 +1250,7 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       strokeWidth: lu?.rect?.strokeWidth ?? t.rect.strokeWidth,
       shape: lu?.rect?.shape ?? t.rect.shape,
       cornerRadius: lu?.rect?.cornerRadius ?? t.rect.cornerRadius,
+      strokeStyle: lu?.rect?.strokeStyle ?? t.rect.strokeStyle,
     },
     arrow: {
       strokeColor: lu?.arrow?.strokeColor ?? t.arrow.strokeColor,

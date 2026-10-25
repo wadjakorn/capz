@@ -60,11 +60,11 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Sticker library loads custom dir from settings
 - [ ] Text tool: bold/italic/underline/strikethrough/font family toggles; bg ON/OFF toggle + padding
 - [ ] Arrow: 3-point curve handles; two-way head toggle; dashed toggle (straight + curved)
-- [ ] Shapes tool: rect (corner radius) / circle / line / dashed-line options (multi-shape tool icon)
+- [ ] Shapes tool: rect (corner radius) / circle / line options (multi-shape tool icon); Line style solid / dashed / dotted applies to all three — dots round at 1/4/20 px, also on a selected shape (one undo step)
 - [ ] Pen: pen-nib cursor at draw point; raw / polygon / curve modes; "Straighten"/"Curve" sliders (higher curve = rounder)
 - [ ] Highlighter: translucent marker; wide default; move + width + opacity only (no resize handles); brush-pill cursor matches the drawn width; stays active for repeated strokes until Esc / another tool (pen too)
 - [ ] Tool settings persist across app restarts (draw with custom pen/highlighter/magnify options, relaunch, defaults retained)
-- [ ] Arrow/line: dashed toggle shows a dashed-line icon (not "Dash" text)
+- [ ] Arrow: dashed toggle shows a dashed-line icon (not "Dash" text); a selected Shapes line opens the Shapes panel (Line style picker), an arrow the Arrow panel
 - [ ] Magnify: first drag sets the magnify (source) area (aspect respected); loupe appears beside it; both source area and loupe are clickable/draggable; source area reshapes via transform handles (square↔rect, circle↔oval) but never rotates; output zoom handle; circle/rect; border color; Area-opacity slider (fill only, 0 = clean); connector meets edges + follows link normal/dotted style; **exports WYSIWYG**
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
