@@ -53,6 +53,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | arrow | ลูกศร |
 | shape | รูปทรง |
 | rectangle / ellipse / line | สี่เหลี่ยม / วงรี / เส้น |
+| line style: solid / dashed / dotted | รูปแบบเส้น: เส้นทึบ / เส้นประ / เส้นจุด |
 | text | ข้อความ |
 | pen / highlighter | ปากกา / ปากกาเน้นข้อความ |
 | blur / pixelate | เบลอ / โมเสก |

@@ -35,6 +35,7 @@ import type {
   PinTailCtx,
   PinLabelStyleCtx,
   RectShapeCtx,
+  StrokeStyleCtx,
   TextStyleCtx,
   ToggleCtx,
 } from "./types";
@@ -86,6 +87,7 @@ export type ToolOptionsPanelProps = {
   penLevelCtx: NumCtx | null;
   magnifyLinkCtx: ToggleCtx | null;
   rectShapeCtx: RectShapeCtx | null;
+  strokeStyleCtx: StrokeStyleCtx | null;
   penModeCtx: PenModeCtx | null;
   magnifyShapeCtx: MagnifyShapeCtx | null;
   arrowHeadsCtx: ArrowHeadsCtx | null;
@@ -150,6 +152,7 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
           widthCtx={p.widthCtx}
           cornerCtx={p.cornerCtx}
           rectShapeCtx={p.rectShapeCtx}
+          strokeStyleCtx={p.strokeStyleCtx}
           colorInputRef={p.colorInputRef}
           selected={p.selected}
         />

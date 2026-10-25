@@ -6,22 +6,26 @@ import { RadiusGlyph, StrokeGlyph } from "./glyphs";
 import {
   ColorField,
   DashLineIcon,
+  DotLineIcon,
   Group,
   IconSegmented,
   NumericField,
+  SolidLineIcon,
 } from "./kit";
-import type { ColorCtx, NumCtx, RectShapeCtx } from "./types";
-import type { RectShapeKind } from "@/stores/editor";
+import type { ColorCtx, NumCtx, RectShapeCtx, StrokeStyleCtx } from "./types";
+import type { RectShapeKind, StrokeStyle } from "@/stores/editor";
 import type { RefObject } from "react";
 import { useT } from "@/i18n/useT";
 
-/** Shapes tool (rect/ellipse/line/dashed): stroke color + width (1–20), a shape
- * picker, and a corner radius (0–60) for the rectangle. */
+/** Shapes tool (rect/ellipse/line): a shape picker (hidden while a shape is
+ * selected), a solid/dashed/dotted line style, stroke color + width (1–20), and
+ * a corner radius (0–60) for the rectangle. */
 export function ShapesPanel({
   colorCtx,
   widthCtx,
   cornerCtx,
   rectShapeCtx,
+  strokeStyleCtx,
   colorInputRef,
   selected,
 }: {
@@ -29,13 +33,14 @@ export function ShapesPanel({
   widthCtx: NumCtx | null;
   cornerCtx: NumCtx | null;
   rectShapeCtx: RectShapeCtx | null;
+  strokeStyleCtx: StrokeStyleCtx | null;
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
 }) {
   const { t } = useT();
   return (
     <Group>
-      <SectionLabel>{t("editor.panel.shape")}</SectionLabel>
+      {rectShapeCtx && <SectionLabel>{t("editor.panel.shape")}</SectionLabel>}
       {rectShapeCtx && (
         <IconSegmented<RectShapeKind>
           value={rectShapeCtx.value}
@@ -46,7 +51,20 @@ export function ShapesPanel({
             { value: "rect", title: t("editor.panel.rectangle"), Icon: Square },
             { value: "ellipse", title: t("editor.panel.circle"), Icon: CircleIcon },
             { value: "line", title: t("editor.panel.line"), Icon: Minus },
-            { value: "dashline", title: t("editor.panel.dashedLine"), Icon: DashLineIcon },
+          ]}
+        />
+      )}
+      {strokeStyleCtx && <SectionLabel>{t("editor.panel.strokeStyle")}</SectionLabel>}
+      {strokeStyleCtx && (
+        <IconSegmented<StrokeStyle>
+          value={strokeStyleCtx.value}
+          onChange={strokeStyleCtx.onChange}
+          title={t("editor.panel.strokeStyle")}
+          ariaLabel={t("editor.panel.strokeStyle")}
+          options={[
+            { value: "solid", title: t("editor.panel.solid"), Icon: SolidLineIcon },
+            { value: "dashed", title: t("editor.panel.dashed"), Icon: DashLineIcon },
+            { value: "dotted", title: t("editor.panel.dotted"), Icon: DotLineIcon },
           ]}
         />
       )}

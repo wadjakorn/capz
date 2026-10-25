@@ -24,6 +24,42 @@ export function DashLineIcon({ className }: { className?: string }) {
   );
 }
 
+/** Solid horizontal line — pairs with DashLineIcon / DotLineIcon in the stroke
+ *  style picker (lucide's Minus is already the Shapes "Line" icon). */
+export function SolidLineIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      className={className}
+      aria-hidden
+    >
+      <line x1="1.5" y1="8" x2="14.5" y2="8" />
+    </svg>
+  );
+}
+
+/** Dotted horizontal line — round dots, matching the dotted stroke style. */
+export function DotLineIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeDasharray="0.01 3"
+      className={className}
+      aria-hidden
+    >
+      <line x1="1.5" y1="8" x2="14.5" y2="8" />
+    </svg>
+  );
+}
+
 /** The 7×7 icon toggle used across every panel (shape pickers, dash, link…). */
 export function ToggleIconButton({
   active,
