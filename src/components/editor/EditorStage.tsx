@@ -89,6 +89,8 @@ import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
 import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
 import { getPreloaded } from "@/lib/imagePreload";
+import { lastUsedPatchForAnnotation } from "@/lib/lastUsedPatch";
+import { arrowStrokeStyle, strokeDashProps } from "@/lib/strokeStyle";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
 const SNAP_SCREEN_PX = 6;
@@ -135,102 +137,6 @@ function draftTextAnnotation(
     align: textCfg.align,
     lineHeight: textCfg.lineHeight,
   };
-}
-
-function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig["lastUsed"]> {
-  switch (a.type) {
-    case "rect":
-      return {
-        rect: {
-          strokeColor: a.stroke,
-          strokeWidth: a.strokeWidth,
-          shape: a.shape,
-          cornerRadius: a.cornerRadius,
-        },
-      };
-    case "arrow":
-      // A headless line belongs to the Shapes tool — persist it under the rect
-      // slot so it never writes heads:"none" into the Arrow defaults (which would
-      // make subsequently-drawn arrows headless).
-      if (a.heads === "none") {
-        return { rect: { strokeColor: a.stroke, strokeWidth: a.strokeWidth } };
-      }
-      return {
-        arrow: {
-          strokeColor: a.stroke,
-          strokeWidth: a.strokeWidth,
-          heads: a.heads,
-          dash: a.dash,
-        },
-      };
-    case "pen":
-      return {
-        pen: {
-          strokeColor: a.stroke,
-          strokeWidth: a.strokeWidth,
-          mode: a.mode,
-          polygonEpsilon: a.polygonEpsilon,
-          curveSmoothing: a.curveSmoothing,
-        },
-      };
-    case "highlighter":
-      return {
-        highlighter: {
-          strokeColor: a.stroke,
-          strokeWidth: a.strokeWidth,
-          opacity: a.opacity,
-        },
-      };
-    case "magnify":
-      return {
-        magnify: {
-          strokeColor: a.stroke,
-          strokeWidth: a.strokeWidth,
-          sourceStrokeWidth: a.sourceStrokeWidth,
-          borderLinked: a.borderLinked,
-          shape: a.shape,
-          zoom: a.zoom,
-          areaOpacity: a.areaOpacity,
-          linkDash: a.linkDash,
-        },
-      };
-    case "text":
-      return {
-        text: {
-          color: a.fill,
-          fontSize: a.fontSize,
-          fontStyle: a.fontStyle,
-          textDecoration: a.textDecoration,
-          fontFamily: a.fontFamily,
-          backgroundColor: a.backgroundColor,
-          backgroundPadding: a.bgPadding,
-          align: a.align,
-          lineHeight: a.lineHeight,
-        },
-      };
-    case "blur":
-      return { blur: { blurRadius: a.blurRadius } };
-    case "sticker":
-      return a.kind === "image" || !a.char
-        ? { sticker: { fontSize: a.fontSize } }
-        : { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
-    case "pin":
-      return {
-        pin: {
-          color: a.color,
-          size: a.size,
-          labelColor: a.labelColor,
-          borderColor: a.borderColor,
-          borderWidth: a.borderWidth,
-          shape: a.shape,
-          bubbleTail: a.bubbleTail,
-          labelStyle: a.labelStyle,
-        },
-      };
-    case "image":
-      // Layered images carry no persisted per-tool defaults.
-      return {};
-  }
 }
 
 const MIN_PADDING = 24;
@@ -1171,8 +1077,8 @@ export function EditorStage({ src }: Props) {
     if (!empty) return;
 
     if (tool === "rect") {
-      // The Shapes tool's line / dashed-line options draw a 2-point segment.
-      if (toolsCfg.rect.shape === "line" || toolsCfg.rect.shape === "dashline") {
+      // The Shapes tool's line option draws a 2-point segment.
+      if (toolsCfg.rect.shape === "line") {
         setDraft({ kind: "line", id: uid(), x1: p.x, y1: p.y, x2: p.x, y2: p.y });
       } else {
         setDraft({ kind: "rect", id: uid(), x: p.x, y: p.y, w: 0, h: 0 });
@@ -1336,6 +1242,7 @@ export function EditorStage({ src }: Props) {
           strokeWidth: toolsCfg.rect.strokeWidth,
           shape: toolsCfg.rect.shape,
           cornerRadius: toolsCfg.rect.cornerRadius,
+          strokeStyle: toolsCfg.rect.strokeStyle,
         };
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1378,7 +1285,7 @@ export function EditorStage({ src }: Props) {
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
     } else if (draft.kind === "line") {
-      // Shapes-tool line: a headless arrow. Persists under the arrow's config.
+      // Shapes-tool line: a headless arrow. Persists under the rect (Shapes) slot.
       const dx = draft.x2 - draft.x1;
       const dy = draft.y2 - draft.y1;
       if (Math.hypot(dx, dy) > 4) {
@@ -1392,9 +1299,12 @@ export function EditorStage({ src }: Props) {
           stroke: toolsCfg.rect.strokeColor,
           strokeWidth: toolsCfg.rect.strokeWidth,
           heads: "none",
-          dash: toolsCfg.rect.shape === "dashline",
+          strokeStyle: toolsCfg.rect.strokeStyle,
+          // Older builds only read `dash`; keep a dashed line dashed there.
+          dash: toolsCfg.rect.strokeStyle === "dashed",
         };
         add(a);
+        scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
       }
     } else if (draft.kind === "magnify") {
       // The drag defines the SOURCE (magnify) area; the output loupe is placed
@@ -1766,13 +1676,9 @@ export function EditorStage({ src }: Props) {
                 points={[draft.x1, draft.y1, draft.x2, draft.y2]}
                 stroke={toolsCfg.rect.strokeColor}
                 strokeWidth={toolsCfg.rect.strokeWidth}
-                dash={
-                  toolsCfg.rect.shape === "dashline"
-                    ? [toolsCfg.rect.strokeWidth * 2, toolsCfg.rect.strokeWidth * 2]
-                    : undefined
-                }
                 lineCap="round"
                 lineJoin="round"
+                {...strokeDashProps(toolsCfg.rect.strokeStyle, toolsCfg.rect.strokeWidth)}
                 listening={false}
               />
             )}
@@ -2233,6 +2139,7 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
     rotation: a.rotation ?? 0,
     stroke: a.stroke,
     strokeWidth: a.strokeWidth,
+    ...strokeDashProps(a.strokeStyle, a.strokeWidth),
     draggable: true,
     ...hoverHandlers(ctx),
     onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
@@ -2447,7 +2354,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
         pointerWidth={a.strokeWidth * 4}
         pointerAtEnding={(a.heads ?? "end") !== "none"}
         pointerAtBeginning={a.heads === "both"}
-        dash={a.dash ? [a.strokeWidth * 2, a.strokeWidth * 2] : undefined}
+        dash={strokeDashProps(arrowStrokeStyle(a), a.strokeWidth).dash}
         lineCap="round"
         lineJoin="round"
         hitStrokeWidth={Math.max(20, a.strokeWidth * 3)}
