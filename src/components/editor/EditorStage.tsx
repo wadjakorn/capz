@@ -85,6 +85,7 @@ import {
 } from "@/lib/annotationBounds";
 import { anchoredScrollOffset } from "@/lib/zoomAnchor";
 import { snapAxis, snapResizedBox } from "@/lib/snap";
+import { SCREEN_CHROME } from "@/lib/screenChrome";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
 import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
@@ -993,10 +994,31 @@ export function EditorStage({ src }: Props) {
     const { xT, yT } = getSnapTargets(id);
     const t = SNAP_SCREEN_PX / scale;
     const hit = snapResizedBox(oldBox, newBox, xT, yT, t);
-    setGuides({ x: hit?.guides.x ?? [], y: hit?.guides.y ?? [] });
+    // Resize snaps only once, at transform end — the gesture is already over,
+    // so drawing its guides would just leave them stuck on screen (CP-0079).
+    endSnap();
     return hit?.box ?? newBox;
   };
-  const endSnap = () => setGuides({ x: [], y: [] });
+  function endSnap() {
+    const cur = useEditor.getState().guides;
+    if (cur.x.length || cur.y.length) setGuides({ x: [], y: [] });
+  }
+
+  // Guides only live while the pointer is held. Konva ends drags/transforms
+  // from its own window listeners (registered at import, so they run first);
+  // this catches gestures that end any other way — released outside the
+  // window, touch cancelled, or the window losing focus mid-drag (CP-0079).
+  useEffect(() => {
+    const clear = () => {
+      const cur = useEditor.getState().guides;
+      if (cur.x.length || cur.y.length) {
+        useEditor.getState().setGuides({ x: [], y: [] });
+      }
+    };
+    const events = ["mouseup", "touchend", "touchcancel", "blur"] as const;
+    events.forEach((ev) => window.addEventListener(ev, clear));
+    return () => events.forEach((ev) => window.removeEventListener(ev, clear));
+  }, []);
 
   // After first-load fit, center image in viewport via scroll.
   // Re-arms whenever displayScale resets to 0 (sentinel) — happens on
@@ -1859,7 +1881,9 @@ export function EditorStage({ src }: Props) {
               }}
             />
           </Layer>
-          <Layer listening={false}>
+          {/* Snap guides are screen-only chrome: exports and thumbnails hide
+              every SCREEN_CHROME node while they snapshot (CP-0079). */}
+          <Layer name={SCREEN_CHROME} listening={false}>
             {guides.x.map((gx, i) => (
               <Line
                 key={`gx-${i}`}
