@@ -542,6 +542,7 @@ describe("renderThumb hover outline", () => {
     const calls: unknown[][] = [];
     const stage = {
       findOne: (sel: string) => (sel === ".hover-tr" ? fakeTr : null),
+      find: () => [],
       scaleX: () => 1,
       toDataURL: () => {
         calls.push([...fakeTr.current]);
@@ -554,6 +555,39 @@ describe("renderThumb hover outline", () => {
     expect(renderThumb()).toBe("");
     expect(calls[0]).toEqual([]);
     expect(fakeTr.current).toBe(original);
+    setStage(null);
+    setStageExportBox(null);
+  });
+});
+
+describe("renderThumb snap guides (CP-0079)", () => {
+  beforeEach(reset);
+
+  it("hides screen-chrome nodes for the thumbnail and restores them", () => {
+    let visible = true;
+    const guides = {
+      visible(v?: boolean) {
+        if (v === undefined) return visible;
+        visible = v;
+        return guides;
+      },
+    };
+    const seen: boolean[] = [];
+    const stage = {
+      findOne: () => null,
+      find: (sel: string) => (sel === ".screen-chrome" ? [guides] : []),
+      scaleX: () => 1,
+      toDataURL: () => {
+        seen.push(visible);
+        return "data:image/jpeg;base64,";
+      },
+    };
+    setStage(stage as never);
+    setStageExportBox({ x: 0, y: 0, w: 100, h: 80 });
+    useWorkspaces.setState({ swapping: false });
+    renderThumb();
+    expect(seen).toEqual([false]);
+    expect(visible).toBe(true);
     setStage(null);
     setStageExportBox(null);
   });

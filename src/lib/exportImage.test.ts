@@ -18,6 +18,7 @@ function fakeStage(): Konva.Stage {
     scaleX: () => 1,
     width: () => 1,
     height: () => 1,
+    find: () => [],
     toDataURL: () => PNG_DATA_URL,
   } as unknown as Konva.Stage;
 }
@@ -104,6 +105,7 @@ describe("exportImage on the web runtime (no Tauri)", () => {
       scaleX: () => 0.5, // zoomed out to 50%
       width: () => 60,
       height: () => 45,
+      find: () => [],
       toDataURL: (opts: Record<string, unknown>) => {
         calls.push(opts);
         return PNG_DATA_URL;
@@ -140,6 +142,7 @@ describe("exportImage on the web runtime (no Tauri)", () => {
       scaleX: () => 2, // Retina-style export scale
       width: () => 100,
       height: () => 100,
+      find: () => [],
       toDataURL: (opts: { x: number; y: number; width: number; height: number }) => {
         calls.push(opts);
         return PNG_DATA_URL;
@@ -155,6 +158,39 @@ describe("exportImage on the web runtime (no Tauri)", () => {
     expect(calls).toHaveLength(1);
     // Region is pinned at stage-local (0,0) by the Stage offset; size = box*scale.
     expect(calls[0]).toMatchObject({ x: 0, y: 0, width: 900 * 2, height: 700 * 2 });
+  });
+
+  it("never bakes screen chrome (snap guides) into the snapshot (CP-0079)", async () => {
+    // The guide layer is still mounted when export runs — React hasn't
+    // re-rendered since prepareExport cleared the store.
+    let guidesVisible = true;
+    const guideLayer = {
+      visible: (v?: boolean) => {
+        if (v === undefined) return guidesVisible;
+        guidesVisible = v;
+        return guideLayer;
+      },
+    };
+    const selectors: string[] = [];
+    const visibleDuringSnapshot: boolean[] = [];
+    const stage = {
+      scaleX: () => 1,
+      width: () => 1,
+      height: () => 1,
+      find: (sel: string) => {
+        selectors.push(sel);
+        return [guideLayer];
+      },
+      toDataURL: () => {
+        visibleDuringSnapshot.push(guidesVisible);
+        return PNG_DATA_URL;
+      },
+    } as unknown as Konva.Stage;
+    await copyOnly(stage);
+    await saveOnly(stage, DEFAULT_CONFIG);
+    expect(selectors.every((s) => s === ".screen-chrome")).toBe(true);
+    expect(visibleDuringSnapshot).toEqual([false, false]);
+    expect(guidesVisible).toBe(true); // restored for the on-screen editor
   });
 });
 
