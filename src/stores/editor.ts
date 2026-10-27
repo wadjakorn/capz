@@ -533,6 +533,8 @@ export const useEditor = create<State>((set, get) => ({
     set({
       tool: t,
       selectedId: t === "select" || t === "crop" ? get().selectedId : null,
+      // Snap guides belong to the gesture, never to the next tool (CP-0079).
+      guides: { x: [], y: [] },
     }),
   setStickerSelection: (sel) => set({ stickerSelection: sel }),
   setNextPinNumber: (n) => set({ nextPinNumber: n }),
@@ -763,6 +765,7 @@ export const useEditor = create<State>((set, get) => ({
       past: past.slice(0, -1),
       future: [{ annotations, nextPinNumber, imageCrop }, ...future],
       selectedId: null,
+      guides: { x: [], y: [] },
       ...(cropChanged ? { displayScale: 0, userZoomed: false } : {}),
     });
   },
@@ -779,6 +782,7 @@ export const useEditor = create<State>((set, get) => ({
       past: [...past, { annotations, nextPinNumber, imageCrop }],
       future: future.slice(1),
       selectedId: null,
+      guides: { x: [], y: [] },
       ...(cropChanged ? { displayScale: 0, userZoomed: false } : {}),
     });
   },
