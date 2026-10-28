@@ -9,6 +9,7 @@ import type {
   ArrowHeads,
   TextAlign,
 } from "@/stores/editor";
+import type { SnapBypassKey } from "@/lib/snap";
 import { validateAccelerator } from "@/lib/shortcuts";
 import {
   RING_MAX_MODES,
@@ -156,6 +157,9 @@ export type AppConfig = {
     editorWindow: { width: number; height: number };
     showRulers: boolean;
     snapEnabled: boolean;
+    /** Key held to bypass snapping while dragging/resizing (CP-0025).
+     *  "mod" = Cmd on macOS / Ctrl on Windows; "none" = no hold-to-bypass. */
+    snapBypassKey: SnapBypassKey;
     canvasBackground: string;
     /**
      * App version whose settings the user has already been shown. Anything
@@ -352,7 +356,8 @@ export type BackdropConfig = AppConfig["general"]["backdrop"];
 // v8 (CP-0048): sticker sets. `stickers.directory` became `stickers.folders`
 //   (+ `disabledBuiltins`, `order`); `lastUsed.stickerEmoji` became
 //   `lastUsed.stickerItem`.
-export const CONFIG_SCHEMA_VERSION = 8;
+// v9 (CP-0025): added `general.snapBypassKey`.
+export const CONFIG_SCHEMA_VERSION = 9;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -428,6 +433,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     editorWindow: { width: 1024, height: 680 },
     showRulers: false,
     snapEnabled: true,
+    // Not Alt: Konva's Transformer already uses Alt for resize-from-centre.
+    snapBypassKey: "mod",
     canvasBackground: "#ffffff",
     lastSeenSettingsVersion: "",
     dismissedSuggestions: [],
@@ -614,6 +621,14 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
         ? { ...restLu, stickerItem: { setId: "emoji", itemId: stickerEmoji } }
         : restLu;
     return { ...o, stickers, lastUsed };
+  },
+  // v8 → v9 (CP-0025): added `general.snapBypassKey`. Fresh installs get
+  // "mod", but anyone upgrading has been holding Alt to bypass snapping, so an
+  // existing store keeps Alt (same idea as the v3 → v4 language step).
+  8: (o) => {
+    const general = isPlainObject(o.general) ? o.general : {};
+    if (general.snapBypassKey !== undefined) return o;
+    return { ...o, general: { ...general, snapBypassKey: "alt" } };
   },
 };
 
@@ -902,6 +917,7 @@ function vGeneral(
       copyClosesEditor: isBool,
       showRulers: isBool,
       snapEnabled: isBool,
+      snapBypassKey: inSet("alt", "mod", "none"),
       canvasBackground: isStr,
       lastSeenSettingsVersion: isStr,
     },
