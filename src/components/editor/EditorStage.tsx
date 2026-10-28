@@ -1011,6 +1011,19 @@ export function EditorStage({ src }: Props) {
     };
   };
 
+  /** On-screen box of a rotated annotation in image px, or null when it isn't
+   *  rotated. A rotated element's x/y/w/h is its un-rotated frame (Konva pivots
+   *  on the node origin, e.g. a rect's top-left), so snapping to it puts the
+   *  guides beside the element instead of on its edges/centre. */
+  const rotatedSnapBox = (id: string, rotation: number | undefined): AABB | null => {
+    if (!((rotation ?? 0) % 360)) return null;
+    const node = nodeRefs.current.get(id);
+    const layer = node?.getLayer();
+    if (!node || !layer) return null;
+    const r = node.getClientRect({ relativeTo: layer, skipStroke: true, skipShadow: true });
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  };
+
   /** Snap lines for a gesture on `excludeId` (null = nothing to exclude).
    *  `canvasOnly` skips other elements (crop). */
   const getSnapLines = (excludeId: string | null, canvasOnly = false): SnapLines => {
@@ -1018,7 +1031,7 @@ export function EditorStage({ src }: Props) {
     if (!canvasOnly) {
       for (const an of useEditor.getState().annotations) {
         if (an.id === excludeId) continue;
-        const ab = annotationAABB(an);
+        const ab = rotatedSnapBox(an.id, an.rotation) ?? annotationAABB(an);
         if (ab) others.push(ab);
       }
     }
@@ -1045,7 +1058,9 @@ export function EditorStage({ src }: Props) {
       endSnap();
       return { dx: 0, dy: 0 };
     }
-    const r = snapMove(b, getSnapLines(id, canvasOnly), snapOpts(scale));
+    const ann = useEditor.getState().annotations.find((an) => an.id === id);
+    const box = rotatedSnapBox(id, ann?.rotation) ?? b;
+    const r = snapMove(box, getSnapLines(id, canvasOnly), snapOpts(scale));
     showGuides(r.guides);
     return { dx: r.dx, dy: r.dy };
   };

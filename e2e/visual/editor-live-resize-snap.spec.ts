@@ -213,3 +213,31 @@ test("a text box snaps live while resized from a corner", async ({ page }) => {
   await page.mouse.up();
   await expect.poll(async () => (await guideStrokes(page)).length).toBe(0);
 });
+
+test("a rotated rect snaps by the box it is drawn in, not its un-rotated frame", async ({ page }) => {
+  await loadImage(page);
+  await drawRect(page, { x: 80, y: 60 }, { x: 240, y: 120 });
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const box = await stageBox(page);
+  await page.mouse.click(box.x + 160, box.y + 90);
+  await expect.poll(() => anchorCenter(page, "rotater")).not.toBeNull();
+  const rotater = await anchorCenter(page, "rotater");
+  // Turn it 90°: swing the rotater from above the centre to its right.
+  const [r0] = await rectBoxes(page);
+  const c0 = { x: r0.x + r0.w / 2, y: r0.y + r0.h / 2 };
+  await mouseDrag(page, rotater!, { x: c0.x + 120, y: c0.y });
+  const [turned] = await rectBoxes(page);
+  expect(turned.h).toBeGreaterThan(turned.w); // now tall, not wide
+  await snap(page, "rotated-90");
+
+  // Drag so the drawn box's centre is 3 screen px right of the canvas centre.
+  const centreX = box.x + box.width / 2;
+  const from = { x: turned.x + turned.w / 2, y: turned.y + turned.h / 2 };
+  await holdDrag(page, from, { x: centreX + 3, y: from.y + 140 });
+  await expect.poll(() => guideStrokes(page)).toContain("#e879f9");
+  const [live] = await rectBoxes(page);
+  expect(Math.abs(live.x + live.w / 2 - centreX)).toBeLessThan(1.5);
+  await snap(page, "rotated-centre-snapped");
+  await page.mouse.up();
+  await expect.poll(async () => (await guideStrokes(page)).length).toBe(0);
+});

@@ -5,7 +5,8 @@ export type AABB = { x: number; y: number; w: number; h: number };
 
 /**
  * Axis-aligned bounding box for an annotation in image-pixel coords.
- * Rotation is ignored — snap uses the un-rotated AABB for simplicity.
+ * Rotation is ignored — snapping measures a rotated element's rendered node
+ * instead (`rotatedSnapBox` in EditorStage).
  */
 export function annotationAABB(a: Annotation): AABB | null {
   switch (a.type) {
