@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "mainBinaryName": "capz",
+  "bundle": {
+    "category": "GraphicsAndDesign",
+    "linux": {
+      "deb": {
+        "depends": [
+          "libpipewire-0.3-0",
+          "libgbm1",
+          "libegl1",
+          "libxcb1",
+          "libwayland-client0",
+          "libwayland-server0",
+          "libdbus-1-3"
+        ]
+      }
+    }
+  }
+}

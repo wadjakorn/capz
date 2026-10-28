@@ -61,6 +61,21 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             label: windows-x64
+          # Linux (CP-0086): .deb is the main package, AppImage the portable
+          # one; both are signed updater artifacts. No rpm. tauri-action keys
+          # them in latest.json as linux-<arch>-deb / linux-<arch>-appimage,
+          # with plain linux-<arch> pointing at the AppImage. The binary links
+          # the runner's glibc, so this is also the oldest Ubuntu it runs on.
+          # 22.04 can't build it: xcap's PipeWire bindings need newer headers
+          # than its 0.3.48.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            label: linux-x64
+            bundles: --bundles deb,appimage
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            label: linux-arm64
+            bundles: --bundles deb,appimage
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -83,6 +98,13 @@ jobs:
         with:
           workspaces: src-tauri
           key: ${{ matrix.target }}
+
+      - name: Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf file \
+            libpipewire-0.3-dev libxcb1-dev libxrandr-dev libdbus-1-dev libwayland-dev libegl-dev libgbm-dev
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -113,7 +135,7 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.bundles }}
 
       # Always upload build artifacts on non-tag dispatch so they are
       # downloadable from the workflow run for quick smoke-testing.
@@ -130,6 +152,10 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi.sig
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.sig
           if-no-files-found: ignore
 
   # The gh-pages update channel (latest.json) is published by

@@ -45,6 +45,15 @@ Click **"More info" → "Run anyway"**. One-time per version. The app itself is 
 
 **Smart App Control (Windows 11):** if SAC is in enforcement mode, unsigned builds are blocked with no override. Signed builds (once available) will run normally under SAC. Until then, affected users can install from the Microsoft-signed alternative when available, or wait for a signed release.
 
+### Linux (`.deb` / `.AppImage`) — preview
+
+x86_64 and arm64, **Ubuntu 24.04** (or another distro with glibc 2.39+ and PipeWire 1.0+). **X11 sessions only** for now: pick **"Ubuntu on Xorg"** on the login screen (gear icon). Under Wayland, global shortcuts and the capture overlays don't work, and capz says so on launch. Ubuntu 22.04 (too old) and 25.10+ / 26.04 (no Xorg session) are not supported yet. OCR and auto-scroll are not available on Linux.
+
+- **`.deb` (recommended):** `sudo apt install ./capz_<version>_amd64.deb` (or `_arm64.deb`). Auto-updates ask for your password each time, since they reinstall the package.
+- **AppImage:** `chmod +x capz_<version>_amd64.AppImage` and run it. Needs FUSE 2: `sudo apt install libfuse2t64`.
+
+Packages are not GPG-signed; updates are verified with the same Ed25519 updater key as macOS and Windows.
+
 ## Develop
 
 ```bash
@@ -56,7 +65,7 @@ pnpm dev              # web only (Next.js, no Tauri)
 ## Build
 
 ```bash
-pnpm tauri build      # .app (macOS) / .msi (Windows)
+pnpm tauri build      # .app (macOS) / .msi (Windows) / .deb + .AppImage (Linux)
 pnpm build            # web static export → out/ (Cloudflare Pages)
 pnpm test:unit        # Vitest unit tests
 ```
@@ -71,7 +80,8 @@ Deploy: Cloudflare Pages Git integration builds `pnpm build` → `out/` on every
 
 - Node 20+, pnpm 9+
 - Rust stable 1.75+
-- macOS 12+ or Windows 10/11
+- macOS 12+, Windows 10/11, or Linux with an X11 session (preview)
+- Linux build deps: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libpipewire-0.3-dev libxcb1-dev libxrandr-dev libdbus-1-dev libwayland-dev libegl-dev libgbm-dev`
 
 ## Default Hotkeys
 
