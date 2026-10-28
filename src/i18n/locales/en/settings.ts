@@ -218,18 +218,10 @@ export const settings = {
   "settings.library.archiveUsage.delete": "{size} — Delete…",
 
   // ── Sticker form ───────────────────────────────────────────────────────────
-  "settings.stickers.directory": "Sticker directory",
-  "settings.stickers.placeholder": "No directory chosen — emoji fallback used",
   "settings.stickers.openFolder": "Open folder",
-  "settings.stickers.help":
-    "PNG / JPEG / WEBP / GIF. Up to 200 files, 2 MB each. Loaded into memory at app start and on Sync.",
-  "settings.stickers.syncing": "Syncing…",
   "settings.stickers.syncNow": "Sync now",
   "settings.stickers.loadedOne": "{n} sticker loaded",
   "settings.stickers.loadedMany": "{n} stickers loaded",
-  "settings.stickers.clickSync": "Click Sync to load",
-  "settings.stickers.chooseFirst": "Choose a directory first",
-  "settings.stickers.failed": "Sync failed: {error}",
 
   // ── Feedback form ──────────────────────────────────────────────────────────
   "settings.feedback.bug": "Bug",

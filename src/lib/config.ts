@@ -193,7 +193,8 @@ export type AppConfig = {
   };
   lastUsed?: {
     tool?: Tool;
-    stickerEmoji?: string;
+    /** Last sticker picked: a set id + item id (CP-0048). */
+    stickerItem?: { setId: string; itemId: string };
     region?: { monitorId: number; x: number; y: number; w: number; h: number };
     lastCaptureKind?: "full" | "area" | "window";
     /** Remembered kind for the capture-as-layer split button. Deliberately
@@ -320,8 +321,23 @@ export type AppConfig = {
     lastCheckedAt: number | null;
   };
   stickers: {
-    directory: string | null;
+    /** User sticker folders (desktop only), each shown as one set. */
+    folders: StickerFolder[];
+    /** Built-in set ids hidden from the picker. */
+    disabledBuiltins: string[];
+    /** Picker tab order: built-in set ids and folder ids. Ids missing here
+     * (e.g. a built-in set added by a later release) are appended. */
+    order: string[];
   };
+};
+
+/** One user sticker folder (`stickers.folders[]`). */
+export type StickerFolder = {
+  /** `dir:<hash of dir>` — stable, so migrating twice yields the same id. */
+  id: string;
+  dir: string;
+  name: string;
+  enabled: boolean;
 };
 
 /** The padded-backdrop settings block (`general.backdrop`). */
@@ -333,7 +349,10 @@ export type BackdropConfig = AppConfig["general"]["backdrop"];
 // v6: added `general.backdrop.autoForPaste` / `autoForImport`.
 // v7 (CP-0076): added tools.rect.strokeStyle / lastUsed.rect.strokeStyle;
 //   removed RectShapeKind "dashline" (now line + dashed).
-export const CONFIG_SCHEMA_VERSION = 7;
+// v8 (CP-0048): sticker sets. `stickers.directory` became `stickers.folders`
+//   (+ `disabledBuiltins`, `order`); `lastUsed.stickerEmoji` became
+//   `lastUsed.stickerItem`.
+export const CONFIG_SCHEMA_VERSION = 8;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -481,7 +500,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     lastCheckedAt: null,
   },
   stickers: {
-    directory: null,
+    folders: [],
+    disabledBuiltins: [],
+    order: [],
   },
 };
 
@@ -575,7 +596,42 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
       : o.lastUsed;
     return { ...o, tools, lastUsed };
   },
+  // v7 → v8 (CP-0048): sticker sets. The single sticker directory becomes the
+  // first user folder (it used to replace the emoji; now it sits beside them),
+  // and the remembered emoji becomes a { setId, itemId } reference.
+  7: (o) => {
+    const st = isPlainObject(o.stickers) ? o.stickers : {};
+    const { directory, ...restSt } = st;
+    const folders =
+      typeof directory === "string" && directory
+        ? [{ id: stickerFolderId(directory), dir: directory, name: folderBaseName(directory), enabled: true }]
+        : [];
+    const stickers = { ...restSt, folders: restSt.folders ?? folders };
+    if (!isPlainObject(o.lastUsed)) return { ...o, stickers };
+    const { stickerEmoji, ...restLu } = o.lastUsed;
+    const lastUsed =
+      typeof stickerEmoji === "string" && restLu.stickerItem === undefined
+        ? { ...restLu, stickerItem: { setId: "emoji", itemId: stickerEmoji } }
+        : restLu;
+    return { ...o, stickers, lastUsed };
+  },
 };
+
+/** Stable folder-set id for a directory path (FNV-1a, 32-bit). */
+export function stickerFolderId(dir: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < dir.length; i++) {
+    h ^= dir.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `dir:${h.toString(16).padStart(8, "0")}`;
+}
+
+/** Last path segment of a macOS or Windows directory path. */
+export function folderBaseName(dir: string): string {
+  const parts = dir.split(/[\\/]+/).filter(Boolean);
+  return parts[parts.length - 1] ?? dir;
+}
 
 /** Throws when a version between 0 and `version - 1` has no migration step. */
 export function assertMigrationChain(
@@ -990,7 +1046,6 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
       "sticker",
       "pin",
     ),
-    stickerEmoji: isStr,
     lastCaptureKind: inSet("full", "area", "window"),
     lastLayerCaptureKind: inSet("full", "area", "window"),
     lastExportAction: inSet("copy", "file", "both"),
@@ -1012,6 +1067,11 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
         h: rr.h as number,
       };
     }
+  }
+  for (const k of ["setId", "itemId"]) recordLeaf(`lastUsed.stickerItem.${k}`, isStr);
+  const si = o.stickerItem;
+  if (isPlainObject(si) && isStr(si.setId) && isStr(si.itemId)) {
+    out.stickerItem = { setId: si.setId as string, itemId: si.itemId as string };
   }
   const keep = (
     key: keyof NonNullable<AppConfig["lastUsed"]>,
@@ -1080,6 +1140,40 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     labelStyle: inSet("numeric", "alpha"),
   });
   return Object.keys(out).length ? out : undefined;
+}
+
+const isStrArray: Validator = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
+
+/** `stickers`: folders are validated one by one so a single bad entry (or a
+ * duplicate id) is dropped instead of resetting the whole list. */
+function vStickers(
+  raw: unknown,
+  def: AppConfig["stickers"],
+  issues: string[],
+): AppConfig["stickers"] {
+  const flat = vsec("stickers", raw, def, { disabledBuiltins: isStrArray, order: isStrArray }, issues);
+  for (const k of ["id", "dir", "name", "enabled"]) recordLeaf(`stickers.folders.${k}`, k === "enabled" ? isBool : isStr);
+  const rawFolders = isPlainObject(raw) ? raw.folders : undefined;
+  if (rawFolders === undefined) return flat;
+  if (!Array.isArray(rawFolders)) {
+    note(issues, "invalid stickers.folders, using default");
+    return flat;
+  }
+  const seen = new Set<string>();
+  const folders: StickerFolder[] = [];
+  for (const f of rawFolders) {
+    if (
+      isPlainObject(f) &&
+      isStr(f.id) && isStr(f.dir) && isStr(f.name) && isBool(f.enabled) &&
+      !seen.has(f.id as string)
+    ) {
+      seen.add(f.id as string);
+      folders.push({ id: f.id as string, dir: f.dir as string, name: f.name as string, enabled: f.enabled as boolean });
+    } else {
+      note(issues, "invalid or duplicate stickers.folders entry, dropping it");
+    }
+  }
+  return { ...flat, folders };
 }
 
 export type ValidatedConfig = { config: AppConfig; issues: string[] };
@@ -1175,9 +1269,7 @@ export function validateConfig(raw: unknown): ValidatedConfig {
       skippedVersion: isStrOrNull,
       lastCheckedAt: isNumOrNull,
     }, issues),
-    stickers: vsec("stickers", r.stickers, d.stickers, {
-      directory: isStrOrNull,
-    }, issues),
+    stickers: vStickers(r.stickers, d.stickers, issues),
     lastUsed: vLastUsed(r.lastUsed),
   };
   return { config, issues };

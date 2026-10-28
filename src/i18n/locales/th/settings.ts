@@ -214,18 +214,10 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.library.archiveUsage.delete": "{size} — ลบ…",
 
   // ── Sticker form ───────────────────────────────────────────────────────────
-  "settings.stickers.directory": "โฟลเดอร์สติกเกอร์",
-  "settings.stickers.placeholder": "ยังไม่ได้เลือกโฟลเดอร์ — ใช้อีโมจิแทน",
   "settings.stickers.openFolder": "เปิดโฟลเดอร์",
-  "settings.stickers.help":
-    "PNG / JPEG / WEBP / GIF สูงสุด 200 ไฟล์ ไฟล์ละไม่เกิน 2 MB โหลดเข้าหน่วยความจำตอนเปิดแอปและเมื่อกดซิงก์",
-  "settings.stickers.syncing": "กำลังซิงก์…",
   "settings.stickers.syncNow": "ซิงก์เลย",
   "settings.stickers.loadedOne": "โหลดสติกเกอร์แล้ว {n} รายการ",
   "settings.stickers.loadedMany": "โหลดสติกเกอร์แล้ว {n} รายการ",
-  "settings.stickers.clickSync": "คลิกซิงก์เพื่อโหลด",
-  "settings.stickers.chooseFirst": "เลือกโฟลเดอร์ก่อน",
-  "settings.stickers.failed": "ซิงก์ไม่สำเร็จ: {error}",
 
   // ── Feedback form ──────────────────────────────────────────────────────────
   "settings.feedback.bug": "ปัญหา",

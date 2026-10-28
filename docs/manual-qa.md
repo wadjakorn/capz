@@ -57,7 +57,12 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 
 - [ ] Tools: select / arrow / shapes / text / blur / pen / highlighter / magnify / sticker / pin all draw
 - [ ] Undo/redo across all tools
-- [ ] Sticker library loads custom dir from settings
+- [ ] Sticker picker shows one tab per enabled set (Emoji, Pointers, Status, Reactions, Cursors, Paper + folders); the active tab sticks for the session
+- [ ] A sticker from every built-in set looks the same on macOS and Windows, and PNG export / copy matches the canvas
+- [ ] Settings → Library → Stickers: switch a set off / on, move it up / down, add two folders, rename one, sync, remove — all survive a restart
+- [ ] Upgrading from a v7 config with a sticker directory shows that folder as a set next to the built-ins
+- [ ] With "Remember last tool" on, the last sticker (emoji, built-in image or folder image) is selected again after a restart
+- [ ] A workspace saved with built-in stickers reopens with them (they are stored as `/stickers/...` paths, not data URLs)
 - [ ] Text tool: bold/italic/underline/strikethrough/font family toggles; bg ON/OFF toggle + padding
 - [ ] Arrow: 3-point curve handles; two-way head toggle; dashed toggle (straight + curved)
 - [ ] Shapes tool: rect (corner radius) / circle / line options (multi-shape tool icon); Line style solid / dashed / dotted applies to all three — dots round at 1/4/20 px, also on a selected shape (one undo step)

@@ -87,9 +87,9 @@ export function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig
     case "blur":
       return { blur: { blurRadius: a.blurRadius } };
     case "sticker":
-      return a.kind === "image" || !a.char
-        ? { sticker: { fontSize: a.fontSize } }
-        : { sticker: { fontSize: a.fontSize }, stickerEmoji: a.char };
+      // Which sticker was picked (`stickerItem`) comes from the picker, not
+      // the annotation — the editor adds it when placing one.
+      return { sticker: { fontSize: a.fontSize } };
     case "pin":
       return {
         pin: {

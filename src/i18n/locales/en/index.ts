@@ -4,6 +4,7 @@ import { editor } from "./editor";
 import { settings } from "./settings";
 import { onboarding } from "./onboarding";
 import { app } from "./app";
+import { stickers } from "./stickers";
 
 /** English is the source of truth: its keys define `TKey`. */
 export const en = {
@@ -13,4 +14,5 @@ export const en = {
   ...settings,
   ...onboarding,
   ...app,
+  ...stickers,
 };
