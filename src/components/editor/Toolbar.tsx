@@ -67,6 +67,7 @@ import type {
   ArrowHeadsCtx,
 } from "./toolbar/panels/types";
 import { isTauriRuntime } from "@/lib/platform";
+import { supportsOcr } from "@/lib/platformFeatures";
 import { usePlatform } from "@/hooks/usePlatform";
 import { stickyToolLabel } from "@/lib/stickyTools";
 import { shortcutKey } from "@/lib/shortcutKey";
@@ -1556,7 +1557,7 @@ export function Toolbar({
           onClearWorkspace={onClearWorkspace}
           onWebClear={onWebClear}
           ocr={
-            tauriUi
+            tauriUi && supportsOcr(platform)
               ? {
                   mode: ocrMode,
                   scanning: ocrStatus === "scanning",
