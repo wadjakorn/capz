@@ -58,11 +58,9 @@ function strokes(page: Page) {
   });
 }
 
-/** After a draw: wait out EditorStage's 500 ms lastUsed write (it would
- *  overwrite a tool option picked inside that window — a known race, CP-0077),
- *  then Esc to deselect so the next picks set tool defaults, not the shape. */
+/** After a draw: Esc to deselect so the next picks set tool defaults, not the
+ *  shape. */
 async function settle(page: Page) {
-  await page.waitForTimeout(700);
   await page.keyboard.press("Escape");
 }
 

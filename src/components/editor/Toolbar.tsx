@@ -33,6 +33,7 @@ import {
 import { arrowStrokeStyle, isShapesToolAnnotation } from "@/lib/strokeStyle";
 import { useSettings } from "@/stores/settings";
 import { openSettings } from "@/lib/settingsNav";
+import { writeLastUsedNow } from "@/lib/lastUsedWriter";
 import { useSidebar } from "@/stores/sidebar";
 import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
@@ -189,26 +190,11 @@ export function Toolbar({
   const fullConfig = useSettings((s) => s.config);
   const toolsCfg = effectiveTools(fullConfig);
   const updateSettings = useSettings((s) => s.update);
-  const setLastUsed = useSettings((s) => s.setLastUsed);
   const remember = fullConfig.general.rememberLastTool;
 
-  const patchLastUsed = (patch: NonNullable<AppConfig["lastUsed"]>) => {
-    const cur = fullConfig.lastUsed ?? {};
-    const merged: NonNullable<AppConfig["lastUsed"]> = {
-      ...cur,
-      ...patch,
-      rect: { ...cur.rect, ...patch.rect },
-      arrow: { ...cur.arrow, ...patch.arrow },
-      text: { ...cur.text, ...patch.text },
-      blur: { ...cur.blur, ...patch.blur },
-      pen: { ...cur.pen, ...patch.pen },
-      highlighter: { ...cur.highlighter, ...patch.highlighter },
-      magnify: { ...cur.magnify, ...patch.magnify },
-      sticker: { ...cur.sticker, ...patch.sticker },
-      pin: { ...cur.pin, ...patch.pin },
-    };
-    void setLastUsed(merged);
-  };
+  // Also strips these fields from EditorStage's pending debounced write so a
+  // pick made right after drawing is not overwritten (CP-0077).
+  const patchLastUsed = (patch: NonNullable<AppConfig["lastUsed"]>) => writeLastUsedNow(patch);
 
   const [exporting, setExporting] = useState(false);
   // Remember the last non-null text background color so the ON/OFF toggle can
