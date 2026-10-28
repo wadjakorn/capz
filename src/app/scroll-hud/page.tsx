@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ensureAutoScrollPermission } from "@/lib/accessibility";
+import { supportsAutoScroll } from "@/lib/platformFeatures";
+import { usePlatform } from "@/hooks/usePlatform";
 import { t as tNow } from "@/i18n/store";
 import { useT } from "@/i18n/useT";
 
@@ -30,6 +32,7 @@ type Progress = {
  */
 export default function ScrollHudPage() {
   const { t } = useT();
+  const autoScroll = supportsAutoScroll(usePlatform());
   const [progress, setProgress] = useState<Progress>({
     frames: 1,
     height: 0,
@@ -231,17 +234,20 @@ export default function ScrollHudPage() {
             {/* Auto-scroll is chosen once at the overlay arming bar and is not
                 switchable mid-capture, so this button is disabled throughout the
                 HUD: greyed while manual scrolls (start auto from the arming bar
-                instead) and greyed while auto runs. */}
-            <button
-              type="button"
-              onClick={startAuto}
-              disabled
-              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-40"
-              style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
-              title={t("app.scroll.autoScrollTitle")}
-            >
-              {t("app.scroll.autoScroll")}
-            </button>
+                instead) and greyed while auto runs. Absent where auto-scroll is
+                unsupported (Linux). */}
+            {autoScroll && (
+              <button
+                type="button"
+                onClick={startAuto}
+                disabled
+                className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-white/90 disabled:opacity-40"
+                style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.14)" }}
+                title={t("app.scroll.autoScrollTitle")}
+              >
+                {t("app.scroll.autoScroll")}
+              </button>
+            )}
             {/* During auto the backend drives the pointer, so a mouse click on
                 Capture is unreliable — disable it and commit via Enter / a click
                 anywhere on the pill / Esc-to-cancel instead. */}

@@ -7,6 +7,8 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "@/stores/settings";
 import { ensureAutoScrollPermission } from "@/lib/accessibility";
+import { supportsAutoScroll } from "@/lib/platformFeatures";
+import { usePlatform } from "@/hooks/usePlatform";
 import { useT } from "@/i18n/useT";
 import {
   centeredDefaultRect,
@@ -104,6 +106,7 @@ function AreaMode({
 }) {
   const { w: dispW, h: dispH } = useViewport();
   const { t } = useT();
+  const autoScroll = supportsAutoScroll(usePlatform());
 
   const initSettings = useSettings((s) => s.init);
   const settingsReady = useSettings((s) => s.ready);
@@ -393,7 +396,7 @@ function AreaMode({
                     const r = rectRef.current;
                     if (!busy && r && r.w >= 4 && r.h >= 4) void confirmRegion(r);
                   },
-                  onAutoScroll: () => void startAuto(),
+                  onAutoScroll: autoScroll ? () => void startAuto() : undefined,
                 }
               : undefined
           }
@@ -440,7 +443,8 @@ function TemplateRect({
   rect: Rect;
   dispH: number;
   confirmLabel?: string;
-  scrollActions?: { onStartManual: () => void; onAutoScroll: () => void };
+  /** `onAutoScroll` is absent where auto-scroll is unsupported (Linux). */
+  scrollActions?: { onStartManual: () => void; onAutoScroll?: () => void };
 }) {
   const { t } = useT();
   // Eight resize handles: corners + edge midpoints.
@@ -504,15 +508,17 @@ function TemplateRect({
             >
               {t("app.overlay.startManual")}
             </button>
-            <button
-              type="button"
-              onClick={scrollActions.onAutoScroll}
-              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-[var(--fg)]"
-              style={{ background: "var(--surface-raised)", border: "1px solid var(--border-strong)" }}
-              title={t("app.overlay.autoScrollTitle")}
-            >
-              {t("app.overlay.autoScroll")}
-            </button>
+            {scrollActions.onAutoScroll && (
+              <button
+                type="button"
+                onClick={scrollActions.onAutoScroll}
+                className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-medium text-[var(--fg)]"
+                style={{ background: "var(--surface-raised)", border: "1px solid var(--border-strong)" }}
+                title={t("app.overlay.autoScrollTitle")}
+              >
+                {t("app.overlay.autoScroll")}
+              </button>
+            )}
             <span className="flex items-center gap-1 pl-1 text-[11px] text-[var(--fg-3)]">
               <span style={KEYCAP}>esc</span>
               {t("app.overlay.cancel")}

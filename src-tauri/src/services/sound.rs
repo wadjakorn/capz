@@ -5,7 +5,7 @@
 //! the AudioContext in a suspended state until user gesture. Shelling out to
 //! the OS sidesteps both issues and adds no runtime dependency.
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use std::process::Command;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
@@ -59,7 +59,24 @@ fn spawn_player() -> std::io::Result<()> {
         .map(|_| ())
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+/// freedesktop sound theme's screenshot sound, via libcanberra (respects the
+/// desktop's sound theme and event-sound mute) or, failing that, PulseAudio /
+/// PipeWire's `paplay` on the stock file. Neither is guaranteed to be
+/// installed, hence the fallback chain; the last error is reported.
+#[cfg(target_os = "linux")]
+fn spawn_player() -> std::io::Result<()> {
+    Command::new("canberra-gtk-play")
+        .args(["-i", "screen-capture"])
+        .spawn()
+        .or_else(|_| {
+            Command::new("paplay")
+                .arg("/usr/share/sounds/freedesktop/stereo/screen-capture.oga")
+                .spawn()
+        })
+        .map(|_| ())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn spawn_player() -> std::io::Result<()> {
     Ok(())
 }
