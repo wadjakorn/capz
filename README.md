@@ -47,10 +47,10 @@ Click **"More info" → "Run anyway"**. One-time per version. The app itself is 
 
 ### Linux (`.deb` / `.AppImage`) — preview
 
-x86_64 and arm64. **X11 sessions only** for now: on Ubuntu 22.04 / 24.04 pick **"Ubuntu on Xorg"** on the login screen (gear icon). Under Wayland, global shortcuts and the capture overlays don't work, and capz says so on launch. Ubuntu 25.10+ / 26.04 have no Xorg session and are not supported yet. OCR and auto-scroll are not available on Linux.
+x86_64 and arm64, **Ubuntu 24.04** (or another distro with glibc 2.39+ and PipeWire 1.0+). **X11 sessions only** for now: pick **"Ubuntu on Xorg"** on the login screen (gear icon). Under Wayland, global shortcuts and the capture overlays don't work, and capz says so on launch. Ubuntu 22.04 (too old) and 25.10+ / 26.04 (no Xorg session) are not supported yet. OCR and auto-scroll are not available on Linux.
 
 - **`.deb` (recommended):** `sudo apt install ./capz_<version>_amd64.deb` (or `_arm64.deb`). Auto-updates ask for your password each time, since they reinstall the package.
-- **AppImage:** `chmod +x capz_<version>_amd64.AppImage` and run it. Needs FUSE 2: `sudo apt install libfuse2t64` on 24.04 (`libfuse2` on 22.04).
+- **AppImage:** `chmod +x capz_<version>_amd64.AppImage` and run it. Needs FUSE 2: `sudo apt install libfuse2t64`.
 
 Packages are not GPG-signed; updates are verified with the same Ed25519 updater key as macOS and Windows.
 

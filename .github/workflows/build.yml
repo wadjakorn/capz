@@ -64,14 +64,15 @@ jobs:
           # Linux (CP-0086): .deb is the main package, AppImage the portable
           # one; both are signed updater artifacts. No rpm. tauri-action keys
           # them in latest.json as linux-<arch>-deb / linux-<arch>-appimage,
-          # with plain linux-<arch> pointing at the AppImage. Built on 22.04,
-          # the oldest supported release: the binary links the runner's glibc,
-          # so a 24.04 build would not start on 22.04.
-          - os: ubuntu-22.04
+          # with plain linux-<arch> pointing at the AppImage. The binary links
+          # the runner's glibc, so this is also the oldest Ubuntu it runs on.
+          # 22.04 can't build it: xcap's PipeWire bindings need newer headers
+          # than its 0.3.48.
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             label: linux-x64
             bundles: --bundles deb,appimage
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             label: linux-arm64
             bundles: --bundles deb,appimage
