@@ -11,9 +11,10 @@ pub fn default_save_dir(app: AppHandle) -> Result<String, String> {
     Ok(dir.to_string_lossy().to_string())
 }
 
-/// Open the given DIRECTORY in Finder (macOS) or Explorer (Windows), showing
-/// its contents. For a file, use `reveal_file_in_finder` instead — plain `open`
-/// on a file hands it to the default app (Preview) rather than revealing it.
+/// Open the given DIRECTORY in Finder (macOS), Explorer (Windows) or the
+/// default file manager (Linux), showing its contents. For a file, use
+/// `reveal_file_in_finder` instead — plain `open` on a file hands it to the
+/// default app (Preview) rather than revealing it.
 #[tauri::command]
 pub fn reveal_in_finder(path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
@@ -31,15 +32,16 @@ pub fn reveal_in_finder(path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| e.to_string())?;
     }
+    // Linux: xdg-open hands the directory to the default file manager.
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = p;
-        return Err("unsupported platform".into());
+        tauri_plugin_opener::open_path(&p, None::<&str>).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
-/// Reveal a FILE in Finder / Explorer with the file itself selected.
+/// Reveal a FILE in Finder / Explorer / the file manager with the file itself
+/// selected.
 ///
 /// Deliberately a separate command from `reveal_in_finder` rather than a flag:
 /// the two are not interchangeable. `open -R` on a *directory* reveals it inside
@@ -66,10 +68,12 @@ pub fn reveal_file_in_finder(path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| e.to_string())?;
     }
+    // Linux: the FileManager1 D-Bus `ShowItems` call (Nautilus, Dolphin,
+    // Nemo, …) selects the file; the plugin falls back to the OpenURI portal's
+    // `OpenDirectory` when no file manager implements it.
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = p;
-        return Err("unsupported platform".into());
+        tauri_plugin_opener::reveal_item_in_dir(&p).map_err(|e| e.to_string())?;
     }
     Ok(())
 }

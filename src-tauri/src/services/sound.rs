@@ -5,6 +5,7 @@
 //! the AudioContext in a suspended state until user gesture. Shelling out to
 //! the OS sidesteps both issues and adds no runtime dependency.
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::process::Command;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;

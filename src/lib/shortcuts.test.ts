@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  currentPlatform,
   eventToAccelerator,
+  formatShortcut,
   validateAccelerator,
   isOsOwned,
   statusMessage,
@@ -102,5 +104,47 @@ describe("isOsOwned", () => {
   });
   it("uses the macOS set on mac", () => {
     expect(isOsOwned("CmdOrCtrl+Space", "mac")).toBe(true);
+  });
+});
+
+describe("linux platform (CP-0083)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function stubPlatform(value: string) {
+    vi.stubGlobal("navigator", { platform: value });
+  }
+
+  it("detects Linux as its own platform, not win", () => {
+    stubPlatform("Linux x86_64");
+    expect(currentPlatform()).toBe("linux");
+    vi.unstubAllGlobals();
+  });
+
+  it("still detects mac and win", () => {
+    stubPlatform("MacIntel");
+    expect(currentPlatform()).toBe("mac");
+    stubPlatform("Win32");
+    expect(currentPlatform()).toBe("win");
+    vi.unstubAllGlobals();
+  });
+
+  it("formats Ctrl-style with a Super glyph", () => {
+    expect(formatShortcut("CmdOrCtrl+Alt+Shift+3", "linux")).toBe("Ctrl+Alt+Shift+3");
+    expect(formatShortcut("Super+A", "linux")).toBe("Super+A");
+  });
+
+  it("records Ctrl as CmdOrCtrl and rejects Super", () => {
+    expect(
+      eventToAccelerator(evt({ ctrlKey: true, shiftKey: true, key: "A", code: "KeyA" }), "linux"),
+    ).toEqual({ ok: true, accel: "CmdOrCtrl+Shift+A" });
+    expect(
+      eventToAccelerator(evt({ metaKey: true, shiftKey: true, key: "S", code: "KeyS" }), "linux"),
+    ).toEqual({ ok: false, reason: "win" });
+    expect(validateAccelerator("Super+Shift+S", "linux")).toEqual({ ok: false, reason: "win" });
+  });
+
+  it("flags the desktop's own combos, not the macOS set", () => {
+    expect(isOsOwned("Alt+Tab", "linux")).toBe(true);
+    expect(isOsOwned("CmdOrCtrl+Space", "linux")).toBe(false);
   });
 });

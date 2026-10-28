@@ -14,7 +14,7 @@ import { SettingToggle } from "@/components/settings/SettingToggle";
 import { AdvancedSection } from "@/components/settings/AdvancedSection";
 import { FeedbackTab } from "@/components/settings/FeedbackTab";
 import { setShareInstallId } from "@/lib/installId";
-import { currentPlatform } from "@/lib/shortcuts";
+import { currentPlatform, type Platform } from "@/lib/shortcuts";
 import { useSettings } from "@/stores/settings";
 import { LANGS, type Lang } from "@/i18n/store";
 import { useT } from "@/i18n/useT";
@@ -24,6 +24,7 @@ import { useT } from "@/i18n/useT";
  * find their own — never translated.
  */
 const LANGUAGE_NAMES: Record<Lang, string> = { th: "ไทย", en: "English" };
+const PLATFORM_NAME: Record<Platform, string> = { mac: "macOS", win: "Windows", linux: "Linux" };
 
 /** Startup, updates, privacy and the things you only touch when stuck. */
 export function AppPage({
@@ -144,7 +145,7 @@ export function AppPage({
           id="app.about"
           hint={
             about
-              ? `Tauri ${about.tauri} · ${currentPlatform() === "mac" ? "macOS" : "Windows"}`
+              ? `Tauri ${about.tauri} · ${PLATFORM_NAME[currentPlatform()]}`
               : t("settings.app.about.loading")
           }
         >

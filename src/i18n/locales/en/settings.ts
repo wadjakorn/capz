@@ -108,6 +108,7 @@ export const settings = {
 
   // ── Hotkey recorder + applyHotkey ──────────────────────────────────────────
   "settings.hotkey.winKey": "Windows reserves the ⊞ key — use Ctrl, Alt or Shift",
+  "settings.hotkey.superKey": "The desktop reserves the Super key — use Ctrl, Alt or Shift",
   "settings.hotkey.needModifier": "Add a modifier (Ctrl, Alt or Shift)",
   "settings.hotkey.invalid": "Not a valid shortcut",
   "settings.hotkey.cantUse": "Can't use this shortcut",

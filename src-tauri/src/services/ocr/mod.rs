@@ -37,6 +37,10 @@ pub struct OcrResult {
 
 /// Implemented per-platform. The pure orchestration in `run_detect` is tested
 /// against a fake implementation, so platform code carries no testable logic.
+///
+/// There is no Linux backend (yet), so the trait and its orchestration are dead
+/// there; the unit tests still exercise them on every platform.
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub trait OcrBackend {
     fn available_languages(&self) -> Vec<String>;
     fn recognize(
@@ -66,6 +70,7 @@ pub fn normalize_vision_box(min_x: f64, min_y: f64, w: f64, h: f64, img_w: u32, 
 /// Choose recognition languages. Always include English. Include Thai only when
 /// the engine reports a Thai recognizer (`th` / `th-TH`). Returns the chosen
 /// language tags and whether Thai is available.
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub fn pick_languages(available: &[String]) -> (Vec<String>, bool) {
     let thai = available
         .iter()
@@ -77,6 +82,7 @@ pub fn pick_languages(available: &[String]) -> (Vec<String>, bool) {
     (langs, thai)
 }
 
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub fn run_detect<B: OcrBackend>(backend: &B, image_path: &str) -> anyhow::Result<OcrResult> {
     let available = backend.available_languages();
     let (languages, thai_available) = pick_languages(&available);

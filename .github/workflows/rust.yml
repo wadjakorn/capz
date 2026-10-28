@@ -1,0 +1,43 @@
+name: rust
+
+# Gates every PR on the Rust core compiling, passing clippy and its unit tests.
+# The release Build (build.yml) only runs on tags, so without this a green PR
+# could still break main's Rust build. Runs on Linux: cheapest runner, and the
+# first step towards Linux desktop support (CP-0081 / CP-0083). macOS- and
+# Windows-only code (`#[cfg(target_os = ...)]`) is not compiled here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: clippy + test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libpipewire-0.3-dev libxcb1-dev libxrandr-dev libdbus-1-dev libwayland-dev libegl-dev libgbm-dev
+      # `generate_context!` requires frontendDist to exist; the Rust checks
+      # don't need the real web build.
+      - run: mkdir -p out
+      - name: clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+      - name: test
+        working-directory: src-tauri
+        run: cargo test

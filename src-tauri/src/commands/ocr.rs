@@ -1,4 +1,4 @@
-use crate::services::ocr::{run_detect, OcrResult};
+use crate::services::ocr::OcrResult;
 
 /// Detect text in the image at `path`. Runs OCR on a blocking thread so the UI
 /// stays responsive. Returns top-left pixel-space boxes in image coordinates.
@@ -13,12 +13,12 @@ fn detect_blocking(path: &str) -> Result<OcrResult, String> {
     #[cfg(target_os = "macos")]
     {
         let backend = crate::services::ocr::macos::VisionBackend::new();
-        run_detect(&backend, path).map_err(|e| e.to_string())
+        crate::services::ocr::run_detect(&backend, path).map_err(|e| e.to_string())
     }
     #[cfg(target_os = "windows")]
     {
         let backend = crate::services::ocr::windows::WindowsBackend::new();
-        run_detect(&backend, path).map_err(|e| e.to_string())
+        crate::services::ocr::run_detect(&backend, path).map_err(|e| e.to_string())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {

@@ -107,6 +107,7 @@ export const settings: Record<keyof typeof en, string> = {
 
   // ── Hotkey recorder + applyHotkey ──────────────────────────────────────────
   "settings.hotkey.winKey": "Windows สงวนปุ่ม ⊞ ไว้ ใช้ Ctrl, Alt หรือ Shift แทน",
+  "settings.hotkey.superKey": "เดสก์ท็อปสงวนปุ่ม Super ไว้ ใช้ Ctrl, Alt หรือ Shift แทน",
   "settings.hotkey.needModifier": "เพิ่มปุ่มกำกับ (Ctrl, Alt หรือ Shift)",
   "settings.hotkey.invalid": "ปุ่มลัดไม่ถูกต้อง",
   "settings.hotkey.cantUse": "ใช้ปุ่มลัดนี้ไม่ได้",
