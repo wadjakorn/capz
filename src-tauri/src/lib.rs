@@ -177,6 +177,7 @@ pub fn run() {
             commands::workspaces::sweep_workspace_images,
             commands::stickers::list_stickers,
             commands::system::platform_info,
+            commands::system::is_wayland_session,
             commands::permissions::has_screen_recording_permission,
             commands::permissions::probe_capture_command,
             commands::permissions::request_screen_recording_permission,
@@ -241,6 +242,14 @@ pub fn run() {
             if !is_onboarding_completed(app.handle()) {
                 if let Err(e) = windows::show_onboarding(app.handle()) {
                     log::warn!("show onboarding: {e}");
+                }
+            } else if commands::system::is_wayland_session_value() {
+                // Hotkeys don't fire under Wayland, so a hidden-at-launch editor
+                // would leave the user with no sign of why nothing works. Show
+                // it: the editor raises the "log in with Xorg" notice on mount.
+                log::warn!("Wayland session detected; capz v1 supports X11 only");
+                if let Err(e) = windows::show_editor(app.handle()) {
+                    log::warn!("show editor: {e}");
                 }
             }
             spawn_update_checker(app.handle().clone());

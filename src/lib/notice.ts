@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { t } from "@/i18n/store";
 import { toast } from "sonner";
 import { CONFIG_STORE_FILE } from "@/lib/config";
+import { isTauriRuntime } from "@/lib/platform";
 
 const IS_MAC =
   typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
@@ -29,6 +30,33 @@ export function useNoticeListener() {
       });
     })();
     return () => unlisten?.();
+  }, []);
+}
+
+/**
+ * CP-0084: Linux v1 is X11 only. Under Wayland, hotkeys and overlays don't
+ * work, so say so once per launch with a persistent toast instead of letting
+ * capz half-work. Rust shows the editor at launch in this case so the toast
+ * is seen.
+ */
+export function useWaylandSessionNotice() {
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
+    (async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const wayland = await invoke<boolean>("is_wayland_session").catch(() => false);
+      if (cancelled || !wayland) return;
+      toast.error(t("app.notice.waylandTitle"), {
+        id: "wayland-session",
+        description: t("app.notice.waylandDesc"),
+        duration: Infinity,
+        closeButton: true,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 }
 

@@ -51,7 +51,8 @@ impl Mods {
 /// not a modifier.
 pub fn from_accelerator(accel: &str) -> Mods {
     let mut m = Mods::default();
-    let is_windows = cfg!(target_os = "windows");
+    // Off macOS, CmdOrCtrl *is* Ctrl (Windows and Linux alike).
+    let ctrl_is_command = !cfg!(target_os = "macos");
     for tok in accel.split('+') {
         match tok.trim().to_ascii_lowercase().as_str() {
             "cmdorctrl" | "commandorcontrol" | "cmd" | "command" | "super" | "meta" => {
@@ -59,11 +60,11 @@ pub fn from_accelerator(accel: &str) -> Mods {
             }
             "shift" => m.shift = true,
             "alt" | "option" => m.alt = true,
-            // On Windows a bare Ctrl is the same physical key CmdOrCtrl maps to,
+            // Off macOS a bare Ctrl is the same physical key CmdOrCtrl maps to,
             // so folding it into `command` keeps the poll and the registered
             // accelerator talking about one key rather than two.
             "ctrl" | "control" => {
-                if is_windows {
+                if ctrl_is_command {
                     m.command = true;
                 } else {
                     m.control = true;
@@ -113,7 +114,24 @@ pub fn current() -> Option<Mods> {
     })
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+/// X11: the key/button mask from `QueryPointer`. `None` without an X server
+/// (Wayland-only session), which hides the hold gesture as on other
+/// unsupported platforms.
+#[cfg(target_os = "linux")]
+pub fn current() -> Option<Mods> {
+    use x11rb::protocol::xproto::KeyButMask;
+    let mask = crate::services::x11::query_pointer()?.mask;
+    Some(Mods {
+        // Ctrl stands in for Cmd, matching CmdOrCtrl accelerators.
+        command: mask.contains(KeyButMask::CONTROL),
+        shift: mask.contains(KeyButMask::SHIFT),
+        // Mod1 is Alt on every stock X keymap.
+        alt: mask.contains(KeyButMask::MOD1),
+        control: false,
+    })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn current() -> Option<Mods> {
     None
 }
@@ -153,9 +171,9 @@ mod tests {
         assert!(!want.all_held_in(&shift_released));
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "macos"))]
     #[test]
-    fn bare_control_folds_into_command_on_windows() {
+    fn bare_control_folds_into_command_off_macos() {
         let m = from_accelerator("Control+Shift+A");
         assert!(m.command && !m.control);
     }

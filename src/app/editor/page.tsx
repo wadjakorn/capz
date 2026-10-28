@@ -28,6 +28,7 @@ import { useSettings } from "@/stores/settings";
 import {
   useNoticeListener,
   usePermissionRevokedListener,
+  useWaylandSessionNotice,
   useStalePermissionAfterUpdateListener,
   useInertGrantAfterUpdateListener,
   useScreenRecordingHealthCheck,
@@ -178,6 +179,7 @@ export default function EditorPage() {
   useEditorShortcuts();
   useNoticeListener();
   usePermissionRevokedListener();
+  useWaylandSessionNotice();
   useStalePermissionAfterUpdateListener();
   useInertGrantAfterUpdateListener(openRecovery);
   useScreenRecordingHealthCheck(openRecovery);

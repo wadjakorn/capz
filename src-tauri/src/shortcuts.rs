@@ -3,7 +3,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 
-use crate::accel::{classify, AccelClass};
+use crate::accel::{classify, AccelClass, Os};
 use crate::services::config_store::{config_store_path, CONFIG_STORE_KEY};
 use crate::windows;
 
@@ -99,8 +99,8 @@ fn default_accel(action: HotkeyAction) -> &'static str {
 /// attempted like any other. If the OS really holds it, `register_one` fails
 /// and the caller reports `Taken` — the live attempt, not our hardcoded list,
 /// is the authority.
-pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (String, RegoStatus) {
-    match classify(requested, is_windows) {
+pub fn plan_one(action: HotkeyAction, requested: &str, os: Os) -> (String, RegoStatus) {
+    match classify(requested, os) {
         AccelClass::Valid | AccelClass::Discouraged => (requested.to_string(), RegoStatus::Ok),
         AccelClass::Invalid => (default_accel(action).to_string(), RegoStatus::Invalid),
     }
@@ -116,12 +116,12 @@ pub fn plan_one(action: HotkeyAction, requested: &str, is_windows: bool) -> (Str
 pub fn plan_requested(
     action: HotkeyAction,
     requested: &str,
-    is_windows: bool,
+    os: Os,
 ) -> (String, RegoStatus) {
     if requested.trim().is_empty() {
         return (String::new(), RegoStatus::Ok);
     }
-    plan_one(action, requested, is_windows)
+    plan_one(action, requested, os)
 }
 
 struct Hotkeys {
@@ -242,7 +242,6 @@ fn register_one<R: Runtime>(
 pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
     let hk = read_hotkeys(app);
     let _ = app.global_shortcut().unregister_all();
-    let win = cfg!(target_os = "windows");
 
     let items = [
         (HotkeyAction::CaptureFull, hk.full),
@@ -258,7 +257,7 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
     let mut report = Vec::with_capacity(items.len());
     for (action, requested) in items {
         // Unbound ("") registers nothing and reports Ok/unset — see plan_requested.
-        let (effective, pre) = plan_requested(action, &requested, win);
+        let (effective, pre) = plan_requested(action, &requested, Os::CURRENT);
         // The v2 ring is driven by modifier-state polling. Where that is
         // unavailable the ring would open and never close, because nothing can
         // observe the release — so leave it unregistered rather than binding a
@@ -340,8 +339,7 @@ pub struct HotkeyProbe {
 /// recorder suspends on focus) so our own bindings don't read as taken.
 #[tauri::command]
 pub fn probe_hotkey<R: Runtime>(app: AppHandle<R>, accel: String) -> HotkeyProbe {
-    let win = cfg!(target_os = "windows");
-    let status = match classify(&accel, win) {
+    let status = match classify(&accel, Os::CURRENT) {
         AccelClass::Invalid => RegoStatus::Invalid,
         AccelClass::Valid | AccelClass::Discouraged => match accel.parse::<Shortcut>() {
             Ok(sc) => {
@@ -417,7 +415,7 @@ mod tests {
             HotkeyAction::CommandRingV2,
         ] {
             for requested in ["", "   "] {
-                let (eff, st) = plan_requested(action, requested, false);
+                let (eff, st) = plan_requested(action, requested, Os::Mac);
                 assert_eq!(eff, "", "{action:?} with {requested:?} must stay unbound");
                 assert_eq!(st, RegoStatus::Ok);
             }
@@ -425,20 +423,20 @@ mod tests {
 
         // Guard the ordering explicitly: the raw planner DOES fall back, which
         // is exactly why the empty-check must run ahead of it.
-        let (eff, _) = plan_one(HotkeyAction::CaptureFull, "", false);
+        let (eff, _) = plan_one(HotkeyAction::CaptureFull, "", Os::Mac);
         assert_eq!(eff, DEFAULT_FULL);
     }
 
     #[test]
     fn valid_request_keeps_itself_and_ok() {
-        let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Alt+Shift+A", true);
+        let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Alt+Shift+A", Os::Windows);
         assert_eq!(eff, "CmdOrCtrl+Alt+Shift+A");
         assert_eq!(st, RegoStatus::Ok);
     }
 
     #[test]
     fn invalid_request_falls_back_to_default() {
-        let (eff, st) = plan_one(HotkeyAction::CaptureArea, "3", true); // no modifier
+        let (eff, st) = plan_one(HotkeyAction::CaptureArea, "3", Os::Windows); // no modifier
         assert_eq!(eff, DEFAULT_AREA);
         assert_eq!(st, RegoStatus::Invalid);
     }
@@ -448,11 +446,11 @@ mod tests {
     /// fail (reported as `Taken`) if the OS genuinely holds it.
     #[test]
     fn discouraged_request_is_attempted_as_is() {
-        let (eff, st) = plan_one(HotkeyAction::CaptureWindow, "Alt+Tab", true);
+        let (eff, st) = plan_one(HotkeyAction::CaptureWindow, "Alt+Tab", Os::Windows);
         assert_eq!(eff, "Alt+Tab");
         assert_eq!(st, RegoStatus::Ok);
 
-        let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Shift+3", false);
+        let (eff, st) = plan_one(HotkeyAction::CaptureFull, "CmdOrCtrl+Shift+3", Os::Mac);
         assert_eq!(eff, "CmdOrCtrl+Shift+3");
         assert_eq!(st, RegoStatus::Ok);
     }
@@ -464,8 +462,8 @@ mod tests {
     #[test]
     fn bare_accelerator_is_unusable_for_the_hold_ring() {
         // Valid as a shortcut in general...
-        assert_eq!(classify("F13", false), AccelClass::Valid);
-        let (eff, st) = plan_requested(HotkeyAction::CommandRingV2, "F13", false);
+        assert_eq!(classify("F13", Os::Mac), AccelClass::Valid);
+        let (eff, st) = plan_requested(HotkeyAction::CommandRingV2, "F13", Os::Mac);
         assert_eq!(eff, "F13");
         assert_eq!(st, RegoStatus::Ok);
         // ...but it carries no modifier, which is what register_shortcuts keys
