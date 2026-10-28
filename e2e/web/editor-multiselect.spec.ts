@@ -175,6 +175,66 @@ test("an arrow moves with the group and does not double-shift", async ({ page })
   expect(dx).toBeGreaterThan(10);
   expect(after!.x).toBe(0);
   expect(after!.y).toBe(0);
-  expect(after!.p[0] - before!.p[0]).toBe(dx);
-  expect(after!.p[1] - before!.p[1]).toBe(dy);
+  // Rect x/y and arrow points are rounded separately from a fractional
+  // group delta, so they can differ by one (a double shift would be ≥ dx).
+  expect(Math.abs(after!.p[0] - before!.p[0] - dx)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after!.p[1] - before!.p[1] - dy)).toBeLessThanOrEqual(1);
+});
+
+test("a rotated shape is marquee-selected and outlined by the box it is drawn in", async ({ page }) => {
+  await loadImage(page, "#ffffff");
+  const box = await stageBox(page);
+  const at = (x: number, y: number) => ({ x: box.x + x, y: box.y + y });
+  await page.getByRole("button", { name: "Shapes", exact: true }).click();
+  await mouseDrag(page, at(120, 200), at(280, 240));
+  await mouseDrag(page, at(320, 200), at(400, 260));
+  await expect.poll(async () => (await rects(page)).length).toBe(2);
+  await selectTool(page);
+  await page.keyboard.press("Escape");
+
+  // Turn the wide first rect 90° (the rotate handle pivots on its centre):
+  // it is now drawn in x 180..220, y 140..300, while its stored frame — the
+  // un-rotated box from its new top-left corner — runs x 220..380.
+  // Low on the image so the rotate handle above it stays on the stage.
+  await page.mouse.click(at(200, 220).x, at(200, 220).y);
+  const rotater = () =>
+    page.evaluate(() => {
+      type N = {
+        isVisible(): boolean;
+        getParent(): { hasName(n: string): boolean } | null;
+        getClientRect(): { x: number; y: number; width: number; height: number };
+      };
+      const st = (window as unknown as {
+        __capzStage?: { find(s: string): N[]; container(): HTMLElement };
+      }).__capzStage;
+      const a = st?.find(".rotater").find((n) => !n.getParent()?.hasName("hover-tr") && n.isVisible());
+      if (!st || !a) return null;
+      const o = st.container().getBoundingClientRect();
+      const r = a.getClientRect();
+      return { x: o.x + r.x + r.width / 2, y: o.y + r.y + r.height / 2 };
+    });
+  await expect.poll(rotater).not.toBeNull();
+  await mouseDrag(page, (await rotater())!, at(320, 220));
+  await page.keyboard.press("Escape");
+
+  // A marquee round the drawn box only selects it; Ctrl-click adds the other.
+  await mouseDrag(page, at(170, 130), at(230, 310));
+  await page.keyboard.down("Control");
+  await page.mouse.click(at(360, 230).x, at(360, 230).y);
+  await page.keyboard.up("Control");
+  await expect.poll(() => outlines(page)).toBe(2);
+
+  // Its outline hugs what is on screen: tall and left of the old frame.
+  const outline = await page.evaluate(() => {
+    type N = { getClientRect(): { x: number; y: number; width: number; height: number } };
+    const st = (window as unknown as { __capzStage?: { find(s: string): N[] } }).__capzStage;
+    return st!
+      .find(".multi-select-outline")
+      .map((n) => n.getClientRect())
+      .sort((p, q) => p.x - q.x)[0];
+  });
+  // Stage-container px, the same frame as at().
+  expect(outline.height).toBeGreaterThan(outline.width);
+  expect(outline.x).toBeLessThan(185);
+  expect(outline.x + outline.width).toBeLessThan(230);
 });

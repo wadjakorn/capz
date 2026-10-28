@@ -1198,6 +1198,36 @@ export function EditorStage({ src }: Props) {
   }
 
   // ── Multi-select (CP-0050) ────────────────────────────────────────────
+  /** An annotation's box as drawn, in image px. `annotationAABB` is the
+   *  un-rotated frame (Konva pivots on the node origin) and only estimates
+   *  text, so a rotated or text member would get a misplaced outline and
+   *  marquee hit. Magnify's node misses its loupe, so it keeps the estimate,
+   *  as does an annotation with no node yet. */
+  const renderedBox = (a: Annotation): AABB | null => {
+    const node = a.type === "magnify" ? undefined : nodeRefs.current.get(a.id);
+    const layer = node?.getLayer();
+    if (!node || !layer) return annotationAABB(a);
+    const r = node.getClientRect({ relativeTo: layer, skipStroke: true, skipShadow: true });
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  };
+
+  // Each member's drawn box, measured once the nodes have committed, for the
+  // per-member outlines (a group drag offsets them while it runs).
+  const [memberBoxes, setMemberBoxes] = useState<ReadonlyMap<string, AABB>>(new Map());
+  useLayoutEffect(() => {
+    const m = new Map<string, AABB>();
+    if (selectedIds.length > 1) {
+      for (const a of annotations) {
+        if (!selectedIds.includes(a.id)) continue;
+        const b = renderedBox(a);
+        if (b) m.set(a.id, b);
+      }
+    }
+    setMemberBoxes((prev) => (prev.size === 0 && m.size === 0 ? prev : m));
+    // renderedBox only reads refs; boundsTick covers async bitmap loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds, annotations, boundsTick]);
+
   // Whether the press that is starting now carries the platform's selection
   // modifier (Cmd on macOS, Ctrl elsewhere). Read in a capture-phase listener
   // because the per-shape onPointerDown handlers don't get the DOM event.
@@ -1280,7 +1310,7 @@ export function EditorStage({ src }: Props) {
       union: unionAABB(
         list.flatMap((a) => {
           if (!idSet.has(a.id)) return [];
-          const b = annotationAABB(a);
+          const b = renderedBox(a);
           return b ? [b] : [];
         }),
       ),
@@ -1344,7 +1374,7 @@ export function EditorStage({ src }: Props) {
       // Under 3 screen px is a click: the press already did the deselect.
       const s = stage.scaleX() || 1;
       if (Math.abs(rect.w) * s < 3 && Math.abs(rect.h) * s < 3) return;
-      const hits = annotationsInRect(useEditor.getState().annotations, rect);
+      const hits = annotationsInRect(useEditor.getState().annotations, rect, renderedBox);
       selectMany([...base, ...hits.filter((id) => !base.includes(id))]);
     };
     window.addEventListener("pointermove", onMove);
@@ -2222,10 +2252,11 @@ export function EditorStage({ src }: Props) {
             {selectedIds.length > 1 &&
               annotations.map((a) => {
                 if (!selectedIds.includes(a.id)) return null;
-                const b = annotationAABB(
-                  groupOffset ? shiftAnnotation(a, groupOffset.dx, groupOffset.dy) : a,
-                );
-                if (!b) return null;
+                const base = memberBoxes.get(a.id) ?? annotationAABB(a);
+                if (!base) return null;
+                const b = groupOffset
+                  ? { ...base, x: base.x + groupOffset.dx, y: base.y + groupOffset.dy }
+                  : base;
                 // Clear of the stroke, constant on screen.
                 const pad = 4 / scale + ("strokeWidth" in a ? a.strokeWidth / 2 : 0);
                 return (

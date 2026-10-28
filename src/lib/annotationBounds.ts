@@ -143,15 +143,21 @@ export function unionAABB(boxes: readonly AABB[]): AABB | null {
 /**
  * Ids of the annotations whose AABB lies fully inside `rect` (marquee
  * selection, CP-0050). `rect` may have a negative w/h (dragged up or left).
+ * `boxOf` measures each annotation; the stage passes its drawn box so rotated
+ * elements are judged by what is on screen.
  */
-export function annotationsInRect(list: readonly Annotation[], rect: AABB): string[] {
+export function annotationsInRect(
+  list: readonly Annotation[],
+  rect: AABB,
+  boxOf: (a: Annotation) => AABB | null = annotationAABB,
+): string[] {
   const x0 = Math.min(rect.x, rect.x + rect.w);
   const y0 = Math.min(rect.y, rect.y + rect.h);
   const x1 = Math.max(rect.x, rect.x + rect.w);
   const y1 = Math.max(rect.y, rect.y + rect.h);
   return list
     .filter((a) => {
-      const b = annotationAABB(a);
+      const b = boxOf(a);
       return !!b && b.x >= x0 && b.y >= y0 && b.x + b.w <= x1 && b.y + b.h <= y1;
     })
     .map((a) => a.id);

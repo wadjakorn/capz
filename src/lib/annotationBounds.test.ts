@@ -159,6 +159,13 @@ describe("annotationsInRect (marquee, CP-0050)", () => {
   it("an edge-touching AABB counts as inside", () => {
     expect(annotationsInRect(list, { x: 10, y: 10, w: 10, h: 10 })).toEqual(["in"]);
   });
+
+  it("judges each annotation by the box boxOf measures (drawn, rotated)", () => {
+    // "out" is drawn inside the rect even though its frame is far away.
+    const drawn = (a: { id: string }) =>
+      a.id === "out" ? { x: 1, y: 1, w: 5, h: 5 } : annotationAABB(list.find((l) => l.id === a.id)!);
+    expect(annotationsInRect(list, { x: 0, y: 0, w: 30, h: 30 }, drawn)).toEqual(["in", "out"]);
+  });
 });
 
 describe("unionAABB", () => {
