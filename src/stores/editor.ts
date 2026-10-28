@@ -6,6 +6,7 @@ import type { KeepToolActive } from "@/lib/config";
 import { NUDGE_COALESCE_MS } from "@/lib/nudge";
 import { uid } from "@/lib/uid";
 import { EMOJI_SET_ID, EMOJI_STICKERS } from "@/lib/stickers/builtin";
+import type { SnapGuides } from "@/lib/snap";
 import type { TemplatePatch } from "@/lib/template";
 
 export type Tool =
@@ -413,8 +414,8 @@ type State = {
    * false, so a deliberate zoom survives resizing.
    */
   userZoomed: boolean;
-  /** Transient snap guide lines (image-pixel coords). Not in undo history. */
-  guides: { x: number[]; y: number[] };
+  /** Transient snap guide segments (image-pixel coords). Not in undo history. */
+  guides: SnapGuides;
   /**
    * The open arrow-key nudge run (CP-0056), so a run shares one undo entry.
    * `annotations` is the array the last nudge produced: any other edit
@@ -486,7 +487,7 @@ type State = {
   setDisplayScale: (s: number) => void;
   zoomFit: (size: { vw: number; vh: number; iw: number; ih: number }) => void;
   zoomReset100: () => void;
-  setGuides: (g: { x: number[]; y: number[] }) => void;
+  setGuides: (g: SnapGuides) => void;
 };
 
 export const ZOOM_MIN = 0.05;

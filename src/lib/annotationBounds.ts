@@ -122,11 +122,3 @@ export function contentBounds(
   const y = Math.floor(top);
   return { x, y, w: Math.ceil(right) - x, h: Math.ceil(bottom) - y };
 }
-
-/** Edge/center snap targets along one axis from an AABB. */
-export function aabbSnapLinesX(b: AABB): number[] {
-  return [b.x, b.x + b.w / 2, b.x + b.w];
-}
-export function aabbSnapLinesY(b: AABB): number[] {
-  return [b.y, b.y + b.h / 2, b.y + b.h];
-}

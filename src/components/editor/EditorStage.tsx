@@ -80,13 +80,21 @@ import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
 import {
   annotationAABB,
-  aabbSnapLinesX,
-  aabbSnapLinesY,
   contentBounds,
   type AABB,
 } from "@/lib/annotationBounds";
 import { anchoredScrollOffset } from "@/lib/zoomAnchor";
-import { snapAxis, snapResizedBox } from "@/lib/snap";
+import {
+  buildSnapLines,
+  isSnapBypass,
+  snapMove,
+  snapOpts,
+  snapPoint,
+  snapResize,
+  type SnapGuides,
+  type SnapLines,
+} from "@/lib/snap";
+import { currentPlatform } from "@/lib/shortcuts";
 import { SCREEN_CHROME } from "@/lib/screenChrome";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
@@ -96,7 +104,14 @@ import { lastUsedPatchForAnnotation } from "@/lib/lastUsedPatch";
 import { arrowStrokeStyle, strokeDashProps } from "@/lib/strokeStyle";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
-const SNAP_SCREEN_PX = 6;
+const GUIDE_ELEMENT = "#34d399";
+const GUIDE_CANVAS = "#e879f9";
+
+/** Modifier keys that can bypass snapping (any mouse/touch/key event has them). */
+type SnapMods = { altKey: boolean; metaKey: boolean; ctrlKey: boolean };
+
+/** The box a Konva Transformer hands its boundBoxFunc (absolute coords). */
+type TrBox = { x: number; y: number; width: number; height: number; rotation: number };
 
 type Props = { src: string };
 
@@ -959,59 +974,148 @@ export function EditorStage({ src }: Props) {
   const padY = Math.max(MIN_PADDING, container.h);
 
   const snapEnabled = config.general.snapEnabled;
+  const snapBypassKey = config.general.snapBypassKey;
   const showRulers = config.general.showRulers;
 
-  const getSnapTargets = (id: string) => {
-    const xT: number[] = imgW > 0 ? [0, imgW / 2, imgW] : [];
-    const yT: number[] = imgH > 0 ? [0, imgH / 2, imgH] : [];
-    const all = useEditor.getState().annotations;
-    for (const an of all) {
-      if (an.id === id) continue;
-      const ab = annotationAABB(an);
-      if (!ab) continue;
-      xT.push(...aabbSnapLinesX(ab));
-      yT.push(...aabbSnapLinesY(ab));
+  // Modifier state for the Transformer's boundBoxFunc, which gets no event.
+  // Capture phase on window runs before Konva's own window listeners.
+  const modsRef = useRef({ altKey: false, metaKey: false, ctrlKey: false, shiftKey: false });
+  useEffect(() => {
+    const track = (e: Event) => {
+      const m = e as MouseEvent;
+      modsRef.current = {
+        altKey: m.altKey,
+        metaKey: m.metaKey,
+        ctrlKey: m.ctrlKey,
+        shiftKey: m.shiftKey,
+      };
+    };
+    const events = ["pointerdown", "pointermove", "mousemove", "touchmove", "keydown", "keyup"];
+    events.forEach((ev) => window.addEventListener(ev, track, true));
+    return () => events.forEach((ev) => window.removeEventListener(ev, track, true));
+  }, []);
+
+  const snapBypassed = (mods: SnapMods) =>
+    !snapEnabled || isSnapBypass(mods, snapBypassKey, currentPlatform());
+
+  /** The visible part of the canvas in image px; elements outside it are not
+   *  snap targets (CP-0025). */
+  const visibleImageRect = (): AABB | null => {
+    const el = containerRef.current;
+    if (!el || scale <= 0) return null;
+    return {
+      x: contentBox.x + (el.scrollLeft - padX) / scale,
+      y: contentBox.y + (el.scrollTop - padY) / scale,
+      w: el.clientWidth / scale,
+      h: el.clientHeight / scale,
+    };
+  };
+
+  /** Snap lines for a gesture on `excludeId` (null = nothing to exclude).
+   *  `canvasOnly` skips other elements (crop). */
+  const getSnapLines = (excludeId: string | null, canvasOnly = false): SnapLines => {
+    const others: AABB[] = [];
+    if (!canvasOnly) {
+      for (const an of useEditor.getState().annotations) {
+        if (an.id === excludeId) continue;
+        const ab = annotationAABB(an);
+        if (ab) others.push(ab);
+      }
     }
-    return { xT, yT };
+    return buildSnapLines({
+      canvas: contentBox,
+      image: imgW > 0 && imgH > 0 ? { w: imgW, h: imgH } : null,
+      others,
+      viewport: visibleImageRect(),
+    });
+  };
+
+  const showGuides = (g: SnapGuides) => {
+    if (!g.x.length && !g.y.length) endSnap();
+    else setGuides(g);
   };
 
   const snapDrag = (
     id: string,
     b: AABB,
-    altKey: boolean,
+    mods: SnapMods,
+    canvasOnly = false,
   ): { dx: number; dy: number } => {
-    if (!snapEnabled || altKey) {
-      const cur = useEditor.getState().guides;
-      if (cur.x.length || cur.y.length) setGuides({ x: [], y: [] });
+    if (snapBypassed(mods)) {
+      endSnap();
       return { dx: 0, dy: 0 };
     }
-    const { xT, yT } = getSnapTargets(id);
-    const t = SNAP_SCREEN_PX / scale;
-    const sx = snapAxis(b.x, b.w, xT, t);
-    const sy = snapAxis(b.y, b.h, yT, t);
-    setGuides({ x: sx ? [sx.guide] : [], y: sy ? [sy.guide] : [] });
-    return { dx: sx?.delta ?? 0, dy: sy?.delta ?? 0 };
+    const r = snapMove(b, getSnapLines(id, canvasOnly), snapOpts(scale));
+    showGuides(r.guides);
+    return { dx: r.dx, dy: r.dy };
   };
 
-  const snapResize = (
+  const snapHandle = (
     id: string,
-    oldBox: AABB,
-    newBox: AABB,
-    altKey: boolean,
-  ): AABB => {
-    if (!snapEnabled || altKey) {
-      const cur = useEditor.getState().guides;
-      if (cur.x.length || cur.y.length) setGuides({ x: [], y: [] });
-      return newBox;
+    p: { x: number; y: number },
+    mods: SnapMods,
+  ): { x: number; y: number } => {
+    if (snapBypassed(mods)) {
+      endSnap();
+      return p;
     }
-    const { xT, yT } = getSnapTargets(id);
-    const t = SNAP_SCREEN_PX / scale;
-    const hit = snapResizedBox(oldBox, newBox, xT, yT, t);
-    // Resize snaps only once, at transform end — the gesture is already over,
-    // so drawing its guides would just leave them stuck on screen (CP-0079).
-    endSnap();
-    return hit?.box ?? newBox;
+    const r = snapPoint(p, getSnapLines(id), snapOpts(scale));
+    showGuides(r.guides);
+    return { x: r.x, y: r.y };
   };
+
+  /**
+   * Live magnetic resize (CP-0025), called from a Transformer's boundBoxFunc
+   * on every pointer move. Konva fits the node to the returned box, so each
+   * shape's onTransformEnd just reads the already-snapped node.
+   */
+  const liveResizeBox = (
+    tr: Konva.Transformer | null,
+    box: TrBox,
+    o: { excludeId: string | null; minSize: number; canvasOnly?: boolean },
+  ): TrBox => {
+    const anchor = tr?.getActiveAnchor();
+    const layer = tr?.getLayer();
+    if (!tr || !layer || !anchor || anchor === "rotater") return box;
+    const turn = Math.PI * 2;
+    const rot = ((box.rotation % turn) + turn) % turn;
+    // Rotated boxes aren't axis-aligned: skip rather than snap to the wrong
+    // place. Negative sizes are a flip in progress.
+    if (
+      snapBypassed(modsRef.current) ||
+      Math.min(rot, turn - rot) > 1e-6 ||
+      box.width <= 0 ||
+      box.height <= 0
+    ) {
+      endSnap();
+      return box;
+    }
+    const k = layer.getAbsoluteScale().x;
+    const toImg = layer.getAbsoluteTransform().copy().invert();
+    const p = toImg.point({ x: box.x, y: box.y });
+    const mods = modsRef.current;
+    const corner = /^(top|bottom)-(left|right)$/.test(anchor);
+    const hit = snapResize(
+      { x: p.x, y: p.y, w: box.width / k, h: box.height / k },
+      anchor,
+      getSnapLines(o.excludeId, o.canvasOnly),
+      {
+        ...snapOpts(scale),
+        // Mirrors Konva: Shift toggles keepRatio, Alt resizes from centre.
+        keepRatio: corner && (tr.keepRatio() || mods.shiftKey),
+        centered: tr.centeredScaling() || mods.altKey,
+        minSize: o.minSize / k,
+      },
+    );
+    if (!hit) {
+      endSnap();
+      return box;
+    }
+    showGuides(hit.guides);
+    const q = layer.getAbsoluteTransform().point({ x: hit.box.x, y: hit.box.y });
+    return { ...box, x: q.x, y: q.y, width: hit.box.w * k, height: hit.box.h * k };
+  };
+
   function endSnap() {
     const cur = useEditor.getState().guides;
     if (cur.x.length || cur.y.length) setGuides({ x: [], y: [] });
@@ -1633,7 +1737,7 @@ export function EditorStage({ src }: Props) {
                   }),
                 editing: textEditor?.id === a.id,
                 snapDrag,
-                snapResize,
+                snapHandle,
                 endSnap,
                 onBoundsChange: bumpBounds,
               }),
@@ -1829,12 +1933,21 @@ export function EditorStage({ src }: Props) {
                   draggable
                   onDragMove={(e) => {
                     const n = e.target;
-                    const nx = Math.max(rL, Math.min(n.x(), rR - cropSel.w));
-                    const ny = Math.max(rT, Math.min(n.y(), rB - cropSel.h));
+                    // Crop snaps to canvas / image lines only (CP-0025).
+                    const { dx, dy } = snapDrag(
+                      "",
+                      { x: n.x(), y: n.y(), w: cropSel.w, h: cropSel.h },
+                      e.evt,
+                      true,
+                    );
+                    const nx = Math.max(rL, Math.min(n.x() + dx, rR - cropSel.w));
+                    const ny = Math.max(rT, Math.min(n.y() + dy, rB - cropSel.h));
                     n.position({ x: nx, y: ny });
                     setCropSel({ ...cropSel, x: nx, y: ny });
                   }}
+                  onDragEnd={endSnap}
                   onTransformEnd={() => {
+                    endSnap();
                     const n = cropRectRef.current;
                     if (!n) return;
                     const sx = n.scaleX();
@@ -1866,7 +1979,11 @@ export function EditorStage({ src }: Props) {
                   boundBoxFunc={(oldBox, newBox) =>
                     Math.abs(newBox.width) < 8 || Math.abs(newBox.height) < 8
                       ? oldBox
-                      : newBox
+                      : liveResizeBox(cropTrRef.current, newBox, {
+                          excludeId: null,
+                          minSize: 8,
+                          canvasOnly: true,
+                        })
                   }
                 />
               </>
@@ -1894,26 +2011,32 @@ export function EditorStage({ src }: Props) {
                 if (Math.abs(newBox.width) < 5 || Math.abs(newBox.height) < 5) {
                   return _oldBox;
                 }
-                return newBox;
+                return liveResizeBox(trRef.current, newBox, {
+                  excludeId: selectedId,
+                  minSize: 5,
+                });
               }}
+              onTransformEnd={endSnap}
             />
           </Layer>
           {/* Snap guides are screen-only chrome: exports and thumbnails hide
               every SCREEN_CHROME node while they snapshot (CP-0079). */}
           <Layer name={SCREEN_CHROME} listening={false}>
-            {guides.x.map((gx, i) => (
+            {/* Canvas guides (canvas / image edges + centre) are magenta,
+                element guides green, so the user sees what they aligned to. */}
+            {guides.x.map((g, i) => (
               <Line
                 key={`gx-${i}`}
-                points={[gx, 0, gx, imgH]}
-                stroke="#34d399"
+                points={[g.at, g.from, g.at, g.to]}
+                stroke={g.kind === "canvas" ? GUIDE_CANVAS : GUIDE_ELEMENT}
                 strokeWidth={1 / scale}
               />
             ))}
-            {guides.y.map((gy, i) => (
+            {guides.y.map((g, i) => (
               <Line
                 key={`gy-${i}`}
-                points={[0, gy, imgW, gy]}
-                stroke="#34d399"
+                points={[g.from, g.at, g.to, g.at]}
+                stroke={g.kind === "canvas" ? GUIDE_CANVAS : GUIDE_ELEMENT}
                 strokeWidth={1 / scale}
               />
             ))}
@@ -2107,13 +2230,15 @@ type ShapeCtx = {
   onEditText?: (a: TextAnnotation) => void;
   /** This text's on-canvas editor is open: hide the node (the overlay draws it). */
   editing?: boolean;
-  snapDrag: (id: string, b: AABB, altKey: boolean) => { dx: number; dy: number };
-  snapResize: (
+  /** Snap a box being dragged; returns the nudge to apply. */
+  snapDrag: (id: string, b: AABB, mods: SnapMods) => { dx: number; dy: number };
+  /** Snap a point handle (arrow endpoint / curve control). Resize snapping
+   *  happens live in the Transformer, not per shape. */
+  snapHandle: (
     id: string,
-    oldBox: AABB,
-    newBox: AABB,
-    altKey: boolean,
-  ) => AABB;
+    p: { x: number; y: number },
+    mods: SnapMods,
+  ) => { x: number; y: number };
   endSnap: () => void;
   /** Signal that this element's rendered size changed outside the annotation
    *  store (e.g. an image sticker's bitmap finished loading), so the canvas
@@ -2190,7 +2315,7 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
       const { dx, dy } = ctx.snapDrag(
         a.id,
         { x: node.x(), y: node.y(), w: a.w, h: a.h },
-        (e.evt as MouseEvent).altKey,
+        e.evt as MouseEvent,
       );
       if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
     },
@@ -2198,29 +2323,19 @@ function RectShape({ a, ctx }: { a: RectAnnotation; ctx: ShapeCtx }) {
       ctx.endSnap();
       ctx.onChange({ x: e.target.x(), y: e.target.y() });
     },
-    onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
+    onTransformEnd: () => {
       const node = ref.current;
       if (!node) return;
       const sx = node.scaleX();
       const sy = node.scaleY();
       node.scaleX(1);
       node.scaleY(1);
-      const next = ctx.snapResize(
-        a.id,
-        { x: a.x, y: a.y, w: a.w, h: a.h },
-        {
-          x: Math.round(node.x()),
-          y: Math.round(node.y()),
-          w: Math.round(Math.max(2, node.width() * sx)),
-          h: Math.round(Math.max(2, node.height() * sy)),
-        },
-        (e.evt as MouseEvent).altKey,
-      );
+      // Already snapped live by the Transformer's boundBoxFunc (CP-0025).
       ctx.onChange({
-        x: Math.round(next.x),
-        y: Math.round(next.y),
-        w: Math.round(Math.max(2, next.w)),
-        h: Math.round(Math.max(2, next.h)),
+        x: Math.round(node.x()),
+        y: Math.round(node.y()),
+        w: Math.round(Math.max(2, node.width() * sx)),
+        h: Math.round(Math.max(2, node.height() * sy)),
         rotation: node.rotation(),
       });
     },
@@ -2357,6 +2472,13 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
   );
   const hsw = 1.5 / ctx.scale;
 
+  // Endpoint / curve handles stick to snap lines while dragged (CP-0025).
+  const snapHandleNode = (e: Konva.KonvaEventObject<DragEvent>) => {
+    const n = e.target;
+    const p = ctx.snapHandle(a.id, { x: n.x(), y: n.y() }, e.evt);
+    if (p.x !== n.x() || p.y !== n.y()) n.position(p);
+  };
+
   const dragEndpoint = (which: "tail" | "head") => (
     e: Konva.KonvaEventObject<DragEvent>,
   ) => {
@@ -2410,7 +2532,7 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
           const { dx, dy } = ctx.snapDrag(
             a.id,
             { x: ab.x + node.x(), y: ab.y + node.y(), w: ab.w, h: ab.h },
-            (e.evt as MouseEvent).altKey,
+            e.evt as MouseEvent,
           );
           if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
         }}
@@ -2448,9 +2570,11 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
               e.cancelBubble = true;
             }}
             onDragMove={(e) => {
+              snapHandleNode(e);
               setLive({ ...g, cx: e.target.x(), cy: e.target.y() });
             }}
             onDragEnd={(e) => {
+              ctx.endSnap();
               commit({ ...g, cx: e.target.x(), cy: e.target.y() });
             }}
           />
@@ -2470,9 +2594,11 @@ function ArrowShape({ a, ctx }: { a: ArrowAnnotation; ctx: ShapeCtx }) {
                 e.cancelBubble = true;
               }}
               onDragMove={(e) => {
+                snapHandleNode(e);
                 setLive(dragEndpoint(which)(e));
               }}
               onDragEnd={(e) => {
+                ctx.endSnap();
                 commit(dragEndpoint(which)(e));
               }}
             />
@@ -2506,7 +2632,7 @@ function usePathShape(a: FreehandAnnotation | HighlighterAnnotation, ctx: ShapeC
       const { dx, dy } = ctx.snapDrag(
         a.id,
         { x: ab.x + node.x(), y: ab.y + node.y(), w: ab.w, h: ab.h },
-        e.evt.altKey,
+        e.evt,
       );
       if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
     },
@@ -2703,29 +2829,12 @@ function MagnifyShape({ a, ctx }: { a: MagnifyAnnotation; ctx: ShapeCtx }) {
           node.scaleX(1);
           node.scaleY(1);
           node.rotation(0);
-          const oldBox = {
-            x: a.sx - a.srw,
-            y: a.sy - a.srh,
-            w: a.srw * 2,
-            h: a.srh * 2,
-          };
-          const nextBox = {
-            x: node.x() - Math.max(8, Math.round(a.srw * sxScale)),
-            y: node.y() - Math.max(8, Math.round(a.srh * syScale)),
-            w: Math.max(16, Math.round(a.srw * sxScale) * 2),
-            h: Math.max(16, Math.round(a.srh * syScale) * 2),
-          };
-          const snapped = ctx.snapResize(
-            a.id,
-            oldBox,
-            nextBox,
-            (e.evt as MouseEvent).altKey,
-          );
+          // The source group sits at its centre; already snapped live.
           commit({
-            sx: snapped.x + snapped.w / 2,
-            sy: snapped.y + snapped.h / 2,
-            srw: Math.max(8, Math.round(snapped.w / 2)),
-            srh: Math.max(8, Math.round(snapped.h / 2)),
+            sx: node.x(),
+            sy: node.y(),
+            srw: Math.max(8, Math.round(a.srw * sxScale)),
+            srh: Math.max(8, Math.round(a.srh * syScale)),
           });
         }}
       >
@@ -2857,7 +2966,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         const { dx, dy } = ctx.snapDrag(
           a.id,
           { x: node.x(), y: node.y(), w: ab.w, h: ab.h },
-          (e.evt as MouseEvent).altKey,
+          e.evt as MouseEvent,
         );
         if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
       }}
@@ -2995,7 +3104,7 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
         const { dx, dy } = ctx.snapDrag(
           a.id,
           { x: node.x(), y: node.y(), w: a.w, h: a.h },
-          (e.evt as MouseEvent).altKey,
+          e.evt as MouseEvent,
         );
         if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
       }}
@@ -3003,29 +3112,18 @@ function BlurShape({ a, ctx }: { a: BlurAnnotation; ctx: ShapeCtx }) {
         ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
-      onTransformEnd={(e) => {
+      onTransformEnd={() => {
         const node = ref.current;
         if (!node) return;
         const sx = node.scaleX();
         const sy = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-        const next = ctx.snapResize(
-          a.id,
-          { x: a.x, y: a.y, w: a.w, h: a.h },
-          {
-            x: Math.round(node.x()),
-            y: Math.round(node.y()),
-            w: Math.round(Math.max(4, a.w * sx)),
-            h: Math.round(Math.max(4, a.h * sy)),
-          },
-          (e.evt as MouseEvent).altKey,
-        );
         ctx.onChange({
-          x: Math.round(next.x),
-          y: Math.round(next.y),
-          w: Math.round(Math.max(4, next.w)),
-          h: Math.round(Math.max(4, next.h)),
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          w: Math.round(Math.max(4, a.w * sx)),
+          h: Math.round(Math.max(4, a.h * sy)),
           rotation: node.rotation(),
         });
       }}
@@ -3077,7 +3175,7 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         const { dx, dy } = ctx.snapDrag(
           a.id,
           { x: node.x() - s / 2, y: node.y() - s / 2, w: s, h: s },
-          (e.evt as MouseEvent).altKey,
+          e.evt as MouseEvent,
         );
         if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
       }}
@@ -3085,33 +3183,16 @@ function PinShape({ a, ctx }: { a: PinAnnotation; ctx: ShapeCtx }) {
         ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
-      onTransformEnd={(e) => {
+      onTransformEnd={() => {
         const node = ref.current;
         if (!node) return;
         const sx = node.scaleX();
         node.scaleX(1);
         node.scaleY(1);
-        const nextSize = Math.round(Math.max(12, a.size * sx));
-        const next = ctx.snapResize(
-          a.id,
-          {
-            x: a.x - a.size / 2,
-            y: a.y - a.size / 2,
-            w: a.size,
-            h: a.size,
-          },
-          {
-            x: Math.round(node.x() - nextSize / 2),
-            y: Math.round(node.y() - nextSize / 2),
-            w: nextSize,
-            h: nextSize,
-          },
-          (e.evt as MouseEvent).altKey,
-        );
         ctx.onChange({
-          x: Math.round(next.x + next.w / 2),
-          y: Math.round(next.y + next.h / 2),
-          size: Math.round(Math.max(12, next.w)),
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          size: Math.round(Math.max(12, a.size * sx)),
           rotation: node.rotation(),
         });
       }}
@@ -3257,7 +3338,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
           const { dx, dy } = ctx.snapDrag(
             a.id,
             { x: node.x(), y: node.y(), w, h },
-            (e.evt as MouseEvent).altKey,
+            e.evt as MouseEvent,
           );
           if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
         }}
@@ -3265,28 +3346,16 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
           ctx.endSnap();
           ctx.onChange({ x: e.target.x(), y: e.target.y() });
         }}
-        onTransformEnd={(e) => {
+        onTransformEnd={() => {
           const node = imgRef.current;
           if (!node) return;
           const sx = node.scaleX();
           node.scaleX(1);
           node.scaleY(1);
-          const nextFontSize = Math.round(Math.max(12, a.fontSize * sx));
-          const next = ctx.snapResize(
-            a.id,
-            { x: a.x, y: a.y, w, h },
-            {
-              x: Math.round(node.x()),
-              y: Math.round(node.y()),
-              w: Math.round(Math.max(12, nextFontSize * ratio)),
-              h: nextFontSize,
-            },
-            (e.evt as MouseEvent).altKey,
-          );
           ctx.onChange({
-            x: Math.round(next.x),
-            y: Math.round(next.y),
-            fontSize: Math.round(Math.max(12, next.h)),
+            x: Math.round(node.x()),
+            y: Math.round(node.y()),
+            fontSize: Math.round(Math.max(12, a.fontSize * sx)),
             rotation: node.rotation(),
           });
         }}
@@ -3313,7 +3382,7 @@ function StickerShape({ a, ctx }: { a: StickerAnnotation; ctx: ShapeCtx }) {
         const { dx, dy } = ctx.snapDrag(
           a.id,
           { x: node.x(), y: node.y(), w: s, h: s * 1.2 },
-          (e.evt as MouseEvent).altKey,
+          e.evt as MouseEvent,
         );
         if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
       }}
@@ -3387,7 +3456,7 @@ function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
         const { dx, dy } = ctx.snapDrag(
           a.id,
           { x: node.x(), y: node.y(), w: a.w, h: a.h },
-          (e.evt as MouseEvent).altKey,
+          e.evt as MouseEvent,
         );
         if (dx || dy) node.position({ x: node.x() + dx, y: node.y() + dy });
       }}
@@ -3395,29 +3464,18 @@ function ImageShape({ a, ctx }: { a: ImageAnnotation; ctx: ShapeCtx }) {
         ctx.endSnap();
         ctx.onChange({ x: e.target.x(), y: e.target.y() });
       }}
-      onTransformEnd={(e) => {
+      onTransformEnd={() => {
         const node = ref.current;
         if (!node) return;
         const sx = node.scaleX();
         const sy = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-        const next = ctx.snapResize(
-          a.id,
-          { x: a.x, y: a.y, w: a.w, h: a.h },
-          {
-            x: Math.round(node.x()),
-            y: Math.round(node.y()),
-            w: Math.round(Math.max(8, a.w * sx)),
-            h: Math.round(Math.max(8, a.h * sy)),
-          },
-          (e.evt as MouseEvent).altKey,
-        );
         ctx.onChange({
-          x: Math.round(next.x),
-          y: Math.round(next.y),
-          w: Math.round(Math.max(8, next.w)),
-          h: Math.round(Math.max(8, next.h)),
+          x: Math.round(node.x()),
+          y: Math.round(node.y()),
+          w: Math.round(Math.max(8, a.w * sx)),
+          h: Math.round(Math.max(8, a.h * sy)),
           rotation: node.rotation(),
         });
       }}
