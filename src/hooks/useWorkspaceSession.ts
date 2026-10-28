@@ -247,7 +247,7 @@ export function useWorkspaceSession({ enabled, setFile, setSrc }: WorkspaceSessi
         // the exported layer, so they would be baked into the tile. The
         // selection always clears eventually, and the image-ready commit above
         // is taken with nothing selected.
-        if (useEditor.getState().selectedId) return;
+        if (useEditor.getState().selectedIds.length) return;
         // Commit, not just the thumbnail. Annotations used to reach the store
         // only on a swap or a window blur, so drawing and then quitting lost
         // them; commitActive renders the thumbnail on its way through, so this

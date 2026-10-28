@@ -27,6 +27,7 @@ import {
 import { formatShortcut, currentPlatform } from "@/lib/shortcuts";
 import {
   useEditor,
+  type Annotation,
   type StrokeStyle,
   type Tool,
 } from "@/stores/editor";
@@ -48,6 +49,7 @@ import { NumberedPinIcon } from "./toolbar/NumberedPinIcon";
 import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { ToolOptionsPanel } from "./toolbar/panels/ToolOptionsPanel";
 import { canDuplicate, duplicateSelected } from "@/lib/duplicate";
+import { sharedStyleKind } from "@/lib/multiSelect";
 import { GlobalToolsPanel } from "./toolbar/panels/GlobalToolsPanel";
 import type {
   ColorCtx,
@@ -133,6 +135,7 @@ const TOOLS: ToolDef[] = [
 
 /** Title key for a panel kind that has no matching tool (a selected image). */
 function panelTitleKey(kind: string): TKey | null {
+  if (kind === "multi") return "editor.multi.title";
   return kind === "image" ? "editor.tool.image" : null;
 }
 
@@ -184,7 +187,9 @@ export function Toolbar({
   const setNextPinNumber = useEditor((s) => s.setNextPinNumber);
   const annotations = useEditor((s) => s.annotations);
   const selectedId = useEditor((s) => s.selectedId);
-  const updateAnnotation = useEditor((s) => s.update);
+  const selectedIds = useEditor((s) => s.selectedIds);
+  const updateOne = useEditor((s) => s.update);
+  const updateMany = useEditor((s) => s.updateMany);
   const reorderAnnotation = useEditor((s) => s.reorder);
   const pinsCfg = useSettings((s) => s.config.pins);
   const fullConfig = useSettings((s) => s.config);
@@ -210,9 +215,29 @@ export function Toolbar({
     setGlobalTarget(document.getElementById("sidebar-canvas-slot"));
   }, []);
 
-  const selected = selectedId
-    ? annotations.find((a) => a.id === selectedId) ?? null
-    : null;
+  // Multi-selection (CP-0050): the panel edits every member when they all
+  // share a style kind, driven by the primary (last-selected) member's values;
+  // a mixed selection gets no style controls, only a hint.
+  const multiAnns =
+    selectedIds.length > 1
+      ? annotations.filter((a) => selectedIds.includes(a.id))
+      : [];
+  const multi =
+    multiAnns.length > 1
+      ? { count: multiAnns.length, mixed: sharedStyleKind(multiAnns) === null }
+      : null;
+  const selected = multi
+    ? multi.mixed
+      ? null
+      : annotations.find((a) => a.id === selectedIds[selectedIds.length - 1]) ??
+        multiAnns[multiAnns.length - 1]
+    : selectedId
+      ? annotations.find((a) => a.id === selectedId) ?? null
+      : null;
+  const updateAnnotation = (id: string, patch: Partial<Annotation>) => {
+    if (multi) updateMany(selectedIds, patch);
+    else updateOne(id, patch);
+  };
 
   let colorCtx: ColorCtx | null = null;
   let widthCtx: NumCtx | null = null;
@@ -1368,6 +1393,7 @@ export function Toolbar({
       // controls are always available — even for types with no other options
       // (e.g. a layered image).
       selected ||
+      multi ||
       tool === "pin" ||
       tool === "sticker"
     );
@@ -1385,7 +1411,13 @@ export function Toolbar({
   // Resolved panel kind: a selected annotation's type wins over the active tool
   // (editing an element shows that element's controls).
   // A headless line is drawn by the Shapes tool, so it gets the Shapes panel.
-  const panelKind = isShapesToolAnnotation(selected) ? "rect" : selected ? selected.type : tool;
+  const panelKind = multi?.mixed
+    ? "multi"
+    : isShapesToolAnnotation(selected)
+      ? "rect"
+      : selected
+        ? selected.type
+        : tool;
 
   // Tell the sidebar whether a contextual panel exists and what it is called,
   // so it can offer a tab for it. Crop is included even though it renders from
@@ -1593,8 +1625,10 @@ export function Toolbar({
                 }
               : null
           }
+          multi={multi}
+          // Z-order and duplicate act on one annotation; deferred for 2+.
           reorder={
-            selected
+            selected && !multi
               ? {
                   atFront,
                   atBack,
@@ -1603,7 +1637,7 @@ export function Toolbar({
               : null
           }
           duplicate={
-            selected
+            selected && !multi
               ? {
                   onDuplicate: () => void duplicateSelected(),
                   disabled: !canDuplicate({ tool, selectedId: selected.id }),
