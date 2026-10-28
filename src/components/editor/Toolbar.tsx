@@ -27,7 +27,6 @@ import {
 import { formatShortcut, currentPlatform } from "@/lib/shortcuts";
 import {
   useEditor,
-  STICKERS,
   type StrokeStyle,
   type Tool,
 } from "@/stores/editor";
@@ -35,7 +34,6 @@ import { arrowStrokeStyle, isShapesToolAnnotation } from "@/lib/strokeStyle";
 import { useSettings } from "@/stores/settings";
 import { openSettings } from "@/lib/settingsNav";
 import { useSidebar } from "@/stores/sidebar";
-import { useStickers } from "@/stores/stickers";
 import { useOcr } from "@/stores/ocr";
 import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
@@ -181,7 +179,6 @@ export function Toolbar({
   const displayScale = useEditor((s) => s.displayScale);
   const stickerSelection = useEditor((s) => s.stickerSelection);
   const setStickerSelection = useEditor((s) => s.setStickerSelection);
-  const stickerEntries = useStickers((s) => s.entries);
   const nextPinNumber = useEditor((s) => s.nextPinNumber);
   const setNextPinNumber = useEditor((s) => s.setNextPinNumber);
   const annotations = useEditor((s) => s.annotations);
@@ -1594,7 +1591,6 @@ export function Toolbar({
           selected={!!selected}
           lastBgColor={lastBgColor}
           setLastBgColor={setLastBgColor}
-          stickerEntries={stickerEntries}
           stickerSelection={stickerSelection}
           onSelectSticker={setStickerSelection}
           stickerPicker={tool === "sticker"}

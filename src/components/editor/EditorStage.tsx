@@ -41,6 +41,8 @@ import { highlighterHitFunc, highlighterSceneFunc } from "@/lib/highlightBlend";
 import { formatPinLabel } from "@/lib/pinLabel";
 import { useSettings } from "@/stores/settings";
 import { useStickers } from "@/stores/stickers";
+import { useStickerSets, stickerSelectionFor } from "@/hooks/useStickerSets";
+import { findStickerItem } from "@/lib/stickers/sets";
 import { useOcr } from "@/stores/ocr";
 import {
   setStage,
@@ -289,10 +291,32 @@ export function EditorStage({ src }: Props) {
     lastUsedInit.current = true;
     if (config.general.rememberLastTool && config.lastUsed) {
       if (config.lastUsed.tool) setTool(config.lastUsed.tool);
-      if (config.lastUsed.stickerEmoji)
-        setStickerSelection({ kind: "emoji", char: config.lastUsed.stickerEmoji });
     }
-  }, [settingsReady, config.general.rememberLastTool, config.lastUsed, setTool, setStickerSelection]);
+  }, [settingsReady, config.general.rememberLastTool, config.lastUsed, setTool]);
+
+  // Restore the last sticker (CP-0048). A folder set's items arrive only once
+  // the folder loads, so this waits for that instead of running once up front.
+  const stickerSets = useStickerSets();
+  const stickerFolderState = useStickers((s) => s.folders);
+  const stickerRestored = useRef(false);
+  useEffect(() => {
+    if (!settingsReady || stickerRestored.current) return;
+    const ref = config.general.rememberLastTool ? config.lastUsed?.stickerItem : undefined;
+    if (!ref) {
+      stickerRestored.current = true;
+      return;
+    }
+    const item = findStickerItem(stickerSets, ref.setId, ref.itemId);
+    if (item) {
+      stickerRestored.current = true;
+      setStickerSelection(stickerSelectionFor(ref.setId, item));
+      useStickers.getState().setActiveSetId(ref.setId);
+      return;
+    }
+    const folder = config.stickers.folders.find((f) => f.id === ref.setId);
+    const pending = folder?.enabled && isTauriRuntime() && (stickerFolderState[folder.id]?.loading ?? true);
+    if (!pending) stickerRestored.current = true;
+  }, [settingsReady, config.general.rememberLastTool, config.lastUsed, config.stickers.folders, stickerSets, stickerFolderState, setStickerSelection]);
 
   const lastUsedTimer = useRef<number | null>(null);
   const pendingLastUsed = useRef<NonNullable<AppConfig["lastUsed"]>>({});
@@ -310,14 +334,7 @@ export function EditorStage({ src }: Props) {
           const t = useEditor.getState().tool;
           return t === "crop" ? cur.tool : t;
         })(),
-        stickerEmoji: (() => {
-          const sel = useEditor.getState().stickerSelection;
-          return (
-            pendingLastUsed.current.stickerEmoji ??
-            cur.stickerEmoji ??
-            (sel.kind === "emoji" ? sel.char : undefined)
-          );
-        })(),
+        stickerItem: pendingLastUsed.current.stickerItem ?? cur.stickerItem,
         rect: { ...cur.rect, ...pendingLastUsed.current.rect },
         arrow: { ...cur.arrow, ...pendingLastUsed.current.arrow },
         text: { ...cur.text, ...pendingLastUsed.current.text },
@@ -340,17 +357,13 @@ export function EditorStage({ src }: Props) {
     void initSettings();
   }, [initSettings]);
 
-  // Load image stickers from user-configured directory on first ready.
-  // Loaded entries cache in the module-scoped store so subsequent editor
-  // windows in the same webview reuse them (no re-scan per editor open).
-  const stickersLoaded = useStickers((s) => s.loaded);
+  // Load the user's sticker folders once settings are ready (desktop only).
+  // Loaded folders cache in the module-scoped store, so reopening the editor
+  // in the same webview doesn't re-scan; a newly added folder loads here.
   useEffect(() => {
-    if (!settingsReady) return;
-    if (stickersLoaded) return;
-    const dir = config.stickers.directory;
-    if (!dir) return;
-    void useStickers.getState().load(dir);
-  }, [settingsReady, stickersLoaded, config.stickers.directory]);
+    if (!settingsReady || !isTauriRuntime()) return;
+    void useStickers.getState().loadFolders(config.stickers.folders);
+  }, [settingsReady, config.stickers.folders]);
 
   useEffect(() => {
     setStage(stageRef.current);
@@ -1146,7 +1159,11 @@ export function EditorStage({ src }: Props) {
               fontSize: toolsCfg.sticker.fontSize,
             };
       add(a);
-      scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
+      const { setId, itemId } = stickerSelection;
+      scheduleLastUsedWrite({
+        ...lastUsedPatchForAnnotation(a),
+        ...(setId && itemId ? { stickerItem: { setId, itemId } } : {}),
+      });
       return;
     }
     if (tool === "pin") {

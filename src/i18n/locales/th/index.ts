@@ -5,6 +5,7 @@ import { editor } from "./editor";
 import { settings } from "./settings";
 import { onboarding } from "./onboarding";
 import { app } from "./app";
+import { stickers } from "./stickers";
 
 /** Typed against English so a missing translation fails `tsc`. */
 export const th: Record<TKey, string> = {
@@ -14,4 +15,5 @@ export const th: Record<TKey, string> = {
   ...settings,
   ...onboarding,
   ...app,
+  ...stickers,
 };

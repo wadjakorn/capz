@@ -5,6 +5,7 @@ import type { PinLabelStyle } from "@/lib/pinLabel";
 import type { KeepToolActive } from "@/lib/config";
 import { NUDGE_COALESCE_MS } from "@/lib/nudge";
 import { uid } from "@/lib/uid";
+import { EMOJI_SET_ID, EMOJI_STICKERS } from "@/lib/stickers/builtin";
 import type { TemplatePatch } from "@/lib/template";
 
 export type Tool =
@@ -208,9 +209,11 @@ export type StickerAnnotation = Base & {
   name?: string;
 };
 
+/** What the sticker tool places. `setId` / `itemId` name the picker item it
+ * came from (CP-0048) so it can be remembered in `lastUsed.stickerItem`. */
 export type StickerSelection =
-  | { kind: "emoji"; char: string }
-  | { kind: "image"; src: string; name: string };
+  | { kind: "emoji"; char: string; setId?: string; itemId?: string }
+  | { kind: "image"; src: string; name: string; setId?: string; itemId?: string };
 
 export type PinShapeKind = "circle" | "bubble" | "mappin";
 export type PinTailDir = "down" | "up" | "left" | "right";
@@ -291,18 +294,6 @@ export function reorderAnnotations(
   return next;
 }
 
-export const STICKERS = [
-  "⭐",
-  "❤️",
-  "✅",
-  "❌",
-  "👍",
-  "👎",
-  "🔥",
-  "💡",
-  "⚠️",
-  "🎯",
-] as const;
 
 export type Snapshot = {
   annotations: Annotation[];
@@ -514,7 +505,7 @@ export const useEditor = create<State>((set, get) => ({
   tool: "select",
   annotations: [],
   selectedId: null,
-  stickerSelection: { kind: "emoji", char: STICKERS[0] },
+  stickerSelection: { kind: "emoji", char: EMOJI_STICKERS[0], setId: EMOJI_SET_ID, itemId: EMOJI_STICKERS[0] },
   nextPinNumber: 1,
   past: [],
   future: [],

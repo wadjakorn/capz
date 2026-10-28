@@ -24,7 +24,7 @@ describe("dictionaries", () => {
   });
 
   it("every key carries a namespace prefix", () => {
-    const ns = /^(site\.|nav\.|hero\.|features\.|install\.|footer\.|meta\.|common\.|editor\.|settings\.|onboarding\.|app\.)/;
+    const ns = /^(site\.|nav\.|hero\.|features\.|install\.|footer\.|meta\.|common\.|editor\.|settings\.|onboarding\.|app\.|stickers\.)/;
     for (const k of enKeys) expect(k, k).toMatch(ns);
   });
 });

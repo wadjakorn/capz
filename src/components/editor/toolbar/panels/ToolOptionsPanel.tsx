@@ -15,7 +15,6 @@ import { DUPLICATE_SHORTCUT } from "@/lib/duplicate";
 import { formatShortcut } from "@/lib/shortcuts";
 import type { Dispatch, SetStateAction } from "react";
 import type { StickerSelection } from "@/stores/editor";
-import type { StickerEntry } from "@/stores/stickers";
 import { ArrowPanel } from "./ArrowPanel";
 import { BlurPanel } from "./BlurPanel";
 import { HighlighterPanel } from "./HighlighterPanel";
@@ -103,7 +102,6 @@ export type ToolOptionsPanelProps = {
   selected: boolean;
   lastBgColor: string;
   setLastBgColor: Dispatch<SetStateAction<string>>;
-  stickerEntries: StickerEntry[];
   stickerSelection: StickerSelection;
   onSelectSticker: (sel: StickerSelection) => void;
   stickerPicker: boolean;
@@ -229,7 +227,6 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
       panel = (
         <StickerPanel
           sizeCtx={p.sizeCtx}
-          entries={p.stickerEntries}
           selection={p.stickerSelection}
           onSelect={p.onSelectSticker}
           showPicker={p.stickerPicker}

@@ -6,6 +6,7 @@ import {
   deepMerge,
   effectiveTools,
   migrateConfig,
+  stickerFolderId,
   validateConfig,
 } from "./config";
 import v0 from "./__fixtures__/config/v0.json";
@@ -15,6 +16,7 @@ import v4 from "./__fixtures__/config/v4.json";
 import v5 from "./__fixtures__/config/v5.json";
 import v6 from "./__fixtures__/config/v6.json";
 import v7 from "./__fixtures__/config/v7.json";
+import v8 from "./__fixtures__/config/v8.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
@@ -25,7 +27,8 @@ import v99 from "./__fixtures__/config/v99.json";
 //   v4  — schema of v0.15.0+
 //   v5  — schema of v0.18.0+ (CP-0067)
 //   v6  — schema of v0.18.x (auto-backdrop for paste / import)
-//   v7  — current schema (CP-0076: Shapes stroke style)
+//   v7  — schema of v0.19.0 (CP-0076: Shapes stroke style)
+//   v8  — current schema (CP-0048: sticker sets)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -95,7 +98,12 @@ describe("older stores load with every user value kept", () => {
     expect(config.tools.sticker).toEqual(v0.tools.sticker);
     expect(config.capture).toEqual(v0.capture);
     expect(config.updates).toMatchObject(v0.updates);
-    expect(config.stickers).toEqual(v0.stickers);
+    // v7 → v8: the one sticker directory became the first folder set.
+    expect(config.stickers).toEqual({
+      folders: [{ id: stickerFolderId(v0.stickers.directory), dir: v0.stickers.directory, name: "Stickers", enabled: true }],
+      disabledBuiltins: [],
+      order: [],
+    });
   });
 
   it("v1", () => {
@@ -211,7 +219,7 @@ describe("v6 → v7: rect strokeStyle, dashline folded into line", () => {
   it("a v6 rect/ellipse/line keeps its shape and gains solid", () => {
     const { config, issues } = load(v6);
     expect(issues).toEqual([]);
-    expect(config.schemaVersion).toBe(7);
+    expect(config.schemaVersion).toBe(CONFIG_SCHEMA_VERSION);
     expect(config.tools.rect).toEqual({ ...v6.tools.rect, strokeStyle: "solid" });
   });
 
@@ -219,6 +227,55 @@ describe("v6 → v7: rect strokeStyle, dashline folded into line", () => {
     const { config, issues } = load(v7);
     expect(issues).toEqual([]);
     expect(config.tools.rect).toEqual(v7.tools.rect);
+  });
+});
+
+describe("v7 → v8: sticker sets", () => {
+  it("a v7 sticker directory becomes one enabled folder set", () => {
+    const { config, issues } = load({ ...v7, stickers: { directory: "C:\\Users\\me\\Stickers\\" } });
+    expect(issues).toEqual([]);
+    expect(config.stickers.folders).toEqual([
+      { id: stickerFolderId("C:\\Users\\me\\Stickers\\"), dir: "C:\\Users\\me\\Stickers\\", name: "Stickers", enabled: true },
+    ]);
+  });
+
+  it("a v7 store without a directory gets no folder sets", () => {
+    const { config, issues } = load(v7);
+    expect(issues).toEqual([]);
+    expect(config.stickers).toEqual({ folders: [], disabledBuiltins: [], order: [] });
+  });
+
+  it("the remembered emoji becomes a stickerItem in the emoji set", () => {
+    const { config, issues } = load({ ...v7, lastUsed: { tool: "sticker", stickerEmoji: "🔥" } });
+    expect(issues).toEqual([]);
+    expect(config.lastUsed).toEqual({ tool: "sticker", stickerItem: { setId: "emoji", itemId: "🔥" } });
+  });
+
+  it("folder ids are stable, so the step is repeatable", () => {
+    expect(stickerFolderId("/a/b")).toBe(stickerFolderId("/a/b"));
+    expect(stickerFolderId("/a/b")).not.toBe(stickerFolderId("/a/c"));
+  });
+
+  it("a v8 store keeps stored values", () => {
+    const { config, issues } = load(v8);
+    expect(issues).toEqual([]);
+    expect(config.stickers).toEqual(v8.stickers);
+  });
+
+  it("drops a malformed or duplicate folder but keeps the rest", () => {
+    const good = v8.stickers.folders[0];
+    const { config, issues } = load({
+      ...v8,
+      stickers: { ...v8.stickers, folders: [good, { id: 1 }, good] },
+    });
+    expect(config.stickers.folders).toEqual([good]);
+    expect(issues).toHaveLength(2);
+  });
+
+  it("validates lastUsed.stickerItem", () => {
+    expect(load({ ...v8, lastUsed: { stickerItem: { setId: "status", itemId: "bug" } } }).config.lastUsed)
+      .toEqual({ stickerItem: { setId: "status", itemId: "bug" } });
+    expect(load({ ...v8, lastUsed: { stickerItem: { setId: 3 } } }).config.lastUsed).toBeUndefined();
   });
 });
 
