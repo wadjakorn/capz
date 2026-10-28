@@ -4,6 +4,25 @@
 use std::str::FromStr;
 use tauri_plugin_global_shortcut::Shortcut;
 
+/// Which OS's shortcut policy applies. A parameter (not a `cfg!`) so every
+/// platform's rules are unit-tested on any build host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Os {
+    Mac,
+    Windows,
+    Linux,
+}
+
+impl Os {
+    pub const CURRENT: Os = if cfg!(target_os = "macos") {
+        Os::Mac
+    } else if cfg!(target_os = "windows") {
+        Os::Windows
+    } else {
+        Os::Linux
+    };
+}
+
 /// Disposition of a requested accelerator string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccelClass {
@@ -30,6 +49,17 @@ const RESERVED_WIN: &[&str] = &[
     "CmdOrCtrl+Escape",
 ];
 
+/// Linux desktop (GNOME / KDE / Xfce) combos the shell or window manager
+/// usually owns. Super+ combos are rejected outright, as on Windows.
+const RESERVED_LINUX: &[&str] = &[
+    "Alt+Tab",
+    "Alt+Shift+Tab",
+    "Alt+F2", // run dialog
+    "Alt+F4", // close window
+    "CmdOrCtrl+Alt+Delete", // log out
+    "CmdOrCtrl+Alt+T", // terminal
+];
+
 /// macOS combos the OS normally owns and silently swallows. Cmd+Shift+3/4/5
 /// are user-disableable in System Settings > Keyboard > Shortcuts, so a user
 /// who has turned the system screenshot shortcuts off can legitimately claim
@@ -45,8 +75,12 @@ const RESERVED_MAC: &[&str] = &[
 
 /// Reserved check by parsed equality so it is independent of token spelling
 /// (e.g. "Cmd+Space" vs "CmdOrCtrl+Space" parse equal on macOS).
-fn is_reserved(sc: &Shortcut, is_windows: bool) -> bool {
-    let list = if is_windows { RESERVED_WIN } else { RESERVED_MAC };
+fn is_reserved(sc: &Shortcut, os: Os) -> bool {
+    let list = match os {
+        Os::Mac => RESERVED_MAC,
+        Os::Windows => RESERVED_WIN,
+        Os::Linux => RESERVED_LINUX,
+    };
     list.iter()
         .filter_map(|r| Shortcut::from_str(r).ok())
         .any(|r| r == *sc)
@@ -77,9 +111,10 @@ fn has_win_token(accel: &str) -> bool {
     })
 }
 
-pub fn classify(accel: &str, is_windows: bool) -> AccelClass {
-    // The Win/⊞ key is OS-reserved and unbindable on Windows.
-    if is_windows && has_win_token(accel) {
+pub fn classify(accel: &str, os: Os) -> AccelClass {
+    // The Win/⊞ key is OS-reserved and unbindable on Windows; on Linux the
+    // desktop owns most Super combos, and the recorder refuses them too.
+    if os != Os::Mac && has_win_token(accel) {
         return AccelClass::Invalid;
     }
     let Ok(sc) = Shortcut::from_str(accel) else {
@@ -90,7 +125,7 @@ pub fn classify(accel: &str, is_windows: bool) -> AccelClass {
     if sc.mods.is_empty() && !is_bare_high_function_key(accel) {
         return AccelClass::Invalid;
     }
-    if is_reserved(&sc, is_windows) {
+    if is_reserved(&sc, os) {
         return AccelClass::Discouraged;
     }
     AccelClass::Valid
@@ -102,34 +137,34 @@ mod tests {
 
     #[test]
     fn valid_combo_with_modifiers() {
-        assert_eq!(classify("CmdOrCtrl+Shift+A", false), AccelClass::Valid);
-        assert_eq!(classify("CmdOrCtrl+Shift+A", true), AccelClass::Valid);
+        assert_eq!(classify("CmdOrCtrl+Shift+A", Os::Mac), AccelClass::Valid);
+        assert_eq!(classify("CmdOrCtrl+Shift+A", Os::Windows), AccelClass::Valid);
     }
 
     #[test]
     fn space_is_valid_when_named() {
-        assert_eq!(classify("CmdOrCtrl+Shift+Space", true), AccelClass::Valid);
+        assert_eq!(classify("CmdOrCtrl+Shift+Space", Os::Windows), AccelClass::Valid);
     }
 
     #[test]
     fn bare_key_rejected_by_policy_though_parser_accepts() {
         // "3" parses fine (single-key branch) but has no modifier.
-        assert_eq!(classify("3", true), AccelClass::Invalid);
+        assert_eq!(classify("3", Os::Windows), AccelClass::Invalid);
     }
 
     #[test]
     fn modifiers_only_rejected() {
-        assert_eq!(classify("CmdOrCtrl+Shift+Alt", true), AccelClass::Invalid);
+        assert_eq!(classify("CmdOrCtrl+Shift+Alt", Os::Windows), AccelClass::Invalid);
     }
 
     #[test]
     fn empty_token_rejected() {
-        assert_eq!(classify("CmdOrCtrl+Shift+", true), AccelClass::Invalid);
+        assert_eq!(classify("CmdOrCtrl+Shift+", Os::Windows), AccelClass::Invalid);
     }
 
     #[test]
     fn win_key_rejected_on_windows() {
-        assert_eq!(classify("Super+Shift+S", true), AccelClass::Invalid);
+        assert_eq!(classify("Super+Shift+S", Os::Windows), AccelClass::Invalid);
     }
 
     /// CP-0037(a). These used to be a hard refusal. They are now attempted —
@@ -137,10 +172,10 @@ mod tests {
     #[test]
     fn os_owned_combos_are_discouraged_not_refused() {
         for accel in ["CmdOrCtrl+Space", "CmdOrCtrl+Shift+3", "CmdOrCtrl+Shift+5"] {
-            assert_eq!(classify(accel, false), AccelClass::Discouraged, "{accel}");
+            assert_eq!(classify(accel, Os::Mac), AccelClass::Discouraged, "{accel}");
         }
         for accel in ["Alt+Tab", "CmdOrCtrl+Shift+Escape"] {
-            assert_eq!(classify(accel, true), AccelClass::Discouraged, "{accel}");
+            assert_eq!(classify(accel, Os::Windows), AccelClass::Discouraged, "{accel}");
         }
     }
 
@@ -148,14 +183,25 @@ mod tests {
     #[test]
     fn bare_high_function_keys_accepted_others_still_rejected() {
         for accel in ["F13", "F16", "F20", "f18"] {
-            assert_eq!(classify(accel, false), AccelClass::Valid, "{accel}");
-            assert_eq!(classify(accel, true), AccelClass::Valid, "{accel}");
+            assert_eq!(classify(accel, Os::Mac), AccelClass::Valid, "{accel}");
+            assert_eq!(classify(accel, Os::Windows), AccelClass::Valid, "{accel}");
         }
         // Just outside the range, and ordinary keys, stay modifier-gated.
         for accel in ["F12", "F21", "A", "Space", "Escape"] {
-            assert_eq!(classify(accel, true), AccelClass::Invalid, "{accel}");
+            assert_eq!(classify(accel, Os::Windows), AccelClass::Invalid, "{accel}");
         }
         // The exemption is for BARE keys only — modified F13 is still fine.
-        assert_eq!(classify("CmdOrCtrl+F13", true), AccelClass::Valid);
+        assert_eq!(classify("CmdOrCtrl+F13", Os::Windows), AccelClass::Valid);
+    }
+
+    #[test]
+    fn linux_rejects_super_and_uses_its_own_reserved_list() {
+        assert_eq!(classify("Super+Shift+S", Os::Linux), AccelClass::Invalid);
+        assert_eq!(classify("CmdOrCtrl+Shift+A", Os::Linux), AccelClass::Valid);
+        for accel in ["Alt+Tab", "Alt+F4", "CmdOrCtrl+Alt+T"] {
+            assert_eq!(classify(accel, Os::Linux), AccelClass::Discouraged, "{accel}");
+        }
+        // Not the macOS set.
+        assert_eq!(classify("CmdOrCtrl+Space", Os::Linux), AccelClass::Valid);
     }
 }

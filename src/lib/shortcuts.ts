@@ -117,6 +117,16 @@ const OS_OWNED_WIN = new Set([
   "CmdOrCtrl+Escape",
 ]);
 
+// Linux desktop shell / window-manager combos (GNOME, KDE, Xfce).
+const OS_OWNED_LINUX = new Set([
+  "Alt+Tab",
+  "Alt+Shift+Tab",
+  "Alt+F2",
+  "Alt+F4",
+  "CmdOrCtrl+Alt+Delete",
+  "CmdOrCtrl+Alt+T",
+]);
+
 export function formatShortcut(accel: string, platform: Platform = currentPlatform()): string {
   const parts = shortcutKeys(accel, platform);
   return platform === "mac" ? parts.join("") : parts.join("+");
@@ -131,15 +141,13 @@ export function shortcutKeys(accel: string, platform: Platform = currentPlatform
 }
 
 // True when the OS shell usually owns this combo. Advisory only — callers
-// warn and still allow the binding. Mirrors `RESERVED_MAC`/`RESERVED_WIN` in
+// warn and still allow the binding. Mirrors `RESERVED_MAC`/`_WIN`/`_LINUX` in
 // `src-tauri/src/accel.rs`; keep the two lists in sync by hand.
 export function isOsOwned(accel: string, platform: Platform = currentPlatform()): boolean {
   if (platform === "mac") {
     return OS_OWNED_MAC.has(accel.replace(/CmdOrCtrl/g, "Cmd"));
   }
-  // Linux shares the Windows set for now (Alt+Tab, Alt+F4, …); a Linux list
-  // on both sides is CP-0084.
-  return OS_OWNED_WIN.has(accel);
+  return (platform === "linux" ? OS_OWNED_LINUX : OS_OWNED_WIN).has(accel);
 }
 
 // Bare F13–F20 are bindable without a modifier: they carry no default OS or

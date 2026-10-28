@@ -145,6 +145,8 @@ describe("linux platform (CP-0083)", () => {
 
   it("flags the desktop's own combos, not the macOS set", () => {
     expect(isOsOwned("Alt+Tab", "linux")).toBe(true);
+    expect(isOsOwned("CmdOrCtrl+Alt+T", "linux")).toBe(true);
+    expect(isOsOwned("CmdOrCtrl+Shift+Escape", "linux")).toBe(false);
     expect(isOsOwned("CmdOrCtrl+Space", "linux")).toBe(false);
   });
 });

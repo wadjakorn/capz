@@ -98,6 +98,8 @@ export const app: Record<keyof typeof en, string> = {
   "app.export.clipboard": "ใช้คลิปบอร์ดไม่ได้",
   "app.export.failed": "ส่งออกไม่สำเร็จ",
 
+  "app.notice.waylandTitle": "capz บน Linux ต้องเข้าสู่ระบบแบบ Xorg",
+  "app.notice.waylandDesc": "Wayland ไม่ให้แอปใช้ปุ่มลัดและหน้าต่างเลือกพื้นที่จับภาพ ออกจากระบบ เลือก “Ubuntu on Xorg” ที่หน้าเข้าสู่ระบบ แล้วเปิด capz ใหม่",
   "app.notice.revokedTitle": "สิทธิ์การบันทึกหน้าจอถูกเพิกถอน",
   "app.notice.revokedDesc":
     "ให้สิทธิ์อีกครั้งที่ การตั้งค่าระบบ → ความเป็นส่วนตัวและความปลอดภัย → การบันทึกหน้าจอ (Screen Recording)",

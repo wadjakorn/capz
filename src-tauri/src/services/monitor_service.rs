@@ -64,9 +64,9 @@ pub fn primary_monitor() -> Result<Monitor> {
 }
 
 /// Current cursor position in the SAME coordinate space `list_monitors` reports
-/// monitor rects in: logical CG points on macOS, physical pixels on Windows.
-/// Returns `None` when no platform cursor API is available (e.g. Linux dev
-/// builds) — callers fall back to the primary monitor.
+/// monitor rects in: logical CG points on macOS, physical pixels on Windows and
+/// X11. Returns `None` when no platform cursor API is available (e.g. a Wayland
+/// session without XWayland) — callers fall back to the primary monitor.
 pub fn cursor_position() -> Option<(f64, f64)> {
     #[cfg(target_os = "macos")]
     {
@@ -78,7 +78,11 @@ pub fn cursor_position() -> Option<(f64, f64)> {
     {
         cursor_point_windows()
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::services::x11::query_pointer().map(|p| (p.x as f64, p.y as f64))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         None
     }
