@@ -40,7 +40,11 @@ which phase the precheck found: `propose`, `ship`, or `publish`.
    the failing job, ticket `blocked`, stop (the draft stays; a re-run reuses it).
 5. **Assets:** names of `gh release view vX.Y.Z --json assets` must equal the
    previous release's names with the version swapped (dmg ×2, setup.exe +
-   .sig, msi + .sig, app.tar.gz ×2 + .sig, `latest.json`). Missing → blocked.
+   .sig, msi + .sig, app.tar.gz ×2 + .sig, `latest.json`, and — from the
+   first release that includes CP-0086 — `.deb` + `.sig` and `.AppImage` +
+   `.sig` for amd64 and arm64). Missing → blocked. Also check `latest.json`
+   still lists every `darwin-*` and `windows-*` platform: five matrix jobs
+   merge into it, so a lost update would silently drop a platform.
 6. Windows-test flag set → STATUS "draft built — test the installer, then move
    [release] to todo", ticket `blocked`, stop. Otherwise continue to publish.
 
