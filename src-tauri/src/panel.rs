@@ -77,6 +77,16 @@ pub fn make_key<R: Runtime>(app: &AppHandle<R>, win: &WebviewWindow<R>) {
         use tauri_nspanel::ManagerExt;
         if let Ok(panel) = app.get_webview_panel(win.label()) {
             panel.make_key_window();
+            // Capture windows are built `focused(false)` so wry does not
+            // activate capz (CP-0080), which also skips its
+            // `makeFirstResponder(webview)`. Without it the key panel would
+            // swallow Esc/Enter instead of handing them to the page.
+            let _ = win.with_webview(|wv| unsafe {
+                use objc2::{msg_send, runtime::AnyObject};
+                let ns_window = wv.ns_window() as *mut AnyObject;
+                let webview = wv.inner() as *mut AnyObject;
+                let _: bool = msg_send![ns_window, makeFirstResponder: webview];
+            });
             return;
         }
     }

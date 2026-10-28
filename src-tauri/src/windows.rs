@@ -118,6 +118,10 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
             .skip_taskbar(true)
             .resizable(false)
             .shadow(false)
+            // Unfocused: wry then skips `NSApp.activate()` on build, which
+            // would pull a buried editor in front of the app being captured
+            // (CP-0080). Keys arrive via `panel::make_key` instead.
+            .focused(false)
             .inner_size(s.w as f64, s.h as f64)
             .position(s.x as f64, s.y as f64)
             .visible(false)
@@ -345,6 +349,8 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
         .skip_taskbar(true)
         .resizable(false)
         .shadow(false)
+        // Never activate capz on build (CP-0080) — see `show_overlay_mode`.
+        .focused(false)
         .inner_size(COMMAND_RING_SIZE, COMMAND_RING_SIZE)
         .visible(false)
         .build()?;
@@ -985,6 +991,8 @@ pub fn show_scroll_hud<R: Runtime>(
     .skip_taskbar(true)
     .resizable(false)
     .shadow(false)
+    // Never activate capz on build (CP-0080) — see `show_overlay_mode`.
+    .focused(false)
     .inner_size(HUD_W, HUD_H)
     .visible(false)
     .build()?;
@@ -1395,5 +1403,46 @@ mod tests {
         let (x, y) = ring_position(100.0, 100.0, 0.0, 0.0, 200.0, 200.0, RING, RING);
         assert!((x - 0.0).abs() < 1e-6);
         assert!((y - 0.0).abs() < 1e-6);
+    }
+
+    /// CP-0080 guard. wry < 0.57.1 activates capz whenever a webview window is
+    /// built, which pulls a buried editor in front of the app being captured.
+    #[test]
+    fn lockfile_wry_skips_activation_for_unfocused_webviews() {
+        let lock = include_str!("../Cargo.lock");
+        let version = lock
+            .split("[[package]]")
+            .find(|pkg| pkg.contains("\nname = \"wry\"\n"))
+            .and_then(|pkg| pkg.lines().find_map(|l| l.strip_prefix("version = \"")))
+            .map(|v| v.trim_end_matches('"'))
+            .expect("wry in Cargo.lock");
+        let parts: Vec<u64> = version.split('.').map(|n| n.parse().unwrap_or(0)).collect();
+        assert!(
+            parts.as_slice() >= [0, 57, 1].as_slice(),
+            "wry {version} activates the app on every new webview; need >= 0.57.1"
+        );
+    }
+
+    /// CP-0080 guard. Every window built at capture time must pass
+    /// `.focused(false)` — wry only skips activating capz for unfocused
+    /// webviews. The editor is the one window that should activate.
+    #[test]
+    fn capture_windows_are_built_unfocused() {
+        let src = include_str!("windows.rs");
+        let src = &src[..src.find("#[cfg(test)]").expect("test module")];
+        let builders: Vec<&str> = src
+            .split("WebviewWindowBuilder::new(")
+            .skip(1)
+            .map(|rest| &rest[..rest.find(".build()").expect("builder ends in .build()")])
+            .collect();
+        assert!(builders.len() >= 5, "expected overlay/ring/hud/guide/editor builders");
+        for b in builders {
+            let is_editor = b.contains("\"editor\"");
+            assert_eq!(
+                b.contains(".focused(false)"),
+                !is_editor,
+                "builder must be unfocused unless it is the editor:\n{b}"
+            );
+        }
     }
 }
