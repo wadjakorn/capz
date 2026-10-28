@@ -16,6 +16,7 @@ import {
 } from "@/stores/editor";
 import { isTauriRuntime } from "@/lib/platform";
 import { getScrollContainer, getStage, getStageExportBox } from "@/lib/stageBridge";
+import { withScreenChromeHidden } from "@/lib/screenChrome";
 import { uid } from "@/lib/uid";
 import type { TemplatePatch } from "@/lib/template";
 
@@ -296,16 +297,19 @@ export function renderThumb(maxWidth = 160): string {
     // origin. Passing box.x/box.y here crops the wrong part of the canvas at
     // any zoom other than 100%.
     const scale = stage.scaleX() || 1;
-    return stage.toDataURL({
-      x: 0,
-      y: 0,
-      width: box.w * scale,
-      height: box.h * scale,
-      // Output lands at `maxWidth` px wide: (box.w * scale) * pixelRatio.
-      pixelRatio: maxWidth / box.w / scale,
-      mimeType: "image/jpeg",
-      quality: 0.6,
-    });
+    // Snap guides are screen chrome too (CP-0079).
+    return withScreenChromeHidden(stage, () =>
+      stage.toDataURL({
+        x: 0,
+        y: 0,
+        width: box.w * scale,
+        height: box.h * scale,
+        // Output lands at `maxWidth` px wide: (box.w * scale) * pixelRatio.
+        pixelRatio: maxWidth / box.w / scale,
+        mimeType: "image/jpeg",
+        quality: 0.6,
+      }),
+    );
   } catch (e) {
     // Konva throws on a tainted canvas; a missing thumbnail is survivable.
     console.warn("thumbnail render failed", e);

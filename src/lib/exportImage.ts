@@ -5,6 +5,7 @@ import { getStageExportBox, getStageImageSize } from "@/lib/stageBridge";
 import { isTauriRuntime } from "@/lib/platform";
 import { copyPngWithFallback, downloadPng } from "@/lib/webExport";
 import { clearElementClipboard } from "@/lib/elementClipboard";
+import { withScreenChromeHidden } from "@/lib/screenChrome";
 
 type ExportResult = {
   saved?: string;
@@ -37,7 +38,8 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
  * EditorStage) is the union of the image rect and any elements that overflow
  * its edges; with no overflow it equals the image rect, so output is unchanged.
  * The white/configured background is painted as a Rect inside the Stage, so it
- * is captured here without extra compositing.
+ * is captured here without extra compositing. Screen-only chrome (snap
+ * guides) is hidden for the snapshot (CP-0079).
  */
 function exportRegion(
   stage: Konva.Stage,
@@ -48,15 +50,17 @@ function exportRegion(
   const size = getStageImageSize();
   const w = box?.w ?? size?.w ?? stage.width() / scale;
   const h = box?.h ?? size?.h ?? stage.height() / scale;
-  return stage.toDataURL({
-    x: 0,
-    y: 0,
-    width: w * scale,
-    height: h * scale,
-    pixelRatio: 1 / scale,
-    mimeType: opts.mimeType,
-    quality: opts.quality,
-  });
+  return withScreenChromeHidden(stage, () =>
+    stage.toDataURL({
+      x: 0,
+      y: 0,
+      width: w * scale,
+      height: h * scale,
+      pixelRatio: 1 / scale,
+      mimeType: opts.mimeType,
+      quality: opts.quality,
+    }),
+  );
 }
 
 function stageBytes(stage: Konva.Stage, output: AppConfig["output"]): Uint8Array {
