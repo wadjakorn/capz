@@ -123,3 +123,36 @@ export function contentBounds(
   const y = Math.floor(top);
   return { x, y, w: Math.ceil(right) - x, h: Math.ceil(bottom) - y };
 }
+
+/** Smallest AABB covering every box, or null for none (group snap, CP-0050). */
+export function unionAABB(boxes: readonly AABB[]): AABB | null {
+  if (!boxes.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const b of boxes) {
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+/**
+ * Ids of the annotations whose AABB lies fully inside `rect` (marquee
+ * selection, CP-0050). `rect` may have a negative w/h (dragged up or left).
+ */
+export function annotationsInRect(list: readonly Annotation[], rect: AABB): string[] {
+  const x0 = Math.min(rect.x, rect.x + rect.w);
+  const y0 = Math.min(rect.y, rect.y + rect.h);
+  const x1 = Math.max(rect.x, rect.x + rect.w);
+  const y1 = Math.max(rect.y, rect.y + rect.h);
+  return list
+    .filter((a) => {
+      const b = annotationAABB(a);
+      return !!b && b.x >= x0 && b.y >= y0 && b.x + b.w <= x1 && b.y + b.h <= y1;
+    })
+    .map((a) => a.id);
+}

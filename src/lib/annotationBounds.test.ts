@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   annotationAABB,
+  annotationsInRect,
+  unionAABB,
   contentBounds,
   OVERFLOW_GAP,
   type AABB,
@@ -138,5 +140,30 @@ describe("annotationAABB pen/magnify", () => {
     };
     // Source area 30±20 → [10,50]; output half 20×2=40 at (100,60) → [60,140]×[20,100].
     expect(annotationAABB(mag)).toEqual({ x: 10, y: 20, w: 130, h: 80 });
+  });
+});
+
+describe("annotationsInRect (marquee, CP-0050)", () => {
+  const r = (id: string, x: number, y: number) =>
+    ({ id, type: "rect", x, y, w: 10, h: 10, stroke: "#f00", strokeWidth: 2 }) as const;
+  const list = [r("in", 10, 10), r("half", 25, 10), r("out", 100, 100)];
+
+  it("keeps only annotations whose AABB is fully inside", () => {
+    expect(annotationsInRect(list, { x: 0, y: 0, w: 30, h: 30 })).toEqual(["in"]);
+  });
+
+  it("accepts a rect dragged up-left (negative w/h)", () => {
+    expect(annotationsInRect(list, { x: 40, y: 40, w: -40, h: -40 })).toEqual(["in", "half"]);
+  });
+
+  it("an edge-touching AABB counts as inside", () => {
+    expect(annotationsInRect(list, { x: 10, y: 10, w: 10, h: 10 })).toEqual(["in"]);
+  });
+});
+
+describe("unionAABB", () => {
+  it("covers every box; null for none", () => {
+    expect(unionAABB([box(0, 0, 10, 10), box(20, -5, 5, 5)])).toEqual(box(0, -5, 25, 15));
+    expect(unionAABB([])).toBeNull();
   });
 });
