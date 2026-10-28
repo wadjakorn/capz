@@ -391,9 +391,32 @@ export function readEditorDoc(s: {
   };
 }
 
+/**
+ * The selection fields for a given id list (CP-0050). `selectedIds` is the
+ * source of truth (ordered; the last entry is the primary); `selectedId`
+ * mirrors it for single-select callers — the id when exactly one is selected,
+ * else null. Always write both through this.
+ */
+export function selection(ids: readonly string[]): {
+  selectedIds: string[];
+  selectedId: string | null;
+} {
+  return { selectedIds: [...ids], selectedId: ids.length === 1 ? ids[0] : null };
+}
+
+const NO_SELECTION = selection([]);
+
+/** Order-insensitive key for an id set (nudge-run coalescing). */
+function idsKey(ids: readonly string[]): string {
+  return [...ids].sort().join("\u0000");
+}
+
 type State = {
   tool: Tool;
   annotations: Annotation[];
+  /** Selected annotation ids, ordered; the last is the primary (CP-0050). */
+  selectedIds: string[];
+  /** The single selected id, or null when 0 or 2+ are selected. */
   selectedId: string | null;
   stickerSelection: StickerSelection;
   nextPinNumber: number;
@@ -421,7 +444,7 @@ type State = {
    * `annotations` is the array the last nudge produced: any other edit
    * replaces it, which ends the run. Transient; never persisted.
    */
-  nudgeRun: { id: string; at: number; annotations: Annotation[] } | null;
+  nudgeRun: { key: string; at: number; annotations: Annotation[] } | null;
 
   setTool: (t: Tool) => void;
   setStickerSelection: (sel: StickerSelection) => void;
@@ -430,6 +453,18 @@ type State = {
   setCaptureSource: (s: CaptureSource) => void;
   setBackdropOn: (on: boolean) => void;
   select: (id: string | null) => void;
+  /** Add `id` to the selection, or take it out if already in (Cmd/Ctrl-click). */
+  toggleSelect: (id: string) => void;
+  /** Replace the selection with `ids` (marquee). Unknown ids are dropped. */
+  selectMany: (ids: readonly string[]) => void;
+  /** Delete every listed annotation; one undo entry. */
+  removeMany: (ids: readonly string[]) => void;
+  /** Move every listed annotation by (dx, dy) image px; one undo entry. */
+  moveMany: (ids: readonly string[], dx: number, dy: number) => void;
+  /** `nudge` for a set; a run on the same id set shares one undo entry. */
+  nudgeMany: (ids: readonly string[], dx: number, dy: number, now?: number) => void;
+  /** Apply one patch to every listed annotation; one undo entry. */
+  updateMany: (ids: readonly string[], patch: Partial<Annotation>) => void;
   add: (a: Annotation) => void;
   update: (id: string, patch: Partial<Annotation>) => void;
   remove: (id: string) => void;
@@ -505,7 +540,7 @@ export function pushHistory(past: Snapshot[], snap: Snapshot): Snapshot[] {
 export const useEditor = create<State>((set, get) => ({
   tool: "select",
   annotations: [],
-  selectedId: null,
+  ...NO_SELECTION,
   stickerSelection: { kind: "emoji", char: EMOJI_STICKERS[0], setId: EMOJI_SET_ID, itemId: EMOJI_STICKERS[0] },
   nextPinNumber: 1,
   past: [],
@@ -524,7 +559,7 @@ export const useEditor = create<State>((set, get) => ({
     // target; every other tool clears it (as before).
     set({
       tool: t,
-      selectedId: t === "select" || t === "crop" ? get().selectedId : null,
+      ...(t === "select" || t === "crop" ? {} : NO_SELECTION),
       // Snap guides belong to the gesture, never to the next tool (CP-0079).
       guides: { x: [], y: [] },
     }),
@@ -533,7 +568,79 @@ export const useEditor = create<State>((set, get) => ({
   setHasImage: (v) => set({ hasImage: v }),
   setCaptureSource: (s) => set({ captureSource: s }),
   setBackdropOn: (on) => set({ backdropOn: on }),
-  select: (id) => set({ selectedId: id }),
+  select: (id) => set(selection(id ? [id] : [])),
+  toggleSelect: (id) => {
+    const cur = get().selectedIds;
+    set(selection(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  },
+  selectMany: (ids) => {
+    const known = new Set(get().annotations.map((a) => a.id));
+    set(selection([...new Set(ids)].filter((id) => known.has(id))));
+  },
+
+  removeMany: (ids) => {
+    const { annotations, nextPinNumber, past, imageCrop, selectedIds } = get();
+    const drop = new Set(ids);
+    const next = annotations.filter((a) => !drop.has(a.id));
+    if (next.length === annotations.length) return;
+    set({
+      annotations: next,
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
+      ...selection(selectedIds.filter((id) => !drop.has(id))),
+    });
+  },
+
+  moveMany: (ids, dx, dy) => {
+    if (!dx && !dy) return;
+    const { annotations, nextPinNumber, past, imageCrop } = get();
+    const move = new Set(ids);
+    if (!annotations.some((a) => move.has(a.id))) return;
+    set({
+      annotations: annotations.map((a) =>
+        move.has(a.id) ? shiftAnnotation(a, dx, dy) : a,
+      ),
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
+    });
+  },
+
+  nudgeMany: (ids, dx, dy, now = Date.now()) => {
+    if (!dx && !dy) return;
+    const { annotations, nextPinNumber, past, imageCrop, nudgeRun } = get();
+    const move = new Set(ids);
+    if (!annotations.some((a) => move.has(a.id))) return;
+    const next = annotations.map((a) =>
+      move.has(a.id) ? shiftAnnotation(a, dx, dy) : a,
+    );
+    const key = idsKey([...move]);
+    const continuing =
+      nudgeRun !== null &&
+      nudgeRun.key === key &&
+      nudgeRun.annotations === annotations &&
+      now - nudgeRun.at <= NUDGE_COALESCE_MS;
+    set({
+      annotations: next,
+      ...(continuing
+        ? {}
+        : { past: pushHistory(past, { annotations, nextPinNumber, imageCrop }) }),
+      future: [],
+      nudgeRun: { key, at: now, annotations: next },
+    });
+  },
+
+  updateMany: (ids, patch) => {
+    const { annotations, nextPinNumber, past, imageCrop } = get();
+    const hit = new Set(ids);
+    if (!annotations.some((a) => hit.has(a.id))) return;
+    set({
+      annotations: annotations.map((x) =>
+        hit.has(x.id) ? ({ ...x, ...patch } as Annotation) : x,
+      ),
+      past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
+      future: [],
+    });
+  },
 
   add: (a) => {
     const { annotations, nextPinNumber, past, imageCrop } = get();
@@ -542,7 +649,7 @@ export const useEditor = create<State>((set, get) => ({
       annotations: [...annotations, a],
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
-      selectedId: a.id,
+      ...selection([a.id]),
       nextPinNumber: advancePin ? a.number + 1 : nextPinNumber,
     });
   },
@@ -560,36 +667,16 @@ export const useEditor = create<State>((set, get) => ({
   },
 
   remove: (id) => {
-    const { annotations, nextPinNumber, past, selectedId, imageCrop } = get();
+    const { annotations, nextPinNumber, past, selectedIds, imageCrop } = get();
     set({
       annotations: annotations.filter((x) => x.id !== id),
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
-      selectedId: selectedId === id ? null : selectedId,
+      ...selection(selectedIds.filter((x) => x !== id)),
     });
   },
 
-  nudge: (id, dx, dy, now = Date.now()) => {
-    if (!dx && !dy) return;
-    const { annotations, nextPinNumber, past, imageCrop, nudgeRun } = get();
-    if (!annotations.some((a) => a.id === id)) return;
-    const next = annotations.map((a) =>
-      a.id === id ? shiftAnnotation(a, dx, dy) : a,
-    );
-    const continuing =
-      nudgeRun !== null &&
-      nudgeRun.id === id &&
-      nudgeRun.annotations === annotations &&
-      now - nudgeRun.at <= NUDGE_COALESCE_MS;
-    set({
-      annotations: next,
-      ...(continuing
-        ? {}
-        : { past: pushHistory(past, { annotations, nextPinNumber, imageCrop }) }),
-      future: [],
-      nudgeRun: { id, at: now, annotations: next },
-    });
-  },
+  nudge: (id, dx, dy, now) => get().nudgeMany([id], dx, dy, now),
 
   duplicate: (id, delta = { dx: 10, dy: 10 }) => {
     const { annotations, nextPinNumber, past, imageCrop } = get();
@@ -604,7 +691,7 @@ export const useEditor = create<State>((set, get) => ({
       annotations: next,
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
-      selectedId: copy.id,
+      ...selection([copy.id]),
       nextPinNumber: isPin ? nextPinNumber + 1 : nextPinNumber,
     });
     return copy.id;
@@ -628,14 +715,14 @@ export const useEditor = create<State>((set, get) => ({
       annotations: [],
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
-      selectedId: null,
+      ...NO_SELECTION,
     });
   },
 
   reset: () =>
     set({
       annotations: [],
-      selectedId: null,
+      ...NO_SELECTION,
       past: [],
       future: [],
       imageCrop: null,
@@ -655,7 +742,7 @@ export const useEditor = create<State>((set, get) => ({
       // the 0 sentinel), which is what preserves a workspace's zoom on return.
       displayScale: doc.displayScale,
       userZoomed: doc.userZoomed,
-      selectedId: null,
+      ...NO_SELECTION,
       past: [],
       future: [],
       guides: { x: [], y: [] },
@@ -677,7 +764,7 @@ export const useEditor = create<State>((set, get) => ({
       imageCrop: next,
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
-      selectedId: null,
+      ...NO_SELECTION,
       tool: "select",
       // Re-fit + re-center for the new image dimensions (0 = fit sentinel).
       displayScale: 0,
@@ -719,7 +806,7 @@ export const useEditor = create<State>((set, get) => ({
       annotations: annotations.map((x) => (x.id === id ? patched : x)),
       past: pushHistory(past, { annotations, nextPinNumber, imageCrop }),
       future: [],
-      selectedId: id,
+      ...selection([id]),
       tool: "select",
     });
   },
@@ -737,7 +824,7 @@ export const useEditor = create<State>((set, get) => ({
         ? {
             displayScale: 0,
             userZoomed: false,
-            selectedId: null,
+            ...NO_SELECTION,
             tool: "select" as const,
             nudgeRun: null,
           }
@@ -756,7 +843,7 @@ export const useEditor = create<State>((set, get) => ({
       imageCrop: prev.imageCrop,
       past: past.slice(0, -1),
       future: [{ annotations, nextPinNumber, imageCrop }, ...future],
-      selectedId: null,
+      ...NO_SELECTION,
       guides: { x: [], y: [] },
       ...(cropChanged ? { displayScale: 0, userZoomed: false } : {}),
     });
@@ -773,7 +860,7 @@ export const useEditor = create<State>((set, get) => ({
       imageCrop: next.imageCrop,
       past: [...past, { annotations, nextPinNumber, imageCrop }],
       future: future.slice(1),
-      selectedId: null,
+      ...NO_SELECTION,
       guides: { x: [], y: [] },
       ...(cropChanged ? { displayScale: 0, userZoomed: false } : {}),
     });
