@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { rulerTicks } from "@/lib/rulerTicks";
 
 const RULER_SIZE = 20;
 
@@ -60,23 +61,11 @@ type Props = {
   containerH: number;
   padX: number;
   padY: number;
+  // Labels are canvas coordinates: 0 is the stage's top-left (at scroll
+  // offset padX/padY), i.e. the whole exported canvas including backdrop
+  // padding and annotation overflow.
   scale: number;
-  // Image coord that sits at the stage's top-left. Non-zero (negative) when an
-  // element overflows the image's top/left edge and the canvas expands.
-  originX?: number;
-  originY?: number;
 };
-
-function niceStep(approx: number): number {
-  if (!isFinite(approx) || approx <= 0) return 1;
-  const pow = Math.pow(10, Math.floor(Math.log10(approx)));
-  const norm = approx / pow;
-  let m = 1;
-  if (norm > 5) m = 10;
-  else if (norm > 2) m = 5;
-  else if (norm > 1) m = 2;
-  return m * pow;
-}
 
 export function Rulers({
   containerEl,
@@ -85,8 +74,6 @@ export function Rulers({
   padX,
   padY,
   scale,
-  originX = 0,
-  originY = 0,
 }: Props) {
   const topRef = useRef<HTMLCanvasElement>(null);
   const leftRef = useRef<HTMLCanvasElement>(null);
@@ -137,17 +124,12 @@ export function Rulers({
     ctx.font = "9px ui-sans-serif, system-ui, -apple-system";
     ctx.textBaseline = "top";
 
-    const step = niceStep(50 / scale);
-    const minor = Math.max(1, step / 5);
-    const imgAtLeft = originX + (scroll.left - padX) / scale;
-    const imgAtRight = imgAtLeft + w / scale;
+    const ticks = rulerTicks({ scroll: scroll.left, pad: padX, scale, length: w });
 
     ctx.strokeStyle = colors.tickMinor;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    const firstMinor = Math.ceil(imgAtLeft / minor) * minor;
-    for (let v = firstMinor; v <= imgAtRight; v += minor) {
-      const sx = Math.round(padX + (v - originX) * scale - scroll.left) + 0.5;
+    for (const sx of ticks.minor) {
       ctx.moveTo(sx, h - 3);
       ctx.lineTo(sx, h);
     }
@@ -156,14 +138,10 @@ export function Rulers({
     ctx.strokeStyle = colors.tickMajor;
     ctx.fillStyle = colors.text;
     ctx.beginPath();
-    const firstMajor = Math.ceil(imgAtLeft / step) * step;
-    for (let v = firstMajor; v <= imgAtRight; v += step) {
-      const sx = Math.round(padX + (v - originX) * scale - scroll.left) + 0.5;
+    for (const { pos: sx, label } of ticks.major) {
       ctx.moveTo(sx, h - 7);
       ctx.lineTo(sx, h);
-      // Tick labels stay in image coordinates; originX only shifts the drawn
-      // ruler so the numbers line up with the visible image/backdrop origin.
-      ctx.fillText(String(Math.round(v)), sx + 2, 1);
+      ctx.fillText(String(label), sx + 2, 1);
     }
     ctx.stroke();
 
@@ -175,7 +153,7 @@ export function Rulers({
       ctx.lineTo(cx, h);
       ctx.stroke();
     }
-  }, [containerW, padX, scale, scroll.left, cursor, colors, originX]);
+  }, [containerW, padX, scale, scroll.left, cursor, colors]);
 
   useEffect(() => {
     const canvas = leftRef.current;
@@ -195,17 +173,12 @@ export function Rulers({
     ctx.font = "9px ui-sans-serif, system-ui, -apple-system";
     ctx.textBaseline = "top";
 
-    const step = niceStep(50 / scale);
-    const minor = Math.max(1, step / 5);
-    const imgAtTop = originY + (scroll.top - padY) / scale;
-    const imgAtBottom = imgAtTop + h / scale;
+    const ticks = rulerTicks({ scroll: scroll.top, pad: padY, scale, length: h });
 
     ctx.strokeStyle = colors.tickMinor;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    const firstMinor = Math.ceil(imgAtTop / minor) * minor;
-    for (let v = firstMinor; v <= imgAtBottom; v += minor) {
-      const sy = Math.round(padY + (v - originY) * scale - scroll.top) + 0.5;
+    for (const sy of ticks.minor) {
       ctx.moveTo(w - 3, sy);
       ctx.lineTo(w, sy);
     }
@@ -214,17 +187,13 @@ export function Rulers({
     ctx.strokeStyle = colors.tickMajor;
     ctx.fillStyle = colors.text;
     ctx.beginPath();
-    const firstMajor = Math.ceil(imgAtTop / step) * step;
-    for (let v = firstMajor; v <= imgAtBottom; v += step) {
-      const sy = Math.round(padY + (v - originY) * scale - scroll.top) + 0.5;
+    for (const { pos: sy, label } of ticks.major) {
       ctx.moveTo(w - 7, sy);
       ctx.lineTo(w, sy);
       ctx.save();
       ctx.translate(1, sy + 2);
       ctx.rotate(-Math.PI / 2);
-      // Tick labels stay in image coordinates; originY only shifts the drawn
-      // ruler so the numbers line up with the visible image/backdrop origin.
-      ctx.fillText(String(Math.round(v)), -16, 0);
+      ctx.fillText(String(label), -16, 0);
       ctx.restore();
     }
     ctx.stroke();
@@ -237,7 +206,7 @@ export function Rulers({
       ctx.lineTo(w, cy);
       ctx.stroke();
     }
-  }, [containerH, padY, scale, scroll.top, cursor, colors, originY]);
+  }, [containerH, padY, scale, scroll.top, cursor, colors]);
 
   if (scale <= 0) return null;
 
