@@ -2226,14 +2226,16 @@ export function EditorStage({ src }: Props) {
                   groupOffset ? shiftAnnotation(a, groupOffset.dx, groupOffset.dy) : a,
                 );
                 if (!b) return null;
+                // Clear of the stroke, constant on screen.
+                const pad = 4 / scale + ("strokeWidth" in a ? a.strokeWidth / 2 : 0);
                 return (
                   <Rect
                     key={`sel-${a.id}`}
                     name="multi-select-outline"
-                    x={b.x}
-                    y={b.y}
-                    width={b.w}
-                    height={b.h}
+                    x={b.x - pad}
+                    y={b.y - pad}
+                    width={b.w + pad * 2}
+                    height={b.h + pad * 2}
                     stroke="#6d7cff"
                     strokeWidth={1.5 / scale}
                     dash={[4 / scale, 3 / scale]}
