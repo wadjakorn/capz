@@ -2000,8 +2000,6 @@ export function EditorStage({ src }: Props) {
         padX={padX}
         padY={padY}
         scale={scale}
-        originX={contentBox.x}
-        originY={contentBox.y}
       />
     )}
     {ctxMenu && (
