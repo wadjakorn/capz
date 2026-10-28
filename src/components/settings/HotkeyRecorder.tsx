@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { X } from "lucide-react";
 import {
+  currentPlatform,
   eventToAccelerator,
   formatShortcut,
   shortcutKeys,
@@ -20,6 +21,8 @@ type Props = {
 
 export function HotkeyRecorder({ value, onChange }: Props) {
   const { t } = useT();
+  const logoKeyMessage =
+    currentPlatform() === "linux" ? "settings.hotkey.superKey" : "settings.hotkey.winKey";
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     if (!res.ok) {
       setError(
         res.reason === "win"
-          ? t("settings.hotkey.winKey")
+          ? t(logoKeyMessage)
           : t("settings.hotkey.needModifier"),
       );
       return;
@@ -67,7 +70,7 @@ export function HotkeyRecorder({ value, onChange }: Props) {
     if (!v.ok) {
       setError(
         v.reason === "win"
-          ? t("settings.hotkey.winKey")
+          ? t(logoKeyMessage)
           : v.reason === "no-modifier"
             ? t("settings.hotkey.needModifier")
             : t("settings.hotkey.invalid"),

@@ -1,6 +1,8 @@
 import { t } from "@/i18n/store";
 
-export type Platform = "mac" | "win";
+/** "linux" behaves like "win" for keys (Ctrl-based, no logo key) — check
+ *  `platform === "mac"` rather than `=== "win"` for "not a Mac". */
+export type Platform = "mac" | "win" | "linux";
 
 export function currentPlatform(): Platform {
   if (typeof navigator === "undefined") return "win";
@@ -9,9 +11,9 @@ export function currentPlatform(): Platform {
   const uaPlatform = (
     navigator as Navigator & { userAgentData?: { platform?: string } }
   ).userAgentData?.platform;
-  return /Mac|iPhone|iPad/.test(uaPlatform || navigator.platform || "")
-    ? "mac"
-    : "win";
+  const p = uaPlatform || navigator.platform || "";
+  if (/Mac|iPhone|iPad/.test(p)) return "mac";
+  return /Linux/.test(p) ? "linux" : "win";
 }
 
 // ---- IPC types (hand-mirrored from Rust; keep in sync with shortcuts.rs) ----
@@ -73,6 +75,14 @@ const KEY_DISPLAY_WIN: Record<string, string> = {
   ArrowRight: "→",
 };
 
+// Linux names the logo key Super; the rest of the Ctrl-style glyphs match.
+const KEY_DISPLAY_LINUX: Record<string, string> = {
+  ...KEY_DISPLAY_WIN,
+  Cmd: "Super",
+  Meta: "Super",
+  Super: "Super",
+};
+
 const MODIFIERS = new Set([
   "CmdOrCtrl",
   "Cmd",
@@ -115,7 +125,8 @@ export function formatShortcut(accel: string, platform: Platform = currentPlatfo
 // The same keys as `formatShortcut`, one per entry — for rendering keycaps.
 export function shortcutKeys(accel: string, platform: Platform = currentPlatform()): string[] {
   if (!accel) return [];
-  const map = platform === "mac" ? KEY_DISPLAY_MAC : KEY_DISPLAY_WIN;
+  const map =
+    platform === "mac" ? KEY_DISPLAY_MAC : platform === "linux" ? KEY_DISPLAY_LINUX : KEY_DISPLAY_WIN;
   return accel.split("+").map((p) => map[p] ?? p);
 }
 
@@ -126,6 +137,8 @@ export function isOsOwned(accel: string, platform: Platform = currentPlatform())
   if (platform === "mac") {
     return OS_OWNED_MAC.has(accel.replace(/CmdOrCtrl/g, "Cmd"));
   }
+  // Linux shares the Windows set for now (Alt+Tab, Alt+F4, …); a Linux list
+  // on both sides is CP-0084.
   return OS_OWNED_WIN.has(accel);
 }
 
@@ -163,7 +176,8 @@ export function eventToAccelerator(
     if (e.metaKey) parts.push("CmdOrCtrl");
     else if (e.ctrlKey) parts.push("Ctrl");
   } else {
-    if (e.metaKey) return { ok: false, reason: "win" }; // ⊞ Win disallowed on Windows
+    // ⊞ Win / Super disallowed: the shell owns most of its combos.
+    if (e.metaKey) return { ok: false, reason: "win" };
     if (e.ctrlKey) parts.push("CmdOrCtrl");
   }
   if (e.altKey) parts.push("Alt");
@@ -191,7 +205,7 @@ export function validateAccelerator(
   const keys = parts.filter((p) => !MODIFIERS.has(p));
   const mods = parts.filter((p) => MODIFIERS.has(p));
   if (keys.length !== 1) return { ok: false, reason: "invalid" };
-  if (platform === "win" && parts.some((p) => p === "Cmd" || p === "Meta" || p === "Super")) {
+  if (platform !== "mac" && parts.some((p) => p === "Cmd" || p === "Meta" || p === "Super")) {
     return { ok: false, reason: "win" };
   }
   if (mods.length === 0 && !isBareHighFunctionKey(keys[0])) {
