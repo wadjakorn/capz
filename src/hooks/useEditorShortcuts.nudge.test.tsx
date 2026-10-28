@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderHook, cleanup } from "@testing-library/react";
 import { useEditorShortcuts } from "./useEditorShortcuts";
-import { useEditor, type RectAnnotation } from "@/stores/editor";
+import { selection, useEditor, type RectAnnotation } from "@/stores/editor";
 
 function rect(id: string, x: number, y: number): RectAnnotation {
   return { id, type: "rect", x, y, w: 10, h: 10, stroke: "#f00", strokeWidth: 2 };
@@ -29,7 +29,7 @@ describe("useEditorShortcuts — arrow-key nudge (CP-0056)", () => {
     useEditor.setState({
       tool: "select",
       annotations: [rect("a", 10, 10)],
-      selectedId: "a",
+      ...selection(["a"]),
     });
     renderHook(() => useEditorShortcuts());
   });
@@ -56,7 +56,7 @@ describe("useEditorShortcuts — arrow-key nudge (CP-0056)", () => {
   });
 
   it("does nothing (and keeps default scrolling) with no selection", () => {
-    useEditor.setState({ selectedId: null });
+    useEditor.setState(selection([]));
     const e = press("ArrowRight");
     expect(pos()).toEqual([10, 10]);
     expect(e.defaultPrevented).toBe(false);
