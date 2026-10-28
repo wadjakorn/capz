@@ -70,6 +70,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | zoom / fit / actual size | ซูม / พอดีหน้าต่าง / ขนาดจริง |
 | rulers | ไม้บรรทัด |
 | snap | จัดแนวอัตโนมัติ |
+| bypass (hold a key to skip snapping) | ข้าม |
 | layer | เลเยอร์ |
 | workspace | เวิร์กสเปซ |
 | history | ประวัติ |

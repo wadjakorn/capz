@@ -35,6 +35,7 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.app.theme": "ธีม",
   "settings.editor.remember": "จำเครื่องมือ สี และขนาดล่าสุด",
   "settings.editor.snap": "จัดแนวอัตโนมัติกับขอบและองค์ประกอบอื่น",
+  "settings.editor.snapBypass": "ปุ่มกดค้างเพื่อข้ามการจัดแนวอัตโนมัติ",
   "settings.editor.rulers": "แสดงไม้บรรทัด",
   "settings.editor.keepToolActive": "คงเครื่องมือไว้หลังใช้งาน",
   "settings.editor.canvas": "สีพื้นแคนวาส",
@@ -148,7 +149,11 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.app.theme.dark": "มืด",
   "settings.app.theme.light": "สว่าง",
   "settings.app.theme.system": "ตามระบบ",
-  "settings.editor.snap.hint": "กด Alt ค้างไว้เพื่อข้าม",
+  "settings.editor.snap.hint": "กด {key} ค้างไว้ขณะลากหรือปรับขนาดเพื่อข้าม",
+  "settings.editor.snap.hintNoKey": "ขอบและกึ่งกลางแคนวาสมีสิทธิ์ก่อนองค์ประกอบอื่น",
+  "settings.editor.snapBypass.hint":
+    "ใช้ขณะลากหรือปรับขนาด ปุ่ม Alt ยังใช้ปรับขนาดจากกึ่งกลางด้วย",
+  "settings.editor.snapBypass.none": "ไม่ใช้ (ใช้สวิตช์ด้านบน)",
   "settings.editor.keepToolActive.hint":
     "ถ้าปิด จะกลับไปที่เครื่องมือเลือกหลังใช้หนึ่งครั้ง ตั้งได้ที่แถบข้างของตัวแก้ไขหรือกด K ด้วย",
   "settings.editor.canvas.hint": "แสดงผ่านส่วนโปร่งใสของภาพ ทั้งบนหน้าจอและในไฟล์ที่ส่งออก",
