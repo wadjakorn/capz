@@ -90,7 +90,7 @@ import {
   snapMove,
   snapOpts,
   snapPoint,
-  snapResize,
+  snapResizeTurned,
   type SnapGuides,
   type SnapLines,
 } from "@/lib/snap";
@@ -1092,13 +1092,14 @@ export function EditorStage({ src }: Props) {
     const anchor = tr?.getActiveAnchor();
     const layer = tr?.getLayer();
     if (!tr || !layer || !anchor || anchor === "rotater") return box;
-    const turn = Math.PI * 2;
-    const rot = ((box.rotation % turn) + turn) % turn;
-    // Rotated boxes aren't axis-aligned: skip rather than snap to the wrong
-    // place. Negative sizes are a flip in progress.
+    // A box turned by a whole quarter (90/180/270°) is still drawn
+    // axis-aligned, so it snaps by that drawn box. Any other angle isn't:
+    // skip rather than snap to the wrong place. Negative sizes are a flip in
+    // progress.
+    const quarter = box.rotation / (Math.PI / 2);
     if (
       snapBypassed(modsRef.current) ||
-      Math.min(rot, turn - rot) > 1e-6 ||
+      Math.abs(quarter - Math.round(quarter)) > 1e-6 ||
       box.width <= 0 ||
       box.height <= 0
     ) {
@@ -1110,8 +1111,9 @@ export function EditorStage({ src }: Props) {
     const p = toImg.point({ x: box.x, y: box.y });
     const mods = modsRef.current;
     const corner = /^(top|bottom)-(left|right)$/.test(anchor);
-    const hit = snapResize(
+    const hit = snapResizeTurned(
       { x: p.x, y: p.y, w: box.width / k, h: box.height / k },
+      Math.round(quarter),
       anchor,
       getSnapLines(o.excludeId, o.canvasOnly),
       {

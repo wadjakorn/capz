@@ -5,6 +5,7 @@ import {
   snapMove,
   snapPoint,
   snapResize,
+  snapResizeTurned,
   type SnapLines,
   type SnapOpts,
 } from "@/lib/snap";
@@ -175,6 +176,38 @@ describe("snapResize", () => {
 
   it("returns null when nothing is in range", () => {
     expect(snapResize(box, "bottom-right", lines([[300, "canvas"]]), O)).toBeNull();
+  });
+});
+
+describe("snapResizeTurned", () => {
+  // 80×40 frame with its origin at (200,100); turned 90° it is drawn as the
+  // 40×80 box x 160–200, y 100–180.
+  const box = { x: 200, y: 100, w: 80, h: 40 };
+
+  it("a quarter turn snaps the drawn edge the anchor now faces", () => {
+    // local right edge is drawn as the bottom edge (180 → 183)
+    const r = snapResizeTurned(box, 1, "middle-right", lines([], [[183, "element"]]), O);
+    expect(r?.box).toEqual({ x: 200, y: 100, w: 83, h: 40 });
+    expect(r?.guides.y.map((g) => g.at)).toEqual([183]);
+  });
+
+  it("moves the origin when the snapped edge carries it", () => {
+    // local top edge is drawn as the right edge (200 → 203), origin rides on it
+    const r = snapResizeTurned(box, 1, "top-center", lines([[203, "element"]]), O);
+    expect(r?.box).toEqual({ x: 203, y: 100, w: 80, h: 43 });
+  });
+
+  it("a half turn mirrors the anchors", () => {
+    // drawn x 120–200: the local left edge is the drawn right edge
+    const r = snapResizeTurned(box, 2, "middle-left", lines([[197, "element"]]), O);
+    expect(r?.box).toEqual({ x: 197, y: 100, w: 77, h: 40 });
+  });
+
+  it("no turn is plain snapResize", () => {
+    const l = lines([[283, "element"]]);
+    expect(snapResizeTurned(box, 0, "middle-right", l, O)).toEqual(
+      snapResize(box, "middle-right", l, O),
+    );
   });
 });
 

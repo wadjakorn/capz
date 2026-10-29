@@ -241,3 +241,35 @@ test("a rotated rect snaps by the box it is drawn in, not its un-rotated frame",
   await page.mouse.up();
   await expect.poll(async () => (await guideStrokes(page)).length).toBe(0);
 });
+
+test("a rect turned 90° snaps live while resized", async ({ page }) => {
+  await loadImage(page);
+  await drawRect(page, { x: 80, y: 60 }, { x: 240, y: 120 });
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const box = await stageBox(page);
+  await page.mouse.click(box.x + 160, box.y + 90);
+  await expect.poll(() => anchorCenter(page, "rotater")).not.toBeNull();
+  const rotater = await anchorCenter(page, "rotater");
+  const [r0] = await rectBoxes(page);
+  const c0 = { x: r0.x + r0.w / 2, y: r0.y + r0.h / 2 };
+  await mouseDrag(page, rotater!, { x: c0.x + 120, y: c0.y });
+  const [turned] = await rectBoxes(page);
+  expect(turned.h).toBeGreaterThan(turned.w);
+
+  // Turned 90° clockwise, the frame's top edge is drawn on the right: hold it
+  // 3 screen px right of the canvas centre line.
+  const centreX = box.x + box.width / 2;
+  const handle = (await anchorCenter(page, "top-center"))!;
+  expect(Math.abs(handle.x - (turned.x + turned.w))).toBeLessThan(2);
+  await holdDrag(page, handle, { x: centreX + 3, y: handle.y });
+  await expect.poll(() => guideStrokes(page)).toContain("#e879f9");
+  const [live] = await rectBoxes(page);
+  expect(Math.abs(live.x + live.w - centreX)).toBeLessThan(1.5);
+  // The opposite (left) edge stays put.
+  expect(Math.abs(live.x - turned.x)).toBeLessThan(1.5);
+  await snap(page, "rotated-mid-resize-snapped");
+  await page.mouse.up();
+  await expect.poll(async () => (await guideStrokes(page)).length).toBe(0);
+  const [done] = await rectBoxes(page);
+  expect(Math.abs(done.x + done.w - centreX)).toBeLessThan(1.5);
+});

@@ -308,3 +308,62 @@ export function snapResize(
     },
   };
 }
+
+/** Rotate a vector by `q` clockwise quarter turns (screen y points down). */
+function turn(v: { x: number; y: number }, q: number) {
+  let { x, y } = v;
+  for (let i = 0; i < q; i++) [x, y] = [-y, x];
+  return { x: x + 0, y: y + 0 }; // normalise -0
+}
+
+/**
+ * `snapResize` for a box turned by `quarter` × 90° clockwise about its origin
+ * (a Konva node rotated 90/180/270°). `box.x/y` is the turned origin and
+ * `w/h` the un-turned size; `anchor` is the Transformer's anchor name, which
+ * is in the box's own frame. The drawn box is still axis-aligned, so snap that
+ * and map the result back.
+ */
+export function snapResizeTurned(
+  box: SnapBox,
+  quarter: number,
+  anchor: string,
+  lines: SnapLines,
+  o: ResizeSnapOpts,
+): { box: SnapBox; guides: SnapGuides } | null {
+  const q = ((Math.round(quarter) % 4) + 4) % 4;
+  if (q === 0) return snapResize(box, anchor, lines, o);
+  const offsets = (w: number, h: number) =>
+    [
+      { x: 0, y: 0 },
+      { x: w, y: 0 },
+      { x: 0, y: h },
+      { x: w, y: h },
+    ].map((c) => turn(c, q));
+  const min = (w: number, h: number) => {
+    const cs = offsets(w, h);
+    return { x: Math.min(...cs.map((c) => c.x)), y: Math.min(...cs.map((c) => c.y)) };
+  };
+  const m0 = min(box.w, box.h);
+  const odd = q % 2 === 1;
+  const drawn = {
+    x: box.x + m0.x,
+    y: box.y + m0.y,
+    w: odd ? box.h : box.w,
+    h: odd ? box.w : box.h,
+  };
+  const dir = turn(
+    {
+      x: anchor.includes("left") ? -1 : anchor.includes("right") ? 1 : 0,
+      y: anchor.includes("top") ? -1 : anchor.includes("bottom") ? 1 : 0,
+    },
+    q,
+  );
+  const v = dir.y < 0 ? "top" : dir.y > 0 ? "bottom" : "middle";
+  const hz = dir.x < 0 ? "left" : dir.x > 0 ? "right" : "center";
+  const hit = snapResize(drawn, `${v}-${hz}`, lines, o);
+  if (!hit) return null;
+  const w = odd ? hit.box.h : hit.box.w;
+  const h = odd ? hit.box.w : hit.box.h;
+  const m = min(w, h);
+  return { box: { x: hit.box.x - m.x, y: hit.box.y - m.y, w, h }, guides: hit.guides };
+}
