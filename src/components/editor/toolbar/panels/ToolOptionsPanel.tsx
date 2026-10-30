@@ -121,6 +121,8 @@ export type ToolOptionsPanelProps = {
   } | null;
   /** Duplicate the selected annotation (CP-0057). Null = nothing selected. */
   duplicate: { onDuplicate: () => void; disabled: boolean } | null;
+  /** 2+ annotations selected (CP-0050); `mixed` = no shared style controls. */
+  multi?: { count: number; mixed: boolean } | null;
 };
 
 /** Routes the built control contexts to the matching per-tool panel and adds
@@ -242,6 +244,16 @@ export function ToolOptionsPanel(p: ToolOptionsPanelProps) {
 
   return (
     <div className="flex flex-col items-stretch gap-2.5">
+      {p.multi && (
+        <div className="flex flex-col gap-1 text-xs" data-testid="multi-select-info">
+          <span className="text-foreground/80">{t("editor.multi.count", { n: p.multi.count })}</span>
+          {p.multi.mixed && (
+            <span className="text-foreground/60" data-testid="multi-select-mixed">
+              {t("editor.multi.mixed")}
+            </span>
+          )}
+        </div>
+      )}
       {panel}
       {p.keepActive && (
         <>

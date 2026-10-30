@@ -50,6 +50,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | annotate / annotation | ใส่คำอธิบาย · องค์ประกอบ (an element on the canvas) |
 | tool | เครื่องมือ |
 | select (tool) | เลือก |
+| multi-select / selection (several elements) | เลือกหลายรายการ · ที่เลือกไว้ (the current selection) |
 | arrow | ลูกศร |
 | shape | รูปทรง |
 | rectangle / ellipse / line | สี่เหลี่ยม / วงรี / เส้น |

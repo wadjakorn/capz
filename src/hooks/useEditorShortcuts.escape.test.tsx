@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderHook, cleanup } from "@testing-library/react";
 import { useEditorShortcuts } from "./useEditorShortcuts";
-import { useEditor, type RectAnnotation } from "@/stores/editor";
+import { selection, useEditor, type RectAnnotation } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { DEFAULT_CONFIG } from "@/lib/config";
 
@@ -25,7 +25,7 @@ describe("useEditorShortcuts — Esc ladder (CP-0069)", () => {
   beforeEach(() => {
     useSettings.setState({ config: structuredClone(DEFAULT_CONFIG) });
     useEditor.getState().reset();
-    useEditor.setState({ tool: "rect", annotations: [rect("a")], selectedId: "a" });
+    useEditor.setState({ tool: "rect", annotations: [rect("a")], ...selection(["a"]) });
     renderHook(() => useEditorShortcuts());
   });
   afterEach(() => {
@@ -54,13 +54,13 @@ describe("useEditorShortcuts — Esc ladder (CP-0069)", () => {
   });
 
   it("cancels crop back to Select", () => {
-    useEditor.setState({ tool: "crop", selectedId: null });
+    useEditor.setState({ tool: "crop", ...selection([]) });
     press("Escape");
     expect(state().tool).toBe("select");
   });
 
   it("drops a sticky tool to Select with no selection", () => {
-    useEditor.setState({ selectedId: null });
+    useEditor.setState(selection([]));
     press("Escape");
     expect(state()).toEqual({ tool: "select", selectedId: null });
   });

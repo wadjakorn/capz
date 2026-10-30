@@ -35,6 +35,7 @@ import {
   type PinAnnotation,
   type ImageAnnotation,
   isStickyTool,
+  shiftAnnotation,
 } from "@/stores/editor";
 import { smoothPoints } from "@/lib/freehand";
 import { highlighterHitFunc, highlighterSceneFunc } from "@/lib/highlightBlend";
@@ -80,7 +81,9 @@ import { Rulers } from "@/components/editor/Rulers";
 import { OcrLayer } from "@/components/editor/OcrLayer";
 import {
   annotationAABB,
+  annotationsInRect,
   contentBounds,
+  unionAABB,
   type AABB,
 } from "@/lib/annotationBounds";
 import { anchoredScrollOffset } from "@/lib/zoomAnchor";
@@ -281,6 +284,10 @@ export function EditorStage({ src }: Props) {
   const tool = useEditor((s) => s.tool);
   const annotations = useEditor((s) => s.annotations);
   const selectedId = useEditor((s) => s.selectedId);
+  const selectedIds = useEditor((s) => s.selectedIds);
+  const toggleSelect = useEditor((s) => s.toggleSelect);
+  const selectMany = useEditor((s) => s.selectMany);
+  const moveMany = useEditor((s) => s.moveMany);
   const stickerSelection = useEditor((s) => s.stickerSelection);
   const nextPinNumber = useEditor((s) => s.nextPinNumber);
   const setNextPinNumber = useEditor((s) => s.setNextPinNumber);
@@ -602,7 +609,7 @@ export function EditorStage({ src }: Props) {
     const showId =
       tool !== "crop" &&
       wantId &&
-      wantId !== selectedId &&
+      !selectedIds.includes(wantId) &&
       wantId !== textEditor?.id
         ? wantId
         : null;
@@ -614,7 +621,7 @@ export function EditorStage({ src }: Props) {
     const node = nodeRefs.current.get(showId);
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [hoveredId, highlightId, selectedId, annotations, tool, textEditor?.id]);
+  }, [hoveredId, highlightId, selectedIds, annotations, tool, textEditor?.id]);
 
   const srcW = image?.naturalWidth ?? 0;
   const srcH = image?.naturalHeight ?? 0;
@@ -995,13 +1002,19 @@ export function EditorStage({ src }: Props) {
     return { x: r.x, y: r.y, w: r.width, h: r.height };
   };
 
-  /** Snap lines for a gesture on `excludeId` (null = nothing to exclude).
-   *  `canvasOnly` skips other elements (crop). */
-  const getSnapLines = (excludeId: string | null, canvasOnly = false): SnapLines => {
+  /** Snap lines for a gesture on `exclude` (null = nothing to exclude; a set =
+   *  every member of a group drag, CP-0050). `canvasOnly` skips other elements
+   *  (crop). */
+  const getSnapLines = (
+    exclude: string | ReadonlySet<string> | null,
+    canvasOnly = false,
+  ): SnapLines => {
+    const skip = (id: string) =>
+      typeof exclude === "string" ? id === exclude : !!exclude?.has(id);
     const others: AABB[] = [];
     if (!canvasOnly) {
       for (const an of useEditor.getState().annotations) {
-        if (an.id === excludeId) continue;
+        if (skip(an.id)) continue;
         const ab = rotatedSnapBox(an.id, an.rotation) ?? annotationAABB(an);
         if (ab) others.push(ab);
       }
@@ -1028,6 +1041,23 @@ export function EditorStage({ src }: Props) {
     if (snapBypassed(mods)) {
       endSnap();
       return { dx: 0, dy: 0 };
+    }
+    // Group drag (CP-0050): snap the members' combined box, moved by the
+    // dragged node's offset so far, against everything outside the group.
+    const g = groupDragRef.current;
+    if (g) {
+      if (!g.union) return { dx: 0, dy: 0 };
+      const r = snapMove(
+        {
+          ...g.union,
+          x: g.union.x + g.node.x() - g.start.x,
+          y: g.union.y + g.node.y() - g.start.y,
+        },
+        getSnapLines(g.idSet),
+        snapOpts(scale),
+      );
+      showGuides(r.guides);
+      return { dx: r.dx, dy: r.dy };
     }
     const ann = useEditor.getState().annotations.find((an) => an.id === id);
     const box = rotatedSnapBox(id, ann?.rotation) ?? b;
@@ -1167,6 +1197,192 @@ export function EditorStage({ src }: Props) {
     return t === t.getStage() || t.name() === "bg-image";
   }
 
+  // ── Multi-select (CP-0050) ────────────────────────────────────────────
+  /** An annotation's box as drawn, in image px. `annotationAABB` is the
+   *  un-rotated frame (Konva pivots on the node origin) and only estimates
+   *  text, so a rotated or text member would get a misplaced outline and
+   *  marquee hit. Magnify's node misses its loupe, so it keeps the estimate,
+   *  as does an annotation with no node yet. */
+  const renderedBox = (a: Annotation): AABB | null => {
+    const node = a.type === "magnify" ? undefined : nodeRefs.current.get(a.id);
+    const layer = node?.getLayer();
+    if (!node || !layer) return annotationAABB(a);
+    const r = node.getClientRect({ relativeTo: layer, skipStroke: true, skipShadow: true });
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  };
+
+  // Each member's drawn box, measured once the nodes have committed, for the
+  // per-member outlines (a group drag offsets them while it runs).
+  const [memberBoxes, setMemberBoxes] = useState<ReadonlyMap<string, AABB>>(new Map());
+  useLayoutEffect(() => {
+    const m = new Map<string, AABB>();
+    if (selectedIds.length > 1) {
+      for (const a of annotations) {
+        if (!selectedIds.includes(a.id)) continue;
+        const b = renderedBox(a);
+        if (b) m.set(a.id, b);
+      }
+    }
+    setMemberBoxes((prev) => (prev.size === 0 && m.size === 0 ? prev : m));
+    // renderedBox only reads refs; boundsTick covers async bitmap loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds, annotations, boundsTick]);
+
+  // Whether the press that is starting now carries the platform's selection
+  // modifier (Cmd on macOS, Ctrl elsewhere). Read in a capture-phase listener
+  // because the per-shape onPointerDown handlers don't get the DOM event.
+  const selectModRef = useRef(false);
+  // The annotation the current press landed on (until the pointer is released).
+  const pressedIdRef = useRef<string | null>(null);
+  // A plain press on a member of a 2+ selection keeps the group so it can be
+  // dragged; if no drag starts before release, collapse to that one.
+  const collapseToRef = useRef<string | null>(null);
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      selectModRef.current = currentPlatform() === "mac" ? e.metaKey : e.ctrlKey;
+    };
+    const onUp = () => {
+      const id = collapseToRef.current;
+      collapseToRef.current = null;
+      pressedIdRef.current = null;
+      if (id) useEditor.getState().select(id);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
+  function selectFromPress(id: string) {
+    pressedIdRef.current = id;
+    collapseToRef.current = null;
+    if (tool === "select" && selectModRef.current) {
+      toggleSelect(id);
+      return;
+    }
+    const cur = useEditor.getState().selectedIds;
+    if (tool === "select" && cur.length > 1 && cur.includes(id)) {
+      collapseToRef.current = id;
+      return;
+    }
+    select(id);
+  }
+
+  // Group drag: the dragged node moves under Konva; the other members are
+  // rendered shifted by `groupOffset`; one moveMany() commits on release.
+  const groupDragRef = useRef<{
+    ids: string[];
+    idSet: ReadonlySet<string>;
+    node: Konva.Node;
+    start: { x: number; y: number };
+    union: AABB | null;
+    dx: number;
+    dy: number;
+  } | null>(null);
+  const [groupOffset, setGroupOffset] = useState<{
+    ids: ReadonlySet<string>;
+    dragged: string;
+    dx: number;
+    dy: number;
+  } | null>(null);
+
+  function handleDragStart(e: Konva.KonvaEventObject<DragEvent>) {
+    const id = pressedIdRef.current;
+    collapseToRef.current = null;
+    if (!id || e.target === e.target.getStage()) return;
+    const { selectedIds: ids, annotations: list } = useEditor.getState();
+    if (!ids.includes(id)) {
+      // Cmd/Ctrl-press just took it out of the selection: don't move it.
+      if (tool === "select") e.target.stopDrag();
+      return;
+    }
+    if (ids.length < 2) return;
+    const idSet = new Set(ids);
+    groupDragRef.current = {
+      ids,
+      idSet,
+      node: e.target,
+      start: e.target.position(),
+      union: unionAABB(
+        list.flatMap((a) => {
+          if (!idSet.has(a.id)) return [];
+          const b = renderedBox(a);
+          return b ? [b] : [];
+        }),
+      ),
+      dx: 0,
+      dy: 0,
+    };
+  }
+
+  function handleDragMove(e: Konva.KonvaEventObject<DragEvent>) {
+    const g = groupDragRef.current;
+    if (!g || e.target !== g.node) return;
+    // Runs after the shape's own onDragMove, so this is the snapped position.
+    g.dx = g.node.x() - g.start.x;
+    g.dy = g.node.y() - g.start.y;
+    setGroupOffset({ ids: g.idSet, dragged: pressedIdRef.current ?? "", dx: g.dx, dy: g.dy });
+  }
+
+  function handleDragEnd(e: Konva.KonvaEventObject<DragEvent>) {
+    const g = groupDragRef.current;
+    if (!g || e.target !== g.node) return;
+    groupDragRef.current = null;
+    // The shape's onDragEnd already ran (its commit was suppressed); park the
+    // node where it started so the re-render from moveMany places it.
+    g.node.position(g.start);
+    setGroupOffset(null);
+    endSnap();
+    moveMany(g.ids, g.dx, g.dy);
+  }
+
+  const [marquee, setMarquee] = useState<AABB | null>(null);
+  const marqueeCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => marqueeCleanup.current?.(), []);
+
+  function startMarquee(p: { x: number; y: number }, additive: boolean) {
+    const stage = stageRef.current;
+    if (!stage) return;
+    marqueeCleanup.current?.();
+    const base = additive ? useEditor.getState().selectedIds : [];
+    const rect: AABB = { x: p.x, y: p.y, w: 0, h: 0 };
+    const track = (ev: PointerEvent) => {
+      stage.setPointersPositions(ev);
+      const q = stage.getRelativePointerPosition();
+      if (!q) return;
+      rect.w = q.x - rect.x;
+      rect.h = q.y - rect.y;
+    };
+    const onMove = (ev: PointerEvent) => {
+      track(ev);
+      setMarquee({ ...rect });
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", stop);
+      marqueeCleanup.current = null;
+      setMarquee(null);
+    };
+    const onUp = (ev: PointerEvent) => {
+      track(ev);
+      stop();
+      // Under 3 screen px is a click: the press already did the deselect.
+      const s = stage.scaleX() || 1;
+      if (Math.abs(rect.w) * s < 3 && Math.abs(rect.h) * s < 3) return;
+      const hits = annotationsInRect(useEditor.getState().annotations, rect, renderedBox);
+      selectMany([...base, ...hits.filter((id) => !base.includes(id))]);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", stop);
+    marqueeCleanup.current = stop;
+  }
+
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
     if (isGestureContact()) return;
     // OCR read mode: suspend annotation drawing/selection on the stage; the
@@ -1179,8 +1395,17 @@ export function EditorStage({ src }: Props) {
     if (!p) return;
     const empty = isEmptyTarget(e);
 
+    if (empty && tool === "select" && !textEditor) {
+      // Marquee (CP-0050): a plain press deselects, as before; Cmd/Ctrl keeps
+      // the selection and adds to it. A click without a drag selects nothing.
+      const additive = selectModRef.current;
+      if (!additive) select(null);
+      startMarquee(p, additive);
+      return;
+    }
+
     if (empty) {
-      const hadSelection = useEditor.getState().selectedId !== null;
+      const hadSelection = useEditor.getState().selectedIds.length > 0;
       // Sticky tools stay active for repeated use until Esc or another tool is
       // chosen, instead of snapping back to select after one (see isStickyTool).
       const continuable = isStickyTool(
@@ -1637,6 +1862,9 @@ export function EditorStage({ src }: Props) {
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onDragStart={handleDragStart}
+          onDragMove={handleDragMove}
+          onDragEnd={handleDragEnd}
           onMouseLeave={() => setBrushPoint(null)}
         >
           <Layer>
@@ -1680,7 +1908,13 @@ export function EditorStage({ src }: Props) {
               shadowOffsetY={backdropRender && backdrop.shadow ? backdropShadowOffsetY : 0}
             />
             {annotations.map((a, i) =>
-              renderAnnotation(a, {
+              renderAnnotation(
+                groupOffset &&
+                  groupOffset.ids.has(a.id) &&
+                  a.id !== groupOffset.dragged
+                  ? shiftAnnotation(a, groupOffset.dx, groupOffset.dy)
+                  : a,
+                {
                 bgImage: image,
                 cropOffX: cropBase.x,
                 cropOffY: cropBase.y,
@@ -1707,10 +1941,12 @@ export function EditorStage({ src }: Props) {
                 // its selection change would survive the gesture.
                 onSelect: () => {
                   if (isGestureContact()) return;
-                  select(a.id);
+                  selectFromPress(a.id);
                 },
                 onHover: (h) => setHoveredId(h ? a.id : (cur) => (cur === a.id ? null : cur)),
                 onChange: (patch) => {
+                  // A group drag commits once, via moveMany, on release.
+                  if (groupDragRef.current) return;
                   update(a.id, patch);
                   const merged = { ...a, ...patch } as Annotation;
                   scheduleLastUsedWrite(lastUsedPatchForAnnotation(merged));
@@ -1728,7 +1964,8 @@ export function EditorStage({ src }: Props) {
                 snapHandle,
                 endSnap,
                 onBoundsChange: bumpBounds,
-              }),
+              },
+              ),
             )}
             {draft?.kind === "rect" && toolsCfg.rect.shape === "ellipse" && (
               <Shape
@@ -2010,6 +2247,44 @@ export function EditorStage({ src }: Props) {
           {/* Snap guides are screen-only chrome: exports and thumbnails hide
               every SCREEN_CHROME node while they snapshot (CP-0079). */}
           <Layer name={SCREEN_CHROME} listening={false}>
+            {/* Multi-selection (CP-0050): a thin outline per member — the box
+                Transformer is detached at 2+ (no group resize/rotate). */}
+            {selectedIds.length > 1 &&
+              annotations.map((a) => {
+                if (!selectedIds.includes(a.id)) return null;
+                const base = memberBoxes.get(a.id) ?? annotationAABB(a);
+                if (!base) return null;
+                const b = groupOffset
+                  ? { ...base, x: base.x + groupOffset.dx, y: base.y + groupOffset.dy }
+                  : base;
+                // Clear of the stroke, constant on screen.
+                const pad = 4 / scale + ("strokeWidth" in a ? a.strokeWidth / 2 : 0);
+                return (
+                  <Rect
+                    key={`sel-${a.id}`}
+                    name="multi-select-outline"
+                    x={b.x - pad}
+                    y={b.y - pad}
+                    width={b.w + pad * 2}
+                    height={b.h + pad * 2}
+                    stroke="#6d7cff"
+                    strokeWidth={1.5 / scale}
+                    dash={[4 / scale, 3 / scale]}
+                  />
+                );
+              })}
+            {marquee && (
+              <Rect
+                name="marquee"
+                x={Math.min(marquee.x, marquee.x + marquee.w)}
+                y={Math.min(marquee.y, marquee.y + marquee.h)}
+                width={Math.abs(marquee.w)}
+                height={Math.abs(marquee.h)}
+                fill="rgba(109,124,255,0.12)"
+                stroke="#6d7cff"
+                strokeWidth={1 / scale}
+              />
+            )}
             {/* Canvas guides (canvas / image edges + centre) are magenta,
                 element guides green, so the user sees what they aligned to. */}
             {guides.x.map((g, i) => (

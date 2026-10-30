@@ -57,7 +57,6 @@ function isTypingTarget(el: EventTarget | null): boolean {
 export function useEditorShortcuts() {
   const setTool = useEditor((s) => s.setTool);
   const select = useEditor((s) => s.select);
-  const remove = useEditor((s) => s.remove);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
   const escArmedAt = useRef<number>(0);
@@ -157,8 +156,7 @@ export function useEditorShortcuts() {
           useEditor.getState().setTool("select");
           return;
         }
-        const { selectedId } = useEditor.getState();
-        if (selectedId) {
+        if (useEditor.getState().selectedIds.length) {
           escArmedAt.current = 0;
           toast.dismiss(ESC_TOAST_ID);
           select(null);
@@ -201,10 +199,10 @@ export function useEditorShortcuts() {
       }
 
       if (key === "delete" || key === "backspace") {
-        const id = useEditor.getState().selectedId;
-        if (id) {
+        const { selectedIds, removeMany } = useEditor.getState();
+        if (selectedIds.length) {
           e.preventDefault();
-          remove(id);
+          removeMany(selectedIds);
         }
         return;
       }
@@ -226,14 +224,15 @@ export function useEditorShortcuts() {
         return;
       }
 
-      // CP-0056: arrow keys nudge the selected element (Shift = 10px). Left
-      // alone in crop mode, with Alt, or when a focused widget consumed it.
+      // CP-0056: arrow keys nudge the selection (Shift = 10px) — every member
+      // of a multi-selection (CP-0050). Left alone in crop mode, with Alt, or
+      // when a focused widget consumed it.
       const nudge = nudgeDelta(key, e.shiftKey);
       if (nudge) {
         const s = useEditor.getState();
-        if (s.selectedId && s.tool !== "crop" && !e.altKey && !e.defaultPrevented) {
+        if (s.selectedIds.length && s.tool !== "crop" && !e.altKey && !e.defaultPrevented) {
           e.preventDefault();
-          s.nudge(s.selectedId, nudge.dx, nudge.dy);
+          s.nudgeMany(s.selectedIds, nudge.dx, nudge.dy);
         }
         return;
       }
@@ -247,5 +246,5 @@ export function useEditorShortcuts() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setTool, select, remove, undo, redo]);
+  }, [setTool, select, undo, redo]);
 }
