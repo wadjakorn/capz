@@ -101,6 +101,7 @@ import { uid } from "@/lib/uid";
 import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
 import { getPreloaded } from "@/lib/imagePreload";
 import { lastUsedPatchForAnnotation } from "@/lib/lastUsedPatch";
+import { cancelLastUsed, scheduleLastUsed } from "@/lib/lastUsedWriter";
 import { arrowStrokeStyle, strokeDashProps } from "@/lib/strokeStyle";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
 
@@ -293,7 +294,6 @@ export function EditorStage({ src }: Props) {
 
   const settingsReady = useSettings((s) => s.ready);
   const initSettings = useSettings((s) => s.init);
-  const setLastUsed = useSettings((s) => s.setLastUsed);
   const config = useSettings((s) => s.config);
   const pinsCfg = config.pins;
   const toolsCfg = effectiveTools(config);
@@ -333,40 +333,11 @@ export function EditorStage({ src }: Props) {
     if (!pending) stickerRestored.current = true;
   }, [settingsReady, config.general.rememberLastTool, config.lastUsed, config.stickers.folders, stickerSets, stickerFolderState, setStickerSelection]);
 
-  const lastUsedTimer = useRef<number | null>(null);
-  const pendingLastUsed = useRef<NonNullable<AppConfig["lastUsed"]>>({});
   const scheduleLastUsedWrite = (patch: NonNullable<AppConfig["lastUsed"]>) => {
     if (!config.general.rememberLastTool) return;
-    pendingLastUsed.current = { ...pendingLastUsed.current, ...patch };
-    if (lastUsedTimer.current) window.clearTimeout(lastUsedTimer.current);
-    lastUsedTimer.current = window.setTimeout(() => {
-      const cur = useSettings.getState().config.lastUsed ?? {};
-      const merged: NonNullable<AppConfig["lastUsed"]> = {
-        ...cur,
-        ...pendingLastUsed.current,
-        // "crop" is a transient mode, not a persistable last-used tool.
-        tool: (() => {
-          const t = useEditor.getState().tool;
-          return t === "crop" ? cur.tool : t;
-        })(),
-        stickerItem: pendingLastUsed.current.stickerItem ?? cur.stickerItem,
-        rect: { ...cur.rect, ...pendingLastUsed.current.rect },
-        arrow: { ...cur.arrow, ...pendingLastUsed.current.arrow },
-        text: { ...cur.text, ...pendingLastUsed.current.text },
-        blur: { ...cur.blur, ...pendingLastUsed.current.blur },
-        pen: { ...cur.pen, ...pendingLastUsed.current.pen },
-        highlighter: { ...cur.highlighter, ...pendingLastUsed.current.highlighter },
-        magnify: { ...cur.magnify, ...pendingLastUsed.current.magnify },
-        sticker: { ...cur.sticker, ...pendingLastUsed.current.sticker },
-        pin: { ...cur.pin, ...pendingLastUsed.current.pin },
-      };
-      pendingLastUsed.current = {};
-      void setLastUsed(merged);
-    }, 500);
+    scheduleLastUsed(patch);
   };
-  useEffect(() => () => {
-    if (lastUsedTimer.current) window.clearTimeout(lastUsedTimer.current);
-  }, []);
+  useEffect(() => () => cancelLastUsed(), []);
 
   useEffect(() => {
     void initSettings();
