@@ -95,8 +95,18 @@ and (if a PR exists) post the same question on the PR. Then stop.
   exports `CAPZ_LOOP_E2E_LOCK`; wrap with `flock "$CAPZ_LOOP_E2E_LOCK" …`).
   The Playwright config pins port 1420 and otherwise reuses whatever dev server
   is already there — possibly another worktree's.
-- Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Commit trailer: `Co-Authored-By: Claude <model you are running as> <noreply@anthropic.com>`.
   PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+
+## Token use
+
+Runs start without the owner's user settings (`--setting-sources project,local`),
+so user-level skills, plugins and MCP servers are absent; build and verify also
+get the `superpowers` plugin. Build runs on Opus. Verify runs on Opus when a PR has
+failed checks, a new comment or an unreviewed head, otherwise on Sonnet, as do
+intake and release. `CLAUDE_MODEL` in the env file overrides all of this.
+The verify precheck stays quiet during a merge freeze and skips PR state that
+the last finished run already handled (retried after 6 hours).
 
 ## Stage skills
 
