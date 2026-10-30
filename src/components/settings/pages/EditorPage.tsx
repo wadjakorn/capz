@@ -7,6 +7,8 @@ import { SettingToggle } from "@/components/settings/SettingToggle";
 import { AdvancedSection } from "@/components/settings/AdvancedSection";
 import { ToggleRow } from "@/components/settings/ToggleRow";
 import { STICKY_TOOLS } from "@/lib/stickyTools";
+import { currentPlatform } from "@/lib/shortcuts";
+import type { SnapBypassKey } from "@/lib/snap";
 import { useSettings } from "@/stores/settings";
 import { useT } from "@/i18n/useT";
 
@@ -15,6 +17,12 @@ export function EditorPage() {
   const { t } = useT();
   const { config, update } = useSettings();
   const g = config.general;
+  const mac = currentPlatform() === "mac";
+  // Key names are shown as printed on the keyboard, not translated.
+  const keyName: Record<Exclude<SnapBypassKey, "none">, string> = {
+    alt: mac ? "⌥ Option" : "Alt",
+    mod: mac ? "⌘ Command" : "Ctrl",
+  };
 
   return (
     <div className="grid gap-4">
@@ -26,10 +34,32 @@ export function EditorPage() {
         />
         <SettingToggle
           id="editor.snap"
-          hint={t("settings.editor.snap.hint")}
+          hint={
+            g.snapBypassKey === "none"
+              ? t("settings.editor.snap.hintNoKey")
+              : t("settings.editor.snap.hint", { key: keyName[g.snapBypassKey] })
+          }
           checked={g.snapEnabled}
           onChange={(v) => update("general", { snapEnabled: v })}
         />
+        <SettingRow
+          id="editor.snapBypass"
+          hint={t("settings.editor.snapBypass.hint")}
+        >
+          <select
+            className="field"
+            value={g.snapBypassKey}
+            disabled={!g.snapEnabled}
+            onChange={(e) =>
+              update("general", { snapBypassKey: e.target.value as SnapBypassKey })
+            }
+            aria-label={t("settings.editor.snapBypass")}
+          >
+            <option value="mod">{keyName.mod}</option>
+            <option value="alt">{keyName.alt}</option>
+            <option value="none">{t("settings.editor.snapBypass.none")}</option>
+          </select>
+        </SettingRow>
       </SectionCard>
 
       <AdvancedSection page="editor">

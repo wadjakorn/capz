@@ -35,6 +35,7 @@ export const settings = {
   "settings.app.theme": "Appearance",
   "settings.editor.remember": "Remember last tool, color and size",
   "settings.editor.snap": "Snap to edges and other elements",
+  "settings.editor.snapBypass": "Hold to bypass snapping",
   "settings.editor.rulers": "Show rulers",
   "settings.editor.keepToolActive": "Keep tool active after use",
   "settings.editor.canvas": "Canvas background",
@@ -150,7 +151,11 @@ export const settings = {
   "settings.app.theme.dark": "Dark",
   "settings.app.theme.light": "Light",
   "settings.app.theme.system": "System",
-  "settings.editor.snap.hint": "Hold Alt to bypass.",
+  "settings.editor.snap.hint": "Hold {key} while dragging or resizing to bypass.",
+  "settings.editor.snap.hintNoKey": "Canvas edges and centre win over other elements.",
+  "settings.editor.snapBypass.hint":
+    "Applies while dragging or resizing. Alt also resizes from the centre.",
+  "settings.editor.snapBypass.none": "None (use the switch above)",
   "settings.editor.keepToolActive.hint":
     "Off returns to Select after one use. Also on the editor sidebar, or press K.",
   "settings.editor.canvas.hint": "Shows through transparent images, on screen and in exports.",

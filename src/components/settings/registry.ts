@@ -169,6 +169,13 @@ export const SETTINGS = {
     keywords: ["align", "guides"],
     keywordsTh: ["จัดแนว", "เส้นนำ"],
   },
+  "editor.snapBypass": {
+    page: "editor",
+    labelKey: "settings.editor.snapBypass",
+    keywords: ["snap", "alt", "cmd", "ctrl", "modifier", "bypass", "magnetic"],
+    keywordsTh: ["จัดแนว", "ข้าม", "ปุ่ม"],
+    addedIn: "0.20.0",
+  },
   "editor.rulers": {
     page: "editor",
     labelKey: "settings.editor.rulers",

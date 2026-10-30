@@ -17,6 +17,7 @@ import v5 from "./__fixtures__/config/v5.json";
 import v6 from "./__fixtures__/config/v6.json";
 import v7 from "./__fixtures__/config/v7.json";
 import v8 from "./__fixtures__/config/v8.json";
+import v9 from "./__fixtures__/config/v9.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
@@ -28,7 +29,8 @@ import v99 from "./__fixtures__/config/v99.json";
 //   v5  — schema of v0.18.0+ (CP-0067)
 //   v6  — schema of v0.18.x (auto-backdrop for paste / import)
 //   v7  — schema of v0.19.0 (CP-0076: Shapes stroke style)
-//   v8  — current schema (CP-0048: sticker sets)
+//   v8  — schema with sticker sets (CP-0048)
+//   v9  — current schema (CP-0025: snap bypass key)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -276,6 +278,31 @@ describe("v7 → v8: sticker sets", () => {
     expect(load({ ...v8, lastUsed: { stickerItem: { setId: "status", itemId: "bug" } } }).config.lastUsed)
       .toEqual({ stickerItem: { setId: "status", itemId: "bug" } });
     expect(load({ ...v8, lastUsed: { stickerItem: { setId: 3 } } }).config.lastUsed).toBeUndefined();
+  });
+});
+
+describe("v8 → v9: general.snapBypassKey", () => {
+  it("an existing v8 store keeps Alt as the bypass key", () => {
+    const { config, issues } = load(v8);
+    expect(issues).toEqual([]);
+    expect(config.general.snapBypassKey).toBe("alt");
+  });
+
+  it("fresh installs default to Cmd/Ctrl (Alt is Konva's resize-from-centre)", () => {
+    const { config } = load(undefined);
+    expect(config.general.snapBypassKey).toBe("mod");
+  });
+
+  it("a v9 store keeps stored values", () => {
+    const { config, issues } = load(v9);
+    expect(issues).toEqual([]);
+    expect(config.general.snapBypassKey).toBe("none");
+    expect(config.general).toMatchObject(v9.general);
+  });
+
+  it("an unknown bypass key falls back to the default", () => {
+    const { config } = load({ ...v9, general: { ...v9.general, snapBypassKey: "shift" } });
+    expect(config.general.snapBypassKey).toBe("mod");
   });
 });
 

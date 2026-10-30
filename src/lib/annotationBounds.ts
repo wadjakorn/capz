@@ -5,7 +5,8 @@ export type AABB = { x: number; y: number; w: number; h: number };
 
 /**
  * Axis-aligned bounding box for an annotation in image-pixel coords.
- * Rotation is ignored — snap uses the un-rotated AABB for simplicity.
+ * Rotation is ignored — snapping measures a rotated element's rendered node
+ * instead (`rotatedSnapBox` in EditorStage).
  */
 export function annotationAABB(a: Annotation): AABB | null {
   switch (a.type) {
@@ -121,12 +122,4 @@ export function contentBounds(
   const x = Math.floor(left);
   const y = Math.floor(top);
   return { x, y, w: Math.ceil(right) - x, h: Math.ceil(bottom) - y };
-}
-
-/** Edge/center snap targets along one axis from an AABB. */
-export function aabbSnapLinesX(b: AABB): number[] {
-  return [b.x, b.x + b.w / 2, b.x + b.w];
-}
-export function aabbSnapLinesY(b: AABB): number[] {
-  return [b.y, b.y + b.h / 2, b.y + b.h];
 }

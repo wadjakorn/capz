@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useEditor, type RectAnnotation } from "./editor";
+import type { SnapGuides } from "@/lib/snap";
 
 const rect: RectAnnotation = {
   id: "r",
@@ -12,8 +13,11 @@ const rect: RectAnnotation = {
   strokeWidth: 1,
 };
 
-const GUIDES = { x: [10], y: [20] };
-const NONE = { x: [], y: [] };
+const GUIDES: SnapGuides = {
+  x: [{ at: 10, kind: "element", from: 0, to: 30 }],
+  y: [{ at: 20, kind: "canvas", from: 0, to: 100 }],
+};
+const NONE: SnapGuides = { x: [], y: [] };
 
 // Snap guides are gesture chrome (CP-0079): anything that ends or replaces
 // the gesture context must take them down with it.
