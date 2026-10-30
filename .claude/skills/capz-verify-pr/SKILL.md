@@ -55,7 +55,7 @@ findings (or "No blocking findings") ending in that marker.
   one PR comment (once per head SHA, marker
   `<!-- capz-loop:owner-test sha=… -->`) with the checklist of what only a human
   on Mac/Windows can check, the L4 report link, and the L6 `.app` path; build
-  the `.app` with the `mac-app-build` skill first (if the Mac is unreachable,
+  the `.app` by following `~/.claude/skills/mac-app-build/SKILL.md` first (if the Mac is unreachable,
   say so in the comment — never block on it). STATUS "waiting for owner
   test". Then move on.
 
