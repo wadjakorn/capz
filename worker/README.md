@@ -48,7 +48,7 @@ No IP addresses, hostnames, usernames, or OS versions are stored.
 |---|---|
 | `GITHUB_PAT` | Fine-grained PAT, repo `wadjakorn/capz-inbox` only, permission **Issues: Read and write** (+ the mandatory Metadata: Read). Fine-grained PATs can always read public repos, so it also reads the `wadjakorn/capz` release list for download snapshots (5000 req/h instead of the 60/h per-IP limit that Cloudflare's shared egress IPs would hit). Expires yearly — when it does, `/stats.feedback.pending_issue` starts climbing and `download snapshot failed` shows in the Worker logs. |
 | `ID_SALT` | Random 32 bytes. Rotating it resets all machine identities (DAU continuity breaks). Do not rotate casually. |
-| `STATS_TOKEN` | Bearer token for `/stats`. Rotate freely. |
+| `STATS_TOKEN` | Bearer token for `/stats`. Cloudflare secrets can't be read back, so keep a copy in the gitignored root `.env`. A self-generated random value (`openssl rand -hex 32`). Rotate freely. |
 
 Set or rotate with:
 
@@ -65,7 +65,8 @@ pnpm worker:dev                # local dev server
 pnpm worker:migrate            # apply D1 migrations (remote)
 pnpm worker:deploy             # deploy (needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID)
 
-# read stats
+# read stats (STATS_TOKEN comes from the root .env)
+set -a; . ./.env; set +a
 curl -s -H "Authorization: Bearer $STATS_TOKEN" https://capz-api.banana3339.workers.dev/stats | jq
 
 # look at raw rows
