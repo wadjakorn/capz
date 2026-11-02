@@ -5,8 +5,8 @@ Small backend for two things the desktop app needs:
 1. **Anonymous active-install count.** The app's existing update check fetches
    `latest.json` through this Worker instead of straight from GitHub Pages. The
    Worker proxies the signed manifest unchanged and, on the side, counts the
-   request. If the user opted in (Settings → Updates → "Share anonymous install
-   ID"), the request carries a random UUID header; the Worker stores
+   request. If the user opted in (Settings → App → Advanced → "Share anonymous
+   install ID"), the request carries a random UUID header; the Worker stores
    `sha256(uuid + ID_SALT)` once per UTC day. Without the header the request is
    only counted, never identified.
 2. **Feedback inbox.** Settings → Feedback posts `{kind, message, version,
