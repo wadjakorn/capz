@@ -110,7 +110,11 @@ trap 'on_exit $?' EXIT
 if ((AGENT_MODE)); then
   trap - EXIT ERR
   exec 9>"$LOCKS/$STAGE.lock"
-  if ! flock -n 9; then log "another $STAGE run holds the lock — skipping"; exit 0; fi
+  if ! flock -n 9; then
+    log "another $STAGE run holds the lock — skipping"
+    rm -f "$WORK_FILE" "$WORK_FILE.fp"
+    exit 0
+  fi
   case "$STAGE" in intake) LIMIT=15m ;; build) LIMIT=3h ;; *) LIMIT=1h ;; esac
   LOG="$STATE/$STAGE/$(date +%Y%m%dT%H%M%S).log"
   PROMPT="You are the capz-loop $STAGE stage. Use the capz-loop skill, then the capz-$(
@@ -118,15 +122,34 @@ if ((AGENT_MODE)); then
   ) skill, and do exactly what it says for this work (found by the precheck):
 
 $(cat "$WORK_FILE")"
+  # Cheapest model that can do the job. Verify only needs Opus when it has to
+  # judge or change code; merging and asking the owner are mechanical.
+  case "$STAGE" in
+    build) MODEL=opus ;;
+    verify) if grep -qE 'checks failed|new comment|unreviewed head' "$WORK_FILE"; then MODEL=opus; else MODEL=sonnet; fi ;;
+    *) MODEL=sonnet ;;
+  esac
+  MODEL="${CLAUDE_MODEL:-$MODEL}"
+  # Skip the owner's user settings: their plugins, MCP servers, hooks and global
+  # CLAUDE.md cost about 24k tokens of context on every turn of every run. Only
+  # build and verify use a plugin skill, so load just that plugin for them.
+  PLUGIN_ARGS=()
+  if [[ "$STAGE" == build || "$STAGE" == verify ]]; then
+    plugin="$(printf '%s\n' "$HOME"/.claude/plugins/cache/claude-plugins-official/superpowers/*/ | sort -V | tail -1)"
+    if [[ -d "$plugin" ]]; then PLUGIN_ARGS=(--plugin-dir "$plugin"); else log "superpowers plugin not found"; fi
+  fi
   cd "$CLONE"
   set +e
   timeout --kill-after=2m "$LIMIT" claude -p "$PROMPT" \
     --settings "$CLONE/scripts/loop/settings/$STAGE.json" \
+    --setting-sources project,local --strict-mcp-config "${PLUGIN_ARGS[@]}" \
     --permission-mode dontAsk \
-    ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} </dev/null >"$LOG" 2>&1
+    --model "$MODEL" </dev/null >"$LOG" 2>&1
   rc=$?
   set -e
-  rm -f "$WORK_FILE"
+  # Only a finished run counts as having handled this state (see verify_unchanged).
+  if ((rc == 0)) && [[ -f "$WORK_FILE.fp" ]]; then mv "$WORK_FILE.fp" "$STATE/$STAGE/handled.fp"; fi
+  rm -f "$WORK_FILE" "$WORK_FILE.fp"
   if ((rc != 0)); then
     # Out of Claude quota (shared with the owner's own sessions) is not a loop
     # bug: say so plainly, once per reset window, not once per stage run.
@@ -225,8 +248,10 @@ precheck_verify() {
   local prs
   prs="$(gh pr list -R "$REPO" --label capz-loop --state open --limit 50 \
     --json number,title,headRefOid,mergeStateStatus,labels,statusCheckRollup,reviews,comments)"
+  printf '%s' "$prs" >"$PR_SNAPSHOT"
   jq -r --arg bot "$BOT" --arg owner "$OWNER" '
-    .[] | select(.title | startswith("chore(release)") | not)
+    ([.[] | select(.title | startswith("chore(release)"))] | length > 0) as $frozen
+    | .[] | select(.title | startswith("chore(release)") | not)
     | . as $p
     | ([.statusCheckRollup[]? | (.conclusion // .state // "")]) as $c
     | ($c | map(select(. == "FAILURE" or . == "ERROR" or . == "CANCELLED" or . == "TIMED_OUT")) | length > 0) as $failed
@@ -246,6 +271,8 @@ precheck_verify() {
     | if   $failed or $human or ($reviewed | not) then "pr: #\(.number) (\(if $failed then "checks failed" elif $human then "new comment" else "unreviewed head" end))"
       elif $pending then empty
       elif $gated and ($approved | not) and $asked then empty
+      # Merge freeze: an open release PR means nothing can merge yet.
+      elif $frozen and ($gated and ($approved | not) | not) then empty
       else "pr: #\(.number) (ready: \(if $gated and ($approved | not) then "ask owner" else "merge" end))" end
   ' <<<"$prs"
   # PRs the owner merged by hand whose ticket is still `completed`.
@@ -281,9 +308,37 @@ precheck_release() {
   return 0
 }
 
+# Fingerprint of what the verify agent would be told, plus the PR state it acts
+# on. Bot comments are left out: the agent's own replies are not new information.
+verify_fingerprint() {
+  { printf '%s\n' "$WORK"
+    jq -cS --arg bot "$BOT" '[.[] | {number, headRefOid, mergeStateStatus,
+        labels: [.labels[].name],
+        checks: [.statusCheckRollup[]? | {n: (.name // .context), r: (.conclusion // .state // "")}],
+        comments: [.comments[] | select(.author.login != $bot) | .createdAt],
+        reviews: [.reviews[] | .submittedAt]}]' "$PR_SNAPSHOT"
+  } | sha256sum | cut -d' ' -f1
+}
+
+PR_SNAPSHOT="$(mktemp)"
+FINGERPRINT=""
+HANDLED="$STATE/verify/handled.fp"
+HANDLED_TTL_MIN="${CAPZ_LOOP_HANDLED_TTL_MIN:-360}"
 WORK="$("precheck_$STAGE")"
-if [[ -z "$WORK" ]]; then log "no work"; exit 0; fi
+if [[ -z "$WORK" ]]; then log "no work"; rm -f "$PR_SNAPSHOT"; exit 0; fi
 log "work: $(tr '\n' ';' <<<"$WORK")"
+if [[ "$STAGE" == verify ]]; then
+  # A run that finished without changing anything (blocked ticket, stuck check,
+  # refused merge) would repeat itself every 15 minutes. Wait for the state to
+  # change; retry after the TTL in case the cause was outside GitHub.
+  FINGERPRINT="$(verify_fingerprint)"
+  if [[ "$(cat "$HANDLED" 2>/dev/null)" == "$FINGERPRINT" && -z "$(find "$HANDLED" -mmin +"$HANDLED_TTL_MIN" 2>/dev/null)" ]]; then
+    log "unchanged since the last finished run — skipping"
+    rm -f "$PR_SNAPSHOT"
+    exit 0
+  fi
+fi
+rm -f "$PR_SNAPSHOT"
 if ((DRY_RUN)); then
   printf 'DRY RUN — would dispatch %s with settings %s\n%s\n' \
     "$STAGE" "scripts/loop/settings/$STAGE.json" "$WORK"
@@ -292,6 +347,7 @@ fi
 
 WORK_FILE="$(mktemp "$STATE/$STAGE/work.XXXXXX")"
 printf '%s\n' "$WORK" >"$WORK_FILE"
+[[ -z "$FINGERPRINT" ]] || printf '%s\n' "$FINGERPRINT" >"$WORK_FILE.fp"
 SELF="$CLONE/scripts/loop/run-stage.sh"
 if ((FOREGROUND)); then
   on_exit 0; trap - EXIT ERR  # exec skips the EXIT trap
