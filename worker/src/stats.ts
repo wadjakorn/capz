@@ -1,3 +1,4 @@
+import { DOWNLOADS_DAILY_SQL } from "./downloads";
 import { type Env, json, utcDay } from "./env";
 
 function daysAgo(day: string, n: number): string {
@@ -24,7 +25,7 @@ export async function handleStats(request: Request, env: Env): Promise<Response>
   const sinceIso7 = `${since7}T00:00:00.000Z`;
 
   const db = env.DB;
-  const [dau, wau, mau, anon, byVersion, byPlatform, daily, fb7, fbPending] = await Promise.all([
+  const [dau, wau, mau, anon, byVersion, byPlatform, daily, fb7, fbPending, downloads] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS n FROM pings WHERE day = ?1`).bind(today).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(DISTINCT id_hash) AS n FROM pings WHERE day >= ?1`).bind(since7).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(DISTINCT id_hash) AS n FROM pings WHERE day >= ?1`).bind(since30).first<{ n: number }>(),
@@ -49,6 +50,10 @@ export async function handleStats(request: Request, env: Env): Promise<Response>
       .all<{ day: string; dau: number }>(),
     db.prepare(`SELECT COUNT(*) AS n FROM feedback WHERE created_at >= ?1`).bind(sinceIso7).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) AS n FROM feedback WHERE issue_number IS NULL`).first<{ n: number }>(),
+    db
+      .prepare(DOWNLOADS_DAILY_SQL)
+      .bind(since30)
+      .all<{ day: string; tag: string; asset: string; downloads: number }>(),
   ]);
 
   return json({
@@ -60,6 +65,7 @@ export async function handleStats(request: Request, env: Env): Promise<Response>
     by_version_30d: byVersion.results,
     by_platform_30d: byPlatform.results,
     daily_30d: daily.results,
+    downloads_daily_30d: downloads.results,
     feedback: { last_7d: fb7?.n ?? 0, pending_issue: fbPending?.n ?? 0 },
   });
 }

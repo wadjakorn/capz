@@ -10,6 +10,7 @@ export interface Env {
   DAILY_ISSUE_CAP: string;
   PER_IP_DAILY_CAP: string;
   UPSTREAM_LATEST: string;
+  RELEASES_REPO: string;
   // secrets (wrangler secret put)
   GITHUB_PAT: string;
   ID_SALT: string;

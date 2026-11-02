@@ -22,14 +22,15 @@ folder; the Worker is a plain TypeScript module with no framework.
 |---|---|
 | `GET /latest.json?v=&t=&a=` | Proxy of `https://wadjakorn.github.io/capz/latest.json` (5-min edge cache). Optional header `X-Capz-Install: <uuid v4>`. Counts the check. Returns 502 if upstream fails so the updater falls through to the gh-pages endpoint. |
 | `POST /feedback` | JSON body `{ kind: "bug"\|"feature", message (≤4000), version, target, arch }`. 202 on accept, 400 invalid, 413 too large, 429 rate-limited. CORS `*`. |
-| `GET /stats` | `Authorization: Bearer <STATS_TOKEN>` or `?token=`. JSON with `dau`, `wau`, `mau`, `anon_today`, `by_version_30d`, `by_platform_30d`, `daily_30d`, `feedback.{last_7d,pending_issue}`. |
+| `GET /stats` | `Authorization: Bearer <STATS_TOKEN>` or `?token=`. JSON with `dau`, `wau`, `mau`, `anon_today`, `by_version_30d`, `by_platform_30d`, `daily_30d`, `downloads_daily_30d`, `feedback.{last_7d,pending_issue}`. |
 | `GET /healthz` | Liveness. |
-| cron `17 3 * * *` | Deletes ping rows older than 400 days; retries feedback rows that never became an issue. |
+| cron `17 3 * * *` | Deletes ping rows older than 400 days; retries feedback rows that never became an issue; snapshots GitHub release download counts. |
 
 ## Data stored
 
 - `pings(day, id_hash, version, target, arch)` — one row per opted-in machine per day. `id_hash` cannot be reversed to the UUID without `ID_SALT`.
 - `anon_pings(day, version, target, arch, n)` — counts of checks without an id.
+- `download_snapshots(day, tag, asset, count)` — cumulative GitHub download count of every published release asset of `RELEASES_REPO`, taken by the daily cron. Public data from the GitHub API; nothing from the app. `/stats.downloads_daily_30d` is the difference between consecutive snapshots: the first snapshot day is only a baseline, a release first seen later counts from zero, and a missed cron day folds into the next one. On Windows the `.msi` / `-setup.exe` counts mix fresh installs with updater downloads (`latest.json` points the updater at both); the macOS updater uses `.app.tar.gz`.
 - `feedback(id, created_at, kind, message, version, target, arch, ip_hash, issue_number, issue_error)` — `ip_hash` exists only for the per-IP daily cap.
 
 No IP addresses, hostnames, usernames, or OS versions are stored.
@@ -45,7 +46,7 @@ No IP addresses, hostnames, usernames, or OS versions are stored.
 
 | Name | What |
 |---|---|
-| `GITHUB_PAT` | Fine-grained PAT, repo `wadjakorn/capz-inbox` only, permission **Issues: Read and write** (+ the mandatory Metadata: Read). Expires yearly — when it does, `/stats.feedback.pending_issue` starts climbing. |
+| `GITHUB_PAT` | Fine-grained PAT, repo `wadjakorn/capz-inbox` only, permission **Issues: Read and write** (+ the mandatory Metadata: Read). Fine-grained PATs can always read public repos, so it also reads the `wadjakorn/capz` release list for download snapshots (5000 req/h instead of the 60/h per-IP limit that Cloudflare's shared egress IPs would hit). Expires yearly — when it does, `/stats.feedback.pending_issue` starts climbing and `download snapshot failed` shows in the Worker logs. |
 | `ID_SALT` | Random 32 bytes. Rotating it resets all machine identities (DAU continuity breaks). Do not rotate casually. |
 | `STATS_TOKEN` | Bearer token for `/stats`. Rotate freely. |
 

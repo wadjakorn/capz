@@ -11,6 +11,7 @@ ISSUE_CREATION_ENABLED = "true"
 DAILY_ISSUE_CAP = "50"
 PER_IP_DAILY_CAP = "10"
 UPSTREAM_LATEST = "https://wadjakorn.github.io/capz/latest.json"
+RELEASES_REPO = "wadjakorn/capz"
 
 [[d1_databases]]
 binding = "DB"
