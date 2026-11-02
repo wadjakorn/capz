@@ -83,6 +83,10 @@ and (if a PR exists) post the same question on the PR. Then stop.
 
 ## Tooling pitfalls
 
+- `capz-loop` is an **agent** user in PM: creating a ticket directly in `todo`
+  returns `403 forbidden`, because `todo` is the owner's accept gate. Intake
+  always creates in `backlog`; only the owner moves it on.
+
 - `pm … --json | jq` can truncate very large output (fixed upstream in
   automated-pm#36) — always filter with `--status` / `--assignee` so each
   answer stays small. Intake cannot write files, so it can't redirect either.
