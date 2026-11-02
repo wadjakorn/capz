@@ -12,7 +12,10 @@ on:
 jobs:
   tier1-web:
     name: tier 1 — web (mocked IPC)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 (2026-11-01) and Playwright has no
+    # Chromium build for it yet ("Playwright does not support chromium on
+    # ubuntu26.04-x64"). Unpin once Playwright supports it.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -51,7 +54,7 @@ jobs:
   tier2-tauri:
     name: tier 2 — tauri-driver smoke (linux)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
