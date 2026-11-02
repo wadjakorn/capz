@@ -65,4 +65,7 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+percent-encoding = "2"
 x11rb = "0.13"
+zbus = "5"

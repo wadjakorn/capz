@@ -217,6 +217,8 @@ pub fn run() {
             log_store_path_diagnostics(app.handle());
             services::image_service::sweep_stale_temp();
             i18n::init_from_config(app.handle());
+            #[cfg(target_os = "linux")]
+            services::wayland::init(app.handle());
             tray::create_tray(app.handle())?;
             // Must precede registration: the v2 ring's accelerator can fire as
             // soon as it is registered, and the ready-handshake listener has to
@@ -245,9 +247,9 @@ pub fn run() {
                 }
             } else if commands::system::is_wayland_session_value() {
                 // Hotkeys don't fire under Wayland, so a hidden-at-launch editor
-                // would leave the user with no sign of why nothing works. Show
-                // it: the editor raises the "log in with Xorg" notice on mount.
-                log::warn!("Wayland session detected; capz v1 supports X11 only");
+                // would leave the user with no way in. Show it: the editor
+                // raises the "capture from the tray" notice on mount.
+                log::info!("Wayland session: portal capture, no global shortcuts yet");
                 if let Err(e) = windows::show_editor(app.handle()) {
                     log::warn!("show editor: {e}");
                 }

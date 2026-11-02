@@ -4,6 +4,10 @@ use image::{RgbaImage, SubImage};
 use super::monitor_service;
 
 pub fn capture_monitor(id: u32) -> Result<RgbaImage> {
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        return crate::services::wayland::capture_monitor(id);
+    }
     let m = monitor_service::monitor_by_id(id)?;
     let img = m
         .capture_image()
@@ -12,6 +16,12 @@ pub fn capture_monitor(id: u32) -> Result<RgbaImage> {
 }
 
 pub fn capture_primary() -> Result<RgbaImage> {
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        let mons = crate::services::wayland::monitors()?;
+        let id = mons.iter().find(|m| m.is_primary).unwrap_or(&mons[0]).id;
+        return crate::services::wayland::capture_monitor(id);
+    }
     let m = monitor_service::primary_monitor()?;
     let img = m
         .capture_image()
@@ -30,6 +40,10 @@ pub fn capture_primary() -> Result<RgbaImage> {
 pub fn capture_region(monitor_id: u32, x: i32, y: i32, w: u32, h: u32) -> Result<RgbaImage> {
     if w == 0 || h == 0 {
         return Err(anyhow!("region has zero area"));
+    }
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        return crate::services::wayland::capture_region(monitor_id, x, y, w, h);
     }
     let m = monitor_service::monitor_by_id(monitor_id)?;
     let full = m

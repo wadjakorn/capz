@@ -120,6 +120,10 @@ pub fn current() -> Option<Mods> {
 #[cfg(target_os = "linux")]
 pub fn current() -> Option<Mods> {
     use x11rb::protocol::xproto::KeyButMask;
+    // XWayland's mask only updates while an X11 window has focus.
+    if crate::services::wayland::is_session() {
+        return None;
+    }
     let mask = crate::services::x11::query_pointer()?.mask;
     Some(Mods {
         // Ctrl stands in for Cmd, matching CmdOrCtrl accelerators.

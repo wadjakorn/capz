@@ -54,12 +54,66 @@ async fn capture_single_monitor<R: Runtime>(app: AppHandle<R>, monitor_id: u32) 
 }
 
 pub fn dispatch_window<R: Runtime>(app: &AppHandle<R>) {
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        dispatch_window_wayland(app);
+        return;
+    }
     if let Err(e) = windows::show_overlay_mode(app, "window") {
         log::error!("show_overlay_mode(window) failed: {e}");
     }
 }
 
+/// Wayland has no window list to build our picker from, so window mode hands
+/// selection to the desktop's own screenshot UI (the interactive portal), which
+/// offers window, area and screen modes.
+#[cfg(target_os = "linux")]
+fn dispatch_window_wayland<R: Runtime>(app: &AppHandle<R>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let shot = tokio::task::spawn_blocking(|| crate::services::wayland::portal_screenshot(true))
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
+            .and_then(|r| r);
+        match shot {
+            Ok(img) => {
+                if let Err(e) = crate::commands::capture::capture_to_editor(
+                    app.clone(),
+                    "capture_window_portal".into(),
+                    windows::CaptureSource::Window,
+                    move || Ok(img),
+                )
+                .await
+                {
+                    log::error!("window portal capture_to_editor failed: {e}");
+                }
+            }
+            Err(e) if e.to_string() == "screenshot cancelled" => {
+                log::info!("window portal capture cancelled");
+                windows::show_editor_if_hidden(&app);
+            }
+            Err(e) => {
+                log::error!("window portal capture failed: {e}");
+                windows::show_editor_if_hidden(&app);
+                crate::notice::error(&app, crate::i18n::capture_failed(e));
+            }
+        }
+    });
+}
+
 pub fn dispatch_scroll<R: Runtime>(app: &AppHandle<R>) {
+    // Scroll capture samples the live screen many times a second; on Wayland
+    // each frame would be a portal round-trip and a file (CP-0094 W1).
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        windows::show_editor_if_hidden(app);
+        crate::notice::emit(
+            app,
+            crate::notice::NoticeKind::Info,
+            crate::i18n::tr(crate::i18n::Msg::ScrollUnavailableWayland),
+        );
+        return;
+    }
     if let Err(e) = windows::show_overlay_mode(app, "scroll") {
         log::error!("show_overlay_mode(scroll) failed: {e}");
     }

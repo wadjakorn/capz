@@ -34,9 +34,9 @@ export function useNoticeListener() {
 }
 
 /**
- * CP-0084: Linux v1 is X11 only. Under Wayland, hotkeys and overlays don't
- * work, so say so once per launch with a persistent toast instead of letting
- * capz half-work. Rust shows the editor at launch in this case so the toast
+ * CP-0084 / CP-0094: under Wayland, capture works through the screenshot
+ * portal but global shortcuts don't (yet), so say once per launch how to
+ * capture instead. Rust shows the editor at launch in this case so the toast
  * is seen.
  */
 export function useWaylandSessionNotice() {
@@ -47,7 +47,7 @@ export function useWaylandSessionNotice() {
       const { invoke } = await import("@tauri-apps/api/core");
       const wayland = await invoke<boolean>("is_wayland_session").catch(() => false);
       if (cancelled || !wayland) return;
-      toast.error(t("app.notice.waylandTitle"), {
+      toast(t("app.notice.waylandTitle"), {
         id: "wayland-session",
         description: t("app.notice.waylandDesc"),
         duration: Infinity,
