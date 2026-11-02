@@ -33,6 +33,8 @@ export default {
         await env.DB.batch([
           env.DB.prepare(`DELETE FROM pings WHERE day < date('now', ?1)`).bind(`-${RETENTION_DAYS} days`),
           env.DB.prepare(`DELETE FROM anon_pings WHERE day < date('now', ?1)`).bind(`-${RETENTION_DAYS} days`),
+          // Keeps the LAG() scan in /stats bounded (~500 rows/day).
+          env.DB.prepare(`DELETE FROM download_snapshots WHERE day < date('now', ?1)`).bind(`-${RETENTION_DAYS} days`),
         ]);
         const retried = await retryPendingFeedback(env);
         console.log(`scheduled: pruned >${RETENTION_DAYS}d, retried ${retried} pending feedback`);

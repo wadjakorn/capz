@@ -81,7 +81,9 @@ export async function recordDownloadSnapshot(
  * Downloads per (day, tag, asset) since `?1`: today's cumulative count minus the
  * previous snapshot. An asset seen for the first time counts from zero (new
  * releases start at 0), except on the very first snapshot day, which is only a
- * baseline. A missed cron day folds two days into the next snapshot.
+ * baseline. A missed cron day folds two days into the next snapshot. A count
+ * that went down means the asset was deleted and re-uploaded under the same
+ * name, so it restarted from zero: the new count is that day's downloads.
  */
 export const DOWNLOADS_DAILY_SQL = `
   WITH s AS (
@@ -89,9 +91,11 @@ export const DOWNLOADS_DAILY_SQL = `
            LAG(count) OVER (PARTITION BY tag, asset ORDER BY day) AS prev
     FROM download_snapshots
   )
-  SELECT day, tag, asset, count - COALESCE(prev, 0) AS downloads
+  SELECT day, tag, asset,
+         CASE WHEN count < COALESCE(prev, 0) THEN count ELSE count - COALESCE(prev, 0) END AS downloads
   FROM s
   WHERE day >= ?1
     AND day > (SELECT MIN(day) FROM download_snapshots)
-    AND count - COALESCE(prev, 0) > 0
-  ORDER BY day ASC, tag DESC, asset ASC`;
+    AND count <> COALESCE(prev, 0)
+    AND count > 0
+  ORDER BY day ASC, downloads DESC, asset ASC`;
