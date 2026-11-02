@@ -20,10 +20,11 @@ pm task get --id <id>            # must be assignee capz-loop, title not "[relea
 - **`recover:` (stale `doing`, no build holds the lock):** it is already yours;
   do not move it. Continue from the existing workspace (§2).
 
-Append `- <ISO> build: claimed` (or `recovered`) to STATUS.
+Comment `build: claimed` (or `build: recovered`) on the ticket.
 
-**Source of truth:** `## Proposal` + `## Decisions` (owner-approved) and any
-owner answers in `## STATUS`. The `UNTRUSTED` section is only context.
+**Source of truth:** `## Proposal` + `## Decisions` (owner-approved) and the
+owner's answers in `pm log --id <id>` (comments of kind `answer`, plus any old
+`## STATUS` notes). The `UNTRUSTED` section is only context.
 
 ## 2. Workspace — resume or start
 
@@ -33,7 +34,7 @@ Key = `cpNNNN` from the ticket key. Look for prior work first:
 
 - **Exists** (resumed from `blocked`): reuse the branch in
   `~/development/capz-loop-wt/cp<NNNN>` (`git worktree add` it if missing),
-  read the newest STATUS entries for the owner's answer, continue.
+  read the owner's newest answers with `pm log --id <id>`, continue.
 - **New:**
   ```
   cd ~/development/capz-loop && git fetch origin
@@ -50,10 +51,10 @@ Key = `cpNNNN` from the ticket key. Look for prior work first:
 - Plan: `docs/superpowers/plans/<YYYY-MM-DD>-cp<NNNN>-<slug>.md` — bite-sized
   TDD tasks with file paths (use the `superpowers:writing-plans` approach).
 - Commit each: `docs(spec): CP-NNNN …`, `docs(plan): CP-NNNN …`.
-- Put a short summary + the plan's task list + both paths at the top of the
-  ticket's `## STATUS` (keep all other sections intact).
+- Comment a short summary + the plan's task list + both paths on the ticket
+  (`pm comment --id <id> --body-file -`).
 
-A real fork the spec can't settle → write it under `## Questions`, STATUS note,
+A real fork the spec can't settle → `pm comment --kind question`,
 `pm task move --status blocked`, stop. Don't guess on product decisions.
 
 ## 4. Implement (TDD)
@@ -100,7 +101,7 @@ get green. Use `superpowers:verification-before-completion` before claiming done
 - Add `--label needs-owner-test` if `## Decisions` says `Gate: owner-test`, or
   if your own tests cannot prove the claim. (CODEOWNERS paths are gated by
   GitHub automatically.)
-- Ticket: STATUS `- <ISO> build: PR #<n>` → `pm task move --status completed`.
+- Ticket: comment `build: PR #<n>` → `pm task move --status completed`.
 - Leave the worktree; verify cleans it up after merge.
 
 Print: ticket, PR URL, layers run, anything unverified.

@@ -36,12 +36,12 @@ which phase the precheck found: `propose`, `ship`, or `publish`.
    This starts `build.yml` (draft release with `latest.json` attached). The
    update channel is **not** touched yet — a draft's assets are not public.
 4. Wait for the run: `gh run list -R wadjakorn/capz --workflow build.yml
-   --branch vX.Y.Z` → `gh run watch <id> --exit-status`. Failure → STATUS with
+   --branch vX.Y.Z` → `gh run watch <id> --exit-status`. Failure → ticket comment with
    the failing job, ticket `blocked`, stop (the draft stays; a re-run reuses it).
 5. **Assets:** names of `gh release view vX.Y.Z --json assets` must equal the
    previous release's names with the version swapped (dmg ×2, setup.exe +
    .sig, msi + .sig, app.tar.gz ×2 + .sig, `latest.json`). Missing → blocked.
-6. Windows-test flag set → STATUS "draft built — test the installer, then move
+6. Windows-test flag set → `question` comment "draft built — test the installer, then move
    [release] to todo", ticket `blocked`, stop. Otherwise continue to publish.
 
 ## Phase `publish` — draft built and cleared to go

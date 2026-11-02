@@ -22,7 +22,7 @@ Ticket = `CP-NNNN` from the title. Worktree = `~/development/capz-loop-wt/cp<NNN
 (re-create from the PR branch if missing).
 
 ### A. Merged already (the owner merged it by hand)
-Ticket → `tested` (from `completed`), STATUS `- <ISO> verify: merged by owner`,
+Ticket → `tested` (from `completed`), comment `verify: merged by owner`,
 then cleanup (step F). Not an error.
 
 ### B. Review the head SHA
@@ -39,7 +39,8 @@ findings (or "No blocking findings") ending in that marker.
   `superpowers:receiving-code-review` (verify each claim; push back with
   reasons when a comment is wrong). Rerun the layers from `capz-build-ticket`
   §5 for what you touched. Push. Reply on the PR to each human comment and review.
-- Count fix rounds in STATUS. After **3** rounds still red → STATUS note,
+- Comment `verify: fix round N` for each round (count earlier ones with
+  `pm log`). After **3** rounds still red → a `question` comment,
   PR comment explaining what is stuck, ticket → `blocked`. Stop for this PR.
 - Pushing dismisses existing approvals — that is intended.
 
@@ -56,14 +57,14 @@ findings (or "No blocking findings") ending in that marker.
   `<!-- capz-loop:owner-test sha=… -->`) with the checklist of what only a human
   on Mac/Windows can check, the L4 report link, and the L6 `.app` path; build
   the `.app` with the `mac-app-build` skill first (if the Mac is unreachable,
-  say so in the comment — never block on it). STATUS "waiting for owner
+  say so in the comment — never block on it). Ticket comment "waiting for owner
   test". Then move on.
 
 Then `gh pr merge N -R wadjakorn/capz --squash --delete-branch`.
-If GitHub refuses, read why and report it in STATUS; never retry with admin flags.
+If GitHub refuses, read why and report it in a ticket comment; never retry with admin flags.
 
 ### E. After a merge
-1. Ticket `completed → tested`, STATUS `- <ISO> verify: merged as <sha>`.
+1. Ticket `completed → tested`, comment `verify: merged as <sha>`.
 2. `cd ~/development/capz-loop && git fetch origin && git checkout --detach origin/main`
    then `cd src-tauri && cargo check` — CI does not build Rust on PRs. A failure → open
    a `fix/` ticket-less PR immediately with the minimal fix and say so on the merged PR.
