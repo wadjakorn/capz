@@ -56,6 +56,9 @@ pub enum Msg {
     /// `{}` is the comma-separated list of accelerators.
     ShortcutsInactive,
     ScrollAutoUnavailable,
+    /// Only raised under a Linux Wayland session.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    ScrollUnavailableWayland,
     ScrollTargetIgnored,
     /// Only raised by the macOS window picker.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -87,6 +90,8 @@ pub fn text(lang: Lang, msg: Msg) -> &'static str {
         (Lang::Th, ShortcutsInactive) => "ปุ่มลัดบางชุดใช้งานไม่ได้ ({}) เปิดการตั้งค่าเพื่อแก้ไข",
         (Lang::En, ScrollAutoUnavailable) => "Auto-scroll unavailable — scroll manually",
         (Lang::Th, ScrollAutoUnavailable) => "เลื่อนอัตโนมัติไม่ได้ — เลื่อนเองแทน",
+        (Lang::En, ScrollUnavailableWayland) => "Scrolling capture isn't available on Wayland yet",
+        (Lang::Th, ScrollUnavailableWayland) => "จับภาพหน้ายาวยังใช้บน Wayland ไม่ได้",
         (Lang::En, ScrollTargetIgnored) => "Target ignored auto-scroll — scroll manually",
         (Lang::Th, ScrollTargetIgnored) => "หน้าต่างนี้ไม่รับการเลื่อนอัตโนมัติ — เลื่อนเองแทน",
         (Lang::En, ScreenRecordingRequired) => "Screen Recording permission required. Grant in System Settings → Privacy & Security → Screen Recording, then restart the app.",
@@ -187,7 +192,8 @@ mod tests {
         for m in [
             TrayCaptureFull, TrayCaptureArea, TrayCaptureWindow, TrayCaptureScroll, TrayOpenApp,
             TrayQuit, Capturing, EditorTitle, CaptureFailed, ShortcutsInactive,
-            ScrollAutoUnavailable, ScrollTargetIgnored, ScreenRecordingRequired,
+            ScrollAutoUnavailable, ScrollUnavailableWayland, ScrollTargetIgnored,
+            ScreenRecordingRequired,
         ] {
             assert!(!text(Lang::En, m).is_empty());
             assert!(!text(Lang::Th, m).is_empty());

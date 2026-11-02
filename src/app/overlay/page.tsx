@@ -707,11 +707,41 @@ function OuterDim({ rect }: { rect: Rect }) {
   );
 }
 
+/**
+ * Wayland freeze frame (CP-0094): the screen as it was when the overlay
+ * opened, drawn under the selection UI. Compositors differ on see-through
+ * fullscreen windows, so Rust passes a screenshot instead and crops the
+ * selection from that same image.
+ */
+function FrozenBackdrop({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void import("@tauri-apps/api/core").then(({ convertFileSrc }) => {
+      if (!cancelled) setSrc(convertFileSrc(path));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+  if (!src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- local asset-protocol file, not optimisable
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      className="pointer-events-none fixed inset-0 h-full w-full select-none"
+    />
+  );
+}
+
 function OverlayInner() {
   const params = useSearchParams();
   const monitorId = Number(params.get("monitor") ?? "0");
   const mode = (params.get("mode") ?? "area") as Mode;
   const initialOwner = params.get("owner") === "1";
+  const frozen = params.get("frozen");
 
   // Escape always cancels; keep the overlay background transparent.
   useEffect(() => {
@@ -735,11 +765,14 @@ function OverlayInner() {
 
   if (mode === "area" || mode === "scroll")
     return (
-      <AreaMode
-        monitorId={monitorId}
-        initialOwner={initialOwner}
-        scroll={mode === "scroll"}
-      />
+      <>
+        {frozen && <FrozenBackdrop path={frozen} />}
+        <AreaMode
+          monitorId={monitorId}
+          initialOwner={initialOwner}
+          scroll={mode === "scroll"}
+        />
+      </>
     );
   // "window" (and, defensively, any non-area/scroll mode) → window picker.
   // Full-screen never reaches here: it captures instantly without an overlay.

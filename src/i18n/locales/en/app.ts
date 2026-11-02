@@ -106,8 +106,8 @@ export const app = {
   "app.export.failed": "Export failed",
 
   // Permission notices (macOS)
-  "app.notice.waylandTitle": "capz needs an Xorg session on Linux",
-  "app.notice.waylandDesc": "Wayland blocks global shortcuts and capture overlays. Log out, pick “Ubuntu on Xorg” on the login screen, and start capz again.",
+  "app.notice.waylandTitle": "Keyboard shortcuts don't work on Wayland yet",
+  "app.notice.waylandDesc": "Capture from the capz icon in the top bar or the editor's capture button. The first capture asks for screenshot permission — choose Allow.",
   "app.notice.revokedTitle": "Screen Recording permission revoked",
   "app.notice.revokedDesc": "Re-grant in System Settings → Privacy & Security → Screen Recording.",
   "app.notice.rerunOnboarding": "Re-run onboarding",

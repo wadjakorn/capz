@@ -23,6 +23,14 @@ pub fn show_onboarding<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 /// Each window covers a single screen; v1 area selection stays per-monitor.
 /// xcap on macOS returns CG points (top-left origin) for monitor x/y/w/h, so we
 /// pass them as LogicalPosition/LogicalSize directly — no scale conversion.
+/// Whether capture-time windows (overlays, ring, HUD, guide) are built focused.
+/// macOS/Windows: no — wry then skips `NSApp.activate()` on build, which would
+/// pull a buried editor in front of the app being captured (CP-0080). Linux:
+/// yes — GTK maps "unfocused" to `accept_focus(false)`, and GNOME stacks a
+/// window that won't take focus *below* the focused one, so the window never
+/// appears (CP-0094).
+const CAPTURE_WINDOW_FOCUSED: bool = cfg!(target_os = "linux");
+
 pub fn show_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     show_overlay_mode(app, "area")
 }
@@ -70,7 +78,19 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
         None
     };
 
+    // Wayland: area mode selects on a freeze frame (see `wayland::freeze`).
+    #[cfg(target_os = "linux")]
+    let frozen: std::collections::HashMap<u32, std::path::PathBuf> =
+        if mode == "area" && crate::services::wayland::is_session() {
+            crate::services::wayland::freeze()
+                .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("freeze frame: {e}")))?
+        } else {
+            Default::default()
+        };
+
     struct OverlaySpec {
+        #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+        monitor_id: u32,
         label: String,
         url: String,
         x: i32,
@@ -81,13 +101,22 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
     let specs: Vec<OverlaySpec> = mons
         .iter()
         .map(|m| {
-            let url = if selects_region {
+            #[allow(unused_mut)]
+            let mut url = if selects_region {
                 let owner = u8::from(Some(m.id) == owner_id);
                 format!("overlay/?monitor={}&mode={}&owner={owner}", m.id, mode)
             } else {
                 format!("overlay/?monitor={}&mode={}", m.id, mode)
             };
+            #[cfg(target_os = "linux")]
+            if let Some(p) = frozen.get(&m.id) {
+                let path = p.to_string_lossy();
+                let enc =
+                    percent_encoding::utf8_percent_encode(&path, percent_encoding::NON_ALPHANUMERIC);
+                url.push_str(&format!("&frozen={enc}"));
+            }
             OverlaySpec {
+                monitor_id: m.id,
                 label: format!("overlay-{}", m.id),
                 url,
                 x: m.x,
@@ -118,10 +147,9 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
             .skip_taskbar(true)
             .resizable(false)
             .shadow(false)
-            // Unfocused: wry then skips `NSApp.activate()` on build, which
-            // would pull a buried editor in front of the app being captured
-            // (CP-0080). Keys arrive via `panel::make_key` instead.
-            .focused(false)
+            // Unfocused off Linux — see `CAPTURE_WINDOW_FOCUSED`. Keys arrive
+            // via `panel::make_key`.
+            .focused(CAPTURE_WINDOW_FOCUSED)
             .inner_size(s.w as f64, s.h as f64)
             .position(s.x as f64, s.y as f64)
             .visible(false)
@@ -142,6 +170,11 @@ pub fn show_overlay_mode<R: Runtime>(app: &AppHandle<R>, mode: &str) -> tauri::R
 
         #[cfg(target_os = "windows")]
         disable_dwm_transitions(&win);
+
+        #[cfg(target_os = "linux")]
+        if crate::services::wayland::is_session() {
+            crate::services::wayland::fullscreen_on_monitor(&win, s.monitor_id);
+        }
 
         // Non-activating panel (macOS): the overlay can take keys without
         // activating capz, so a buried editor is never pulled in front of the
@@ -350,7 +383,7 @@ fn show_command_ring_ex<R: Runtime>(app: &AppHandle<R>, focus: bool) -> tauri::R
         .resizable(false)
         .shadow(false)
         // Never activate capz on build (CP-0080) — see `show_overlay_mode`.
-        .focused(false)
+        .focused(CAPTURE_WINDOW_FOCUSED)
         .inner_size(COMMAND_RING_SIZE, COMMAND_RING_SIZE)
         .visible(false)
         .build()?;
@@ -846,6 +879,8 @@ fn disable_dwm_transitions<R: Runtime>(win: &tauri::WebviewWindow<R>) {
 /// Destroy any overlay windows still around. Safe to call after capture
 /// regardless of whether the overlays were hidden first.
 pub fn close_overlays<R: Runtime>(app: &AppHandle<R>) {
+    #[cfg(target_os = "linux")]
+    crate::services::wayland::clear_frozen();
     let app_close = app.clone();
     let _ = app.run_on_main_thread(move || {
         for (label, win) in app_close.webview_windows() {
@@ -993,7 +1028,7 @@ pub fn show_scroll_hud<R: Runtime>(
     .resizable(false)
     .shadow(false)
     // Never activate capz on build (CP-0080) — see `show_overlay_mode`.
-    .focused(false)
+    .focused(CAPTURE_WINDOW_FOCUSED)
     .inner_size(HUD_W, HUD_H)
     .visible(false)
     .build()?;
@@ -1147,7 +1182,7 @@ pub fn show_scroll_guide<R: Runtime>(
             .always_on_top(true)
             .skip_taskbar(true)
             .resizable(false)
-            .focused(false)
+            .focused(CAPTURE_WINDOW_FOCUSED)
             .shadow(false)
             .visible(false)
             .build()?;
@@ -1425,8 +1460,9 @@ mod tests {
     }
 
     /// CP-0080 guard. Every window built at capture time must pass
-    /// `.focused(false)` — wry only skips activating capz for unfocused
-    /// webviews. The editor is the one window that should activate.
+    /// `.focused(CAPTURE_WINDOW_FOCUSED)` (false off Linux) — wry only skips
+    /// activating capz for unfocused webviews. The editor is the one window
+    /// that should activate.
     #[test]
     fn capture_windows_are_built_unfocused() {
         let src = include_str!("windows.rs");
@@ -1440,7 +1476,7 @@ mod tests {
         for b in builders {
             let is_editor = b.contains("\"editor\"");
             assert_eq!(
-                b.contains(".focused(false)"),
+                b.contains(".focused(CAPTURE_WINDOW_FOCUSED)"),
                 !is_editor,
                 "builder must be unfocused unless it is the editor:\n{b}"
             );

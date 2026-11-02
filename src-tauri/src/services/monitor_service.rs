@@ -24,6 +24,25 @@ pub struct Rect {
 }
 
 pub fn list_monitors() -> Result<Vec<MonitorInfo>> {
+    // Wayland: xcap's monitor query fails on GNOME/KDE (libwayshot needs
+    // wlroots protocols). Sizes are reported in GDK scale units (logical ×
+    // scale) so the overlay's CSS px × devicePixelRatio stays the unit.
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        return Ok(crate::services::wayland::monitors()?
+            .into_iter()
+            .map(|m| MonitorInfo {
+                id: m.id,
+                name: m.name,
+                x: m.x * m.scale,
+                y: m.y * m.scale,
+                width: (m.width * m.scale) as u32,
+                height: (m.height * m.scale) as u32,
+                scale_factor: m.scale as f32,
+                is_primary: m.is_primary,
+            })
+            .collect());
+    }
     let mons = Monitor::all().map_err(|e| anyhow!("Monitor::all failed: {e}"))?;
     let mut out = Vec::with_capacity(mons.len());
     for m in mons {
@@ -78,8 +97,13 @@ pub fn cursor_position() -> Option<(f64, f64)> {
     {
         cursor_point_windows()
     }
+    // Wayland has no global cursor position. Don't fall through to X11:
+    // XWayland only tracks the pointer over X11 windows, so it would be stale.
     #[cfg(target_os = "linux")]
     {
+        if crate::services::wayland::is_session() {
+            return None;
+        }
         crate::services::x11::query_pointer().map(|p| (p.x as f64, p.y as f64))
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
