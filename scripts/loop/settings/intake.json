@@ -15,6 +15,8 @@
       "Bash(pm task get:*)",
       "Bash(pm task list:*)",
       "Bash(pm status list:*)",
+      "Bash(pm log:*)",
+      "Bash(pm comment:*)",
       "Bash(git grep:*)",
       "Bash(git log:*)",
       "Bash(jq:*)",
