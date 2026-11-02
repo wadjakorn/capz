@@ -250,7 +250,7 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.app.feedback.hint": "ไม่ระบุตัวตน ส่งตรงถึงนักพัฒนา",
   "settings.app.feedback.write": "เขียน…",
   "settings.app.installId.hint":
-    "ID สุ่มที่ส่งไปพร้อมการตรวจหาอัปเดตเพื่อนับจำนวนการติดตั้ง ปิดแล้ว ID จะถูกลบ",
+    "ID สุ่มที่ส่งไปพร้อมการตรวจหาอัปเดตแต่ละครั้ง เพื่อนับจำนวนเครื่องที่ใช้แต่ละเวอร์ชัน ไม่มีข้อมูลส่วนตัว ปิดแล้ว ID จะถูกลบ",
   "settings.app.interval.6": "ทุก 6 ชั่วโมง",
   "settings.app.interval.24": "ทุก 24 ชั่วโมง",
   "settings.app.interval.168": "ทุก 7 วัน",

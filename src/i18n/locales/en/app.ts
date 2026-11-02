@@ -122,7 +122,7 @@ export const app = {
   // Install-id opt-in nudge
   "app.nudge.title": "Help count active capz installs?",
   "app.nudge.desc":
-    "Optional. Shares only a random ID with the daily update check. No personal data. Change it any time in Settings → Updates.",
+    "Optional. Sends a random ID with each update check so the developer can count active machines per version. No personal data. Change it any time in Settings → App → Advanced.",
   "app.nudge.enable": "Enable",
   "app.nudge.noThanks": "No thanks",
 
