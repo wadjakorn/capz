@@ -61,6 +61,34 @@ pub fn is_wayland_session() -> bool {
     is_wayland_session_value()
 }
 
+/// Wayland shortcut state for the editor: `"pending"` (not Wayland, or the
+/// desktop hasn't answered yet), `"bound"` or `"unavailable"`.
+#[tauri::command]
+pub fn wayland_shortcut_status() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        use crate::services::wayland_shortcuts::{status, Status};
+        match status() {
+            Status::Pending => "pending",
+            Status::Bound => "bound",
+            Status::Unavailable => "unavailable",
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    "pending"
+}
+
+/// Open the desktop's own dialog for changing capz's Wayland shortcuts.
+#[tauri::command]
+pub fn configure_wayland_shortcuts() -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        crate::services::wayland_shortcuts::configure().map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    Err("only available on Linux Wayland".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

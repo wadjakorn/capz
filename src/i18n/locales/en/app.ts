@@ -106,8 +106,8 @@ export const app = {
   "app.export.failed": "Export failed",
 
   // Permission notices (macOS)
-  "app.notice.waylandTitle": "Keyboard shortcuts don't work on Wayland yet",
-  "app.notice.waylandDesc": "Capture from the capz icon in the top bar or the editor's capture button. The first capture asks for screenshot permission — choose Allow.",
+  "app.notice.waylandTitle": "Keyboard shortcuts aren't available on this desktop",
+  "app.notice.waylandDesc": "Capture from the capz icon in the top bar, or add a custom shortcut in your desktop's keyboard settings that runs: capz --capture area",
   "app.notice.revokedTitle": "Screen Recording permission revoked",
   "app.notice.revokedDesc": "Re-grant in System Settings → Privacy & Security → Screen Recording.",
   "app.notice.rerunOnboarding": "Re-run onboarding",

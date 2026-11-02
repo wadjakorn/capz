@@ -15,4 +15,6 @@ pub mod workspace_store;
 #[cfg(target_os = "linux")]
 pub mod wayland;
 #[cfg(target_os = "linux")]
+pub mod wayland_shortcuts;
+#[cfg(target_os = "linux")]
 pub mod x11;

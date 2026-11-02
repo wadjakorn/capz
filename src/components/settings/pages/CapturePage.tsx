@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { SettingRow } from "@/components/settings/SettingRow";
@@ -11,6 +12,36 @@ import { useSettings } from "@/stores/settings";
 import { currentPlatform } from "@/lib/shortcuts";
 import { useT } from "@/i18n/useT";
 import { SHORTCUTS_GROUP } from "@/components/settings/registry";
+import { isTauriRuntime } from "@/lib/platform";
+
+/**
+ * Wayland (CP-0094): the desktop owns global shortcuts — capz only proposes
+ * them, and the desktop keeps whatever the user confirmed. Point at the
+ * desktop's own dialog for changes.
+ */
+function WaylandShortcutsNote() {
+  const { t } = useT();
+  const [wayland, setWayland] = useState(false);
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    void import("@tauri-apps/api/core").then(({ invoke }) =>
+      invoke<boolean>("is_wayland_session").then(setWayland).catch(() => {}),
+    );
+  }, []);
+  if (!wayland) return null;
+  const configure = async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("configure_wayland_shortcuts").catch(() => {});
+  };
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-4">
+      <p className="text-sm text-muted-foreground">{t("settings.capture.wayland.note")}</p>
+      <button type="button" className="btn btn--secondary shrink-0" onClick={() => void configure()}>
+        {t("settings.capture.wayland.configure")}
+      </button>
+    </div>
+  );
+}
 
 /** Shortcuts, and what happens at the moment of capture. */
 export function CapturePage() {
@@ -28,6 +59,7 @@ export function CapturePage() {
   return (
     <div className="grid gap-4">
       <SectionCard title={t(SHORTCUTS_GROUP)}>
+        <WaylandShortcutsNote />
         <SettingRow aligned id="capture.full">{hotkey("captureFull")}</SettingRow>
         <SettingRow aligned id="capture.area">{hotkey("captureArea")}</SettingRow>
         {isMac && (

@@ -60,6 +60,9 @@ pub enum Msg {
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     ScrollUnavailableWayland,
     ScrollTargetIgnored,
+    /// Label for the command ring in the desktop's shortcut dialog (Wayland).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    ShortcutCommandRing,
     /// Only raised by the macOS window picker.
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     ScreenRecordingRequired,
@@ -90,6 +93,8 @@ pub fn text(lang: Lang, msg: Msg) -> &'static str {
         (Lang::Th, ShortcutsInactive) => "ปุ่มลัดบางชุดใช้งานไม่ได้ ({}) เปิดการตั้งค่าเพื่อแก้ไข",
         (Lang::En, ScrollAutoUnavailable) => "Auto-scroll unavailable — scroll manually",
         (Lang::Th, ScrollAutoUnavailable) => "เลื่อนอัตโนมัติไม่ได้ — เลื่อนเองแทน",
+        (Lang::En, ShortcutCommandRing) => "Open the capz command ring",
+        (Lang::Th, ShortcutCommandRing) => "เปิดวงคำสั่ง capz",
         (Lang::En, ScrollUnavailableWayland) => "Scrolling capture isn't available on Wayland yet",
         (Lang::Th, ScrollUnavailableWayland) => "จับภาพหน้ายาวยังใช้บน Wayland ไม่ได้",
         (Lang::En, ScrollTargetIgnored) => "Target ignored auto-scroll — scroll manually",
@@ -193,7 +198,7 @@ mod tests {
             TrayCaptureFull, TrayCaptureArea, TrayCaptureWindow, TrayCaptureScroll, TrayOpenApp,
             TrayQuit, Capturing, EditorTitle, CaptureFailed, ShortcutsInactive,
             ScrollAutoUnavailable, ScrollUnavailableWayland, ScrollTargetIgnored,
-            ScreenRecordingRequired,
+            ShortcutCommandRing, ScreenRecordingRequired,
         ] {
             assert!(!text(Lang::En, m).is_empty());
             assert!(!text(Lang::Th, m).is_empty());

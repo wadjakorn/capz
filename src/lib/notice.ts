@@ -34,28 +34,37 @@ export function useNoticeListener() {
 }
 
 /**
- * CP-0084 / CP-0094: under Wayland, capture works through the screenshot
- * portal but global shortcuts don't (yet), so say once per launch how to
- * capture instead. Rust shows the editor at launch in this case so the toast
- * is seen.
+ * CP-0094: on Wayland, hotkeys go through the desktop's GlobalShortcuts
+ * portal. Where the desktop has none (wlroots, older GNOME) or the user
+ * declined, say how to capture instead. Rust shows the editor in that case so
+ * the toast is seen; the status query covers a page that mounts afterwards.
  */
 export function useWaylandSessionNotice() {
   useEffect(() => {
     if (!isTauriRuntime()) return;
     let cancelled = false;
-    (async () => {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const wayland = await invoke<boolean>("is_wayland_session").catch(() => false);
-      if (cancelled || !wayland) return;
+    let unlisten: (() => void) | undefined;
+    const show = () =>
       toast(t("app.notice.waylandTitle"), {
-        id: "wayland-session",
+        id: "wayland-shortcuts",
         description: t("app.notice.waylandDesc"),
         duration: Infinity,
         closeButton: true,
       });
+    (async () => {
+      const [{ invoke }, { listen }] = await Promise.all([
+        import("@tauri-apps/api/core"),
+        import("@tauri-apps/api/event"),
+      ]);
+      const off = await listen("wayland:shortcuts-unavailable", show);
+      if (cancelled) return off();
+      unlisten = off;
+      const status = await invoke<string>("wayland_shortcut_status").catch(() => "pending");
+      if (!cancelled && status === "unavailable") show();
     })();
     return () => {
       cancelled = true;
+      unlisten?.();
     };
   }, []);
 }

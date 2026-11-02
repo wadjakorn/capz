@@ -1,5 +1,6 @@
 mod accel;
 mod capture_dispatch;
+mod cli;
 mod commands;
 mod i18n;
 mod modifiers;
@@ -116,8 +117,11 @@ pub fn run() {
         // tray-resident instance is alive surfaces the existing instance's
         // editor window instead of spawning a new process. Windows-relevant;
         // macOS LaunchServices already blocks double-launch of one bundle.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             use tauri::Manager;
+            if cli::handle(app, &args) {
+                return;
+            }
             if let Some(win) = app.get_webview_window("editor") {
                 let _ = win.show();
                 let _ = win.unminimize();
@@ -178,6 +182,8 @@ pub fn run() {
             commands::stickers::list_stickers,
             commands::system::platform_info,
             commands::system::is_wayland_session,
+            commands::system::wayland_shortcut_status,
+            commands::system::configure_wayland_shortcuts,
             commands::permissions::has_screen_recording_permission,
             commands::permissions::probe_capture_command,
             commands::permissions::request_screen_recording_permission,
@@ -245,13 +251,17 @@ pub fn run() {
                 if let Err(e) = windows::show_onboarding(app.handle()) {
                     log::warn!("show onboarding: {e}");
                 }
-            } else if commands::system::is_wayland_session_value() {
-                // Hotkeys don't fire under Wayland, so a hidden-at-launch editor
-                // would leave the user with no way in. Show it: the editor
-                // raises the "capture from the tray" notice on mount.
-                log::info!("Wayland session: portal capture, no global shortcuts yet");
-                if let Err(e) = windows::show_editor(app.handle()) {
-                    log::warn!("show editor: {e}");
+            }
+            // `capz --capture <mode>` when capz wasn't running yet. Wait for the
+            // editor webview to load so the capture lands in a listening page.
+            {
+                let args: Vec<String> = std::env::args().collect();
+                if cli::parse(&args).is_some() {
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                        cli::handle(&handle, &args);
+                    });
                 }
             }
             spawn_update_checker(app.handle().clone());

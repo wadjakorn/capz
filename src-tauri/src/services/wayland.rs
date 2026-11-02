@@ -51,6 +51,10 @@ pub fn init(app: &AppHandle<Wry>) {
     let _ = APP.set(app.clone());
 }
 
+pub fn app() -> Option<&'static AppHandle<Wry>> {
+    APP.get()
+}
+
 pub fn is_session() -> bool {
     crate::commands::system::is_wayland_session_value()
 }

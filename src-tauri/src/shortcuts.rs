@@ -196,7 +196,7 @@ fn read_hotkeys<R: Runtime>(app: &AppHandle<R>) -> Hotkeys {
 /// it derives the modifiers whose release ends the hold gesture from the live
 /// binding, so a rebound hotkey polls the right keys without a second source of
 /// truth.
-fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction, accel: &str) {
+pub(crate) fn dispatch_action<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction, accel: &str) {
     match action {
         HotkeyAction::CaptureFull => emit_trigger(app, CaptureKind::Full),
         HotkeyAction::CaptureArea => emit_trigger(app, CaptureKind::Area),
@@ -242,6 +242,11 @@ fn register_one<R: Runtime>(
 pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
     let hk = read_hotkeys(app);
     let _ = app.global_shortcut().unregister_all();
+
+    #[cfg(target_os = "linux")]
+    if crate::services::wayland::is_session() {
+        return register_wayland(hk);
+    }
 
     let items = [
         (HotkeyAction::CaptureFull, hk.full),
@@ -319,6 +324,48 @@ pub fn register_shortcuts<R: Runtime>(app: &AppHandle<R>) -> Vec<RegoResult> {
             effective,
             status,
         });
+    }
+    report
+}
+
+/// Wayland: the GlobalShortcuts portal binds everything at once and the
+/// desktop confirms it in its own dialog, so registration is asynchronous and
+/// cannot report per-key conflicts. Statuses describe our own validation only;
+/// the hold ring and macOS-only actions stay unbound.
+#[cfg(target_os = "linux")]
+fn register_wayland(hk: Hotkeys) -> Vec<RegoResult> {
+    let items = [
+        (HotkeyAction::CaptureFull, hk.full),
+        (HotkeyAction::CaptureArea, hk.area),
+        (HotkeyAction::CaptureWindow, hk.window),
+        (HotkeyAction::CaptureScroll, hk.scroll),
+        (HotkeyAction::CaptureSystemArea, hk.system_area),
+        (HotkeyAction::ShowEditor, hk.show_editor),
+        (HotkeyAction::CommandRing, hk.command_ring),
+        (HotkeyAction::CommandRingV2, hk.command_ring_v2),
+    ];
+    let mut report = Vec::with_capacity(items.len());
+    let mut bindings = Vec::new();
+    for (action, requested) in items {
+        let (effective, status) = plan_requested(action, &requested, Os::CURRENT);
+        let portal = !matches!(
+            action,
+            HotkeyAction::CaptureSystemArea | HotkeyAction::CommandRingV2
+        );
+        let effective = if portal { effective } else { String::new() };
+        if !effective.is_empty() {
+            bindings.push((action, effective.clone()));
+        }
+        report.push(RegoResult {
+            action,
+            requested,
+            effective,
+            status,
+        });
+    }
+    match crate::services::wayland::app() {
+        Some(app) => crate::services::wayland_shortcuts::bind(app, bindings),
+        None => log::error!("portal shortcuts: no app handle"),
     }
     report
 }

@@ -98,8 +98,8 @@ export const app: Record<keyof typeof en, string> = {
   "app.export.clipboard": "ใช้คลิปบอร์ดไม่ได้",
   "app.export.failed": "ส่งออกไม่สำเร็จ",
 
-  "app.notice.waylandTitle": "ปุ่มลัดยังใช้บน Wayland ไม่ได้",
-  "app.notice.waylandDesc": "จับภาพจากไอคอน capz ที่แถบด้านบน หรือปุ่มจับภาพในตัวแก้ไข การจับภาพครั้งแรกจะมีหน้าต่างขออนุญาต ให้เลือกอนุญาต",
+  "app.notice.waylandTitle": "เดสก์ท็อปนี้ใช้ปุ่มลัดของ capz ไม่ได้",
+  "app.notice.waylandDesc": "จับภาพจากไอคอน capz ที่แถบด้านบน หรือเพิ่มปุ่มลัดเองในการตั้งค่าแป้นพิมพ์ของเดสก์ท็อป ให้รันคำสั่ง: capz --capture area",
   "app.notice.revokedTitle": "สิทธิ์การบันทึกหน้าจอถูกเพิกถอน",
   "app.notice.revokedDesc":
     "ให้สิทธิ์อีกครั้งที่ การตั้งค่าระบบ → ความเป็นส่วนตัวและความปลอดภัย → การบันทึกหน้าจอ (Screen Recording)",
