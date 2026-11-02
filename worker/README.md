@@ -22,7 +22,7 @@ folder; the Worker is a plain TypeScript module with no framework.
 |---|---|
 | `GET /latest.json?v=&t=&a=` | Proxy of `https://wadjakorn.github.io/capz/latest.json` (5-min edge cache). Optional header `X-Capz-Install: <uuid v4>`. Counts the check. Returns 502 if upstream fails so the updater falls through to the gh-pages endpoint. |
 | `POST /feedback` | JSON body `{ kind: "bug"\|"feature", message (≤4000), version, target, arch }`. 202 on accept, 400 invalid, 413 too large, 429 rate-limited. CORS `*`. |
-| `GET /stats` | `Authorization: Bearer <STATS_TOKEN>` or `?token=`. JSON with `dau`, `wau`, `mau`, `anon_today`, `by_version_30d`, `by_platform_30d`, `daily_30d`, `downloads_daily_30d`, `feedback.{last_7d,pending_issue}`. |
+| `GET /stats` | `Authorization: Bearer <STATS_TOKEN>` (header only; `?token=` is not accepted). JSON with `dau` (today, still running), `dau_yesterday`, `wau`, `mau`, `anon_today`, `by_version_30d`, `by_platform_30d`, `daily_30d`, `anon_checks_daily_30d`, `anon_checks_by_version_30d`, `anon_checks_by_platform_30d`, `downloads_daily_30d`, `feedback.{last_7d,pending_issue}`. `dau`/`wau`/`mau` count opted-in machines; `anon_*` count update checks without an id, not machines. To keep your own dev machines out of the machine counts, turn "Share anonymous install ID" off on them. |
 | `GET /healthz` | Liveness. |
 | cron `17 3 * * *` | Deletes ping and download-snapshot rows older than 400 days; retries feedback rows that never became an issue; snapshots GitHub release download counts. |
 
