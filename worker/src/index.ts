@@ -1,3 +1,4 @@
+import { recordDownloadSnapshot } from "./downloads";
 import type { Env } from "./env";
 import { handleFeedback, handleFeedbackPreflight, retryPendingFeedback } from "./feedback";
 import { handleLatest } from "./latest";
@@ -32,9 +33,22 @@ export default {
         await env.DB.batch([
           env.DB.prepare(`DELETE FROM pings WHERE day < date('now', ?1)`).bind(`-${RETENTION_DAYS} days`),
           env.DB.prepare(`DELETE FROM anon_pings WHERE day < date('now', ?1)`).bind(`-${RETENTION_DAYS} days`),
+          // Keeps the LAG() scan in /stats bounded (~500 rows/day).
+          env.DB.prepare(`DELETE FROM download_snapshots WHERE day < date('now', ?1)`).bind(`-${RETENTION_DAYS} days`),
         ]);
         const retried = await retryPendingFeedback(env);
         console.log(`scheduled: pruned >${RETENTION_DAYS}d, retried ${retried} pending feedback`);
+      })(),
+    );
+    // Separate from the work above so a GitHub outage cannot block pruning or feedback retries.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const n = await recordDownloadSnapshot(env);
+          console.log(`scheduled: download snapshot, ${n} assets`);
+        } catch (e) {
+          console.error("download snapshot failed", e instanceof Error ? e.message : e);
+        }
       })(),
     );
   },
