@@ -73,7 +73,7 @@ export const onboarding = {
     "capz lives in your menu bar / system tray. Use the hotkeys, or click the tray icon for capture options.",
   "onboarding.done.shareLabel": "Help count active installs",
   "onboarding.done.shareHint":
-    "Optional. Sends a random ID with the daily update check so the developer can see how many machines use capz. No personal data, nothing about your machine. You can change this any time in Settings → Updates.",
+    "Optional. Sends a random ID with each update check so the developer can see how many machines use capz, and which versions. No personal data, nothing about your machine. Turning it off deletes the ID. You can change this any time in Settings → App → Advanced.",
   "onboarding.done.tweakLater": "Tweak everything later from the Settings view.",
   "onboarding.finish": "Finish",
 

@@ -256,7 +256,7 @@ export const settings = {
   "settings.app.feedback.hint": "Anonymous. Goes straight to the developer.",
   "settings.app.feedback.write": "Write…",
   "settings.app.installId.hint":
-    "A random ID sent with update checks so installs can be counted. Turning it off deletes it.",
+    "A random ID sent with each update check so active machines can be counted per version. No personal data. Turning it off deletes it.",
   "settings.app.interval.6": "Every 6 hours",
   "settings.app.interval.24": "Every 24 hours",
   "settings.app.interval.168": "Every 7 days",
