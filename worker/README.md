@@ -5,8 +5,8 @@ Small backend for two things the desktop app needs:
 1. **Anonymous active-install count.** The app's existing update check fetches
    `latest.json` through this Worker instead of straight from GitHub Pages. The
    Worker proxies the signed manifest unchanged and, on the side, counts the
-   request. If the user opted in (Settings → Updates → "Share anonymous install
-   ID"), the request carries a random UUID header; the Worker stores
+   request. If the user opted in (Settings → App → Advanced → "Share anonymous
+   install ID"), the request carries a random UUID header; the Worker stores
    `sha256(uuid + ID_SALT)` once per UTC day. Without the header the request is
    only counted, never identified.
 2. **Feedback inbox.** Settings → Feedback posts `{kind, message, version,
@@ -22,7 +22,7 @@ folder; the Worker is a plain TypeScript module with no framework.
 |---|---|
 | `GET /latest.json?v=&t=&a=` | Proxy of `https://wadjakorn.github.io/capz/latest.json` (5-min edge cache). Optional header `X-Capz-Install: <uuid v4>`. Counts the check. Returns 502 if upstream fails so the updater falls through to the gh-pages endpoint. |
 | `POST /feedback` | JSON body `{ kind: "bug"\|"feature", message (≤4000), version, target, arch }`. 202 on accept, 400 invalid, 413 too large, 429 rate-limited. CORS `*`. |
-| `GET /stats` | `Authorization: Bearer <STATS_TOKEN>` or `?token=`. JSON with `dau`, `wau`, `mau`, `anon_today`, `by_version_30d`, `by_platform_30d`, `daily_30d`, `downloads_daily_30d`, `feedback.{last_7d,pending_issue}`. |
+| `GET /stats` | `Authorization: Bearer <STATS_TOKEN>` (header only; `?token=` is not accepted). JSON with `dau` (today, still running), `dau_yesterday`, `wau`, `mau`, `anon_today`, `by_version_30d`, `by_platform_30d`, `daily_30d`, `anon_checks_daily_30d`, `anon_checks_by_version_30d`, `anon_checks_by_platform_30d`, `downloads_daily_30d`, `feedback.{last_7d,pending_issue}`. `dau`/`wau`/`mau` count opted-in machines; `anon_*` count update checks without an id, not machines. To keep your own dev machines out of the machine counts, turn "Share anonymous install ID" off on them. |
 | `GET /healthz` | Liveness. |
 | cron `17 3 * * *` | Deletes ping and download-snapshot rows older than 400 days; retries feedback rows that never became an issue; snapshots GitHub release download counts. |
 
@@ -48,7 +48,7 @@ No IP addresses, hostnames, usernames, or OS versions are stored.
 |---|---|
 | `GITHUB_PAT` | Fine-grained PAT, repo `wadjakorn/capz-inbox` only, permission **Issues: Read and write** (+ the mandatory Metadata: Read). Fine-grained PATs can always read public repos, so it also reads the `wadjakorn/capz` release list for download snapshots (5000 req/h instead of the 60/h per-IP limit that Cloudflare's shared egress IPs would hit). Expires yearly — when it does, `/stats.feedback.pending_issue` starts climbing and `download snapshot failed` shows in the Worker logs. |
 | `ID_SALT` | Random 32 bytes. Rotating it resets all machine identities (DAU continuity breaks). Do not rotate casually. |
-| `STATS_TOKEN` | Bearer token for `/stats`. Rotate freely. |
+| `STATS_TOKEN` | Bearer token for `/stats`. Cloudflare secrets can't be read back, so keep a copy in the gitignored root `.env`. A self-generated random value (`openssl rand -hex 32`). Rotate freely. |
 
 Set or rotate with:
 
@@ -65,7 +65,8 @@ pnpm worker:dev                # local dev server
 pnpm worker:migrate            # apply D1 migrations (remote)
 pnpm worker:deploy             # deploy (needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID)
 
-# read stats
+# read stats (STATS_TOKEN comes from the root .env)
+set -a; . ./.env; set +a
 curl -s -H "Authorization: Bearer $STATS_TOKEN" https://capz-api.banana3339.workers.dev/stats | jq
 
 # look at raw rows
