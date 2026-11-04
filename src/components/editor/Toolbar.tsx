@@ -29,6 +29,7 @@ import {
   useEditor,
   type Annotation,
   type StrokeStyle,
+  type DimLevel,
   type Tool,
 } from "@/stores/editor";
 import { arrowStrokeStyle, isShapesToolAnnotation } from "@/lib/strokeStyle";
@@ -41,6 +42,7 @@ import { getStage, runPrepareExport } from "@/lib/stageBridge";
 import { copyOnly, saveOnly, saveAndCopy } from "@/lib/exportImage";
 import { describeExportError } from "@/lib/exportErrors";
 import { effectiveTools, type AppConfig } from "@/lib/config";
+import { spotlightLevel, spotlightShapes } from "@/lib/spotlight";
 import { ToolButton } from "./toolbar/ToolButton";
 import { useOverflowSlots } from "./toolbar/useOverflowSlots";
 import { CaptureSplitButton, type CaptureKind } from "./toolbar/CaptureSplitButton";
@@ -63,6 +65,7 @@ import type {
   PinTailCtx,
   RectShapeCtx,
   StrokeStyleCtx,
+  DimCtx,
   PenModeCtx,
   MagnifyShapeCtx,
   ArrowHeadsCtx,
@@ -255,6 +258,20 @@ export function Toolbar({
     if (remember) patchLastUsed({ rect: { strokeStyle: v } });
     else void updateSettings("tools", { rect: { strokeStyle: v } } as Partial<AppConfig["tools"]>);
   };
+  // Spotlight dim (CP-0095). One overlay serves every dimmed shape, so the
+  // image has one level: a level pick rewrites every spotlight, and turning dim
+  // on adopts the level already in use before the remembered one.
+  let dimCtx: DimCtx | null = null;
+  const docDimLevel = spotlightLevel(annotations);
+  const persistRectDim = (patch: { dim?: boolean; dimLevel?: DimLevel }) => {
+    if (remember) patchLastUsed({ rect: patch });
+    else void updateSettings("tools", { rect: patch } as Partial<AppConfig["tools"]>);
+  };
+  const setImageDimLevel = (level: DimLevel, alsoIds: readonly string[] = []) => {
+    const ids = [...new Set([...spotlightShapes(annotations).map((a) => a.id), ...alsoIds])];
+    if (ids.length) updateMany(ids, { dim: level });
+    persistRectDim({ dim: true, dimLevel: level });
+  };
   let penModeCtx: PenModeCtx | null = null;
   let magnifyShapeCtx: MagnifyShapeCtx | null = null;
   let arrowHeadsCtx: ArrowHeadsCtx | null = null;
@@ -312,6 +329,22 @@ export function Toolbar({
             persistRectStyle(v);
           },
         };
+        if (curShape !== "line") {
+          const ids = multi ? selectedIds : [rectSel.id];
+          dimCtx = {
+            on: !!rectSel.dim,
+            level: docDimLevel ?? toolsCfg.rect.dimLevel,
+            setOn: (on) => {
+              if (on) {
+                setImageDimLevel(docDimLevel ?? toolsCfg.rect.dimLevel, ids);
+              } else {
+                updateAnnotation(rectSel.id, { dim: undefined });
+                persistRectDim({ dim: false });
+              }
+            },
+            setLevel: (level) => setImageDimLevel(level, ids),
+          };
+        }
         if (curShape === "rect") {
           cornerCtx = {
             label: tr("editor.ctl.radius"),
@@ -775,6 +808,14 @@ export function Toolbar({
         };
       }
       strokeStyleCtx = { value: toolsCfg.rect.strokeStyle, onChange: persistRectStyle };
+      if (toolsCfg.rect.shape !== "line") {
+        dimCtx = {
+          on: toolsCfg.rect.dim,
+          level: docDimLevel ?? toolsCfg.rect.dimLevel,
+          setOn: (on) => persistRectDim(on ? { dim: true, dimLevel: docDimLevel ?? toolsCfg.rect.dimLevel } : { dim: false }),
+          setLevel: (level) => setImageDimLevel(level),
+        };
+      }
     }
     if (tool === "arrow") {
       arrowHeadsCtx = {
@@ -1594,6 +1635,7 @@ export function Toolbar({
           magnifyLinkCtx={magnifyLinkCtx}
           rectShapeCtx={rectShapeCtx}
           strokeStyleCtx={strokeStyleCtx}
+          dimCtx={dimCtx}
           penModeCtx={penModeCtx}
           magnifyShapeCtx={magnifyShapeCtx}
           arrowHeadsCtx={arrowHeadsCtx}

@@ -60,6 +60,9 @@ export type RectShapeKind = "rect" | "ellipse" | "line";
 /** Stroke pattern for the Shapes tool's rect / ellipse / line. Absent = "solid". */
 export type StrokeStyle = "solid" | "dashed" | "dotted";
 
+/** How strongly a spotlight rect / ellipse dims the image around it (CP-0095). */
+export type DimLevel = "light" | "medium" | "strong";
+
 export type RectAnnotation = Base & {
   type: "rect";
   x: number;
@@ -74,6 +77,9 @@ export type RectAnnotation = Base & {
   cornerRadius?: number;
   /** Solid / dashed / dotted outline. Absent = "solid". */
   strokeStyle?: StrokeStyle;
+  /** Dim the image around this shape (spotlight). Absent = no dim. Ignored
+   *  for the "line" variant, which has no area (CP-0095). */
+  dim?: DimLevel;
 };
 
 /** Arrowhead placement. "none" is the headless line variant of the Shapes tool. */

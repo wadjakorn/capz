@@ -1,31 +1,37 @@
 "use client";
 
-import { Circle as CircleIcon, Minus, Square } from "lucide-react";
+import { Circle as CircleIcon, Focus, Minus, Square } from "lucide-react";
 import { SectionLabel } from "../PresetSlider";
 import { RadiusGlyph, StrokeGlyph } from "./glyphs";
 import {
   ColorField,
   DashLineIcon,
+  DimLightIcon,
+  DimMediumIcon,
+  DimStrongIcon,
   DotLineIcon,
   Group,
   IconSegmented,
   NumericField,
   SolidLineIcon,
+  ToggleIconButton,
 } from "./kit";
-import type { ColorCtx, NumCtx, RectShapeCtx, StrokeStyleCtx } from "./types";
-import type { RectShapeKind, StrokeStyle } from "@/stores/editor";
+import type { ColorCtx, DimCtx, NumCtx, RectShapeCtx, StrokeStyleCtx } from "./types";
+import type { DimLevel, RectShapeKind, StrokeStyle } from "@/stores/editor";
 import type { RefObject } from "react";
 import { useT } from "@/i18n/useT";
 
 /** Shapes tool (rect/ellipse/line): a shape picker (hidden while a shape is
  * selected), a solid/dashed/dotted line style, stroke color + width (1–20), and
- * a corner radius (0–60) for the rectangle. */
+ * a corner radius (0–60) for the rectangle, and — for rect / ellipse — a
+ * spotlight dim with three levels (CP-0095). */
 export function ShapesPanel({
   colorCtx,
   widthCtx,
   cornerCtx,
   rectShapeCtx,
   strokeStyleCtx,
+  dimCtx,
   colorInputRef,
   selected,
 }: {
@@ -34,6 +40,7 @@ export function ShapesPanel({
   cornerCtx: NumCtx | null;
   rectShapeCtx: RectShapeCtx | null;
   strokeStyleCtx: StrokeStyleCtx | null;
+  dimCtx: DimCtx | null;
   colorInputRef: RefObject<HTMLInputElement | null>;
   selected: boolean;
 }) {
@@ -98,6 +105,34 @@ export function ShapesPanel({
             { value: 60, node: <RadiusGlyph r={5.5} />, title: "60 px" },
           ]}
         />
+      )}
+      {dimCtx && <SectionLabel>{t("editor.panel.dimAround")}</SectionLabel>}
+      {dimCtx && (
+        <div className="flex items-center gap-0.5">
+          <ToggleIconButton
+            active={dimCtx.on}
+            onClick={() => dimCtx.setOn(!dimCtx.on)}
+            title={t("editor.panel.dimAroundToggle")}
+            ariaLabel={t("editor.panel.dimAroundToggle")}
+            Icon={Focus}
+          />
+          {dimCtx.on && (
+            <>
+              <span className="mx-1 h-5 w-px bg-[var(--border-strong)]" aria-hidden />
+              <IconSegmented<DimLevel>
+                value={dimCtx.level}
+                onChange={dimCtx.setLevel}
+                title={t("editor.panel.dimAround")}
+                ariaLabel={t("editor.panel.dimAround")}
+                options={[
+                  { value: "light", title: t("editor.panel.dimLight"), Icon: DimLightIcon },
+                  { value: "medium", title: t("editor.panel.dimMedium"), Icon: DimMediumIcon },
+                  { value: "strong", title: t("editor.panel.dimStrong"), Icon: DimStrongIcon },
+                ]}
+              />
+            </>
+          )}
+        </div>
       )}
     </Group>
   );

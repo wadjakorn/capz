@@ -6,6 +6,28 @@ import type { ColorCtx, NumCtx, TextDecoration, TextFontStyle } from "./types";
 
 type IconType = ComponentType<{ className?: string }>;
 
+/** Spotlight glyph for a dim level: a square shaded at `alpha` with a clear
+ *  round hole — reads as "darker around, clear inside" (CP-0095). */
+function dimGlyph(alpha: number): IconType {
+  function DimGlyph({ className }: { className?: string }) {
+    return (
+      <svg viewBox="0 0 16 16" className={className} aria-hidden>
+        <path
+          fillRule="evenodd"
+          fill="currentColor"
+          fillOpacity={alpha}
+          d="M1.5 1.5h13v13h-13z M8 4.5a3.5 3.5 0 1 0 0.001 0z"
+        />
+        <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth={1} />
+      </svg>
+    );
+  }
+  return DimGlyph;
+}
+export const DimLightIcon = dimGlyph(0.3);
+export const DimMediumIcon = dimGlyph(0.6);
+export const DimStrongIcon = dimGlyph(0.95);
+
 /** Dashed horizontal line — no lucide equivalent, so a tiny inline SVG. */
 export function DashLineIcon({ className }: { className?: string }) {
   return (
