@@ -18,6 +18,7 @@ import v6 from "./__fixtures__/config/v6.json";
 import v7 from "./__fixtures__/config/v7.json";
 import v8 from "./__fixtures__/config/v8.json";
 import v9 from "./__fixtures__/config/v9.json";
+import v10 from "./__fixtures__/config/v10.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
@@ -30,7 +31,8 @@ import v99 from "./__fixtures__/config/v99.json";
 //   v6  — schema of v0.18.x (auto-backdrop for paste / import)
 //   v7  — schema of v0.19.0 (CP-0076: Shapes stroke style)
 //   v8  — schema with sticker sets (CP-0048)
-//   v9  — current schema (CP-0025: snap bypass key)
+//   v9  — schema with the snap bypass key (CP-0025)
+//   v10 — current schema (CP-0095: Shapes spotlight dim)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -222,13 +224,13 @@ describe("v6 → v7: rect strokeStyle, dashline folded into line", () => {
     const { config, issues } = load(v6);
     expect(issues).toEqual([]);
     expect(config.schemaVersion).toBe(CONFIG_SCHEMA_VERSION);
-    expect(config.tools.rect).toEqual({ ...v6.tools.rect, strokeStyle: "solid" });
+    expect(config.tools.rect).toEqual({ ...v6.tools.rect, strokeStyle: "solid", dim: false, dimLevel: "medium" });
   });
 
   it("a v7 store keeps stored values", () => {
     const { config, issues } = load(v7);
     expect(issues).toEqual([]);
-    expect(config.tools.rect).toEqual(v7.tools.rect);
+    expect(config.tools.rect).toEqual({ ...v7.tools.rect, dim: false, dimLevel: "medium" });
   });
 });
 
@@ -303,6 +305,28 @@ describe("v8 → v9: general.snapBypassKey", () => {
   it("an unknown bypass key falls back to the default", () => {
     const { config } = load({ ...v9, general: { ...v9.general, snapBypassKey: "shift" } });
     expect(config.general.snapBypassKey).toBe("mod");
+  });
+});
+
+describe("v9 → v10: tools.rect.dim / dimLevel (CP-0095)", () => {
+  it("a v9 store gets dim off at the medium level", () => {
+    const { config, issues } = load(v9);
+    expect(issues).toEqual([]);
+    expect(config.tools.rect.dim).toBe(false);
+    expect(config.tools.rect.dimLevel).toBe("medium");
+    expect(config.tools.rect.strokeStyle).toBe(v9.tools.rect.strokeStyle);
+  });
+
+  it("a v10 store keeps stored values, including lastUsed", () => {
+    const { config, issues } = load(v10);
+    expect(issues).toEqual([]);
+    expect(config.tools.rect).toMatchObject({ dim: true, dimLevel: "strong" });
+    expect(config.lastUsed?.rect).toMatchObject({ dim: true, dimLevel: "light" });
+  });
+
+  it("an unknown dim level falls back to the default", () => {
+    const bad = { ...v10, tools: { ...v10.tools, rect: { ...v10.tools.rect, dimLevel: "max" } } };
+    expect(load(bad).config.tools.rect.dimLevel).toBe("medium");
   });
 });
 

@@ -15,6 +15,10 @@ export function lastUsedPatchForAnnotation(a: Annotation): NonNullable<AppConfig
           shape: a.shape,
           cornerRadius: a.cornerRadius,
           strokeStyle: a.strokeStyle ?? "solid",
+          dim: !!a.dim,
+          // Only when on: lastUsed slots merge field by field, so an explicit
+          // undefined would wipe the remembered level (CP-0095).
+          ...(a.dim ? { dimLevel: a.dim } : {}),
         },
       };
     case "arrow":

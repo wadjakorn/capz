@@ -4,6 +4,7 @@ import type {
   PinTailDir,
   RectShapeKind,
   StrokeStyle,
+  DimLevel,
   FreehandMode,
   MagnifyShape,
   ArrowHeads,
@@ -212,6 +213,8 @@ export type AppConfig = {
       shape?: RectShapeKind;
       cornerRadius?: number;
       strokeStyle?: StrokeStyle;
+      dim?: boolean;
+      dimLevel?: DimLevel;
     };
     arrow?: {
       strokeColor?: string;
@@ -268,6 +271,10 @@ export type AppConfig = {
       shape: RectShapeKind;
       cornerRadius: number;
       strokeStyle: StrokeStyle;
+      /** New rect / ellipse dims around itself (spotlight, CP-0095). */
+      dim: boolean;
+      /** Level used when dim is on — kept while dim is off ("default level"). */
+      dimLevel: DimLevel;
     };
     arrow: {
       strokeColor: string;
@@ -357,7 +364,8 @@ export type BackdropConfig = AppConfig["general"]["backdrop"];
 //   (+ `disabledBuiltins`, `order`); `lastUsed.stickerEmoji` became
 //   `lastUsed.stickerItem`.
 // v9 (CP-0025): added `general.snapBypassKey`.
-export const CONFIG_SCHEMA_VERSION = 9;
+// v10 (CP-0095): added tools.rect.dim / dimLevel and lastUsed.rect.dim / dimLevel.
+export const CONFIG_SCHEMA_VERSION = 10;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -459,6 +467,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       shape: "rect",
       cornerRadius: 8,
       strokeStyle: "solid",
+      dim: false,
+      dimLevel: "medium",
     },
     arrow: { strokeColor: "#ef4444", strokeWidth: 4, heads: "end", dash: false },
     text: {
@@ -630,6 +640,9 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
     if (general.snapBypassKey !== undefined) return o;
     return { ...o, general: { ...general, snapBypassKey: "alt" } };
   },
+  // v9 → v10 (CP-0095): only ADDED keys (tools.rect.dim / dimLevel and their
+  // lastUsed twins); absent keys fall back to their defaults.
+  9: (o) => o,
 };
 
 /** Stable folder-set id for a directory path (FNV-1a, 32-bit). */
@@ -998,6 +1011,8 @@ function vTools(
       shape: inSet("rect", "ellipse", "line"),
       cornerRadius: isNum,
       strokeStyle: inSet("solid", "dashed", "dotted"),
+      dim: isBool,
+      dimLevel: inSet("light", "medium", "strong"),
     }, issues),
     arrow: vsec("tools.arrow", r.arrow, def.arrow, {
       strokeColor: isStr,
@@ -1109,6 +1124,8 @@ function vLastUsed(raw: unknown): AppConfig["lastUsed"] | undefined {
     shape: inSet("rect", "ellipse", "line"),
     cornerRadius: isNum,
     strokeStyle: inSet("solid", "dashed", "dotted"),
+    dim: isBool,
+    dimLevel: inSet("light", "medium", "strong"),
   });
   keep("arrow", {
     strokeColor: isStr,
@@ -1298,6 +1315,8 @@ export type EffectiveTools = {
     shape: RectShapeKind;
     cornerRadius: number;
     strokeStyle: StrokeStyle;
+    dim: boolean;
+    dimLevel: DimLevel;
   };
   arrow: {
     strokeColor: string;
@@ -1359,6 +1378,8 @@ export function effectiveTools(cfg: AppConfig): EffectiveTools {
       shape: lu?.rect?.shape ?? t.rect.shape,
       cornerRadius: lu?.rect?.cornerRadius ?? t.rect.cornerRadius,
       strokeStyle: lu?.rect?.strokeStyle ?? t.rect.strokeStyle,
+      dim: lu?.rect?.dim ?? t.rect.dim,
+      dimLevel: lu?.rect?.dimLevel ?? t.rect.dimLevel,
     },
     arrow: {
       strokeColor: lu?.arrow?.strokeColor ?? t.arrow.strokeColor,

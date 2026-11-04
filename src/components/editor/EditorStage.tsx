@@ -104,6 +104,13 @@ import { uid } from "@/lib/uid";
 import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
 import { getPreloaded } from "@/lib/imagePreload";
 import { lastUsedPatchForAnnotation } from "@/lib/lastUsedPatch";
+import {
+  DIM_OPACITY,
+  drawSpotlight,
+  spotlightHole,
+  spotlightLevel,
+  spotlightShapes,
+} from "@/lib/spotlight";
 import { cancelLastUsed, scheduleLastUsed } from "@/lib/lastUsedWriter";
 import { arrowStrokeStyle, strokeDashProps } from "@/lib/strokeStyle";
 import { useCanvasGestures } from "@/hooks/useCanvasGestures";
@@ -793,6 +800,7 @@ export function EditorStage({ src }: Props) {
   // formula that already keys off contentBox.x stays correct.
   const backdropPad = backdropOn ? Math.max(0, Math.min(backdrop.padding, 4096)) : 0;
   const backdropRadius = Math.max(0, backdrop.cornerRadius);
+  const spotlights = spotlightShapes(annotations);
   // Shadow scaled to the padding so it stays proportional at any frame size.
   const backdropShadowBlur = Math.round(backdropPad * 0.5);
   const backdropShadowOffsetY = Math.round(backdropPad * 0.15);
@@ -1599,6 +1607,11 @@ export function EditorStage({ src }: Props) {
           shape: toolsCfg.rect.shape,
           cornerRadius: toolsCfg.rect.cornerRadius,
           strokeStyle: toolsCfg.rect.strokeStyle,
+          // One level per image (CP-0095): join the spotlights already there.
+          dim:
+            toolsCfg.rect.dim && toolsCfg.rect.shape !== "line"
+              ? (spotlightLevel(annotations) ?? toolsCfg.rect.dimLevel)
+              : undefined,
         };
         add(a);
         scheduleLastUsedWrite(lastUsedPatchForAnnotation(a));
@@ -1907,6 +1920,23 @@ export function EditorStage({ src }: Props) {
               shadowOpacity={backdropRender && backdrop.shadow ? 0.35 : 0}
               shadowOffsetY={backdropRender && backdrop.shadow ? backdropShadowOffsetY : 0}
             />
+            {/* Spotlight dim (CP-0095): above the base image, below every
+                annotation, clipped to the image rect so the backdrop and the
+                overflow band never darken. Hidden in crop mode, which draws
+                its own dim. */}
+            {tool !== "crop" && spotlights.length > 0 && (
+              <Shape
+                listening={false}
+                sceneFunc={(c) => {
+                  drawSpotlight(
+                    c._context,
+                    { w: imgW, h: imgH, radius: backdropRender ? backdropRadius : 0 },
+                    spotlights.map((a) => spotlightHole(a, nodeRefs.current.get(a.id) as Konva.Shape | undefined)),
+                    DIM_OPACITY[spotlightLevel(spotlights) ?? "medium"],
+                  );
+                }}
+              />
+            )}
             {annotations.map((a, i) =>
               renderAnnotation(
                 groupOffset &&

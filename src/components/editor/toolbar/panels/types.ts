@@ -7,6 +7,7 @@ import type {
   FreehandMode,
   MagnifyShape,
   ArrowHeads,
+  DimLevel,
   TextAlign,
   TextFontStyle,
   TextDecoration,
@@ -66,3 +67,11 @@ export type StrokeStyleCtx = { value: StrokeStyle; onChange: (v: StrokeStyle) =>
 export type PenModeCtx = { value: FreehandMode; onChange: (v: FreehandMode) => void };
 export type MagnifyShapeCtx = { value: MagnifyShape; onChange: (v: MagnifyShape) => void };
 export type ArrowHeadsCtx = { value: ArrowHeads; onChange: (v: ArrowHeads) => void };
+/** Spotlight dim of a rect / ellipse (CP-0095): on/off plus the level, which
+ *  is remembered while dim is off. */
+export type DimCtx = {
+  on: boolean;
+  level: DimLevel;
+  setOn: (v: boolean) => void;
+  setLevel: (v: DimLevel) => void;
+};
