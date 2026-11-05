@@ -1,0 +1,5 @@
+{
+  "bundle": {
+    "resources": ["icons/tray/*.png", "vendor/tesseract/**/*"]
+  }
+}

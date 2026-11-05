@@ -139,7 +139,7 @@ export const app: Record<keyof typeof en, string> = {
   "app.ocr.noText": "ไม่พบข้อความ",
   "app.ocr.thaiUnavailable": "ระบบนี้อ่านข้อความภาษาไทยไม่ได้",
   "app.ocr.thaiUnavailableWindows":
-    "Windows ไม่มีชุด OCR ภาษาไทยให้ติดตั้ง (ไม่ว่าเวอร์ชันใด) จึงยังอ่านภาษาไทยไม่ได้ — ไม่ต้องไปหาติดตั้งเพิ่ม ภาษาอังกฤษยังใช้ได้ตามปกติ · รายละเอียด: {url}",
+    "ไฟล์อ่านภาษาไทยที่มากับ capz หายหรือเสียหาย — ลองติดตั้ง capz ใหม่ ถ้ายังไม่หาย กรุณาแจ้งปัญหา · รายละเอียด: {url}",
   "app.ocr.thaiUnavailableMac": "ต้องใช้ macOS เวอร์ชันใหม่กว่านี้",
   "app.ocr.failed": "ตรวจจับข้อความไม่สำเร็จ",
 };

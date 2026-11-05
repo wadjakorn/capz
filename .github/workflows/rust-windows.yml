@@ -1,0 +1,57 @@
+name: rust (windows)
+
+# Compiles, lints and unit-tests the Rust core on Windows for every PR that
+# touches it. Before this existed, Windows-only Rust was first compiled by the
+# tag-triggered release build (build.yml) — i.e. at release time.
+on:
+  pull_request:
+    paths:
+      - "src-tauri/**"
+      - "scripts/fetch-tesseract-windows.sh"
+      - ".github/workflows/rust-windows.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "scripts/fetch-tesseract-windows.sh"
+      - ".github/workflows/rust-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: clippy + tests (windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: windows-check
+
+      # tauri::generate_context! requires frontendDist (../out) to exist at
+      # compile time. The Rust check does not need a real frontend build.
+      - name: Stub frontend dist
+        run: mkdir -p out && echo '<!doctype html>' > out/index.html
+
+      # tauri.windows.conf.json bundles src-tauri/vendor/tesseract, so the build
+      # script needs it present; the tests run the real engine from it.
+      - name: Fetch bundled Tesseract
+        run: scripts/fetch-tesseract-windows.sh
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit tests
+        working-directory: src-tauri
+        env:
+          CAPZ_TESSERACT_DIR: ${{ github.workspace }}/src-tauri/vendor/tesseract
+        run: cargo test --lib -- --nocapture
