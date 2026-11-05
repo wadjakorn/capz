@@ -78,6 +78,24 @@ pub fn wayland_shortcut_status() -> &'static str {
     "pending"
 }
 
+/// The keys the desktop actually bound under Wayland, keyed by the
+/// `hotkeys.*` config key. Empty when not on Wayland or not bound yet.
+#[tauri::command]
+pub fn wayland_shortcut_triggers() -> std::collections::HashMap<String, String> {
+    #[cfg(target_os = "linux")]
+    {
+        crate::services::wayland_shortcuts::triggers()
+            .into_iter()
+            .filter_map(|(a, label)| {
+                let key = serde_json::to_value(a).ok()?.as_str()?.to_string();
+                Some((key, label))
+            })
+            .collect()
+    }
+    #[cfg(not(target_os = "linux"))]
+    std::collections::HashMap::new()
+}
+
 /// Open the desktop's own dialog for changing capz's Wayland shortcuts.
 #[tauri::command]
 pub fn configure_wayland_shortcuts() -> Result<(), String> {

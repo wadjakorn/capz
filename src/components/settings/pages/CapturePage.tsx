@@ -16,29 +16,92 @@ import { isTauriRuntime } from "@/lib/platform";
 
 /**
  * Wayland (CP-0094): the desktop owns global shortcuts — capz only proposes
- * them, and the desktop keeps whatever the user confirmed. Point at the
- * desktop's own dialog for changes.
+ * them once, and the desktop keeps whatever the user confirmed. So on Wayland
+ * the rows show the desktop's actual bindings (read-only) and changes go
+ * through the desktop's own settings. `null` = not Wayland.
  */
-function WaylandShortcutsNote() {
-  const { t } = useT();
-  const [wayland, setWayland] = useState(false);
+function useWaylandTriggers(): Record<string, string> | null {
+  const [triggers, setTriggers] = useState<Record<string, string> | null>(null);
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    void import("@tauri-apps/api/core").then(({ invoke }) =>
-      invoke<boolean>("is_wayland_session").then(setWayland).catch(() => {}),
-    );
+    let off: (() => void) | undefined;
+    let alive = true;
+    void (async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { listen } = await import("@tauri-apps/api/event");
+      const wayland = await invoke<boolean>("is_wayland_session").catch(
+        () => false,
+      );
+      if (!wayland || !alive) return;
+      const load = () =>
+        invoke<Record<string, string>>("wayland_shortcut_triggers")
+          .then((t) => alive && setTriggers(t))
+          .catch(() => alive && setTriggers({}));
+      await load();
+      // Fires when the bind finishes and when the user re-binds in the desktop.
+      const un = await listen("wayland:shortcuts-changed", () => void load());
+      if (alive) off = un;
+      else un();
+    })();
+    return () => {
+      alive = false;
+      off?.();
+    };
   }, []);
-  if (!wayland) return null;
+  return triggers;
+}
+
+function WaylandShortcutsNote() {
+  const { t } = useT();
+  const [failed, setFailed] = useState(false);
   const configure = async () => {
     const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("configure_wayland_shortcuts").catch(() => {});
+    setFailed(false);
+    await invoke("configure_wayland_shortcuts").catch(() => setFailed(true));
   };
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-4">
-      <p className="text-sm text-muted-foreground">{t("settings.capture.wayland.note")}</p>
-      <button type="button" className="btn btn--secondary shrink-0" onClick={() => void configure()}>
-        {t("settings.capture.wayland.configure")}
-      </button>
+    <div className="flex flex-col gap-2 rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground">
+          {t("settings.capture.wayland.note")}
+        </p>
+        <button
+          type="button"
+          className="btn btn--secondary shrink-0"
+          onClick={() => void configure()}
+        >
+          {t("settings.capture.wayland.configure")}
+        </button>
+      </div>
+      {failed && (
+        <span className="text-xs text-destructive">
+          {t("settings.capture.wayland.configureFailed")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The desktop's own label for a bound shortcut, e.g. "Shift+Ctrl+1". */
+function WaylandTrigger({ label }: { label: string | undefined }) {
+  const { t } = useT();
+  const keys = label ? label.split("+").filter(Boolean) : [];
+  return (
+    <div className="field flex h-9 w-60 items-center gap-1 overflow-hidden py-0">
+      {keys.length ? (
+        keys.map((k, i) => (
+          <kbd
+            key={i}
+            className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-border bg-foreground/[0.06] px-1.5 font-sans text-xs font-medium text-foreground shadow-[inset_0_-1px_0_var(--border)]"
+          >
+            {k}
+          </kbd>
+        ))
+      ) : (
+        <span className="truncate italic text-muted-foreground">
+          {t("settings.hotkey.notSet")}
+        </span>
+      )}
     </div>
   );
 }
@@ -49,17 +112,22 @@ export function CapturePage() {
   const { config, update } = useSettings();
   const isMac = currentPlatform() === "mac";
 
-  const hotkey = (key: keyof typeof config.hotkeys) => (
-    <HotkeyRecorder
-      value={config.hotkeys[key]}
-      onChange={(v) => applyHotkey(useSettings.getState, update, { [key]: v })}
-    />
-  );
+  const wayland = useWaylandTriggers();
+
+  const hotkey = (key: keyof typeof config.hotkeys) =>
+    wayland ? (
+      <WaylandTrigger label={wayland[key]} />
+    ) : (
+      <HotkeyRecorder
+        value={config.hotkeys[key]}
+        onChange={(v) => applyHotkey(useSettings.getState, update, { [key]: v })}
+      />
+    );
 
   return (
     <div className="grid gap-4">
       <SectionCard title={t(SHORTCUTS_GROUP)}>
-        <WaylandShortcutsNote />
+        {wayland && <WaylandShortcutsNote />}
         <SettingRow aligned id="capture.full">{hotkey("captureFull")}</SettingRow>
         <SettingRow aligned id="capture.area">{hotkey("captureArea")}</SettingRow>
         {isMac && (

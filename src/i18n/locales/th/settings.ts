@@ -133,8 +133,9 @@ export const settings: Record<keyof typeof en, string> = {
 
   // ── Capture page ───────────────────────────────────────────────────────────
   "settings.capture.sysArea.hint": "ส่งต่อให้เครื่องมือจับภาพหน้าจอของ macOS",
-  "settings.capture.wayland.note": "บน Wayland เดสก์ท็อปเป็นผู้จัดการปุ่มลัดเหล่านี้ capz แค่เสนอปุ่มด้านล่าง หากต้องการเปลี่ยนให้แก้ในหน้าต่างของเดสก์ท็อป",
+  "settings.capture.wayland.note": "บน Wayland เดสก์ท็อปเป็นผู้จัดการปุ่มลัดเหล่านี้ ด้านล่างคือปุ่มที่เดสก์ท็อปตั้งให้ capz อยู่ตอนนี้ หากต้องการเปลี่ยนให้แก้ในการตั้งค่าระบบ",
   "settings.capture.wayland.configure": "เปลี่ยนในการตั้งค่าระบบ",
+  "settings.capture.wayland.configureFailed": "เปิดการตั้งค่าระบบไม่ได้ ให้เปลี่ยนปุ่มลัดของ capz ในการตั้งค่าแป้นพิมพ์ของเดสก์ท็อป",
   "settings.capture.ring.hint": "กดครั้งเดียว วงคำสั่งจะเปิดขึ้นมา แล้วคลิกเลือกโหมด",
   "settings.capture.ringHold.hint": "กดปุ่มกำกับค้างไว้แล้วแตะเพื่อสลับโหมด ปล่อยเพื่อจับภาพ",
   "settings.capture.ringModes.hint": "โหมดบนวงคำสั่งแบบกดค้าง เรียงตามเข็มนาฬิกาจากด้านบน",

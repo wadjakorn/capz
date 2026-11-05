@@ -184,6 +184,7 @@ pub fn run() {
             commands::system::is_wayland_session,
             commands::system::wayland_shortcut_status,
             commands::system::configure_wayland_shortcuts,
+            commands::system::wayland_shortcut_triggers,
             commands::permissions::has_screen_recording_permission,
             commands::permissions::probe_capture_command,
             commands::permissions::request_screen_recording_permission,

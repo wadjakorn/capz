@@ -134,8 +134,9 @@ export const settings = {
 
   // ── Capture page ───────────────────────────────────────────────────────────
   "settings.capture.sysArea.hint": "Hands off to the macOS screenshot tool.",
-  "settings.capture.wayland.note": "On Wayland your desktop manages these shortcuts. capz suggests the ones below; change them in the desktop's dialog.",
+  "settings.capture.wayland.note": "On Wayland your desktop manages these shortcuts. Below are the keys it has bound for capz; change them in system settings.",
   "settings.capture.wayland.configure": "Change in system settings",
+  "settings.capture.wayland.configureFailed": "Couldn't open system settings. Change capz's shortcuts in your desktop's keyboard settings.",
   "settings.capture.ring.hint": "Press once — the ring opens and takes focus; click a mode.",
   "settings.capture.ringHold.hint": "Hold the modifiers and tap to cycle, release to capture.",
   "settings.capture.ringModes.hint":

@@ -48,6 +48,9 @@ struct State {
     status: Status,
     session: Option<OwnedObjectPath>,
     actions: HashMap<String, HotkeyAction>,
+    /// Shortcut id → the desktop's own label for the bound keys. The desktop
+    /// owns the bindings, so this — not our config — is what actually fires.
+    triggers: HashMap<String, String>,
 }
 
 fn state() -> &'static Mutex<State> {
@@ -57,6 +60,7 @@ fn state() -> &'static Mutex<State> {
             status: Status::Pending,
             session: None,
             actions: HashMap::new(),
+            triggers: HashMap::new(),
         })
     })
 }
@@ -303,7 +307,11 @@ fn bind_blocking(bindings: &[(HotkeyAction, String)]) -> Result<()> {
         }
     }
 
-    let session_token = format!("capzsession{}", std::process::id());
+    // Unique per bind: reusing a token while an old session is still being
+    // torn down makes the portal fail both requests (response code 2).
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let session_token = format!("capzsession{}_{seq}", std::process::id());
     let created = request(conn, |token| {
         let mut opts: HashMap<&str, Value> = HashMap::new();
         opts.insert("handle_token", Value::from(token));
@@ -336,7 +344,7 @@ fn bind_blocking(bindings: &[(HotkeyAction, String)]) -> Result<()> {
         shortcuts.push((id.to_string(), props));
         actions.insert(id.to_string(), *action);
     }
-    request(conn, |token| {
+    let bound = request(conn, |token| {
         let mut opts: HashMap<&str, Value> = HashMap::new();
         opts.insert("handle_token", Value::from(token));
         portal
@@ -348,9 +356,115 @@ fn bind_blocking(bindings: &[(HotkeyAction, String)]) -> Result<()> {
     if let Ok(mut s) = state().lock() {
         s.session = Some(session);
         s.actions = actions;
+        s.triggers = bound.get("shortcuts").map(parse_triggers).unwrap_or_default();
         s.status = Status::Bound;
     }
     Ok(())
+}
+
+/// `a(sa{sv})` from BindShortcuts / ShortcutsChanged → id → trigger label.
+fn parse_triggers(v: &OwnedValue) -> HashMap<String, String> {
+    let Ok(list) = v.try_clone().map_err(anyhow::Error::from).and_then(|v| {
+        Vec::<(String, HashMap<String, OwnedValue>)>::try_from(v).map_err(anyhow::Error::from)
+    }) else {
+        return HashMap::new();
+    };
+    list.into_iter()
+        .filter_map(|(id, props)| {
+            let label: String = props.get("trigger_description")?.try_clone().ok()?.try_into().ok()?;
+            Some((id, pretty_trigger(&label)))
+        })
+        .collect()
+}
+
+/// Desktops label triggers their own way: GNOME 50 sends a raw GTK accelerator
+/// wrapped in a localized sentence ("Press <Shift><Control>1"), KDE sends
+/// "Ctrl+Shift+1". Normalise GTK's form to capz's "Ctrl+Shift+1" style; pass
+/// anything else through.
+pub fn pretty_trigger(desc: &str) -> String {
+    let Some(start) = desc.find('<') else {
+        return desc.trim().to_string();
+    };
+    let mut rest = &desc[start..];
+    let mut mods: Vec<&str> = Vec::new();
+    while let Some(after) = rest.strip_prefix('<') {
+        let Some(end) = after.find('>') else { break };
+        let m = match after[..end].to_ascii_lowercase().as_str() {
+            "control" | "ctrl" | "primary" => "Ctrl",
+            "alt" | "mod1" => "Alt",
+            "shift" => "Shift",
+            "super" | "mod4" | "meta" | "hyper" => "Super",
+            _ => "",
+        };
+        if !m.is_empty() && !mods.contains(&m) {
+            mods.push(m);
+        }
+        rest = &after[end + 1..];
+    }
+    let key = rest.split_whitespace().next().unwrap_or("");
+    let key = match key {
+        "grave" => "`".to_string(),
+        "minus" => "-".to_string(),
+        "equal" => "=".to_string(),
+        "comma" => ",".to_string(),
+        "period" => ".".to_string(),
+        "slash" => "/".to_string(),
+        "backslash" => "\\".to_string(),
+        "semicolon" => ";".to_string(),
+        "apostrophe" => "'".to_string(),
+        "bracketleft" => "[".to_string(),
+        "bracketright" => "]".to_string(),
+        "space" => "Space".to_string(),
+        "Return" => "Enter".to_string(),
+        k if k.chars().count() == 1 => k.to_uppercase(),
+        k => k.to_string(),
+    };
+    let order = ["Ctrl", "Alt", "Shift", "Super"];
+    let mut parts: Vec<String> = order
+        .iter()
+        .filter(|m| mods.contains(m))
+        .map(|m| m.to_string())
+        .collect();
+    if !key.is_empty() {
+        parts.push(key);
+    }
+    parts.join("+")
+}
+
+/// The keys the desktop actually bound, per action (empty label = unassigned).
+pub fn triggers() -> Vec<(HotkeyAction, String)> {
+    let Ok(s) = state().lock() else { return Vec::new() };
+    s.actions
+        .iter()
+        .map(|(id, a)| (*a, s.triggers.get(id).cloned().unwrap_or_default()))
+        .collect()
+}
+
+/// Follow the user re-binding capz's keys in the desktop's settings.
+fn start_change_listener(app: AppHandle<Wry>) {
+    std::thread::spawn(move || {
+        let run = || -> Result<()> {
+            let conn = connection()?;
+            let portal = Proxy::new(conn, DEST, PATH, IFACE)?;
+            for msg in portal.receive_signal("ShortcutsChanged")? {
+                let Ok((session, list)) = msg.body().deserialize::<(OwnedObjectPath, OwnedValue)>() else {
+                    continue;
+                };
+                if let Ok(mut s) = state().lock() {
+                    if s.session.as_ref() != Some(&session) {
+                        continue;
+                    }
+                    s.triggers = parse_triggers(&list);
+                }
+                use tauri::Emitter;
+                let _ = app.emit("wayland:shortcuts-changed", ());
+            }
+            Ok(())
+        };
+        if let Err(e) = run() {
+            log::warn!("portal ShortcutsChanged listener stopped: {e}");
+        }
+    });
 }
 
 /// Listen for `Activated` for the rest of the app's life. Started once; the
@@ -360,6 +474,7 @@ fn start_listener(app: AppHandle<Wry>) {
     if STARTED.set(()).is_err() {
         return;
     }
+    start_change_listener(app.clone());
     std::thread::spawn(move || {
         let run = || -> Result<()> {
             let conn = connection()?;
@@ -397,8 +512,26 @@ fn start_listener(app: AppHandle<Wry>) {
 pub fn bind(app: &AppHandle<Wry>, bindings: Vec<(HotkeyAction, String)>) {
     start_listener(app.clone());
     let app = app.clone();
+    let generation = BIND_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
-        if let Err(e) = bind_blocking(&bindings) {
+        // One bind at a time: a second BindShortcuts while the desktop's
+        // dialog is still open collides with the first.
+        let Ok(mut last) = BIND_LOCK.lock() else { return };
+        if BIND_GEN.load(std::sync::atomic::Ordering::SeqCst) != generation {
+            return; // a newer bind is queued behind us
+        }
+        // Settings re-registers on every recorder blur; with nothing changed,
+        // rebinding would only pop the confirmation dialog again.
+        if status() == Status::Bound && last.as_ref() == Some(&bindings) {
+            return;
+        }
+        let result = bind_blocking(&bindings);
+        if BIND_GEN.load(std::sync::atomic::Ordering::SeqCst) != generation {
+            // Superseded while the dialog was open; the newer bind reports.
+            return;
+        }
+        if let Err(e) = result {
+            *last = None;
             log::warn!("portal global shortcuts unavailable: {e:#}");
             if let Ok(mut s) = state().lock() {
                 s.status = Status::Unavailable;
@@ -414,13 +547,30 @@ pub fn bind(app: &AppHandle<Wry>, bindings: Vec<(HotkeyAction, String)>) {
                 }
             });
         } else {
+            *last = Some(bindings);
             log::info!("portal global shortcuts bound");
+            use tauri::Emitter;
+            let _ = app.emit("wayland:shortcuts-changed", ());
         }
     });
 }
 
+static BIND_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static BIND_LOCK: Mutex<Option<Vec<(HotkeyAction, String)>>> = Mutex::new(None);
+
 /// Open the desktop's own dialog for changing capz's shortcuts.
 pub fn configure() -> Result<()> {
+    // GNOME's ConfigureShortcuts needs a parent window handle to show anything;
+    // without one it silently does nothing (GNOME 50). Its Keyboard panel lists
+    // every app's portal shortcuts, so open that instead.
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    if desktop.split(':').any(|d| d.eq_ignore_ascii_case("GNOME")) {
+        std::process::Command::new("gnome-control-center")
+            .arg("keyboard")
+            .spawn()
+            .context("open GNOME Settings")?;
+        return Ok(());
+    }
     let conn = connection()?;
     let session = state()
         .lock()
@@ -436,6 +586,28 @@ pub fn configure() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pretty_trigger_normalises_gtk_accelerators() {
+        assert_eq!(pretty_trigger("Press <Shift><Control>1"), "Ctrl+Shift+1");
+        assert_eq!(pretty_trigger("กด <Shift><Control>grave"), "Ctrl+Shift+`");
+        assert_eq!(pretty_trigger("<Control><Alt>a"), "Ctrl+Alt+A");
+        assert_eq!(pretty_trigger("<Super>space"), "Super+Space");
+        assert_eq!(pretty_trigger("Ctrl+Shift+1"), "Ctrl+Shift+1");
+        assert_eq!(pretty_trigger(""), "");
+    }
+
+    #[test]
+    fn parses_bound_trigger_labels() {
+        let mut full: HashMap<String, Value> = HashMap::new();
+        full.insert("trigger_description".into(), Value::from("Press <Shift><Control>1"));
+        let none: HashMap<String, Value> = HashMap::new();
+        let list = vec![("capture-full".to_string(), full), ("capture-area".to_string(), none)];
+        let v = OwnedValue::try_from(Value::from(list)).unwrap();
+        let t = parse_triggers(&v);
+        assert_eq!(t.get("capture-full").map(String::as_str), Some("Ctrl+Shift+1"));
+        assert!(!t.contains_key("capture-area"));
+    }
 
     #[test]
     fn default_accelerators_convert() {
