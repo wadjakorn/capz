@@ -1,6 +1,6 @@
 ---
 name: capz landing
-description: The public landing page at capz-web.pages.dev, a Thai type specimen sheet alternating with the app's own screen.
+description: The public landing page at capz.yadobi.com, a Thai type specimen sheet alternating with the app's own screen.
 colors:
   sheet: "#ffffff"
   ink: "#0c0c10"
