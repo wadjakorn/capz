@@ -184,3 +184,63 @@ def load_sample(split: str, sid: str) -> tuple[dict, np.ndarray]:
     gt = json.loads((d / f"{sid}.json").read_text(encoding="utf-8"))
     ink = np.asarray(Image.open(d / f"{sid}.ink.png").convert("L")) > 127
     return gt, ink
+
+
+WILD_URLS = {
+    "wild-wiki-bangkok": "https://th.wikipedia.org/wiki/กรุงเทพมหานคร",
+    "wild-wiki-python": "https://th.wikipedia.org/wiki/ภาษาไพทอน",
+    "wild-wiki-iphone": "https://th.wikipedia.org/wiki/ไอโฟน",
+    "wild-capz-landing": "https://capz.yadobi.com/",
+}
+
+
+def render_wild(dpr: float = 2.0) -> dict:
+    """Real pages (network): GT from the same DOM extractor, kept only if ink coverage holds.
+    Supplementary evidence, not gated; nothing from here is committed."""
+    from playwright.sync_api import sync_playwright
+
+    from .check import coverage, problems
+
+    out = paths.corpus_dir("wild")
+    out.mkdir(parents=True, exist_ok=True)
+    files, dropped = {}, {}
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        for sid, url in WILD_URLS.items():
+            ctx = browser.new_context(viewport={"width": VIEWPORT[0], "height": VIEWPORT[1]}, device_scale_factor=dpr)
+            try:
+                page = ctx.new_page()
+                page.goto(url, wait_until="networkidle", timeout=60000)
+                page.evaluate("document.fonts.ready.then(() => true)")
+                page.add_script_tag(content=JS)
+                R = {"x": 0, "y": 0, "w": VIEWPORT[0], "h": VIEWPORT[1]}
+                page.evaluate("R => window.__gt.prune(R)", R)
+                frags = page.evaluate("R => window.__gt.extract(R)", R)
+                shot = dict(animations="disabled", caret="hide", type="png")
+                png = page.screenshot(**shot)
+                page.add_style_tag(content=TRANSPARENT_CSS)
+                clear = page.screenshot(**shot)
+            except Exception as e:  # network or page errors: record and move on
+                dropped[sid] = str(e)[:200]
+                continue
+            finally:
+                ctx.close()
+            a, b = _gray(png), _gray(clear)
+            ink = np.abs(a - b) > INK_THRESHOLD
+            H, W = a.shape
+            gt = {"id": sid, "split": "wild", "template": "wild", "url": url, "dpr": dpr, "width": W, "height": H,
+                  "fragments": _to_px(frags, R, dpr, W, H)}
+            cov = coverage(gt, ink)
+            if cov < 0.99:
+                dropped[sid] = f"coverage {cov:.4f}"
+                continue
+            bad = [p for p in problems(gt, ink) if not p.startswith("coverage")]
+            gt["fragments"] = [f for f in gt["fragments"] if f"invisible text {f['text'][:20]!r}" not in bad]
+            gt_bytes = json.dumps(gt, ensure_ascii=False, indent=1).encode("utf-8")
+            (out / f"{sid}.png").write_bytes(png)
+            (out / f"{sid}.json").write_bytes(gt_bytes)
+            files[sid] = {"png": _sha(png), "json": _sha(gt_bytes), "coverage": round(cov, 4)}
+    manifest = {"split": "wild", "n": len(files), "files": files, "dropped": dropped,
+                "corpus_hash": _sha(json.dumps(files, sort_keys=True).encode())}
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1, ensure_ascii=False))
+    return manifest

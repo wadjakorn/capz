@@ -73,7 +73,13 @@ def mac_session(fn):
 def mac_build(remote: str, backend: str | None) -> str:
     feat = f"--features backend-{backend}" if backend else ""
     tdir = f"{remote}/target/{backend or 'none'}"
-    r = _ssh(f"cd {remote}/crate && ~/.cargo/bin/cargo build --release --quiet {feat} --target-dir {tdir} 2>&1",
+    # ort's prebuilt ONNX Runtime for macOS is built for 13.4; linking it at the default
+    # 11.0 target fails (___isPlatformVersionAtLeast). capz itself promises macOS 12+.
+    # Its CoreML EP also calls ___isPlatformVersionAtLeast from compiler-rt, which rustc's
+    # macOS link line does not include: link libclang_rt.osx.a explicitly.
+    env = ('MACOSX_DEPLOYMENT_TARGET=13.4 RUSTFLAGS="-C link-arg=$(xcrun clang --print-runtime-dir)'
+           '/libclang_rt.osx.a" ' if backend == "ort" else "")
+    r = _ssh(f"cd {remote}/crate && {env}~/.cargo/bin/cargo build --release --quiet {feat} --target-dir {tdir} 2>&1",
              timeout=3600)
     if r.returncode:
         raise RuntimeError(f"mac build ({backend}) failed: {r.stdout[-2000:]}")
