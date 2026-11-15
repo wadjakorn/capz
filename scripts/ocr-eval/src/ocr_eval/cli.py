@@ -28,6 +28,12 @@ def _cmd_corpus(a: argparse.Namespace) -> int:
         if not a.check_only:
             print("rendered:", render.render_split(split, workers=a.workers))
         rep = check.check_split(split)
+        import dataclasses
+        import json
+
+        from . import paths
+
+        (paths.corpus_dir(split) / "check.json").write_text(json.dumps(dataclasses.asdict(rep), indent=1))
         print(f"{split}: n={rep.n} coverage_min={rep.coverage_min:.4f} "
               f"determinism_checked={rep.determinism_checked} ok={rep.ok}")
         for b in rep.bad[:20]:
@@ -105,6 +111,33 @@ def _cmd_run(a: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_gate(a: argparse.Namespace) -> int:
+    import json
+
+    from . import pipeline
+
+    if a.set:
+        pipeline.set_roles(dict(kv.split("=", 1) for kv in a.set))
+    res = pipeline.evaluate(a.only.split(",") if a.only else None)
+    (pipeline.paths.RUNS / "gates.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
+    print(pipeline.gates_md(res))
+    if a.final:
+        print("evidence:", pipeline.write_final(res))
+    return 0
+
+
+def _cmd_report(a: argparse.Namespace) -> int:
+    import json
+
+    from . import paths, report
+
+    for r in a.run:
+        d = _run_dir(r)
+        split = json.loads((d / "run.json").read_text())["split"]
+        print(report.errors_md(d, paths.corpus_dir(split), top=a.top))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ocr-eval")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -130,6 +163,16 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--config", help="JSON, or @path/to/config.json")
     r.add_argument("--workers", type=int, default=6)
     r.set_defaults(fn=_cmd_run)
+    g = sub.add_parser("gate", help="evaluate the pre-registered gates (roles in runs/roles.json)")
+    g.add_argument("--set", action="append", help="role=run_id (ot_test, ot_dev, tess_test, vision_test, "
+                   "a1_full, a1_ablated, rust_test, py_for_rust_test)")
+    g.add_argument("--only", help="comma-separated gate ids")
+    g.add_argument("--final", action="store_true", help="also write docs/research/evidence/openthai2-ocr/")
+    g.set_defaults(fn=_cmd_gate)
+    rp = sub.add_parser("report", help="worst-error gallery (errors.md + crops) for run(s)")
+    rp.add_argument("run", nargs="+")
+    rp.add_argument("--top", type=int, default=30)
+    rp.set_defaults(fn=_cmd_report)
     a = p.parse_args(argv)
     return a.fn(a)
 
