@@ -1,7 +1,12 @@
-"""The Rust prototype (rust-proto/), one build per inference runtime."""
+"""The Rust prototype (rust-proto/), one build per inference runtime.
+
+Engine `capz` runs the OCR code capz ships instead (CP-0097): build
+`src-tauri/examples/openthai_cli.rs` with `cargo build --release --example
+openthai_cli` and point CAPZ_OCR_BIN at the binary. Same flags, same JSONL."""
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +23,11 @@ def binary(backend: str) -> Path:
 
 
 def build(backend: str) -> Path:
+    if backend == "capz":
+        exe = os.environ.get("CAPZ_OCR_BIN")
+        if not exe or not Path(exe).exists():
+            raise RuntimeError("engine capz: set CAPZ_OCR_BIN to a built openthai_cli example")
+        return Path(exe)
     subprocess.run(["cargo", "build", "--release", "--quiet", "--features", f"backend-{backend}",
                     "--target-dir", str(CRATE / "target" / backend)], cwd=CRATE, check=True)
     return binary(backend)
@@ -25,6 +35,8 @@ def build(backend: str) -> Path:
 
 def _make(backend: str):
     def available() -> bool:
+        if backend == "capz":
+            return bool(os.environ.get("CAPZ_OCR_BIN")) and (paths.model_dir() / "rec.onnx").exists()
         return shutil.which("cargo") is not None and (paths.model_dir() / "rec.onnx").exists()
 
     def recognize(items: list[tuple[str, Path]], config: dict, workers: int = 6, threads: int = 1) -> dict:
@@ -65,3 +77,4 @@ class _Engine:
 
 ORT = _Engine("ort")
 TRACT = _Engine("tract")
+CAPZ = _Engine("capz")
