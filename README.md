@@ -106,14 +106,18 @@ Two things are sent **only when you ask for them**:
 - **Anonymous install ID** (Settings → App → Advanced → "Share anonymous install ID", off by default). When enabled, the update check also carries a random UUID generated on your machine. The server stores a salted hash of it once per day so active installs can be counted. It is not derived from anything about you or your computer, it is deleted from your machine the moment you turn the option off, and re-enabling mints a new one.
 - **Feedback** (Settings → Feedback). Sends the text you typed, the kind (bug/feature), the app version, OS name and CPU architecture to the developer, who receives it as an issue in a private repository. It never includes the install ID, your name, email, logs or screenshots, so there is no way to reply.
 
+Text detection (OCR) runs entirely on your machine: Apple Vision on macOS, or the OpenThai model bundled with capz (always on Windows, optional on macOS). Images are never uploaded.
+
 No IP addresses, hostnames, user names or OS versions are stored. Server code and schema: [`worker/`](worker/README.md).
 
 ## License
 
 [MIT](LICENSE) © Wadjakorn Tonsri
 
+Bundled third-party model: [OpenThai2.0-OCR-Text](https://huggingface.co/iapp/OpenThai2.0-OCR-Text) by iApp Technology, built on PaddlePaddle's PP-OCR models, used under the Apache License 2.0. See [`src-tauri/resources/ocr/openthai/NOTICE`](src-tauri/resources/ocr/openthai/NOTICE) and [`LICENSE`](src-tauri/resources/ocr/openthai/LICENSE).
+
 ## Docs
 
 - [PLAN.md](PLAN.md) — phased build spec (source of truth)
 - [CLAUDE.md](CLAUDE.md) — guidance for Claude Code
-- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 why Thai OCR does not work on Windows (plain-Thai, for non-tech users)
+- [docs/OCR-THAI-WINDOWS.th.md](docs/OCR-THAI-WINDOWS.th.md) — 🇹🇭 reading Thai text (OCR) on Windows and macOS (plain-Thai, for non-tech users)

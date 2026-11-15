@@ -19,8 +19,14 @@ describe("detectText", () => {
     const fake = { width: 1, height: 1, lines: [], languagesUsed: ["en-US"], thaiAvailable: true };
     invoke.mockResolvedValue(fake);
     const r = await detectText("/tmp/x.png");
-    expect(invoke).toHaveBeenCalledWith("ocr_detect", { path: "/tmp/x.png" });
+    expect(invoke).toHaveBeenCalledWith("ocr_detect", { path: "/tmp/x.png", engine: null });
     expect(r).toBe(fake);
+  });
+
+  it("passes the macOS engine choice through", async () => {
+    invoke.mockResolvedValue({});
+    await detectText("/tmp/x.png", "openthai");
+    expect(invoke).toHaveBeenCalledWith("ocr_detect", { path: "/tmp/x.png", engine: "openthai" });
   });
 });
 

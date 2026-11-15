@@ -15,6 +15,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { useOcr } from "./ocr";
+import { useSettings } from "./settings";
 
 const fake = (text: string, thai = true) => ({
   width: 10, height: 10, lines: [{ text, bbox: { x: 0, y: 0, w: 1, h: 1 }, words: [] }],
@@ -96,19 +97,27 @@ describe("useOcr", () => {
     expect(useOcr.getState().thaiNoticeShown).toBe(false);
   });
 
-  it("tells Windows users there is nothing to install, and links the note", async () => {
-    vi.stubGlobal("navigator", { platform: "Win32" });
+  it("points macOS users at the OpenThai engine when Vision has no Thai", async () => {
+    detectText.mockResolvedValue(fakeEmpty(false));
+    useOcr.getState().setKey("/img/a.png");
+    await useOcr.getState().detect();
+    const call = toast.mock.calls.find((c) => String(c[0]).includes("Thai"));
+    expect(call?.[1]?.description).toContain("OpenThai");
+  });
+
+  it("passes the chosen engine and re-detects after it changes", async () => {
+    detectText.mockResolvedValue(fake("hello"));
+    useOcr.getState().setKey("/img/a.png");
+    await useOcr.getState().detect();
+    expect(detectText).toHaveBeenLastCalledWith("/img/a.png", "vision");
+    const s = useSettings.getState();
+    useSettings.setState({ config: { ...s.config, general: { ...s.config.general, ocrEngine: "openthai" } } });
     try {
-      detectText.mockResolvedValue(fakeEmpty(false));
-      useOcr.getState().setKey("/img/a.png");
       await useOcr.getState().detect();
-      const call = toast.mock.calls.find((c) => String(c[0]).includes("Thai"));
-      expect(call?.[1]?.description).toContain("OCR-THAI-WINDOWS.th.md");
-      // Must NOT resurrect the impossible install instructions.
-      expect(call?.[1]?.description).not.toContain("Language & region");
-      expect(call?.[1]?.description).not.toContain("Optical character recognition");
+      expect(detectText).toHaveBeenCalledTimes(2);
+      expect(detectText).toHaveBeenLastCalledWith("/img/a.png", "openthai");
     } finally {
-      vi.unstubAllGlobals();
+      useSettings.setState({ config: s.config });
     }
   });
 

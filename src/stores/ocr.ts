@@ -3,7 +3,8 @@
 import { create } from "zustand";
 import { t } from "@/i18n/store";
 import { toast } from "sonner";
-import { detectText, type OcrResult } from "@/lib/ocr";
+import { detectText, type OcrEngine, type OcrResult } from "@/lib/ocr";
+import { useSettings } from "@/stores/settings";
 
 type Status = "idle" | "scanning" | "done" | "error";
 
@@ -11,6 +12,8 @@ type State = {
   mode: boolean;
   status: Status;
   resultByKey: Record<string, OcrResult>;
+  /** Engine that produced `resultByKey`; switching engines drops the cache. */
+  resultEngine: OcrEngine | null;
   currentKey: string | null;
   thaiNoticeShown: boolean;
 
@@ -20,16 +23,11 @@ type State = {
   reset: () => void;
 };
 
-const isWindows = () =>
-  typeof navigator !== "undefined" && /Win/i.test(navigator.platform);
-
-const THAI_OCR_NOTE_URL =
-  "https://github.com/wadjakorn/capz/blob/main/docs/OCR-THAI-WINDOWS.th.md";
-
 export const useOcr = create<State>((set, get) => ({
   mode: false,
   status: "idle",
   resultByKey: {},
+  resultEngine: null,
   currentKey: null,
   thaiNoticeShown: false,
 
@@ -42,15 +40,18 @@ export const useOcr = create<State>((set, get) => ({
   },
 
   detect: async () => {
-    const { currentKey, resultByKey } = get();
+    const { currentKey } = get();
     if (!currentKey) return;
-    if (resultByKey[currentKey]) {
+    // macOS only; Rust ignores it elsewhere (Windows/Linux are always OpenThai).
+    const engine = useSettings.getState().config.general.ocrEngine;
+    if (get().resultEngine !== engine) set({ resultByKey: {}, resultEngine: engine });
+    if (get().resultByKey[currentKey]) {
       set({ status: "done" });
       return;
     }
     set({ status: "scanning" });
     try {
-      const result = await detectText(currentKey);
+      const result = await detectText(currentKey, engine);
       set((s) => ({
         status: "done",
         resultByKey: { ...s.resultByKey, [currentKey]: result },
@@ -66,14 +67,13 @@ export const useOcr = create<State>((set, get) => ({
       // Only worth mentioning when we found nothing at all: on a screenshot that
       // did contain readable text, a "Thai isn't available" toast is pure noise.
       // We cannot detect Thai in the image directly — the engine that would have
-      // to read it is the one that is missing.
+      // to read it is the one that is missing. Only Apple Vision before
+      // macOS 13 lacks Thai; OpenThai (Windows, or chosen on macOS) has it.
       if (!result.thaiAvailable && lineCount === 0 && !get().thaiNoticeShown) {
         set({ thaiNoticeShown: true });
         toast(t("app.ocr.thaiUnavailable"), {
-          description: isWindows()
-            ? t("app.ocr.thaiUnavailableWindows", { url: THAI_OCR_NOTE_URL })
-            : t("app.ocr.thaiUnavailableMac"),
-          duration: isWindows() ? 12_000 : 8_000,
+          description: t("app.ocr.thaiUnavailableMac"),
+          duration: 8_000,
         });
       }
     } catch (e) {
@@ -88,6 +88,7 @@ export const useOcr = create<State>((set, get) => ({
       mode: false,
       status: "idle",
       resultByKey: {},
+      resultEngine: null,
       currentKey: null,
       // thaiNoticeShown intentionally NOT reset — notice stays once-per-session.
     }),

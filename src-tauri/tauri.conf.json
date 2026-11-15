@@ -37,7 +37,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "icons/tray/*.png"
+      "icons/tray/*.png",
+      "resources/ocr/openthai/*"
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"

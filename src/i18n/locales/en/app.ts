@@ -149,9 +149,6 @@ export const app = {
   "app.ocr.detectedMany": "Detected {count} text lines",
   "app.ocr.noText": "No text found",
   "app.ocr.thaiUnavailable": "Thai text recognition isn't available on this system",
-  // Thai on purpose in both languages: it is aimed at Thai readers on Windows.
-  "app.ocr.thaiUnavailableWindows":
-    "Windows ไม่มีชุด OCR ภาษาไทยให้ติดตั้ง (ไม่ว่าเวอร์ชันใด) จึงยังอ่านภาษาไทยไม่ได้ — ไม่ต้องไปหาติดตั้งเพิ่ม ภาษาอังกฤษยังใช้ได้ตามปกติ · รายละเอียด: {url}",
-  "app.ocr.thaiUnavailableMac": "It requires a newer macOS version.",
+  "app.ocr.thaiUnavailableMac": "To read Thai, switch Text detection engine to OpenThai in Settings → Editor → Advanced.",
   "app.ocr.failed": "Text detection failed",
 };
