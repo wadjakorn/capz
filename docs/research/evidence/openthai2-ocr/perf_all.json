@@ -1,6 +1,6 @@
 {
  "linux-ort": {
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "backend": "ort",
   "threads": 4,
   "p50_ms": 1251.398825,
@@ -11,7 +11,7 @@
   "warm_n": 29
  },
  "linux-tract": {
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "backend": "tract",
   "threads": 4,
   "p50_ms": 3623.848056,
@@ -22,7 +22,7 @@
   "warm_n": 29
  },
  "linux-ort-t2": {
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "backend": "ort",
   "threads": 2,
   "p50_ms": 1302.5085119999999,
@@ -33,7 +33,7 @@
   "warm_n": 19
  },
  "linux-ort-t8": {
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "backend": "ort",
   "threads": 8,
   "p50_ms": 1101.975146,
@@ -44,7 +44,7 @@
   "warm_n": 19
  },
  "mac-ort": {
-  "host": "macbook-pro",
+  "host": "darwin-arm64",
   "backend": "ort",
   "threads": 4,
   "p50_ms": 696.207625,
@@ -59,7 +59,7 @@
   }
  },
  "mac-tract": {
-  "host": "macbook-pro",
+  "host": "darwin-arm64",
   "backend": "tract",
   "threads": 4,
   "p50_ms": 802.255583,

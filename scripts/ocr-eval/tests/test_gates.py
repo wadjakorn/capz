@@ -85,3 +85,21 @@ def test_r1_parity_counts_identical_lines():
     a = {"x": {"lines": [{"text": "กด Save", "box": [0, 0, 100, 20]}, {"text": "ok", "box": [0, 50, 40, 20]}]}}
     b = {"x": {"lines": [{"text": "กด  Save", "box": [1, 0, 100, 20]}, {"text": "0k", "box": [0, 50, 40, 20]}]}}
     assert gates.identical_share(a, b) == 0.5
+
+
+def test_write_final_scrubs_hostnames(tmp_path, monkeypatch):
+    import socket
+
+    from ocr_eval import paths, pipeline
+
+    runs, ev = tmp_path / "runs", tmp_path / "ev"
+    (runs / "r1").mkdir(parents=True)
+    me = socket.gethostname()
+    (runs / "r1" / "metrics.json").write_text(json.dumps({**M(), "run": {"host": me}}))
+    (runs / "perf.json").write_text(json.dumps({"x": {"host": "macbook-pro", "p50_ms": 1}}))
+    monkeypatch.setattr(paths, "RUNS", runs)
+    monkeypatch.setattr(paths, "EVIDENCE", ev)
+    pipeline.write_final({"gates": {}, "warnings": [], "roles": {"ot_test": "r1"}})
+    for f in ev.iterdir():
+        text = f.read_text()
+        assert me not in text and "macbook-pro" not in text, f.name

@@ -48,13 +48,27 @@ def measure_linux() -> dict:
     return sizes
 
 
-def summarize(per_target: dict[str, dict]) -> dict:
-    """{"targets": {target: {"added_zip_mb": best backend, "ort": .., "tract": .., "sizes": ..}}}"""
+def summarize(per_target: dict[str, dict], backend: str = "ort") -> dict:
+    """S1 scores the backend that P1 measured and the report recommends (not the smallest one);
+    every backend's figure is kept under by_backend."""
     out = {}
     for target, sizes in per_target.items():
         by = {b: added_mb(sizes, b) for b in ("ort", "tract") if f"{b}_zip" in sizes}
-        out[target] = {"added_zip_mb": min(by.values()), "by_backend": by, "sizes": sizes}
+        out[target] = {"added_zip_mb": by[backend], "backend": backend, "by_backend": by, "sizes": sizes}
     return {"targets": out}
+
+
+# No Windows build host: the estimate uses Microsoft's own onnxruntime.dll 1.24.4 (the ONNX Runtime
+# release ort 2.0.0-rc.15 targets), loaded dynamically, plus this crate's code and the models.
+WIN_DLL = {"url": "https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-1.24.4.zip",
+           "raw_mb": 14.20, "zip9_mb": 5.25, "signer": "Microsoft Corporation (Authenticode)"}
+
+
+def windows_estimate(none_zip: int, models_zip: int) -> dict:
+    mb = round(WIN_DLL["zip9_mb"] + none_zip / 1e6 + models_zip / 1e6, 2)
+    return {"added_zip_mb": mb, "backend": "ort", "estimate": True, "by_backend": {"ort (load-dynamic, official DLL)": mb},
+            "basis": f"onnxruntime.dll 1.24.4 {WIN_DLL['raw_mb']} MB raw / {WIN_DLL['zip9_mb']} MB zip -9, "
+                     f"signed by {WIN_DLL['signer']}; + crate code (Linux 'none' build) + models"}
 
 
 def file_sizes_remote(ssh, remote_exes: dict[str, str]) -> dict[str, int]:

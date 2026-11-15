@@ -222,7 +222,7 @@
   "split": "fixtures",
   "corpus_hash": "fe6407489fe06a939820b02069281888c299bfc77bbe6dba4040da1414ed8b37",
   "git_sha": "f1bd575",
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "started": "2026-11-15T19:51:19"
  },
  "corpus_hash": "fe6407489fe06a939820b02069281888c299bfc77bbe6dba4040da1414ed8b37"

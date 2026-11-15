@@ -9,7 +9,7 @@
  },
  "perf": {
   "mac-ort": {
-   "host": "macbook-pro",
+   "host": "darwin-arm64",
    "backend": "ort",
    "threads": 4,
    "p50_ms": 696.207625,
@@ -20,7 +20,7 @@
    "warm_n": 29
   },
   "mac-tract": {
-   "host": "macbook-pro",
+   "host": "darwin-arm64",
    "backend": "tract",
    "threads": 4,
    "p50_ms": 802.255583,

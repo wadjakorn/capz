@@ -27,7 +27,7 @@ def _cmd_corpus(a: argparse.Namespace) -> int:
     for split in a.split:
         if not a.check_only:
             print("rendered:", render.render_split(split, workers=a.workers))
-        rep = check.check_split(split)
+        rep = check.check_split(split, determinism_share=a.determinism)
         import dataclasses
         import json
 
@@ -159,7 +159,93 @@ def _cmd_sweep(a: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def _best_config() -> dict:
+    import json
+
+    from . import paths
+    from .engines import openthai
+
+    sw = paths.RUNS / "sweep.json"
+    return json.loads(sw.read_text())["best_config"] if sw.exists() else openthai.B0
+
+
+def _cmd_perf(a: argparse.Namespace) -> int:
+    """P1 inputs: Linux (this box) for ort and tract; --mac adds the Mac over SSH."""
+    import json
+
+    from . import perf, pipeline
+
+    cfg = _best_config()
+    res = {f"linux-{b}": perf.measure_linux(b, cfg, threads=a.threads, repeat=3) for b in ("ort", "tract")}
+    if a.mac:
+        res.update(perf.mac_session(lambda remote, items: {
+            f"mac-{b}": perf.measure_mac(remote, items, b, cfg, threads=a.threads, repeat=3) for b in ("ort", "tract")}))
+    keep = ("p50_ms", "p95_ms", "cold_ms", "rss_mb")
+    (pipeline.PERF.parent / "perf_all.json").write_text(json.dumps(res, indent=1))
+    pipeline.PERF.write_text(json.dumps({f"{k.split('-')[0]} (ort)": {x: v[x] for x in keep}
+                                         for k, v in res.items() if k.endswith("-ort")}, indent=1))
+    print(json.dumps(res, indent=1))
+    return 0
+
+
+def _cmd_size(a: argparse.Namespace) -> int:
+    """S1 inputs: Linux builds here, --mac builds on the Mac, Windows estimated from the official DLL."""
+    import json
+
+    from . import perf, pipeline, size
+
+    lin = size.measure_linux()
+    per = {"x86_64-unknown-linux-gnu": lin}
+    if a.mac:
+        def work(remote, _items):
+            exes = {(b or "none"): perf.mac_build(remote, b) for b in (None, "ort", "tract")}
+            return size.file_sizes_remote(lambda c: perf._ssh(c, timeout=600), exes)
+        mac = perf.mac_session(work)
+        mac["models_zip"] = lin["models_zip"]
+        per["aarch64-apple-darwin"] = mac
+    out = size.summarize(per, backend="ort")
+    out["targets"]["x86_64-pc-windows-msvc"] = size.windows_estimate(lin["none_zip"], lin["models_zip"])
+    pipeline.SIZE.write_text(json.dumps(out, indent=1))
+    for t, v in out["targets"].items():
+        print(t, v["added_zip_mb"], v["by_backend"])
+    return 0
+
+
+def _cmd_all(a: argparse.Namespace) -> int:
+    """Every engine on one split with frozen configs, scored; on `test` also sets roles and gates."""
+    import json
+
+    from . import paths, pipeline
+    from .engines import ENGINES
+    from .engines.base import run_engine
+    from .metrics.score import score_run
+
+    best = _best_config()
+    ablated = json.loads(json.dumps(best))
+    ablated.setdefault("det", {})["split_gap"] = 0
+    ablated["ori"] = {"enabled": False}
+    plan = [("ot_test", "openthai", best), ("py_for_rust_test", "openthai", ablated), ("tess_test", "tesseract", {}),
+            ("vision_test", "vision", {}), ("rust_test", "rust-ort", best)]
+    roles = {}
+    for role, eng, cfg in plan:
+        mod = ENGINES[eng]
+        if hasattr(mod, "available") and not mod.available():
+            print(f"skip {eng}: not available")
+            continue
+        d = run_engine(eng, mod.recognize, a.split, cfg)
+        m = score_run(d, paths.corpus_dir(a.split))
+        print(f"{role:18s} {d.name}: CER {100 * m['overall']['cer']:.2f}%")
+        roles[role] = d.name
+    if a.split == "test":
+        pipeline.set_roles(roles)
+        res = pipeline.evaluate()
+        print(pipeline.gates_md(res))
+        if a.final:
+            print("evidence:", pipeline.write_final(res))
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="ocr-eval")
     sub = p.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("fetch", help="download pinned models, tessdata, fonts, chromium")
@@ -170,6 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--split", action="append", required=True)
     c.add_argument("--workers", type=int, default=4)
     c.add_argument("--check-only", action="store_true")
+    c.add_argument("--determinism", type=float, default=0.25, help="share of images re-rendered for H2 (1.0 = all)")
     c.set_defaults(fn=_cmd_corpus)
     sc = sub.add_parser("score", help="score run(s) against their split's ground truth")
     sc.add_argument("run", nargs="+")
@@ -199,7 +286,22 @@ def main(argv: list[str] | None = None) -> int:
     sw.add_argument("--workers", type=int, default=10)
     sw.add_argument("--budget", type=int, default=60)
     sw.set_defaults(fn=_cmd_sweep)
-    a = p.parse_args(argv)
+    pf = sub.add_parser("perf", help="P1: speed and peak RSS of the Rust prototype (perf split)")
+    pf.add_argument("--threads", type=int, default=4)
+    pf.add_argument("--mac", action="store_true")
+    pf.set_defaults(fn=_cmd_perf)
+    sz = sub.add_parser("size", help="S1: what shipping OpenThai adds, per target")
+    sz.add_argument("--mac", action="store_true")
+    sz.set_defaults(fn=_cmd_size)
+    al = sub.add_parser("all", help="every engine on a split with frozen configs; gates on test")
+    al.add_argument("--split", default="test")
+    al.add_argument("--final", action="store_true")
+    al.set_defaults(fn=_cmd_all)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = build_parser().parse_args(argv)
     return a.fn(a)
 
 

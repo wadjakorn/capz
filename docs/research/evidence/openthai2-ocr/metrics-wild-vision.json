@@ -255,7 +255,7 @@
   "split": "wild",
   "corpus_hash": "141993f9a6e7023001b598c3979061ee75c4c72d504c3e45f30628b81b892cde",
   "git_sha": "f1bd575",
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "started": "2026-11-15T19:52:29"
  },
  "corpus_hash": "141993f9a6e7023001b598c3979061ee75c4c72d504c3e45f30628b81b892cde"

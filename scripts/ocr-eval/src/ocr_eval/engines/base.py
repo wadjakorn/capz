@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
-import socket
+import platform
 import subprocess
 from pathlib import Path
 from typing import Callable, Iterable
@@ -31,6 +31,11 @@ def _git_sha() -> str:
         return "unknown"
 
 
+def host_label() -> str:
+    """OS and CPU, never the machine's hostname (evidence files are committed to a public repo)."""
+    return f"{platform.system().lower()}-{platform.machine().lower()}"
+
+
 def config_id(config: dict) -> str:
     return hashlib.sha1(json.dumps(config, sort_keys=True).encode()).hexdigest()[:8]
 
@@ -43,7 +48,7 @@ def new_run(engine: str, config: dict, split: str) -> Path:
     d.mkdir(parents=True, exist_ok=False)
     (d / "run.json").write_text(json.dumps({
         "run_id": d.name, "engine": engine, "config": config, "split": split,
-        "corpus_hash": manifest.get("corpus_hash"), "git_sha": _git_sha(), "host": socket.gethostname(),
+        "corpus_hash": manifest.get("corpus_hash"), "git_sha": _git_sha(), "host": host_label(),
         "started": dt.datetime.now().isoformat(timespec="seconds")}, indent=1))
     return d
 

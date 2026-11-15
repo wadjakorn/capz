@@ -18,19 +18,19 @@
     "dev": {
      "coverage_min": 0.9972840558099905,
      "n": 240,
-     "determinism_checked": 50,
+     "determinism_checked": 240,
      "bad": 0
     },
     "test": {
      "coverage_min": 0.9977321556457388,
      "n": 240,
-     "determinism_checked": 50,
+     "determinism_checked": 240,
      "bad": 0
     },
     "perf": {
      "coverage_min": 0.9981478843140048,
      "n": 10,
-     "determinism_checked": 0,
+     "determinism_checked": 10,
      "bad": 0
     }
    },
@@ -169,12 +169,12 @@
   "S1": {
    "status": "FAIL",
    "value": {
-    "x86_64-unknown-linux-gnu": 12.15,
-    "aarch64-apple-darwin": 10.48,
+    "x86_64-unknown-linux-gnu": 12.91,
+    "aarch64-apple-darwin": 11.31,
     "x86_64-pc-windows-msvc": 9.24
    },
    "threshold": 12.0,
-   "why": "over 12 MB: x86_64-unknown-linux-gnu 12.2 MB"
+   "why": "over 12 MB: x86_64-unknown-linux-gnu 12.9 MB"
   }
  },
  "warnings": [],
@@ -186,6 +186,7 @@
   "ot_dev": "20261115-181024-openthai-dev-ec4a1dd8",
   "ot_test": "20261115-185450-openthai-test-ec4a1dd8",
   "rust_test": "20261115-191146-rust-ort-test-ec4a1dd8",
-  "py_for_rust_test": "20261115-191043-openthai-test-a87d7df0"
+  "py_for_rust_test": "20261115-191043-openthai-test-a87d7df0",
+  "rust_tract_test": "20261115-192953-rust-tract-test-ec4a1dd8"
  }
 }

@@ -8,6 +8,7 @@
 | ot_test (openthai-test-ec4a1dd8) | 3.01% | 2.88% | 4.54% | 1.89% | 1.48% | 1.84% | 0.1 | 2308 |
 | rust_test (rust-ort-test-ec4a1dd8) | 3.00% | 2.92% | 4.50% | 1.84% | 1.40% | 1.81% | 0.1 | 1363 |
 | py_for_rust_test (openthai-test-a87d7df0) | 3.02% | 2.89% | 4.56% | 1.88% | 1.48% | 1.82% | 0.1 | 2010 |
+| rust_tract_test (rust-tract-test-ec4a1dd8) | 3.00% | 2.92% | 4.50% | 1.84% | 1.40% | 1.81% | 0.1 | 2922 |
 
 | gate | status | why |
 |---|---|---|
@@ -22,4 +23,4 @@
 | M1 | PASS (info) | OpenThai 3.01% vs Vision 3.17%, ΔCER -0.16 pt CI [-0.92, +0.57] → equivalent or better |
 | R1 | PASS | ΔCER rust−python -0.02 pt; identical lines 98.1% |
 | P1 | FAIL | linux (ort) p50_ms 1251 > 1000; mac (ort) rss_mb 2875 > 400 |
-| S1 | FAIL | over 12 MB: x86_64-unknown-linux-gnu 12.2 MB |
+| S1 | FAIL | over 12 MB: x86_64-unknown-linux-gnu 12.9 MB |

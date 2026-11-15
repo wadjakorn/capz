@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import socket
 import subprocess
 import tempfile
 import uuid
@@ -12,7 +11,7 @@ from pathlib import Path
 
 from . import paths
 from .engines import rustproto
-from .engines.base import split_items
+from .engines.base import host_label, split_items
 
 MAC = "macbook-pro"
 
@@ -44,7 +43,7 @@ def measure_linux(backend: str, config: dict, threads: int = 4, repeat: int = 3)
                             str(lst), "--out", str(out), "--config", str(cfg), "--backend", backend,
                             "--threads", str(threads), "--repeat", str(repeat), "--perf-out", str(pf)],
                            capture_output=True, text=True, check=True)
-        return _summary(json.loads(pf.read_text()), parse_rss_mb(r.stderr), socket.gethostname(), backend, threads)
+        return _summary(json.loads(pf.read_text()), parse_rss_mb(r.stderr), host_label(), backend, threads)
 
 
 def _ssh(cmd: str, timeout: int = 3600) -> subprocess.CompletedProcess:
@@ -97,4 +96,4 @@ def measure_mac(remote: str, items, backend: str, config: dict, threads: int = 4
     if "@@@" not in r.stdout:
         raise RuntimeError(f"mac perf run failed: {r.stdout[-1500:]} {r.stderr[-500:]}")
     perf_json, time_txt = r.stdout.split("@@@", 1)
-    return _summary(json.loads(perf_json), parse_rss_mb(time_txt), MAC, backend, threads)
+    return _summary(json.loads(perf_json), parse_rss_mb(time_txt), "darwin-arm64", backend, threads)

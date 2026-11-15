@@ -1924,7 +1924,7 @@
   "split": "dev",
   "corpus_hash": "7fa0484464ea8e97cd2a6eaac8540c395a7de7793ebacedd8f3b876782fe8ee6",
   "git_sha": "e97cfc5",
-  "host": "wadjakorn-bmax",
+  "host": "linux-x86_64",
   "started": "2026-11-15T18:10:24"
  },
  "corpus_hash": "7fa0484464ea8e97cd2a6eaac8540c395a7de7793ebacedd8f3b876782fe8ee6"

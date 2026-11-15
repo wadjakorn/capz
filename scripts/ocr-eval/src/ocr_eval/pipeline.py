@@ -1,5 +1,5 @@
 """Glue for the end of the loop: which run plays which role, all gates at once,
-and the `all` command that re-runs every engine with frozen configs."""
+used by the `gate` and `all` commands in cli.py."""
 from __future__ import annotations
 
 import json
@@ -85,6 +85,24 @@ def gates_md(result: dict) -> str:
     return "\n".join(lines)
 
 
+def _scrub_hosts(ev: Path) -> None:
+    """Evidence is committed to a public repo: no machine names in it."""
+    import socket
+
+    from .engines.base import host_label
+
+    names = {socket.gethostname(): host_label(), "macbook-pro": "darwin-arm64"}
+    for f in ev.glob("*.*"):
+        if f.suffix not in (".json", ".md"):
+            continue
+        text = f.read_text(encoding="utf-8")
+        new = text
+        for name, label in names.items():
+            new = new.replace(name, label)
+        if new != text:
+            f.write_text(new, encoding="utf-8")
+
+
 def write_final(result: dict) -> Path:
     ev = paths.EVIDENCE
     ev.mkdir(parents=True, exist_ok=True)
@@ -95,8 +113,9 @@ def write_final(result: dict) -> Path:
         if src.exists():
             shutil.copyfile(src, ev / f"metrics-{role}.json")
             summary[f"{role} ({run_id.split('-', 2)[-1]})"] = json.loads(src.read_text())
-    for name in ("perf.json", "size.json", "sweep.json"):
+    for name in ("perf.json", "perf_all.json", "size.json", "sweep.json"):
         if (paths.RUNS / name).exists():
             shutil.copyfile(paths.RUNS / name, ev / name)
     (ev / "summary.md").write_text(summary_md(summary) + "\n\n" + gates_md(result) + "\n", encoding="utf-8")
+    _scrub_hosts(ev)
     return ev
