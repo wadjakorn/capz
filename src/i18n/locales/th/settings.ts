@@ -36,6 +36,7 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.editor.remember": "จำเครื่องมือ สี และขนาดล่าสุด",
   "settings.editor.snap": "จัดแนวอัตโนมัติกับขอบและองค์ประกอบอื่น",
   "settings.editor.snapBypass": "ปุ่มกดค้างเพื่อข้ามการจัดแนวอัตโนมัติ",
+  "settings.editor.ocrEngine": "ตัวตรวจหาข้อความ",
   "settings.editor.rulers": "แสดงไม้บรรทัด",
   "settings.editor.keepToolActive": "คงเครื่องมือไว้หลังใช้งาน",
   "settings.editor.canvas": "สีพื้นแคนวาส",
@@ -154,6 +155,10 @@ export const settings: Record<keyof typeof en, string> = {
   "settings.editor.snapBypass.hint":
     "ใช้ขณะลากหรือปรับขนาด ปุ่ม Alt ยังใช้ปรับขนาดจากกึ่งกลางด้วย",
   "settings.editor.snapBypass.none": "ไม่ใช้ (ใช้สวิตช์ด้านบน)",
+  "settings.editor.ocrEngine.hint":
+    "OpenThai มากับ capz อ่านไทยกับอังกฤษในบรรทัดเดียวกันได้ แต่ช้ากว่าและใช้หน่วยความจำมากกว่า Apple Vision ทั้งสองแบบทำงานบนเครื่องนี้ ไม่มีการส่งภาพออกไป",
+  "settings.editor.ocrEngine.vision": "Apple Vision (ค่าเริ่มต้น)",
+  "settings.editor.ocrEngine.openthai": "OpenThai",
   "settings.editor.keepToolActive.hint":
     "ถ้าปิด จะกลับไปที่เครื่องมือเลือกหลังใช้หนึ่งครั้ง ตั้งได้ที่แถบข้างของตัวแก้ไขหรือกด K ด้วย",
   "settings.editor.canvas.hint": "แสดงผ่านส่วนโปร่งใสของภาพ ทั้งบนหน้าจอและในไฟล์ที่ส่งออก",

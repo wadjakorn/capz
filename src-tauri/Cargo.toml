@@ -36,6 +36,8 @@ tauri-plugin-process = "2"
 base64 = "0.22.1"
 trash = "5.2.3"
 tauri-plugin-opener = "2"
+imageproc = { version = "0.27", default-features = false }
+unicode-normalization = "0.1.26"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
@@ -52,9 +54,9 @@ objc2-vision = "0.3"
 core-foundation = "0.10"
 core-foundation-sys = "0.8"
 tauri-nspanel = "2.1.1"
+tract-onnx = "0.23.10"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61.3", features = ["Media_Ocr", "Graphics_Imaging", "Storage", "Storage_Streams", "Globalization", "Foundation", "Foundation_Collections"] }
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
@@ -63,3 +65,9 @@ windows-sys = { version = "0.59", features = [
     # SendInput / MOUSEEVENTF_WHEEL for auto-scroll synthetic wheel events.
     "Win32_UI_Input_KeyboardAndMouse",
 ] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+ort = { version = "2.0.0-rc.15", default-features = false, features = ["api-24", "download-binaries", "std", "tls-rustls"] }
+
+[dev-dependencies]
+sha2 = "0.10.9"

@@ -197,6 +197,15 @@ export const SETTINGS = {
     keywords: ["checkerboard", "transparent"],
     keywordsTh: ["แคนวาส", "โปร่งใส", "ตาราง"],
   },
+  "editor.ocrEngine": {
+    page: "editor",
+    labelKey: "settings.editor.ocrEngine",
+    advanced: true,
+    platform: "mac",
+    keywords: ["ocr", "detect text", "vision", "openthai", "thai", "recognition"],
+    keywordsTh: ["ตรวจหาข้อความ", "อ่านข้อความ", "ภาษาไทย"],
+    addedIn: "0.21.0",
+  },
   "editor.ontop": {
     page: "editor",
     labelKey: "settings.editor.ontop",

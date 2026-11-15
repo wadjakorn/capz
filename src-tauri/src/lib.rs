@@ -7,6 +7,11 @@ mod notice;
 mod panel;
 mod ring;
 mod services;
+
+/// For `examples/openthai_cli.rs`, which lets the CP-0096 eval harness
+/// (`scripts/ocr-eval`) score the shipped OCR code. Not used by the app.
+#[doc(hidden)]
+pub use services::ocr::openthai as openthai_ocr;
 mod shortcuts;
 mod state;
 mod tray;

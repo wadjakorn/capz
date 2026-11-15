@@ -1,0 +1,4 @@
+# OCR model files must reach the bundle byte-for-byte. Without this, a Windows
+# checkout (core.autocrlf=true, as on GitHub's windows runners) rewrites
+# rec_dict.txt to CRLF and every recognised character gains a trailing "\r".
+src-tauri/resources/ocr/** -text

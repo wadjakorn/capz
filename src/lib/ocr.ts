@@ -1,3 +1,5 @@
+import type { OcrEngine } from "@/lib/config";
+
 export type OcrBox = { x: number; y: number; w: number; h: number };
 export type OcrWord = { text: string; bbox: OcrBox };
 export type OcrLine = { text: string; bbox: OcrBox; words: OcrWord[] };
@@ -9,10 +11,14 @@ export type OcrResult = {
   thaiAvailable: boolean;
 };
 
-/** Run native OCR on the image at `path`. Boxes are top-left image-pixel space. */
-export async function detectText(path: string): Promise<OcrResult> {
+export type { OcrEngine } from "@/lib/config";
+
+/** Run on-device OCR on the image at `path`. Boxes are top-left image-pixel
+ * space. `engine` picks Vision or OpenThai on macOS; other platforms always
+ * use OpenThai and ignore it. */
+export async function detectText(path: string, engine?: OcrEngine): Promise<OcrResult> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<OcrResult>("ocr_detect", { path });
+  return invoke<OcrResult>("ocr_detect", { path, engine: engine ?? null });
 }
 
 /** Map an image-space box to screen pixels for the overlay (`displayScale`). */

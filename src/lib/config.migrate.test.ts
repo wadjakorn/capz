@@ -19,6 +19,7 @@ import v7 from "./__fixtures__/config/v7.json";
 import v8 from "./__fixtures__/config/v8.json";
 import v9 from "./__fixtures__/config/v9.json";
 import v10 from "./__fixtures__/config/v10.json";
+import v11 from "./__fixtures__/config/v11.json";
 import v99 from "./__fixtures__/config/v99.json";
 
 // Fixtures are stores as older releases wrote them, with non-default values so
@@ -32,7 +33,8 @@ import v99 from "./__fixtures__/config/v99.json";
 //   v7  — schema of v0.19.0 (CP-0076: Shapes stroke style)
 //   v8  — schema with sticker sets (CP-0048)
 //   v9  — schema with the snap bypass key (CP-0025)
-//   v10 — current schema (CP-0095: Shapes spotlight dim)
+//   v10 — schema with Shapes spotlight dim (CP-0095)
+//   v11 — current schema (CP-0097: OCR engine choice)
 //   v99 — a hypothetical future release with keys/values this build lacks
 
 const load = (raw: unknown) => {
@@ -327,6 +329,25 @@ describe("v9 → v10: tools.rect.dim / dimLevel (CP-0095)", () => {
   it("an unknown dim level falls back to the default", () => {
     const bad = { ...v10, tools: { ...v10.tools, rect: { ...v10.tools.rect, dimLevel: "max" } } };
     expect(load(bad).config.tools.rect.dimLevel).toBe("medium");
+  });
+});
+
+describe("v10 → v11: general.ocrEngine (CP-0097)", () => {
+  it("a v10 store keeps Apple Vision", () => {
+    const { config, issues } = load(v10);
+    expect(issues).toEqual([]);
+    expect(config.general.ocrEngine).toBe("vision");
+  });
+
+  it("a v11 store keeps OpenThai", () => {
+    const { config, issues } = load(v11);
+    expect(issues).toEqual([]);
+    expect(config.general.ocrEngine).toBe("openthai");
+  });
+
+  it("an unknown engine falls back to Vision", () => {
+    const bad = { ...v11, general: { ...v11.general, ocrEngine: "tesseract" } };
+    expect(load(bad).config.general.ocrEngine).toBe("vision");
   });
 });
 

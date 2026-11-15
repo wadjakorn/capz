@@ -161,6 +161,10 @@ export type AppConfig = {
     /** Key held to bypass snapping while dragging/resizing (CP-0025).
      *  "mod" = Cmd on macOS / Ctrl on Windows; "none" = no hold-to-bypass. */
     snapBypassKey: SnapBypassKey;
+    /** Text-detection engine (CP-0097). macOS only: "vision" is Apple's,
+     *  "openthai" is the bundled OpenThai2.0 model. Windows always uses
+     *  OpenThai and ignores this. */
+    ocrEngine: OcrEngine;
     canvasBackground: string;
     /**
      * App version whose settings the user has already been shown. Anything
@@ -351,6 +355,9 @@ export type StickerFolder = {
   enabled: boolean;
 };
 
+/** Text-detection engine (`general.ocrEngine`, CP-0097). */
+export type OcrEngine = "vision" | "openthai";
+
 /** The padded-backdrop settings block (`general.backdrop`). */
 export type BackdropConfig = AppConfig["general"]["backdrop"];
 
@@ -365,7 +372,8 @@ export type BackdropConfig = AppConfig["general"]["backdrop"];
 //   `lastUsed.stickerItem`.
 // v9 (CP-0025): added `general.snapBypassKey`.
 // v10 (CP-0095): added tools.rect.dim / dimLevel and lastUsed.rect.dim / dimLevel.
-export const CONFIG_SCHEMA_VERSION = 10;
+// v11 (CP-0097): added `general.ocrEngine`.
+export const CONFIG_SCHEMA_VERSION = 11;
 
 export const DEFAULT_CONFIG: AppConfig = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
@@ -443,6 +451,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     snapEnabled: true,
     // Not Alt: Konva's Transformer already uses Alt for resize-from-centre.
     snapBypassKey: "mod",
+    ocrEngine: "vision",
     canvasBackground: "#ffffff",
     lastSeenSettingsVersion: "",
     dismissedSuggestions: [],
@@ -643,6 +652,10 @@ export const CONFIG_MIGRATIONS: Record<number, ConfigMigration> = {
   // v9 → v10 (CP-0095): only ADDED keys (tools.rect.dim / dimLevel and their
   // lastUsed twins); absent keys fall back to their defaults.
   9: (o) => o,
+  // v10 → v11 (CP-0097): only ADDED `general.ocrEngine`; absent → "vision",
+  // which is what every macOS user had. Rust does not read it (the webview
+  // passes it to `ocr_detect`).
+  10: (o) => o,
 };
 
 /** Stable folder-set id for a directory path (FNV-1a, 32-bit). */
@@ -931,6 +944,7 @@ function vGeneral(
       showRulers: isBool,
       snapEnabled: isBool,
       snapBypassKey: inSet("alt", "mod", "none"),
+      ocrEngine: inSet("vision", "openthai"),
       canvasBackground: isStr,
       lastSeenSettingsVersion: isStr,
     },

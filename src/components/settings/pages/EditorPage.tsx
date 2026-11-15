@@ -9,6 +9,7 @@ import { ToggleRow } from "@/components/settings/ToggleRow";
 import { STICKY_TOOLS } from "@/lib/stickyTools";
 import { currentPlatform } from "@/lib/shortcuts";
 import type { SnapBypassKey } from "@/lib/snap";
+import type { OcrEngine } from "@/lib/config";
 import { useSettings } from "@/stores/settings";
 import { useT } from "@/i18n/useT";
 
@@ -88,6 +89,20 @@ export function EditorPage() {
             ))}
           </div>
         </SettingRow>
+
+        {mac && (
+          <SettingRow id="editor.ocrEngine" hint={t("settings.editor.ocrEngine.hint")}>
+            <select
+              className="field"
+              value={g.ocrEngine}
+              onChange={(e) => update("general", { ocrEngine: e.target.value as OcrEngine })}
+              aria-label={t("settings.editor.ocrEngine")}
+            >
+              <option value="vision">{t("settings.editor.ocrEngine.vision")}</option>
+              <option value="openthai">{t("settings.editor.ocrEngine.openthai")}</option>
+            </select>
+          </SettingRow>
+        )}
 
         <SettingRow
           id="editor.canvas"

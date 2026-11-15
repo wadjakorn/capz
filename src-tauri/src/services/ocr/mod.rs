@@ -93,8 +93,8 @@ pub fn run_detect<B: OcrBackend>(backend: &B, image_path: &str) -> anyhow::Resul
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-#[cfg(target_os = "windows")]
-pub mod windows;
+/// OpenThai2.0 (iApp): the only engine on Windows and Linux, opt-in on macOS.
+pub mod openthai;
 
 #[cfg(test)]
 mod tests {

@@ -36,6 +36,7 @@ export const settings = {
   "settings.editor.remember": "Remember last tool, color and size",
   "settings.editor.snap": "Snap to edges and other elements",
   "settings.editor.snapBypass": "Hold to bypass snapping",
+  "settings.editor.ocrEngine": "Text detection engine",
   "settings.editor.rulers": "Show rulers",
   "settings.editor.keepToolActive": "Keep tool active after use",
   "settings.editor.canvas": "Canvas background",
@@ -156,6 +157,10 @@ export const settings = {
   "settings.editor.snapBypass.hint":
     "Applies while dragging or resizing. Alt also resizes from the centre.",
   "settings.editor.snapBypass.none": "None (use the switch above)",
+  "settings.editor.ocrEngine.hint":
+    "OpenThai comes with capz and reads Thai and English on the same line. It is slower and uses more memory than Apple Vision. Both run on this Mac; nothing is uploaded.",
+  "settings.editor.ocrEngine.vision": "Apple Vision (default)",
+  "settings.editor.ocrEngine.openthai": "OpenThai",
   "settings.editor.keepToolActive.hint":
     "Off returns to Select after one use. Also on the editor sidebar, or press K.",
   "settings.editor.canvas.hint": "Shows through transparent images, on screen and in exports.",
