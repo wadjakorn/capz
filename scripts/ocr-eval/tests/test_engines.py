@@ -8,7 +8,8 @@ from ocr_eval.engines import ENGINES
 from ocr_eval.metrics.match import match
 from ocr_eval.metrics.normalize import normalize
 
-ENGINE_CONFIGS = {"openthai": {"runtime": {"backend": "onnxruntime"}}, "tesseract": {}, "vision": {}}
+ENGINE_CONFIGS = {"openthai": {"runtime": {"backend": "onnxruntime"}}, "tesseract": {}, "vision": {},
+                  "rust-ort": {}, "rust-tract": {}}
 
 
 def _engine(name):
