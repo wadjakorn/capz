@@ -107,3 +107,16 @@ def test_compare_md_has_delta_and_ci():
     b = score_records(g, {str(i): P(str(i), [("hello world", [0, 0, 200, 20])]) for i in range(10)})
     md = compare_md(a, b, "A", "B")
     assert "| overall |" in md and "Δ" in md and "CI" in md
+
+
+def test_score_run_rejects_stale_corpus(tmp_path):
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "a.json").write_text(json.dumps(GT("a", [("hello", [0, 0, 100, 20])])))
+    (corpus / "manifest.json").write_text(json.dumps({"files": {"a": {}}, "corpus_hash": "new"}))
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "run.json").write_text(json.dumps({"engine": "x", "split": "dev", "config": {}, "corpus_hash": "old"}))
+    (run / "predictions.jsonl").write_text(json.dumps(P("a", [("hello", [0, 0, 100, 20])])) + "\n")
+    with pytest.raises(ValueError, match="stale"):
+        score_run(run, corpus)

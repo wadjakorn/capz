@@ -144,6 +144,9 @@ def score_run(run_dir: Path, corpus_dir: Path) -> dict:
     run_dir, corpus_dir = Path(run_dir), Path(corpus_dir)
     run = json.loads((run_dir / "run.json").read_text())
     manifest = json.loads((corpus_dir / "manifest.json").read_text())
+    if run.get("corpus_hash") and manifest.get("corpus_hash") and run["corpus_hash"] != manifest["corpus_hash"]:
+        raise ValueError(f"stale run {run_dir.name}: made on corpus {run['corpus_hash'][:8]}, "
+                         f"corpus is now {manifest['corpus_hash'][:8]}")
     gts = [json.loads((corpus_dir / f"{sid}.json").read_text(encoding="utf-8")) for sid in manifest["files"]]
     preds = {}
     with open(run_dir / "predictions.jsonl", encoding="utf-8") as f:

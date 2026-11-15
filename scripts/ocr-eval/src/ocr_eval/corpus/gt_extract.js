@@ -56,6 +56,9 @@
         const r = rs[0];
         const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
         if (cx < R.x || cx > R.x + R.w || cy < R.y || cy > R.y + R.h) { cur = null; continue; }
+        // occluded by something opaque on top (a modal over the page): not in the image
+        const hit = document.elementFromPoint(cx, cy);
+        if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) { cur = null; continue; }
         let join = false;
         if (cur) {
           const ov = Math.min(cur.b, r.bottom) - Math.max(cur.t, r.top);

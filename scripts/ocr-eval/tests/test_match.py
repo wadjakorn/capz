@@ -45,3 +45,14 @@ def test_vertical_overlap_required():
     pred = [F("row two", 0, 18, 100, 20)]
     comps = match(gt, pred)
     assert len(comps) == 2
+
+
+def test_same_row_pieces_keep_left_to_right_order():
+    # one GT line; the engine cut it in two boxes whose centres differ by a few px
+    # (enough to straddle any fixed band boundary): order must still be left → right
+    gt = [F("ตอนเพิ่มภาษาไทย Windows คำแนะนำนั้นผิด", 0, 100, 600, 30)]
+    for dy in range(0, 12):
+        pred = [F("คำแนะนำนั้นผิด", 320, 100 + dy * 0.5 - 3, 280, 30),
+                F("ตอนเพิ่มภาษาไทย Windows", 0, 100 + 3 - dy * 0.5, 300, 30)]
+        (c,) = match(gt, pred)
+        assert c.pred_text == "ตอนเพิ่มภาษาไทย Windows คำแนะนำนั้นผิด", (dy, c.pred_text)

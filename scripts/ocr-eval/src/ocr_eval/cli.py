@@ -72,6 +72,39 @@ def _cmd_compare(a: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_config(v: str | None) -> dict:
+    import json
+    from pathlib import Path
+
+    if not v:
+        return {}
+    return json.loads(Path(v[1:]).read_text()) if v.startswith("@") else json.loads(v)
+
+
+def _cmd_run(a: argparse.Namespace) -> int:
+    from . import paths
+    from .engines import ENGINES
+    from .engines.base import run_engine
+    from .metrics.score import score_run
+
+    mod = ENGINES[a.engine]
+    if hasattr(mod, "available") and not mod.available():
+        print(f"{a.engine}: not available on this host")
+        return 2
+    cfg = _parse_config(a.config)
+    if not cfg and hasattr(mod, "B0"):
+        cfg = mod.B0
+    kw = {"workers": a.workers} if a.workers else {}
+    for split in a.split:
+        d = run_engine(a.engine, mod.recognize, split, cfg, **kw)
+        m = score_run(d, paths.corpus_dir(split))
+        o = m["overall"]
+        print(f"{d.name}: CER {100 * o['cer']:.2f}%  CER_e2e {100 * o['cer_e2e']:.2f}%  fp/1k {o['fp_per_1k']:.1f}  "
+              f"mixed {100 * m['slices']['category'].get('mixed', {}).get('cer', 0):.2f}%  "
+              f"p50 {m['latency'].get('p50_ms', 0):.0f} ms  failed {len(m['failed_images'])}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ocr-eval")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -91,6 +124,12 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("a")
     cp.add_argument("b")
     cp.set_defaults(fn=_cmd_compare)
+    r = sub.add_parser("run", help="run an engine on split(s), then score")
+    r.add_argument("--engine", required=True)
+    r.add_argument("--split", action="append", required=True)
+    r.add_argument("--config", help="JSON, or @path/to/config.json")
+    r.add_argument("--workers", type=int, default=6)
+    r.set_defaults(fn=_cmd_run)
     a = p.parse_args(argv)
     return a.fn(a)
 

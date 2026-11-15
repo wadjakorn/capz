@@ -230,7 +230,7 @@ def dialog(c: Content) -> tuple[str, str]:
             f'<div class="row small"><span class="cb"></span>{esc(c.label())}</div>'
             f'<div class="row end"><span class="btn ghost">{esc(c.label())}</span><span class="btn">{esc(c.label())}</span></div>'
             f'</div><div class="toast panel small">{esc(c.line())}</div>')
-    css = """.bgapp{padding:2em;display:flex;flex-direction:column;gap:1em}.dim{position:fixed;inset:0;background:rgba(0,0,0,.45)}
+    css = """.bgapp{padding:2em;display:flex;flex-direction:column;gap:1em}.dim{position:fixed;inset:0;background:rgba(0,0,0,.45);pointer-events:none}
 .modal{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);width:560px;padding:1.6em 2em;border-radius:12px;
 display:flex;flex-direction:column;gap:1em;box-shadow:0 10px 40px rgba(0,0,0,.35)}.end{justify-content:flex-end}
 .cb{width:1em;height:1em;border:2px solid var(--accent);border-radius:3px;flex:none}

@@ -30,11 +30,19 @@ def _linked(a: list[float], b: list[float]) -> bool:
 
 
 def _reading_order(items: list[dict]) -> list[dict]:
-    if not items:
-        return []
-    hs = sorted(max(1.0, it["box"][3]) for it in items)
-    band = hs[len(hs) // 2] * 0.5
-    return sorted(items, key=lambda it: (round((it["box"][1] + it["box"][3] / 2) / band), it["box"][0]))
+    """Rows by vertical overlap (not fixed y bands, which split one row whenever
+    two boxes' centres straddle a band edge), then left to right in each row."""
+    rows: list[list[dict]] = []
+    for it in sorted(items, key=lambda it: it["box"][1] + it["box"][3] / 2):
+        y, h = it["box"][1], max(1.0, it["box"][3])
+        if rows:
+            top = min(r["box"][1] for r in rows[-1])
+            bot = max(r["box"][1] + r["box"][3] for r in rows[-1])
+            if min(bot, y + h) - max(top, y) >= 0.5 * min(h, bot - top):
+                rows[-1].append(it)
+                continue
+        rows.append([it])
+    return [it for row in rows for it in sorted(row, key=lambda it: it["box"][0])]
 
 
 def match(gt: list[dict], pred: list[dict]) -> list[Component]:

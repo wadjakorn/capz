@@ -105,3 +105,16 @@ def test_overflowing_line_is_hidden(renderer):
     texts = [f["text"] for f in s.gt["fragments"]]
     assert texts == ["สั้น ๆ"], texts
     assert check.coverage(s.gt, s.ink) >= 0.995
+
+
+def test_occluded_text_excluded(renderer):
+    """Text under an opaque element is not in the image, so it must not be in the GT;
+    text under a translucent, click-through dimmer still is."""
+    body = ('<p style="font-size:24px;margin:100px 40px;white-space:nowrap">ซ้ายมือมองเห็น LEFTSIDE '
+            '<span style="margin-left:300px">ขวามือโดนบัง RIGHTSIDE</span></p>'
+            '<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);pointer-events:none"></div>'
+            '<div style="position:fixed;left:420px;top:60px;width:700px;height:140px;background:#fff"></div>')
+    s = renderer.render_html(render.wrap_html(body), dpr=1.0)
+    got = _squash(" ".join(f["text"] for f in s.gt["fragments"]))
+    assert "LEFTSIDE" in got and "RIGHTSIDE" not in got, got
+    assert check.coverage(s.gt, s.ink) >= 0.995
