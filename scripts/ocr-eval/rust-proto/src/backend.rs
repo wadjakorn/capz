@@ -77,22 +77,39 @@ mod ort_net {
 mod tract_net {
     use super::Net;
     use anyhow::Result;
+    use std::collections::HashMap;
     use std::path::Path;
+    use std::sync::Arc;
     use tract_onnx::prelude::*;
 
-    pub struct TractNet(std::sync::Arc<TypedSimplePlan>);
+    /// tract cannot type det.onnx with symbolic H/W (its ceil-div shape rules don't
+    /// unify), so each concrete input shape gets its own optimised plan, cached.
+    pub struct TractNet {
+        model: InferenceModel,
+        plans: HashMap<[usize; 4], Arc<TypedSimplePlan>>,
+    }
 
     impl TractNet {
         pub fn load(path: &Path) -> Result<Self> {
-            let plan = tract_onnx::onnx().model_for_path(path)?.into_optimized()?.into_runnable()?;
-            Ok(TractNet(plan))
+            // the paddle2onnx export declares symbolic intermediate shapes tract cannot unify
+            let onnx = tract_onnx::onnx().with_ignore_value_info(true).with_ignore_output_shapes(true);
+            Ok(TractNet { model: onnx.model_for_path(path)?, plans: HashMap::new() })
         }
     }
 
     impl Net for TractNet {
         fn run(&mut self, shape: [usize; 4], data: Vec<f32>) -> Result<(Vec<usize>, Vec<f32>)> {
+            if !self.plans.contains_key(&shape) {
+                let plan = self
+                    .model
+                    .clone()
+                    .with_input_fact(0, f32::fact(shape).into())?
+                    .into_optimized()?
+                    .into_runnable()?;
+                self.plans.insert(shape, plan);
+            }
             let t = Tensor::from_shape(&shape, &data)?;
-            let out = self.0.run(tvec!(t.into()))?;
+            let out = self.plans[&shape].run(tvec!(t.into()))?;
             let v = out[0].to_plain_array_view::<f32>()?;
             Ok((v.shape().to_vec(), v.iter().copied().collect()))
         }
