@@ -37,6 +37,41 @@ def _cmd_corpus(a: argparse.Namespace) -> int:
     return 0
 
 
+def _run_dir(r: str):
+    from pathlib import Path
+
+    from . import paths
+
+    p = Path(r)
+    return p if p.exists() else paths.RUNS / r
+
+
+def _cmd_score(a: argparse.Namespace) -> int:
+    import json
+
+    from . import paths
+    from .metrics.score import score_run
+
+    for r in a.run:
+        d = _run_dir(r)
+        split = json.loads((d / "run.json").read_text())["split"]
+        m = score_run(d, paths.corpus_dir(split))
+        o = m["overall"]
+        print(f"{d.name}: CER {100 * o['cer']:.2f}%  CER_e2e {100 * o['cer_e2e']:.2f}%  "
+              f"fp/1k {o['fp_per_1k']:.1f}  chars {o['n_chars']}  failed {len(m['failed_images'])}")
+    return 0
+
+
+def _cmd_compare(a: argparse.Namespace) -> int:
+    import json
+
+    from .metrics.compare import compare_md
+
+    ma, mb = (json.loads((_run_dir(r) / "metrics.json").read_text()) for r in (a.a, a.b))
+    print(compare_md(ma, mb, _run_dir(a.a).name, _run_dir(a.b).name))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ocr-eval")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -49,6 +84,13 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--workers", type=int, default=4)
     c.add_argument("--check-only", action="store_true")
     c.set_defaults(fn=_cmd_corpus)
+    sc = sub.add_parser("score", help="score run(s) against their split's ground truth")
+    sc.add_argument("run", nargs="+")
+    sc.set_defaults(fn=_cmd_score)
+    cp = sub.add_parser("compare", help="markdown table of two scored runs with paired bootstrap")
+    cp.add_argument("a")
+    cp.add_argument("b")
+    cp.set_defaults(fn=_cmd_compare)
     a = p.parse_args(argv)
     return a.fn(a)
 
