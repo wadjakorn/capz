@@ -52,6 +52,9 @@ export const useOcr = create<State>((set, get) => ({
     set({ status: "scanning" });
     try {
       const result = await detectText(currentKey, engine);
+      // The engine changed while this scan ran: its result belongs to the old
+      // engine, so don't cache it under the new one (that scan reports itself).
+      if (get().resultEngine !== engine) return;
       set((s) => ({
         status: "done",
         resultByKey: { ...s.resultByKey, [currentKey]: result },

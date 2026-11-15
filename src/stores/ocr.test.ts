@@ -121,6 +121,24 @@ describe("useOcr", () => {
     }
   });
 
+  it("drops a result from the old engine when the engine changes mid-scan", async () => {
+    let finish: (v: unknown) => void = () => {};
+    detectText.mockImplementationOnce(() => new Promise((r) => (finish = r)));
+    useOcr.getState().setKey("/img/a.png");
+    const scan = useOcr.getState().detect(); // started under "vision"
+    const s = useSettings.getState();
+    useSettings.setState({ config: { ...s.config, general: { ...s.config.general, ocrEngine: "openthai" } } });
+    try {
+      detectText.mockResolvedValueOnce(fake("from openthai"));
+      await useOcr.getState().detect();
+      finish(fake("from vision"));
+      await scan;
+      expect(useOcr.getState().resultByKey["/img/a.png"].lines[0].text).toBe("from openthai");
+    } finally {
+      useSettings.setState({ config: s.config });
+    }
+  });
+
   it("toasts the line count on a successful detection", async () => {
     detectText.mockResolvedValue(fake("hello")); // fake() → 1 line
     useOcr.getState().setKey("/img/a.png");

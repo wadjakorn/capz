@@ -25,23 +25,32 @@ mod imp {
     use ort::session::Session;
     use ort::value::Tensor;
     use std::path::Path;
-    use std::sync::OnceLock;
+    use std::sync::{Mutex, OnceLock};
 
     static ENV: OnceLock<ort::environment::Environment> = OnceLock::new();
+    /// ORT allows one environment per process: serialise the first build so
+    /// two OCR calls racing on first use don't both try to create it.
+    static ENV_INIT: Mutex<()> = Mutex::new(());
+
+    fn env() -> Result<&'static ort::environment::Environment> {
+        if let Some(e) = ENV.get() {
+            return Ok(e);
+        }
+        let _guard = ENV_INIT.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(e) = ENV.get() {
+            return Ok(e);
+        }
+        // Telemetry off: capz's privacy policy says nothing leaves the machine unasked.
+        let e = ort::init()
+            .with_name("capz-ocr")
+            .with_telemetry(false)
+            .build()
+            .map_err(|e| anyhow!("ort init: {e}"))?;
+        Ok(ENV.get_or_init(|| e))
+    }
 
     pub fn load(path: &Path, threads: usize) -> Result<Box<dyn Net>> {
-        let env = match ENV.get() {
-            Some(e) => e,
-            None => {
-                // Telemetry off: capz's privacy policy says nothing leaves the machine unasked.
-                let e = ort::init()
-                    .with_name("capz-ocr")
-                    .with_telemetry(false)
-                    .build()
-                    .map_err(|e| anyhow!("ort init: {e}"))?;
-                ENV.get_or_init(|| e)
-            }
-        };
+        let env = env()?;
         // No CPU memory arena / memory pattern: peak RSS 560 → 223 MB on the
         // CP-0096 perf split for ~5% more time.
         let s = Session::builder(env)
