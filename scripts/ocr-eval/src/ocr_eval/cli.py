@@ -138,6 +138,27 @@ def _cmd_report(a: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sweep(a: argparse.Namespace) -> int:
+    import json
+
+    from . import paths, sweep
+    from .engines import openthai
+    from .engines.base import run_engine
+    from .metrics.score import score_run
+
+    def evaluate(cfg: dict) -> dict:
+        d = run_engine("openthai", openthai.recognize, a.split, cfg, workers=a.workers)
+        m = score_run(d, paths.corpus_dir(a.split))
+        m["run_id"] = d.name
+        return m
+
+    paths.EVIDENCE.mkdir(parents=True, exist_ok=True)
+    best = sweep.coordinate_descent(sweep.KNOBS, openthai.B0, evaluate, split=a.split, budget=a.budget,
+                                    log=paths.EVIDENCE / "iterations.md", out=paths.RUNS / "sweep.json")
+    print("best_config:", json.dumps(best, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ocr-eval")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -173,6 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("run", nargs="+")
     rp.add_argument("--top", type=int, default=30)
     rp.set_defaults(fn=_cmd_report)
+    sw = sub.add_parser("sweep", help="coordinate descent over OpenThai knobs (dev only)")
+    sw.add_argument("--split", default="dev", choices=["dev", "smoke"])
+    sw.add_argument("--workers", type=int, default=10)
+    sw.add_argument("--budget", type=int, default=60)
+    sw.set_defaults(fn=_cmd_sweep)
     a = p.parse_args(argv)
     return a.fn(a)
 
