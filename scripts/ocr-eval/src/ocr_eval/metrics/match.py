@@ -19,6 +19,7 @@ class Component:
     pred_text: str
     gt_idx: list[int] = field(default_factory=list)
     pred_idx: list[int] = field(default_factory=list)
+    gt_order: list[int] = field(default_factory=list)  # gt_idx in the order gt_text joins them
 
 
 def _linked(a: list[float], b: list[float]) -> bool:
@@ -45,6 +46,11 @@ def _reading_order(items: list[dict]) -> list[dict]:
     return [it for row in rows for it in sorted(row, key=lambda it: it["box"][0])]
 
 
+def _reading_order_idx(pairs: list[tuple[dict, int]]) -> list[tuple[dict, int]]:
+    order = _reading_order([dict(it, _k=k) for k, (it, _) in enumerate(pairs)])
+    return [pairs[it["_k"]] for it in order]
+
+
 def match(gt: list[dict], pred: list[dict]) -> list[Component]:
     n = len(gt) + len(pred)
     parent = list(range(n))
@@ -65,8 +71,8 @@ def match(gt: list[dict], pred: list[dict]) -> list[Component]:
         (gi if k < len(gt) else pj).append(k if k < len(gt) else k - len(gt))
     out = []
     for gi, pj in groups.values():
-        g_items = _reading_order([gt[i] for i in gi])
+        g_order = [i for _, i in _reading_order_idx([(gt[i], i) for i in gi])]
         p_items = _reading_order([pred[j] for j in pj])
-        out.append(Component(" ".join(x["text"] for x in g_items), " ".join(x["text"] for x in p_items),
-                             sorted(gi), sorted(pj)))
+        out.append(Component(" ".join(gt[i]["text"] for i in g_order), " ".join(x["text"] for x in p_items),
+                             sorted(gi), sorted(pj), g_order))
     return out

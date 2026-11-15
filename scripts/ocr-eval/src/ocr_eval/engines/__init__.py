@@ -1,3 +1,3 @@
-from . import openthai
+from . import openthai, tesseract, vision
 
-ENGINES = {"openthai": openthai}
+ENGINES = {"openthai": openthai, "tesseract": tesseract, "vision": vision}

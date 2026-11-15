@@ -69,13 +69,23 @@ class _Acc:
                 "fp_per_1k": 1000 * self.fp / n if self.n else 0.0, "n_comp": self.comps}
 
 
-def _class_hits(gt: str, pred: str, hit: dict, tot: dict):
-    for tag, i1, i2, _j1, _j2 in Levenshtein.opcodes(gt, pred):
-        for k in range(i1, i2):
-            c = char_class(gt[k])
-            tot[c] += 1
-            if tag == "equal":
-                hit[c] += 1
+def _attribute(g: str, p: str, owner: list[int]) -> tuple[list[int], list[bool]]:
+    """Charge every edit of the alignment g→p to the GT fragment it happened in.
+    Returns (edits per GT char position, char correct?)."""
+    edits = [0] * len(g)
+    ok = [False] * len(g)
+    for tag, i1, i2, j1, j2 in Levenshtein.opcodes(g, p):
+        if tag == "equal":
+            for k in range(i1, i2):
+                ok[k] = True
+        elif tag == "insert":
+            if g:
+                edits[min(i1, len(g) - 1)] += j2 - j1
+        else:  # replace / delete: one edit per GT char (replace blocks may be unequal)
+            n = max(i2 - i1, j2 - j1) if tag == "replace" else i2 - i1
+            for k in range(n):
+                edits[i1 + min(k, i2 - i1 - 1)] += 1
+    return edits, ok
 
 
 def score_records(gts: list[dict], preds: dict[str, dict]) -> dict:
@@ -101,31 +111,52 @@ def score_records(gts: list[dict], preds: dict[str, dict]) -> dict:
         comp_names = composites(gt)
         img = _Acc()
         for c in match(gt["fragments"], lines):
-            g, p = normalize(c.gt_text), normalize(c.pred_text)
-            if c.gt_idx:
-                e, n, fp = Levenshtein.distance(g, p), len(g), 0
-            else:
-                e, n, fp = 0, 0, len(p)
-            if n == 0 and fp == 0:
+            p = normalize(c.pred_text)
+            if not c.gt_idx:
+                if p:
+                    overall.add(0, 0, len(p))
+                    img.add(0, 0, len(p))
+                    for k, v in img_keys:
+                        if v is not None:
+                            slices[k][v].add(0, 0, len(p))
+                    for name in comp_names:
+                        slices[name]["all"].add(0, 0, len(p))
                 continue
-            overall.add(e, n, fp)
-            img.add(e, n, fp)
+            # GT side fragment by fragment, so categories never depend on how the
+            # engine cut its lines (a merged Thai cell + English cell stays two items)
+            segs = [(i, normalize(gt["fragments"][i]["text"])) for i in c.gt_order]
+            g = "".join(t for _, t in segs)
+            if not g:
+                continue
+            owner = [i for i, t in segs for _ in t]
+            per_char, ok = _attribute(g, p, owner)
+            e = sum(per_char)
+            overall.add(e, len(g), 0)
+            img.add(e, len(g), 0)
             for k, v in img_keys:
                 if v is not None:
-                    slices[k][v].add(e, n, fp)
+                    slices[k][v].add(e, len(g), 0)
             for name in comp_names:
-                slices[name]["all"].add(e, n, fp)
-            if c.gt_idx:
-                cat = category(c.gt_text)
-                slices["category"][cat].add(e, n, fp)
-                slices["category_dpr"][f"{cat}@{gt.get('dpr')}"].add(e, n, fp)
-                for fl in flags(c.gt_text):
-                    slices["flag"][fl].add(e, n, fp)
+                slices[name]["all"].add(e, len(g), 0)
+            pos = 0
+            for i, t in segs:
+                if not t:
+                    continue
+                fe = sum(per_char[pos:pos + len(t)])
+                raw = gt["fragments"][i]["text"]
+                cat = category(raw)
+                slices["category"][cat].add(fe, len(t), 0)
+                slices["category_dpr"][f"{cat}@{gt.get('dpr')}"].add(fe, len(t), 0)
+                for fl in flags(raw):
+                    slices["flag"][fl].add(fe, len(t), 0)
                 for name in comp_names:
-                    slices[name][cat].add(e, n, fp)
-                _class_hits(g, p, hits["all"], tots["all"])
-                if cat == "mixed":
-                    _class_hits(g, p, hits["mixed"], tots["mixed"])
+                    slices[name][cat].add(fe, len(t), 0)
+                for k in range(pos, pos + len(t)):
+                    cl = char_class(g[k])
+                    for scope in ("all", "mixed") if cat == "mixed" else ("all",):
+                        tots[scope][cl] += 1
+                        hits[scope][cl] += ok[k]
+                pos += len(t)
         per_image[pid] = {"edits": img.edits, "n": img.n, "fp": img.fp}
     class_recall = {
         scope: {c: {"hit": hits[scope][c], "total": tots[scope][c],

@@ -120,3 +120,17 @@ def test_score_run_rejects_stale_corpus(tmp_path):
     (run / "predictions.jsonl").write_text(json.dumps(P("a", [("hello", [0, 0, 100, 20])])) + "\n")
     with pytest.raises(ValueError, match="stale"):
         score_run(run, corpus)
+
+
+def test_category_denominators_do_not_depend_on_segmentation():
+    """A Thai cell and an English cell read as one line (merged) or two lines (split)
+    must give the same per-category n_chars, and an error in the English cell must be
+    charged to `english` only."""
+    g = GT("a", [("ราคาสินค้า", [0, 0, 100, 20]), ("Total", [150, 0, 60, 20])])
+    merged = score_records([g], {"a": P("a", [("ราคาสินค้า Tatal", [0, 0, 210, 20])])})
+    split = score_records([g], {"a": P("a", [("ราคาสินค้า", [0, 0, 100, 20]), ("Tatal", [150, 0, 60, 20])])})
+    for m in (merged, split):
+        cat = m["slices"]["category"]
+        assert cat["thai"]["n_chars"] == len("ราคาสินค้า") and cat["thai"]["edits"] == 0
+        assert cat["english"]["n_chars"] == 5 and cat["english"]["edits"] == 1
+        assert "mixed" not in cat
