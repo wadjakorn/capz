@@ -1,0 +1,262 @@
+{
+ "overall": {
+  "cer": 0.02522935779816514,
+  "cer_e2e": 0.8325688073394495,
+  "edits": 11,
+  "n_chars": 436,
+  "fp": 352,
+  "fp_per_1k": 807.3394495412844,
+  "n_comp": 31
+ },
+ "slices": {
+  "template": {
+   "wild": {
+    "cer": 0.02522935779816514,
+    "cer_e2e": 0.8325688073394495,
+    "edits": 11,
+    "n_chars": 436,
+    "fp": 352,
+    "fp_per_1k": 807.3394495412844,
+    "n_comp": 31
+   }
+  },
+  "dpr": {
+   "2.0": {
+    "cer": 0.02522935779816514,
+    "cer_e2e": 0.8325688073394495,
+    "edits": 11,
+    "n_chars": 436,
+    "fp": 352,
+    "fp_per_1k": 807.3394495412844,
+    "n_comp": 31
+   }
+  },
+  "category": {
+   "english": {
+    "cer": 0.06666666666666667,
+    "cer_e2e": 0.06666666666666667,
+    "edits": 2,
+    "n_chars": 30,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 5
+   },
+   "thai": {
+    "cer": 0.019933554817275746,
+    "cer_e2e": 0.019933554817275746,
+    "edits": 6,
+    "n_chars": 301,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 15
+   },
+   "mixed": {
+    "cer": 0.019230769230769232,
+    "cer_e2e": 0.019230769230769232,
+    "edits": 2,
+    "n_chars": 104,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 4
+   },
+   "other": {
+    "cer": 1.0,
+    "cer_e2e": 1.0,
+    "edits": 1,
+    "n_chars": 1,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 1
+   }
+  },
+  "category_dpr": {
+   "english@2.0": {
+    "cer": 0.06666666666666667,
+    "cer_e2e": 0.06666666666666667,
+    "edits": 2,
+    "n_chars": 30,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 5
+   },
+   "thai@2.0": {
+    "cer": 0.019933554817275746,
+    "cer_e2e": 0.019933554817275746,
+    "edits": 6,
+    "n_chars": 301,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 15
+   },
+   "mixed@2.0": {
+    "cer": 0.019230769230769232,
+    "cer_e2e": 0.019230769230769232,
+    "edits": 2,
+    "n_chars": 104,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 4
+   },
+   "other@2.0": {
+    "cer": 1.0,
+    "cer_e2e": 1.0,
+    "edits": 1,
+    "n_chars": 1,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 1
+   }
+  },
+  "flag": {
+   "url": {
+    "cer": 0.07142857142857142,
+    "cer_e2e": 0.07142857142857142,
+    "edits": 1,
+    "n_chars": 14,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 2
+   },
+   "numeric": {
+    "cer": 0.14285714285714285,
+    "cer_e2e": 0.14285714285714285,
+    "edits": 1,
+    "n_chars": 7,
+    "fp": 0,
+    "fp_per_1k": 0.0,
+    "n_comp": 1
+   }
+  }
+ },
+ "class_recall": {
+  "all": {
+   "thai_cons": {
+    "hit": 231,
+    "total": 231,
+    "recall": 1.0
+   },
+   "thai_vowel_above": {
+    "hit": 31,
+    "total": 31,
+    "recall": 1.0
+   },
+   "thai_vowel_below": {
+    "hit": 11,
+    "total": 11,
+    "recall": 1.0
+   },
+   "thai_tone": {
+    "hit": 33,
+    "total": 34,
+    "recall": 0.9705882352941176
+   },
+   "thai_other": {
+    "hit": 65,
+    "total": 65,
+    "recall": 1.0
+   },
+   "thai_digit": {
+    "hit": 0,
+    "total": 0,
+    "recall": null
+   },
+   "latin_upper": {
+    "hit": 15,
+    "total": 15,
+    "recall": 1.0
+   },
+   "latin_lower": {
+    "hit": 40,
+    "total": 40,
+    "recall": 1.0
+   },
+   "digit": {
+    "hit": 4,
+    "total": 4,
+    "recall": 1.0
+   },
+   "symbol": {
+    "hit": 4,
+    "total": 5,
+    "recall": 0.8
+   }
+  },
+  "mixed": {
+   "thai_cons": {
+    "hit": 46,
+    "total": 46,
+    "recall": 1.0
+   },
+   "thai_vowel_above": {
+    "hit": 7,
+    "total": 7,
+    "recall": 1.0
+   },
+   "thai_vowel_below": {
+    "hit": 0,
+    "total": 0,
+    "recall": null
+   },
+   "thai_tone": {
+    "hit": 5,
+    "total": 5,
+    "recall": 1.0
+   },
+   "thai_other": {
+    "hit": 14,
+    "total": 14,
+    "recall": 1.0
+   },
+   "thai_digit": {
+    "hit": 0,
+    "total": 0,
+    "recall": null
+   },
+   "latin_upper": {
+    "hit": 10,
+    "total": 10,
+    "recall": 1.0
+   },
+   "latin_lower": {
+    "hit": 22,
+    "total": 22,
+    "recall": 1.0
+   },
+   "digit": {
+    "hit": 0,
+    "total": 0,
+    "recall": null
+   },
+   "symbol": {
+    "hit": 0,
+    "total": 0,
+    "recall": null
+   }
+  }
+ },
+ "per_image": {
+  "wild-capz-landing": {
+   "edits": 11,
+   "n": 436,
+   "fp": 352
+  }
+ },
+ "failed_images": [],
+ "latency": {
+  "p50_ms": 1367.97297000885,
+  "p95_ms": 1367.97297000885,
+  "mean_ms": 1367.97297000885,
+  "n": 1
+ },
+ "run": {
+  "run_id": "20261115-195229-vision-wild-bf21a9e8",
+  "engine": "vision",
+  "config": {},
+  "split": "wild",
+  "corpus_hash": "141993f9a6e7023001b598c3979061ee75c4c72d504c3e45f30628b81b892cde",
+  "git_sha": "f1bd575",
+  "host": "wadjakorn-bmax",
+  "started": "2026-11-15T19:52:29"
+ },
+ "corpus_hash": "141993f9a6e7023001b598c3979061ee75c4c72d504c3e45f30628b81b892cde"
+}

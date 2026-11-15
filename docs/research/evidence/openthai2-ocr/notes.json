@@ -1,0 +1,52 @@
+{
+ "rust_parity_debugging": {
+  "identical_share_initial": 0.9154,
+  "identical_share_after_bitexact_resize": 0.92,
+  "identical_share_after_clipper_offset": 0.969,
+  "identical_share_test_final": 0.981,
+  "noise_floor_python_vs_python_plus_pm1_noise_on_1pct_pixels": 0.983,
+  "resized_input_values_differing_by_1_share": 0.0078,
+  "det_prob_max_abs_diff_from_resize": 0.139,
+  "det_prob_max_abs_diff_between_ort_builds_same_input": 0.00215
+ },
+ "windows_estimate": {
+  "onnxruntime_dll_1_24_4_raw_mb": 14.2,
+  "onnxruntime_dll_zip9_mb": 5.25,
+  "authenticode_signer": "Microsoft Corporation"
+ },
+ "linux_official_so": {
+  "raw_mb": 22.16,
+  "zip9_mb": 7.92
+ },
+ "mac_official_dylib": {
+  "raw_mb": 35.42,
+  "zip9_mb": 9.7,
+  "minos": "14.0"
+ },
+ "corpus_check": {
+  "dev_coverage_min": 0.9973,
+  "test_coverage_min": 0.9977,
+  "perf_coverage_min": 0.9981,
+  "determinism_rerendered_per_split": 50
+ },
+ "perf_stage_breakdown_perf0000_linux_ort_4t_ms": {
+  "det": 302,
+  "crop": 101,
+  "rec": 585,
+  "rec_net": 540
+ },
+ "ort_arena_on_vs_off_linux": {
+  "arena_on": {
+   "p50_ms": 1185,
+   "rss_mb": 560
+  },
+  "arena_off": {
+   "p50_ms": 1246,
+   "rss_mb": 232
+  }
+ },
+ "speed_same_conditions_test_split_6_parallel_processes_p50_ms": {
+  "tesseract": 3879,
+  "rust_ort": 1363
+ }
+}
