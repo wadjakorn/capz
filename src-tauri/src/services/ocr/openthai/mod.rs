@@ -53,9 +53,7 @@ impl OpenThaiBackend {
 fn engine(model_dir: &Path, threads: usize) -> Result<page::Engine> {
     let dict = std::fs::read_to_string(model_dir.join("rec_dict.txt"))
         .with_context(|| format!("read {}", model_dir.join("rec_dict.txt").display()))?;
-    let mut chars = vec![String::new()];
-    chars.extend(dict.split('\n').filter(|l| !l.is_empty()).map(str::to_string));
-    chars.push(" ".into());
+    let chars = charset(&dict);
     let det_cfg = det::DetCfg { v_pad: 0.15, ..Default::default() };
     let filter = page::FilterCfg { min_chars: 1, ..Default::default() };
     Ok(page::Engine {
@@ -66,6 +64,21 @@ fn engine(model_dir: &Path, threads: usize) -> Result<page::Engine> {
         rec_cfg: rec::RecCfg::default(),
         filter,
     })
+}
+
+/// CTC classes: blank, one per dictionary line, then space. Tolerates CRLF:
+/// a Windows checkout once shipped rec_dict.txt with "\r\n", which put a
+/// carriage return after every recognised character (CP-0097).
+fn charset(dict: &str) -> Vec<String> {
+    let mut chars = vec![String::new()];
+    chars.extend(
+        dict.split('\n')
+            .map(|l| l.strip_suffix('\r').unwrap_or(l))
+            .filter(|l| !l.is_empty())
+            .map(str::to_string),
+    );
+    chars.push(" ".into());
+    chars
 }
 
 /// Threads for one OCR call. CP-0096: 8 threads beat 4 by ~12% at the same RSS.
@@ -127,6 +140,21 @@ mod tests {
             let bytes = std::fs::read(model_dir().join(name)).unwrap();
             assert_eq!(sha256_hex(&bytes), want, "{name}");
         }
+    }
+
+    #[test]
+    fn charset_ignores_crlf_line_endings() {
+        let lf = charset("a\nข\n่\n");
+        assert_eq!(lf, vec!["", "a", "ข", "่", " "]);
+        assert_eq!(charset("a\r\nข\r\n่\r\n"), lf);
+    }
+
+    #[test]
+    fn bundled_charset_has_no_control_characters() {
+        let dict = std::fs::read_to_string(model_dir().join("rec_dict.txt")).unwrap();
+        let chars = charset(&dict);
+        assert_eq!(chars.len(), 530);
+        assert!(chars.iter().all(|c| !c.chars().any(char::is_control)), "{chars:?}");
     }
 
     #[test]
