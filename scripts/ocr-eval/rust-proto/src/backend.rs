@@ -47,7 +47,14 @@ mod ort_net {
                     ENV.get_or_init(|| e)
                 }
             };
+            // No CPU memory arena / memory pattern by default: peak RSS 560 -> 232 MB on the
+            // perf split for ~5% more time. OPENTHAI_ORT_ARENA=1 turns them back on.
+            let lean = !std::env::var("OPENTHAI_ORT_ARENA").is_ok_and(|v| v == "1");
             let s = Session::builder(env)
+                .map_err(|e| anyhow!("{e}"))?
+                .with_execution_providers([ort::ep::CPU::default().with_arena_allocator(!lean).build()])
+                .map_err(|e| anyhow!("{e}"))?
+                .with_memory_pattern(!lean)
                 .map_err(|e| anyhow!("{e}"))?
                 .with_optimization_level(GraphOptimizationLevel::Level3)
                 .map_err(|e| anyhow!("{e}"))?

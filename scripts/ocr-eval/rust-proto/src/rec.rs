@@ -99,7 +99,11 @@ pub fn recognize(net: &mut dyn Net, crops: &[Img], cfg: &RecCfg, chars: &[String
                 }
             }
         }
+        let t = std::time::Instant::now();
         let (shape, probs) = net.run([n, 3, hgt, w], batch)?;
+        if std::env::var("OPENTHAI_TIMING").is_ok() {
+            eprintln!("  rec batch n={n} w={w}: net {:.0} ms", t.elapsed().as_secs_f64() * 1e3);
+        }
         let (t, cl) = (shape[1], shape[2]);
         for (k, &i) in idx.iter().enumerate() {
             let p = &probs[k * t * cl..(k + 1) * t * cl];

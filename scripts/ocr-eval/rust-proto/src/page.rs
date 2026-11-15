@@ -166,7 +166,10 @@ pub struct Engine {
 
 impl Engine {
     pub fn read(&mut self, img: &Img) -> Result<Vec<Line>> {
+        let timing = std::env::var("OPENTHAI_TIMING").is_ok();
+        let t0 = std::time::Instant::now();
         let mut boxes = detect(self.det.as_mut(), img, &self.det_cfg)?;
+        let t_det = t0.elapsed();
         let (h, w) = (img.h as f64, img.w as f64);
         if boxes.is_empty() && h <= 200.0 && w >= 1.5 * h {
             boxes.push([[0.0, 0.0], [w - 1.0, 0.0], [w - 1.0, h - 1.0], [0.0, h - 1.0]]);
@@ -177,7 +180,13 @@ impl Engine {
         for k in [1, -1] {
             all.extend(tall.iter().map(|&n| rot90(&raw[n], k)));
         }
+        let t_crop = t0.elapsed();
         let res = recognize(self.rec.as_mut(), &all, &self.rec_cfg, &self.chars)?;
+        if timing {
+            let t_rec = t0.elapsed();
+            eprintln!("det {:.0} ms, crop {:.0} ms, rec {:.0} ms, lines {}", t_det.as_secs_f64() * 1e3,
+                      (t_crop - t_det).as_secs_f64() * 1e3, (t_rec - t_crop).as_secs_f64() * 1e3, all.len());
+        }
         let mut out: Vec<(String, f32, Option<Vec<CtcChar>>)> =
             res[..raw.len()].iter().map(|r| (r.0.clone(), r.1, Some(r.2.clone()))).collect();
         for (j, &n) in tall.iter().enumerate() {
