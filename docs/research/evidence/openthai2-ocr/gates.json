@@ -1,0 +1,191 @@
+{
+ "gates": {
+  "H1": {
+   "status": "FAIL",
+   "value": {
+    "tesseract": 0.07549504950495049,
+    "vision": 0.009900990099009901
+   },
+   "threshold": {
+    "tesseract": 0.03,
+    "vision": 0.02
+   },
+   "why": "tesseract easy·english 7.55% > 3.00%"
+  },
+  "H2": {
+   "status": "PASS",
+   "value": {
+    "dev": {
+     "coverage_min": 0.9972840558099905,
+     "n": 240,
+     "determinism_checked": 50,
+     "bad": 0
+    },
+    "test": {
+     "coverage_min": 0.9977321556457388,
+     "n": 240,
+     "determinism_checked": 50,
+     "bad": 0
+    },
+    "perf": {
+     "coverage_min": 0.9981478843140048,
+     "n": 10,
+     "determinism_checked": 0,
+     "bad": 0
+    }
+   },
+   "threshold": 0.995,
+   "why": "every split's GT matches its pixels"
+  },
+  "A1": {
+   "status": "PASS",
+   "value": {
+    "delta": -0.000173,
+    "ci": [
+     -0.000783,
+     0.000412
+    ]
+   },
+   "threshold": 0.003,
+   "why": "CER(full) − CER(no ori, no split_gap) = -0.02 pt, CI [-0.08, +0.04]"
+  },
+  "Q1a": {
+   "status": "PASS",
+   "value": {
+    "mac_typical": 0.014784394250513347,
+    "win_typical": 0.018371546149323927
+   },
+   "threshold": 0.05,
+   "why": "both typical slices under 5%"
+  },
+  "Q1b": {
+   "status": "PASS",
+   "value": {
+    "mixed": 0.01885928774146297,
+    "thai": 0.02880658436213992,
+    "english": 0.04542225169326955
+   },
+   "threshold": 0.07313337753990433,
+   "why": "mixed 1.89% vs limit 1.5×max(thai 2.88%, english 4.54%) + 0.5 pt = 7.31%"
+  },
+  "Q1c": {
+   "status": "PASS",
+   "value": {
+    "latin_upper": 0.9916759156492786,
+    "latin_lower": 0.9892843474933027,
+    "digit": 0.9866573033707865,
+    "thai_tone": 0.9878481012658228,
+    "thai_vowel_above": 0.9911875786823332
+   },
+   "threshold": {
+    "latin_upper": 0.97,
+    "latin_lower": 0.97,
+    "digit": 0.97,
+    "thai_tone": 0.95,
+    "thai_vowel_above": 0.95
+   },
+   "why": "every class above its floor on mixed lines"
+  },
+  "W1": {
+   "status": "PASS",
+   "value": {
+    "rel_reduction": 0.8244391896210137,
+    "delta": -0.14144,
+    "ci": [
+     -0.166164,
+     -0.119886
+    ]
+   },
+   "threshold": 0.2,
+   "why": "OpenThai 3.01% vs Tesseract 17.16%: 82.4% lower; ΔCER -14.14 pt, 95% CI [-16.62, -11.99]"
+  },
+  "W2": {
+   "status": "PASS",
+   "value": {
+    "english": [
+     0.04542225169326955,
+     0.14384502439255434
+    ],
+    "fp_per_1k": [
+     0.06578586700290555,
+     4.659832246039143
+    ]
+   },
+   "threshold": {
+    "english_slack": 0.01,
+    "fp_slack": 5.0
+   },
+   "why": "english 4.54% vs 14.38%; fp/1k 0.1 vs 4.7"
+  },
+  "M1": {
+   "status": "PASS",
+   "value": {
+    "delta": -0.001557,
+    "ci": [
+     -0.009199,
+     0.005735
+    ]
+   },
+   "threshold": "ΔCER CI includes or is below 0",
+   "why": "OpenThai 3.01% vs Vision 3.17%, ΔCER -0.16 pt CI [-0.92, +0.57] → equivalent or better",
+   "informational": true
+  },
+  "R1": {
+   "status": "PASS",
+   "value": {
+    "delta": -0.00017542897867441412,
+    "identical_share": 0.9806256306760848
+   },
+   "threshold": {
+    "max_delta": 0.003,
+    "identical": 0.95
+   },
+   "why": "ΔCER rust−python -0.02 pt; identical lines 98.1%"
+  },
+  "P1": {
+   "status": "FAIL",
+   "value": {
+    "linux (ort)": {
+     "p50_ms": 1251.398825,
+     "p95_ms": 1609.1932660000002,
+     "cold_ms": 1234.184675,
+     "rss_mb": 223.0
+    },
+    "mac (ort)": {
+     "p50_ms": 696.207625,
+     "p95_ms": 1004.080375,
+     "cold_ms": 1993.362793,
+     "rss_mb": 2875.1
+    }
+   },
+   "threshold": {
+    "p50_ms": 1000,
+    "p95_ms": 2000,
+    "cold_ms": 2500,
+    "rss_mb": 400
+   },
+   "why": "linux (ort) p50_ms 1251 > 1000; mac (ort) rss_mb 2875 > 400"
+  },
+  "S1": {
+   "status": "FAIL",
+   "value": {
+    "x86_64-unknown-linux-gnu": 12.15,
+    "aarch64-apple-darwin": 10.48,
+    "x86_64-pc-windows-msvc": 9.24
+   },
+   "threshold": 12.0,
+   "why": "over 12 MB: x86_64-unknown-linux-gnu 12.2 MB"
+  }
+ },
+ "warnings": [],
+ "roles": {
+  "a1_full": "20261115-171234-openthai-dev-65f373c3",
+  "a1_ablated": "20261115-171355-openthai-dev-aeae2682",
+  "tess_test": "20261115-172326-tesseract-test-bf21a9e8",
+  "vision_test": "20261115-172712-vision-test-bf21a9e8",
+  "ot_dev": "20261115-181024-openthai-dev-ec4a1dd8",
+  "ot_test": "20261115-185450-openthai-test-ec4a1dd8",
+  "rust_test": "20261115-191146-rust-ort-test-ec4a1dd8",
+  "py_for_rust_test": "20261115-191043-openthai-test-a87d7df0"
+ }
+}

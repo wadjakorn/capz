@@ -1,0 +1,72 @@
+{
+ "linux-ort": {
+  "host": "wadjakorn-bmax",
+  "backend": "ort",
+  "threads": 4,
+  "p50_ms": 1251.398825,
+  "p95_ms": 1609.1932660000002,
+  "cold_ms": 1234.184675,
+  "load_ms": 81.82421099999999,
+  "rss_mb": 223.0,
+  "warm_n": 29
+ },
+ "linux-tract": {
+  "host": "wadjakorn-bmax",
+  "backend": "tract",
+  "threads": 4,
+  "p50_ms": 3623.848056,
+  "p95_ms": 4728.024589000001,
+  "cold_ms": 2942.479523,
+  "load_ms": 10.387991,
+  "rss_mb": 276.8,
+  "warm_n": 29
+ },
+ "linux-ort-t2": {
+  "host": "wadjakorn-bmax",
+  "backend": "ort",
+  "threads": 2,
+  "p50_ms": 1302.5085119999999,
+  "p95_ms": 1662.722517,
+  "cold_ms": 1277.925459,
+  "load_ms": 81.825678,
+  "rss_mb": 284.6,
+  "warm_n": 19
+ },
+ "linux-ort-t8": {
+  "host": "wadjakorn-bmax",
+  "backend": "ort",
+  "threads": 8,
+  "p50_ms": 1101.975146,
+  "p95_ms": 1346.89698,
+  "cold_ms": 1040.833736,
+  "load_ms": 84.23968099999999,
+  "rss_mb": 234.2,
+  "warm_n": 19
+ },
+ "mac-ort": {
+  "host": "macbook-pro",
+  "backend": "ort",
+  "threads": 4,
+  "p50_ms": 696.207625,
+  "p95_ms": 1004.080375,
+  "cold_ms": 1993.362793,
+  "load_ms": 1123.217834,
+  "rss_mb": 2875.1,
+  "warm_n": 29,
+  "rss_recheck_mb": {
+   "arena_off": 2855.9,
+   "arena_on": 2960.8
+  }
+ },
+ "mac-tract": {
+  "host": "macbook-pro",
+  "backend": "tract",
+  "threads": 4,
+  "p50_ms": 802.255583,
+  "p95_ms": 1012.2312499999999,
+  "cold_ms": 784.5367499999999,
+  "load_ms": 11.882541999999999,
+  "rss_mb": 712.8,
+  "warm_n": 29
+ }
+}
