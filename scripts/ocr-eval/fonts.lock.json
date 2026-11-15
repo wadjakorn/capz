@@ -1,0 +1,14 @@
+{
+  "commit": "cc39c4c2c304bc368c9b7c311ea2bcc6013299fe",
+  "files": {
+    "ofl/sarabun/Sarabun-Regular.ttf": "226d4f368fbc0457990ddef2692679badfd2c1a4e89e5ac4d43c10ba7743b2f1",
+    "ofl/sarabun/Sarabun-Bold.ttf": "d38308ca27d067b9a1b79006337c1f9a66c29aa016d96a9d88d3801da7fa83b9",
+    "ofl/ibmplexsansthai/IBMPlexSansThai-Regular.ttf": "eee061d1bac39be40f9bb94498898cd1894f5d3d9a2f0ee6cbd48a6bd03d052b",
+    "ofl/ibmplexsansthai/IBMPlexSansThai-Bold.ttf": "f88fbe0a3717c93deddf4b13e50a05c9adcd38f58d675d9d5d0b869961851667",
+    "ofl/prompt/Prompt-Regular.ttf": "dbd497803cec3caffbc6b7f599ca6fed8beea0ed7e0ad1e098130c5ebbc4fd42",
+    "ofl/prompt/Prompt-Bold.ttf": "02813ca4f93c1df27e271f10fef3db6e34e66751ae1f4a3ed82ae06cb20150ea",
+    "ofl/anuphan/Anuphan[wght].ttf": "7ec47ebcaa9d6459d974691cbb42fae52e1449478a607b071bfaf3ccdb433ce4",
+    "ofl/notosansthailooped/NotoSansThaiLooped[wdth,wght].ttf": "a6d220ea215bc2c4bfcd5c5efc4103e20302443f87f6dca7a9ce733a11f2cfbd",
+    "ofl/notosansmono/NotoSansMono[wdth,wght].ttf": "2cb2adb378a8f574213e23df697050b83c54c27df465a2015552740b2769a081"
+  }
+}
