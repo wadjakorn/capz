@@ -21,6 +21,16 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "../fixtures/test";
 import { installTauriMock, getInvokeCalls } from "../fixtures/tauri-mock";
+import {
+  LEFT,
+  dragBox,
+  ocrLayer,
+  ocrScopeBox,
+  selectedText,
+  setupTwoColOcr,
+  toScreen,
+  type Pt,
+} from "../fixtures/ocr-two-col";
 
 test.describe("OCR Text Reader", () => {
   test("Detect text button is disabled with no image", async ({ page }) => {
@@ -148,161 +158,59 @@ test.describe("OCR Text Reader", () => {
 });
 
 /**
- * CP-0099 — drag a box in OCR mode to keep only that area's text.
- *
- * Harness: a real 800×600 PNG (two text columns drawn on a canvas) is served
- * for asset.localhost so the layer's image→screen scale is meaningful; the
- * mock returns the matching TWO_COL lines. Image px → screen px via
- * k = layer width / 800. Selections are compared after collapsing newlines —
- * block-level chips plus each chip's literal "\n" can double them.
+ * CP-0099 — drag a box in OCR mode to keep only that area's text. Harness in
+ * e2e/fixtures/ocr-two-col.ts.
  */
 test.describe("OCR area scope (CP-0099)", () => {
-  type Pt = { x: number; y: number };
-
-  async function setup(page: Page) {
-    await installTauriMock(page, {
-      handlers: {
-        editor_current_image: () => "/tmp/capz-ocr-scope.png",
-        ocr_detect: () => {
-          const line = (a: string, b: string, x: number, y: number) => ({
-            text: a + " " + b,
-            bbox: { x, y, w: 200, h: 30 },
-            words: [
-              { text: a, bbox: { x, y, w: 80, h: 30 } },
-              { text: b, bbox: { x: x + 90, y, w: 110, h: 30 } },
-            ],
-          });
-          return {
-            width: 800,
-            height: 600,
-            lines: [
-              line("Left", "one", 40, 100),
-              line("Right", "one", 440, 100),
-              line("Left", "two", 40, 160),
-              line("Right", "two", 440, 160),
-            ],
-            languagesUsed: ["en"],
-            thaiAvailable: true,
-          };
-        },
-      },
-    });
-    // Draw the PNG on a scratch page: the fixture's goto() waits for the app's
-    // <html lang="en">, which about:blank never gets.
-    const scratch = await page.context().newPage();
-    const b64 = await scratch.evaluate(() => {
-      const c = document.createElement("canvas");
-      c.width = 800;
-      c.height = 600;
-      const g = c.getContext("2d")!;
-      g.fillStyle = "#ffffff";
-      g.fillRect(0, 0, 800, 600);
-      g.fillStyle = "#111111";
-      g.font = "24px sans-serif";
-      for (const [t, x, y] of [
-        ["Left one", 40, 125],
-        ["Right one", 440, 125],
-        ["Left two", 40, 185],
-        ["Right two", 440, 185],
-      ] as const) {
-        g.fillText(t, x, y);
-      }
-      return c.toDataURL("image/png").split(",")[1];
-    });
-    await scratch.close();
-    const png = Buffer.from(b64, "base64");
-    // CORS header: the stage image loads crossOrigin="anonymous", and an
-    // untainted canvas lets a (wrong) whole-image copy actually reach the
-    // clipboard mock — which the ⌘C test checks never happens.
-    await page.route(/asset\.localhost/, (route) =>
-      route.fulfill({
-        body: png,
-        contentType: "image/png",
-        headers: { "Access-Control-Allow-Origin": "*" },
-      }),
-    );
-    await page.goto("/editor");
-    await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: "Detect text" }).click();
-    await expect(page.getByRole("button", { name: "Hide detected text" })).toBeVisible({
-      timeout: 5000,
-    });
-    await expect(page.locator("[data-ocr-layer]")).toContainText("Right one");
-  }
-
-  async function toScreen(page: Page, p: Pt): Promise<Pt> {
-    const b = (await page.locator("[data-ocr-layer]").boundingBox())!;
-    const k = b.width / 800;
-    return { x: b.x + p.x * k, y: b.y + p.y * k };
-  }
-
-  async function drag(page: Page, from: Pt, to: Pt) {
-    const a = await toScreen(page, from);
-    const b = await toScreen(page, to);
-    await page.mouse.move(a.x, a.y);
-    await page.mouse.down();
-    await page.mouse.move(b.x, b.y, { steps: 5 });
-    await page.mouse.up();
-  }
-
   async function click(page: Page, p: Pt) {
     const s = await toScreen(page, p);
     await page.mouse.click(s.x, s.y);
   }
 
-  const selected = async (page: Page) =>
-    (await page.evaluate(() => window.getSelection()?.toString() ?? ""))
-      .replace(/\n+/g, "\n")
-      .trim();
-
-  const LEFT = { from: { x: 20, y: 80 }, to: { x: 360, y: 220 } };
-  const layer = (page: Page) => page.locator("[data-ocr-layer]");
-  const scopeBox = (page: Page) => page.locator("[data-ocr-scope]");
-
   test("drag a box: only that area's text shows and is pre-selected; ⌘A stays inside; no re-scan", async ({
     page,
   }) => {
-    await setup(page);
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(scopeBox(page)).toBeVisible();
-    await expect(layer(page)).toContainText("Left one");
-    await expect(layer(page)).not.toContainText("Right one");
-    expect(await selected(page)).toBe("Left one\nLeft two");
+    await setupTwoColOcr(page);
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrScopeBox(page)).toBeVisible();
+    await expect(ocrLayer(page)).toContainText("Left one");
+    await expect(ocrLayer(page)).not.toContainText("Right one");
+    expect(await selectedText(page)).toBe("Left one\nLeft two");
     await page.keyboard.press("ControlOrMeta+a");
-    expect(await selected(page)).toBe("Left one\nLeft two");
+    expect(await selectedText(page)).toBe("Left one\nLeft two");
     const calls = await getInvokeCalls(page);
     expect(calls.filter((c) => c.cmd === "ocr_detect")).toHaveLength(1);
   });
 
   test("Esc and a click outside the box bring back the whole-image text", async ({ page }) => {
-    await setup(page);
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(scopeBox(page)).toBeVisible();
+    await setupTwoColOcr(page);
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrScopeBox(page)).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(scopeBox(page)).toHaveCount(0);
-    await expect(layer(page)).toContainText("Right one");
+    await expect(ocrScopeBox(page)).toHaveCount(0);
+    await expect(ocrLayer(page)).toContainText("Right one");
 
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(scopeBox(page)).toBeVisible();
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrScopeBox(page)).toBeVisible();
     await click(page, { x: 300, y: 140 }); // inside the box, off any chip
-    await expect(scopeBox(page)).toBeVisible();
+    await expect(ocrScopeBox(page)).toBeVisible();
     await click(page, { x: 600, y: 400 }); // outside
-    await expect(scopeBox(page)).toHaveCount(0);
-    await expect(layer(page)).toContainText("Right one");
+    await expect(ocrScopeBox(page)).toHaveCount(0);
+    await expect(ocrLayer(page)).toContainText("Right one");
   });
 
   test("a second box replaces the first", async ({ page }) => {
-    await setup(page);
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(layer(page)).not.toContainText("Right one");
-    await drag(page, { x: 420, y: 80 }, { x: 780, y: 220 });
-    await expect(layer(page)).toContainText("Right one");
-    await expect(layer(page)).not.toContainText("Left one");
-    expect(await selected(page)).toBe("Right one\nRight two");
+    await setupTwoColOcr(page);
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrLayer(page)).not.toContainText("Right one");
+    await dragBox(page, { x: 420, y: 80 }, { x: 780, y: 220 });
+    await expect(ocrLayer(page)).toContainText("Right one");
+    await expect(ocrLayer(page)).not.toContainText("Left one");
+    expect(await selectedText(page)).toBe("Right one\nRight two");
   });
 
   test("a tiny drag acts as a click; double-click still selects a word", async ({ page }) => {
-    await setup(page);
+    await setupTwoColOcr(page);
     // No scope: a tiny drag does nothing.
     const a = await toScreen(page, { x: 600, y: 400 });
     await page.mouse.move(a.x, a.y);
@@ -310,52 +218,52 @@ test.describe("OCR area scope (CP-0099)", () => {
     await page.mouse.move(a.x + 3, a.y, { steps: 3 });
     await expect(page.locator("[data-ocr-scope-draft]")).toHaveCount(0);
     await page.mouse.up();
-    await expect(scopeBox(page)).toHaveCount(0);
+    await expect(ocrScopeBox(page)).toHaveCount(0);
 
     // With a scope: a tiny drag outside it clears it, like a click.
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(scopeBox(page)).toBeVisible();
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrScopeBox(page)).toBeVisible();
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(a.x + 3, a.y, { steps: 3 });
     await page.mouse.up();
-    await expect(scopeBox(page)).toHaveCount(0);
+    await expect(ocrScopeBox(page)).toHaveCount(0);
 
     // Double-click stays native: it selects a word on a chip.
     const w = await toScreen(page, { x: 465, y: 115 }); // inside "Right"
     await page.mouse.dblclick(w.x, w.y);
-    expect(await selected(page)).toContain("Right");
+    expect(await selectedText(page)).toContain("Right");
   });
 
   test("⌘C never copies the image while scoped", async ({ page }) => {
-    await setup(page);
+    await setupTwoColOcr(page);
     const copiedToast = page.getByText("Copied", { exact: true });
     const imageCopies = async () =>
       (await getInvokeCalls(page)).filter((c) => c.cmd === "plugin:clipboard-manager|write_image")
         .length;
 
     // (a) The selection was lost: ⌘C re-selects the scope text first.
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(scopeBox(page)).toBeVisible();
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrScopeBox(page)).toBeVisible();
     await page.evaluate(() => window.getSelection()?.removeAllRanges());
     await page.keyboard.press("ControlOrMeta+c");
-    expect(await selected(page)).toBe("Left one\nLeft two");
+    expect(await selectedText(page)).toBe("Left one\nLeft two");
     await page.waitForTimeout(300);
     await expect(copiedToast).toHaveCount(0);
     expect(await imageCopies()).toBe(0);
 
     // (b) An empty scope copies nothing — and never the image.
-    await drag(page, { x: 600, y: 400 }, { x: 780, y: 580 });
+    await dragBox(page, { x: 600, y: 400 }, { x: 780, y: 580 });
     await expect(page.getByText("No text found")).toBeVisible();
     await page.keyboard.press("ControlOrMeta+c");
     await page.waitForTimeout(300);
     await expect(copiedToast).toHaveCount(0);
     expect(await imageCopies()).toBe(0);
-    await expect(layer(page)).toBeVisible();
+    await expect(ocrLayer(page)).toBeVisible();
   });
 
   test("a move with no button held ends the drag", async ({ page }) => {
-    await setup(page);
+    await setupTwoColOcr(page);
     const a = await toScreen(page, LEFT.from);
     const b = await toScreen(page, { x: 200, y: 200 });
     await page.mouse.move(a.x, a.y);
@@ -372,34 +280,34 @@ test.describe("OCR area scope (CP-0099)", () => {
       [b.x, b.y],
     );
     await expect(page.locator("[data-ocr-scope-draft]")).toHaveCount(0);
-    await expect(scopeBox(page)).toBeVisible();
-    await expect(layer(page)).not.toContainText("Right one");
+    await expect(ocrScopeBox(page)).toBeVisible();
+    await expect(ocrLayer(page)).not.toContainText("Right one");
     await page.mouse.move(b.x + 40, b.y + 40, { steps: 3 });
     await expect(page.locator("[data-ocr-scope-draft]")).toHaveCount(0);
     await page.mouse.up();
   });
 
   test("release outside the image clamps the box", async ({ page }) => {
-    await setup(page);
-    const lb = (await layer(page).boundingBox())!;
+    await setupTwoColOcr(page);
+    const lb = (await ocrLayer(page).boundingBox())!;
     const a = await toScreen(page, { x: 700, y: 500 });
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(lb.x + lb.width + 20, lb.y + lb.height + 20, { steps: 5 });
     await page.mouse.up();
-    await expect(scopeBox(page)).toBeVisible();
-    const sb = (await scopeBox(page).boundingBox())!;
+    await expect(ocrScopeBox(page)).toBeVisible();
+    const sb = (await ocrScopeBox(page).boundingBox())!;
     expect(Math.abs(sb.x + sb.width - (lb.x + lb.width))).toBeLessThanOrEqual(1);
     expect(Math.abs(sb.y + sb.height - (lb.y + lb.height))).toBeLessThanOrEqual(1);
   });
 
   test("zoom keeps the box aligned", async ({ page }) => {
-    await setup(page);
-    await drag(page, LEFT.from, LEFT.to);
-    await expect(scopeBox(page)).toBeVisible();
+    await setupTwoColOcr(page);
+    await dragBox(page, LEFT.from, LEFT.to);
+    await expect(ocrScopeBox(page)).toBeVisible();
     const ratios = async () => {
-      const l = (await layer(page).boundingBox())!;
-      const s = (await scopeBox(page).boundingBox())!;
+      const l = (await ocrLayer(page).boundingBox())!;
+      const s = (await ocrScopeBox(page).boundingBox())!;
       return {
         w: l.width,
         x: (s.x - l.x) / l.width,
@@ -415,5 +323,18 @@ test.describe("OCR area scope (CP-0099)", () => {
     for (const k of ["x", "y", "r", "b"] as const) {
       expect(Math.abs(after[k] - before[k])).toBeLessThan(0.01);
     }
+  });
+
+  test("in the Settings view, ⌘A leaves the hidden OCR text alone", async ({ page }) => {
+    await setupTwoColOcr(page);
+    await dragBox(page, LEFT.from, LEFT.to);
+    expect(await selectedText(page)).toBe("Left one\nLeft two");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.getByTitle("Back to editor")).toBeVisible();
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("ControlOrMeta+a");
+    expect(await selectedText(page)).not.toBe("Left one\nLeft two");
+    await page.getByTitle("Back to editor").click();
+    await expect(ocrScopeBox(page)).toBeVisible(); // the scope survives the trip
   });
 });
