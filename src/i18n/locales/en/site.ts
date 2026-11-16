@@ -165,7 +165,7 @@ export const site = {
   "site.thai.text.title": "A text tool that knows Thai",
   "site.thai.text.desc": "Tone marks and vowels stack where they belong, with line spacing and alignment so they never collide.",
   "site.thai.ocr.title": "Reads Thai text",
-  "site.thai.ocr.desc": "Detect text reads Thai on macOS, on your machine. On Windows it reads Latin text only; Windows has no Thai OCR pack.",
+  "site.thai.ocr.desc": "Detect text reads Thai and English, even on the same line, on macOS and Windows. It all runs on your machine.",
 
   "site.ann.title": "Mark it up",
   "site.ann.desc": "Every tool a screenshot needs to explain itself. Tools stay active until you switch, so ten pins take ten clicks.",
@@ -185,7 +185,7 @@ export const site = {
 
   "site.ocr.title": "Copy the text in a picture",
   "site.ocr.desc": "Detect text turns the words in a capture into text you can select and copy. It runs on your machine; nothing is uploaded.",
-  "site.ocr.note": "Thai on macOS · Latin on macOS and Windows",
+  "site.ocr.note": "Thai and English · macOS and Windows",
 
   "site.ws.title": "Switch images, look back",
   "site.ws.desc": "Keep several images open at once, switch between them instantly, and look back at older ones in History.",
