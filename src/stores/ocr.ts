@@ -156,6 +156,20 @@ export const useOcr = create<State>((set, get) => ({
 async function rescan(scope: OcrScope): Promise<void> {
   const token = {};
   rescanInFlight = token;
+  try {
+    await rescanOnce(scope);
+  } finally {
+    // Always release the slot, even if merging threw, so the queue can't wedge.
+    if (rescanInFlight === token) {
+      rescanInFlight = null;
+      const next = rescanNext;
+      rescanNext = null;
+      if (next && useOcr.getState().scope === next) void rescan(next);
+    }
+  }
+}
+
+async function rescanOnce(scope: OcrScope): Promise<void> {
   const s0 = useOcr.getState();
   const { currentKey: key, resultEngine: engine } = s0;
   const result = currentResult(s0);
@@ -177,11 +191,6 @@ async function rescan(scope: OcrScope): Promise<void> {
       if (lines.length === 0) toast(t("app.ocr.noText"));
     }
   }
-  if (rescanInFlight !== token) return; // reset() while we ran
-  rescanInFlight = null;
-  const next = rescanNext;
-  rescanNext = null;
-  if (next && useOcr.getState().scope === next) void rescan(next);
 }
 
 export const currentResult = (s: State): OcrResult | null =>
