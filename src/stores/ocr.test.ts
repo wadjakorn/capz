@@ -14,7 +14,7 @@ vi.mock("sonner", () => ({
   }),
 }));
 
-import { useOcr } from "./ocr";
+import { useOcr, visibleLines } from "./ocr";
 import { useSettings } from "./settings";
 
 const fake = (text: string, thai = true) => ({
@@ -33,7 +33,7 @@ beforeEach(() => {
   toast.mockReset();
   toastSuccess.mockReset();
   useOcr.getState().reset();
-  useOcr.setState({ thaiNoticeShown: false });
+  useOcr.setState({ thaiNoticeShown: false, scopeHintShown: false });
 });
 
 describe("useOcr", () => {
@@ -143,7 +143,10 @@ describe("useOcr", () => {
     detectText.mockResolvedValue(fake("hello")); // fake() → 1 line
     useOcr.getState().setKey("/img/a.png");
     await useOcr.getState().detect();
-    expect(toastSuccess).toHaveBeenCalledWith("Detected 1 text line");
+    // The session's first detection also carries the scope hint (CP-0099).
+    expect(toastSuccess).toHaveBeenCalledWith("Detected 1 text line", {
+      description: "Drag a box to copy only part of the text",
+    });
   });
 
   it("toasts 'No text found' when there are no lines", async () => {
@@ -153,5 +156,128 @@ describe("useOcr", () => {
     useOcr.getState().setKey("/img/empty.png");
     await useOcr.getState().detect();
     expect(toast).toHaveBeenCalledWith("No text found");
+  });
+
+  describe("scope (CP-0099)", () => {
+    // 800×600, two columns of two lines; each line has two word boxes.
+    const line = (a: string, b: string, x: number, y: number) => ({
+      text: `${a} ${b}`,
+      bbox: { x, y, w: 200, h: 30 },
+      words: [
+        { text: a, bbox: { x, y, w: 80, h: 30 } },
+        { text: b, bbox: { x: x + 90, y, w: 110, h: 30 } },
+      ],
+    });
+    const TWO_COL = {
+      width: 800,
+      height: 600,
+      lines: [
+        line("Left", "one", 40, 100),
+        line("Right", "one", 440, 100),
+        line("Left", "two", 40, 160),
+        line("Right", "two", 440, 160),
+      ],
+      languagesUsed: ["en-US"],
+      thaiAvailable: true,
+    };
+    const RECT = { x: 20, y: 80, w: 340, h: 140 };
+    const texts = () => useOcr.getState().scope?.lines.map((l) => l.text);
+
+    async function detected() {
+      detectText.mockResolvedValue(TWO_COL);
+      useOcr.getState().setKey("/img/two.png");
+      await useOcr.getState().toggle(); // mode on + detect
+    }
+
+    it("setScope keeps only the boxed lines and does not re-scan", async () => {
+      await detected();
+      expect(visibleLines(useOcr.getState())).toHaveLength(4);
+      useOcr.getState().setScope(RECT);
+      expect(useOcr.getState().scope!.rect).toEqual(RECT);
+      expect(texts()).toEqual(["Left one", "Left two"]);
+      expect(visibleLines(useOcr.getState())!.map((l) => l.text)).toEqual(["Left one", "Left two"]);
+      expect(detectText).toHaveBeenCalledTimes(1);
+    });
+
+    it("visibleLines is a stable reference while the scope is unchanged", async () => {
+      await detected();
+      useOcr.getState().setScope(RECT);
+      expect(visibleLines(useOcr.getState())).toBe(visibleLines(useOcr.getState()));
+    });
+
+    it("ignores a box under 8×8 image px", async () => {
+      await detected();
+      useOcr.getState().setScope({ x: 20, y: 80, w: 7, h: 140 });
+      expect(useOcr.getState().scope).toBe(null);
+    });
+
+    it("ignores a box with OCR off or before a result exists", async () => {
+      useOcr.getState().setKey("/img/two.png");
+      useOcr.setState({ mode: true }); // no result yet
+      useOcr.getState().setScope(RECT);
+      expect(useOcr.getState().scope).toBe(null);
+      await detected();
+      useOcr.setState({ mode: false });
+      useOcr.getState().setScope(RECT);
+      expect(useOcr.getState().scope).toBe(null);
+    });
+
+    it("toasts No text found when the box holds no text", async () => {
+      await detected();
+      toast.mockReset();
+      useOcr.getState().setScope({ x: 600, y: 400, w: 100, h: 100 });
+      expect(useOcr.getState().scope!.lines).toEqual([]);
+      expect(toast).toHaveBeenCalledWith("No text found");
+    });
+
+    it("clearScope, toggling off, a new key and reset all clear the scope", async () => {
+      await detected();
+      useOcr.getState().setScope(RECT);
+      useOcr.getState().clearScope();
+      expect(useOcr.getState().scope).toBe(null);
+      expect(visibleLines(useOcr.getState())).toHaveLength(4);
+
+      useOcr.getState().setScope(RECT);
+      await useOcr.getState().toggle(); // off
+      expect(useOcr.getState().scope).toBe(null);
+
+      await useOcr.getState().toggle(); // on again (cached)
+      useOcr.getState().setScope(RECT);
+      useOcr.getState().setKey("/img/other.png");
+      expect(useOcr.getState().scope).toBe(null);
+
+      useOcr.getState().setKey("/img/two.png");
+      useOcr.getState().setScope(RECT);
+      expect(useOcr.getState().scope).not.toBe(null);
+      useOcr.getState().reset();
+      expect(useOcr.getState().scope).toBe(null);
+    });
+
+    it("an engine switch that drops the cache also drops the scope", async () => {
+      await detected();
+      useOcr.getState().setScope(RECT);
+      const s = useSettings.getState();
+      useSettings.setState({ config: { ...s.config, general: { ...s.config.general, ocrEngine: "openthai" } } });
+      try {
+        await useOcr.getState().detect();
+        expect(useOcr.getState().scope).toBe(null);
+      } finally {
+        useSettings.setState({ config: s.config });
+      }
+    });
+
+    it("the first detection toast carries the scope hint once per session", async () => {
+      detectText.mockResolvedValue(fake("hello"));
+      useOcr.getState().setKey("/img/a.png");
+      await useOcr.getState().detect();
+      expect(toastSuccess).toHaveBeenLastCalledWith("Detected 1 text line", {
+        description: "Drag a box to copy only part of the text",
+      });
+      useOcr.getState().reset();
+      expect(useOcr.getState().scopeHintShown).toBe(true); // survives reset
+      useOcr.getState().setKey("/img/b.png");
+      await useOcr.getState().detect();
+      expect(toastSuccess.mock.lastCall).toEqual(["Detected 1 text line"]);
+    });
   });
 });

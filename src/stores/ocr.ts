@@ -3,10 +3,17 @@
 import { create } from "zustand";
 import { t } from "@/i18n/store";
 import { toast } from "sonner";
-import { detectText, type OcrEngine, type OcrResult } from "@/lib/ocr";
+import { detectText, type OcrBox, type OcrEngine, type OcrLine, type OcrResult } from "@/lib/ocr";
+import { isScopeTooSmall, scopeLines } from "@/lib/ocrScope";
 import { useSettings } from "@/stores/settings";
 
 type Status = "idle" | "scanning" | "done" | "error";
+
+/**
+ * A user-drawn box (image px) and the whole-image lines it keeps (CP-0099).
+ * `lines` is computed once in setScope so selectors return a stable reference.
+ */
+export type OcrScope = { rect: OcrBox; lines: OcrLine[] };
 
 type State = {
   mode: boolean;
@@ -16,11 +23,16 @@ type State = {
   resultEngine: OcrEngine | null;
   currentKey: string | null;
   thaiNoticeShown: boolean;
+  scope: OcrScope | null;
+  /** The "drag a box" hint rides on the session's first detection toast. */
+  scopeHintShown: boolean;
 
   setKey: (key: string | null) => void;
   toggle: () => Promise<void>;
   detect: () => Promise<void>;
   reset: () => void;
+  setScope: (rect: OcrBox) => void;
+  clearScope: () => void;
 };
 
 export const useOcr = create<State>((set, get) => ({
@@ -30,12 +42,14 @@ export const useOcr = create<State>((set, get) => ({
   resultEngine: null,
   currentKey: null,
   thaiNoticeShown: false,
+  scope: null,
+  scopeHintShown: false,
 
-  setKey: (key) => set({ currentKey: key }),
+  setKey: (key) => set({ currentKey: key, scope: null }),
 
   toggle: async () => {
     const next = !get().mode;
-    set({ mode: next });
+    set(next ? { mode: true } : { mode: false, scope: null });
     if (next) await get().detect();
   },
 
@@ -44,7 +58,7 @@ export const useOcr = create<State>((set, get) => ({
     if (!currentKey) return;
     // macOS only; Rust ignores it elsewhere (Windows/Linux are always OpenThai).
     const engine = useSettings.getState().config.general.ocrEngine;
-    if (get().resultEngine !== engine) set({ resultByKey: {}, resultEngine: engine });
+    if (get().resultEngine !== engine) set({ resultByKey: {}, resultEngine: engine, scope: null });
     if (get().resultByKey[currentKey]) {
       set({ status: "done" });
       return;
@@ -61,9 +75,15 @@ export const useOcr = create<State>((set, get) => ({
       }));
       const lineCount = result.lines.length;
       if (lineCount > 0) {
-        toast.success(
-          t(lineCount === 1 ? "app.ocr.detectedOne" : "app.ocr.detectedMany", { count: lineCount }),
-        );
+        const msg = t(lineCount === 1 ? "app.ocr.detectedOne" : "app.ocr.detectedMany", {
+          count: lineCount,
+        });
+        if (get().scopeHintShown) {
+          toast.success(msg);
+        } else {
+          set({ scopeHintShown: true });
+          toast.success(msg, { description: t("app.ocr.scopeHint") });
+        }
       } else {
         toast(t("app.ocr.noText"));
       }
@@ -93,9 +113,25 @@ export const useOcr = create<State>((set, get) => ({
       resultByKey: {},
       resultEngine: null,
       currentKey: null,
-      // thaiNoticeShown intentionally NOT reset — notice stays once-per-session.
+      scope: null,
+      // thaiNoticeShown / scopeHintShown intentionally NOT reset — once per session.
     }),
+
+  setScope: (rect) => {
+    const s = get();
+    const result = currentResult(s);
+    if (!s.mode || !result || isScopeTooSmall(rect)) return;
+    const lines = scopeLines(result.lines, rect).filter((l) => l.text.length > 0);
+    set({ scope: { rect, lines } });
+    if (lines.length === 0) toast(t("app.ocr.noText"));
+  },
+
+  clearScope: () => set({ scope: null }),
 }));
 
 export const currentResult = (s: State): OcrResult | null =>
   s.currentKey ? s.resultByKey[s.currentKey] ?? null : null;
+
+/** The lines the OCR layer shows: the scope's, else the whole image's. */
+export const visibleLines = (s: State): OcrLine[] | null =>
+  s.scope ? s.scope.lines : currentResult(s)?.lines ?? null;

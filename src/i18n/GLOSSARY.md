@@ -62,6 +62,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | pin (numbered marker) | หมุด |
 | sticker | สติกเกอร์ |
 | crop | ครอบตัด |
+| box (drag a box to limit OCR text to an area) | กรอบ |
 | undo / redo | เลิกทำ / ทำซ้ำ |
 | copy / paste | คัดลอก / วาง |
 | duplicate (an element on the canvas) | ทำสำเนา (not คัดลอก, which is the clipboard copy) |
