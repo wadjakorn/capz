@@ -12,7 +12,7 @@ import { SpecimenHero } from "./SpecimenHero";
 
 /**
  * Thai-first: the reason to pick capz over neighbouring apps, told honestly
- * (Thai OCR is macOS-only). The measured specimen is the proof of "สระไม่ลอย".
+ * (Thai OCR on macOS and, since CP-0097, Windows). The measured specimen is the proof of "สระไม่ลอย".
  */
 export function ThaiFirst() {
   const { t } = useT();
