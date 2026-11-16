@@ -14,6 +14,7 @@ import { isTauriRuntime } from "@/lib/platform";
 import { duplicateSelected } from "@/lib/duplicate";
 import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
+import { useOcr } from "@/stores/ocr";
 import { useWorkspaces } from "@/stores/workspaces";
 import { nudgeDelta } from "@/lib/nudge";
 import { currentPlatform } from "@/lib/shortcuts";
@@ -151,6 +152,14 @@ export function useEditorShortcuts() {
 
       if (key === "escape") {
         e.preventDefault();
+        // CP-0099: an OCR area scope goes first — back to the whole-image text.
+        // Not from the Settings view, where the editor stays mounted under
+        // aria-hidden and the scope must survive the trip.
+        const ocrLayer = document.querySelector("[data-ocr-layer]");
+        if (useOcr.getState().scope && !ocrLayer?.closest('[aria-hidden="true"]')) {
+          useOcr.getState().clearScope();
+          return;
+        }
         // Crop mode: Esc cancels the crop and returns to Select.
         if (useEditor.getState().tool === "crop") {
           useEditor.getState().setTool("select");

@@ -74,6 +74,24 @@ Run this checklist before each `pnpm release`. Items here are NOT covered by Pla
 - [ ] Pin numbering continues per settings.pins.continuityMode
 - [ ] Rulers visible / hideable
 
+## OCR — area scope (CP-0099)
+
+Run on macOS with Vision, macOS with OpenThai (Settings → Editor → Advanced), and Windows.
+
+- [ ] Two-column screenshot → Detect text → the first toast also says "Drag a box to copy only part of the text" (once per session)
+- [ ] Drag a box over the left column → the rest of the image dims, the box keeps a dashed outline, the left column's text is already highlighted
+- [ ] ⌘C / Ctrl+C right away → paste into a text editor gives only the left column, one line per line, nothing from the right column or the nav — **WKWebView / WebView2 copy the text, not the image**
+- [ ] ⌘A → ⌘C gives the same text; no second "Detecting text…" (no re-scan)
+- [ ] Click the toolbar (selection lost) → ⌘C still copies the box's text, never the image; with "Close the editor after copying" on, the editor stays open
+- [ ] A box over an empty area → "No text found"; ⌘C copies nothing and the editor stays open
+- [ ] A box edge through the middle of a line keeps whole words only (no cut-off fragments)
+- [ ] A second box replaces the first; Esc or a click outside the box brings back the whole-image text; a click inside keeps the box
+- [ ] Zoom in / out and scroll with a box active → the box and the text stay aligned
+- [ ] Double-click a word → selects that word (native); right-click → native menu with Copy
+- [ ] Start a drag, ⌘Tab away, release, come back → no stuck box; the next drag works
+- [ ] Settings → search field → Esc clears the search only; back in the editor the box is still there
+- [ ] Detect text off → box and text gone; on again → whole-image text, no box
+
 ## Settings (CP-0053)
 
 - [ ] Sidebar lists Capture / Editor / Saving / Library / App with labels; selected page is highlighted
