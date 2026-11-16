@@ -153,7 +153,10 @@ export function useEditorShortcuts() {
       if (key === "escape") {
         e.preventDefault();
         // CP-0099: an OCR area scope goes first — back to the whole-image text.
-        if (useOcr.getState().scope) {
+        // Not from the Settings view, where the editor stays mounted under
+        // aria-hidden and the scope must survive the trip.
+        const ocrLayer = document.querySelector("[data-ocr-layer]");
+        if (useOcr.getState().scope && !ocrLayer?.closest('[aria-hidden="true"]')) {
           useOcr.getState().clearScope();
           return;
         }

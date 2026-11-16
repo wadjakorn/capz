@@ -97,5 +97,17 @@ describe("useEditorShortcuts — Esc ladder (CP-0069)", () => {
       press("Escape", el);
       expect(useOcr.getState().scope).toBe(SCOPE);
     });
+
+    it("leaves the scope alone while the editor is hidden (Settings view)", () => {
+      // page.tsx keeps EditorStage mounted under aria-hidden in Settings.
+      const hidden = document.createElement("div");
+      hidden.setAttribute("aria-hidden", "true");
+      const layer = document.createElement("div");
+      layer.setAttribute("data-ocr-layer", "");
+      hidden.appendChild(layer);
+      document.body.appendChild(hidden);
+      press("Escape");
+      expect(useOcr.getState().scope).toBe(SCOPE);
+    });
   });
 });
