@@ -92,6 +92,19 @@ Run on macOS with Vision, macOS with OpenThai (Settings → Editor → Advanced)
 - [ ] Settings → search field → Esc clears the search only; back in the editor the box is still there
 - [ ] Detect text off → box and text gone; on again → whole-image text, no box
 
+## OCR — re-scan the box (CP-0100)
+
+OpenThai only: Windows always, and macOS with Settings → Editor → Advanced → OpenThai. Use a Retina (2×) screenshot with small UI text, e.g. a web page with a sidebar.
+
+- [ ] Detect text → drag a box over a small-text area → the text appears at once, then a small spinner sits at the box's top-right corner
+- [ ] After the spinner (Windows: note the time, aim < 1 s): lines the first scan missed appear, and blurry readings get better; ⌘C copies the improved text
+- [ ] Large text in the box (headings) stays as the first scan read it; no stray characters from icons
+- [ ] A box over an area the first scan found nothing in → no "No text found" until the re-scan ends; it shows only if the re-scan finds nothing too
+- [ ] Double-click a word while the spinner runs → that word stays selected when the new text arrives
+- [ ] Esc / click outside / a new box while the spinner runs → no late text appears in the wrong place
+- [ ] Draw three boxes quickly → only the last one's text shows; the app stays responsive
+- [ ] macOS with Vision (the default) → no spinner, no change from CP-0099
+
 ## Settings (CP-0053)
 
 - [ ] Sidebar lists Capture / Editor / Saving / Library / App with labels; selected page is highlighted

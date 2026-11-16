@@ -17,12 +17,20 @@ export const LEFT = { from: { x: 20, y: 80 }, to: { x: 360, y: 220 } };
 export const ocrLayer = (page: Page) => page.locator("[data-ocr-layer]");
 export const ocrScopeBox = (page: Page) => page.locator("[data-ocr-scope]");
 
-/** Load the two-column image and run Detect text. */
-export async function setupTwoColOcr(page: Page) {
+/**
+ * Load the two-column image and run Detect text. With `rescan` (CP-0100) the
+ * mock reports OpenThai, and a call with a `region` answers after 800 ms with
+ * one more line ("Left three", y 220) that the whole-image scan missed.
+ */
+export async function setupTwoColOcr(page: Page, opts: { rescan?: boolean } = {}) {
+  // The handler is serialised into the page, so it reads this flag from window.
+  await page.addInitScript((on) => {
+    (window as unknown as { __capzOcrRescan?: boolean }).__capzOcrRescan = on;
+  }, !!opts.rescan);
   await installTauriMock(page, {
     handlers: {
       editor_current_image: () => "/tmp/capz-ocr-scope.png",
-      ocr_detect: () => {
+      ocr_detect: (args: { region?: unknown } | undefined) => {
         const line = (a: string, b: string, x: number, y: number) => ({
           text: a + " " + b,
           bbox: { x, y, w: 200, h: 30 },
@@ -31,18 +39,25 @@ export async function setupTwoColOcr(page: Page) {
             { text: b, bbox: { x: x + 90, y, w: 110, h: 30 } },
           ],
         });
-        return {
+        const lines = [
+          line("Left", "one", 40, 100),
+          line("Right", "one", 440, 100),
+          line("Left", "two", 40, 160),
+          line("Right", "two", 440, 160),
+        ];
+        const res = (ls: unknown[], engine?: string) => ({
           width: 800,
           height: 600,
-          lines: [
-            line("Left", "one", 40, 100),
-            line("Right", "one", 440, 100),
-            line("Left", "two", 40, 160),
-            line("Right", "two", 440, 160),
-          ],
+          lines: ls,
           languagesUsed: ["en"],
           thaiAvailable: true,
-        };
+          ...(engine ? { engine } : {}),
+        });
+        if (!(window as unknown as { __capzOcrRescan?: boolean }).__capzOcrRescan) return res(lines);
+        if (!args?.region) return res(lines, "openthai");
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(res([...lines, line("Left", "three", 40, 220)], "openthai")), 800),
+        );
       },
     },
   });
@@ -63,6 +78,7 @@ export async function setupTwoColOcr(page: Page) {
       ["Right one", 440, 125],
       ["Left two", 40, 185],
       ["Right two", 440, 185],
+      ["Left three", 40, 245],
     ] as const) {
       g.fillText(t, x, y);
     }

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import { useOcr, currentResult, visibleLines } from "@/stores/ocr";
+import { useOcr, currentResult, visibleLines, type OcrScope } from "@/stores/ocr";
+import { useT } from "@/i18n/useT";
 import { ocrBoxStyle, computeFitScaleX, type OcrBox } from "@/lib/ocr";
 import { isScopeTooSmall, pointInRect, rectFromPoints } from "@/lib/ocrScope";
 import { shortcutKey } from "@/lib/shortcutKey";
@@ -66,6 +67,11 @@ export function OcrLayer({
   const dragRef = useRef<Drag | null>(null);
   const endDragRef = useRef<() => void>(() => {});
   const [draft, setDraft] = useState<OcrBox | null>(null);
+  const { t } = useT();
+  // CP-0100: the text auto-selected for the current box, and whether the
+  // selection still equals it when re-scanned lines arrive for that box.
+  const autoTextRef = useRef<string | null>(null);
+  const reselectRef = useRef(false);
 
   // One unit per non-empty line (line box + full line text), fitted once per
   // line set (image-space → zoom-invariant fitX).
@@ -98,9 +104,40 @@ export function OcrLayer({
     sel.addRange(range);
   }, []);
 
+  // Re-scanned lines replace a box's lines (CP-0100). Decide now, before React
+  // re-renders the chips and the old selection's text nodes change, whether
+  // the selection is still the automatic one; only then is it re-selected.
+  useEffect(
+    () =>
+      useOcr.subscribe((s, prev) => {
+        if (s.scope && prev.scope && s.scope !== prev.scope && s.scope.rect === prev.scope.rect) {
+          const now = window.getSelection()?.toString() ?? "";
+          reselectRef.current = autoTextRef.current !== null && now === autoTextRef.current;
+        }
+      }),
+    [],
+  );
+
   // A new scope arrives with its text already selected: ⌘C copies it at once.
+  // Re-scanned lines for the same box are selected only if the user hasn't
+  // made a selection of their own meanwhile.
+  const prevScopeRef = useRef<OcrScope | null>(null);
   useEffect(() => {
-    if (scope && scope.lines.length > 0) selectLayer();
+    const prev = prevScopeRef.current;
+    prevScopeRef.current = scope;
+    if (!scope) {
+      autoTextRef.current = null;
+      return;
+    }
+    const refined = prev !== null && prev.rect === scope.rect;
+    if (refined && !reselectRef.current) return;
+    reselectRef.current = false;
+    if (scope.lines.length === 0) {
+      autoTextRef.current = ""; // nothing to select yet; a re-scan may fill it
+      return;
+    }
+    selectLayer();
+    autoTextRef.current = window.getSelection()?.toString() ?? null;
   }, [scope, selectLayer]);
 
   // ⌘/Ctrl+A selects the entire overlay, scoped to the OCR text. The selection,
@@ -296,6 +333,29 @@ export function OcrLayer({
             ...boxStyle(scope.rect),
             zIndex: -1,
             boxShadow: "0 0 0 100000px rgba(0, 0, 0, 0.35)",
+          }}
+        />
+      )}
+      {scope && !draft && scope.rescan === "scanning" && (
+        <div
+          data-ocr-deco
+          data-ocr-scope-busy
+          role="status"
+          aria-label={t("app.ocr.scopeScanning")}
+          title={t("app.ocr.scopeScanning")}
+          className="motion-safe:animate-spin"
+          style={{
+            position: "absolute",
+            left: (scope.rect.x + scope.rect.w) * scale - 20,
+            top: scope.rect.y * scale + 6,
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            border: "2px solid rgba(109, 124, 255, 0.35)",
+            borderTopColor: "#6d7cff",
+            boxSizing: "border-box",
+            pointerEvents: "none",
+            zIndex: 1,
           }}
         />
       )}

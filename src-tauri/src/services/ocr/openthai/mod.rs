@@ -14,8 +14,8 @@ mod page;
 mod rec;
 mod text;
 
-use super::{OcrBackend, OcrBox, OcrLine, OcrWord};
-use anyhow::{Context, Result};
+use super::{pick_languages, OcrBackend, OcrBox, OcrLine, OcrResult, OcrWord};
+use anyhow::{anyhow, Context, Result};
 use std::path::{Path, PathBuf};
 
 pub use page::Line;
@@ -38,12 +38,86 @@ impl OpenThaiBackend {
     /// Run detection and recognition on one image. Returns the raw lines with
     /// quads and confidences (the example CLI writes these for the eval harness).
     pub fn read_lines(&self, image_path: &str, threads: usize) -> Result<(u32, u32, Vec<Line>)> {
+        self.read_lines_in(image_path, None, threads)
+    }
+
+    /// Like `read_lines`, but reads only `region` when given (CP-0100). Detection
+    /// then runs on the crop, which it scales up to its 1280 px limit (capped at
+    /// 4x) instead of shrinking the whole image, so small text gets found. Boxes
+    /// come back in full-image coordinates, and `(w, h)` is the full image size.
+    pub fn read_lines_in(
+        &self,
+        image_path: &str,
+        region: Option<&Region>,
+        threads: usize,
+    ) -> Result<(u32, u32, Vec<Line>)> {
         let img = imgops::Img::load_bgr(image_path)
             .with_context(|| format!("open image {image_path}"))?;
+        let crop = match region {
+            None => None,
+            Some(r) => {
+                let (x, y, w, h) = clamp_region(r, img.w, img.h)
+                    .ok_or_else(|| anyhow!("OCR region {r:?} is outside the {}x{} image", img.w, img.h))?;
+                Some((x as f64, y as f64, imgops::crop_rect(&img, x, y, w, h)))
+            }
+        };
         let mut eng = engine(&self.model_dir, threads)?;
-        let lines = eng.read(&img)?;
+        let lines = match &crop {
+            None => eng.read(&img)?,
+            Some((dx, dy, sub)) => {
+                let mut lines = eng.read(sub)?;
+                lines.iter_mut().for_each(|l| offset_line(l, *dx, *dy));
+                lines
+            }
+        };
         Ok((img.w as u32, img.h as u32, lines))
     }
+
+    /// `ocr_detect` with a region: OpenThai only, boxes in full-image coordinates.
+    pub fn detect_region(&self, image_path: &str, region: &Region) -> Result<OcrResult> {
+        let (languages, thai_available) = pick_languages(&self.available_languages());
+        let (w, h, lines) = self.read_lines_in(image_path, Some(region), default_threads())?;
+        Ok(OcrResult {
+            width: w,
+            height: h,
+            lines: lines.iter().map(to_ocr_line).collect(),
+            languages_used: languages,
+            thai_available,
+            engine: ENGINE.into(),
+        })
+    }
+}
+
+/// `OcrResult.engine` for this backend.
+pub const ENGINE: &str = "openthai";
+
+/// Part of the image to read, in image pixels (CP-0100). Sent by the webview.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+pub struct Region {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+/// `r` rounded outwards to whole pixels and clamped to a `w`×`h` image, as
+/// `(x, y, w, h)`. `None` when nothing of it is left.
+pub fn clamp_region(r: &Region, w: usize, h: usize) -> Option<(usize, usize, usize, usize)> {
+    let fit = |v: f64, max: usize| if v.is_finite() { v.clamp(0.0, max as f64) } else { 0.0 };
+    let (x0, y0) = (fit(r.x.floor(), w) as usize, fit(r.y.floor(), h) as usize);
+    let (x1, y1) = (fit((r.x + r.w).ceil(), w) as usize, fit((r.y + r.h).ceil(), h) as usize);
+    (x1 > x0 && y1 > y0).then_some((x0, y0, x1 - x0, y1 - y0))
+}
+
+fn offset_line(l: &mut Line, dx: f64, dy: f64) {
+    let shift = |q: &mut geom::Quad| q.iter_mut().for_each(|p| {
+        p[0] += dx;
+        p[1] += dy;
+    });
+    l.bbox[0] += dx;
+    l.bbox[1] += dy;
+    shift(&mut l.quad);
+    l.words.iter_mut().for_each(|w| shift(&mut w.quad));
 }
 
 /// Settings tuned on the CP-0096 sweep for screenshots. Everything else is
@@ -169,6 +243,57 @@ mod tests {
         let (langs, thai) = super::super::pick_languages(&b.available_languages());
         assert!(thai);
         assert_eq!(langs, vec!["en-US".to_string(), "th-TH".to_string()]);
+    }
+
+    #[test]
+    fn clamp_region_rounds_out_and_clamps() {
+        let r = |x, y, w, h| Region { x, y, w, h };
+        assert_eq!(clamp_region(&r(10.4, 5.6, 20.2, 10.0), 100, 50), Some((10, 5, 21, 11)));
+        assert_eq!(clamp_region(&r(-30.0, -5.0, 60.0, 500.0), 100, 50), Some((0, 0, 30, 50)));
+        assert_eq!(clamp_region(&r(120.0, 0.0, 10.0, 10.0), 100, 50), None);
+        assert_eq!(clamp_region(&r(10.0, 10.0, 0.0, 5.0), 100, 50), None);
+        assert_eq!(clamp_region(&r(f64::NAN, 0.0, 10.0, 10.0), 100, 50), None);
+    }
+
+    #[test]
+    fn crop_rect_copies_the_rectangle() {
+        let mut img = imgops::Img::new(4, 3, 1);
+        img.data = (0..12).collect();
+        let c = imgops::crop_rect(&img, 1, 1, 2, 2);
+        assert_eq!((c.w, c.h, c.data), (2, 2, vec![5, 6, 9, 10]));
+    }
+
+    fn fixture() -> String {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/services/ocr/openthai/fixtures/mixed_line.png")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    /// CP-0100: a region is read on its own and mapped back to image coordinates.
+    #[test]
+    fn region_boxes_are_in_full_image_coordinates() {
+        let b = OpenThaiBackend::new(model_dir());
+        let (w, h, whole) = b.read_lines(&fixture(), 2).unwrap();
+        let line = &whole[0];
+        // The line's right half, with the full image height around it.
+        let region = Region { x: line.bbox[0] + line.bbox[2] / 2.0, y: 0.0, w: w as f64, h: h as f64 };
+        let r = b.detect_region(&fixture(), &region).unwrap();
+        assert_eq!((r.width, r.height, r.engine.as_str()), (w, h, "openthai"));
+        assert!(!r.lines.is_empty());
+        for l in &r.lines {
+            assert!(l.bbox.x >= region.x - 1.0, "{:?} left of {:?}", l.bbox, region);
+            for wd in &l.words {
+                assert!(wd.bbox.x >= region.x - 1.0, "{:?}", wd.bbox);
+            }
+        }
+    }
+
+    #[test]
+    fn region_outside_the_image_is_an_error() {
+        let b = OpenThaiBackend::new(model_dir());
+        let region = Region { x: 1e6, y: 0.0, w: 10.0, h: 10.0 };
+        assert!(b.detect_region(&fixture(), &region).is_err());
     }
 
     /// End to end on a rendered Thai + English line: models load, text comes back.

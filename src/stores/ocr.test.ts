@@ -280,4 +280,114 @@ describe("useOcr", () => {
       expect(toastSuccess.mock.lastCall).toEqual(["Detected 1 text line"]);
     });
   });
+
+  describe("re-scan (CP-0100)", () => {
+    // 2560×1600 → detection scale 0.5, so these 24-px lines count as small.
+    const ln = (text: string, x: number, y: number, h = 24) => ({
+      text,
+      bbox: { x, y, w: 200, h },
+      words: [{ text, bbox: { x, y, w: 200, h } }],
+    });
+    const result = (lines: ReturnType<typeof ln>[], engine: "openthai" | "vision" = "openthai") => ({
+      width: 2560, height: 1600, lines, languagesUsed: ["en-US", "th-TH"], thaiAvailable: true, engine,
+    });
+    const WHOLE = [ln("Left one", 900, 1100), ln("Far away", 2000, 200)];
+    const CROP = [ln("Left one", 902, 1104, 17), ln("Left two", 900, 1200, 17)];
+    const RECT = { x: 850, y: 1050, w: 500, h: 250 };
+    const PADDED = { x: 800, y: 1000, w: 600, h: 350 };
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const scopeTexts = () => useOcr.getState().scope?.lines.map((l) => l.text);
+
+    async function detected(engine: "openthai" | "vision" = "openthai") {
+      detectText.mockImplementation((_p: string, _e: string, region?: unknown) =>
+        Promise.resolve(region ? result(CROP, engine) : result(WHOLE, engine)),
+      );
+      useOcr.getState().setKey("/img/retina.png");
+      await useOcr.getState().toggle();
+      detectText.mockClear();
+      toast.mockReset();
+    }
+
+    it("re-scans the padded box and adds the line the whole image missed", async () => {
+      await detected();
+      useOcr.getState().setScope(RECT);
+      expect(useOcr.getState().scope!.rescan).toBe("scanning");
+      expect(scopeTexts()).toEqual(["Left one"]); // instant filter first
+      await flush();
+      expect(detectText).toHaveBeenCalledTimes(1);
+      expect(detectText.mock.calls[0][0]).toBe("/img/retina.png");
+      expect(detectText.mock.calls[0][2]).toEqual(PADDED);
+      expect(useOcr.getState().scope!.rescan).toBe("done");
+      expect(scopeTexts()).toEqual(["Left one", "Left two"]);
+      expect(useOcr.getState().scope!.lines[0].bbox.h).toBe(17); // the crop's reading won
+    });
+
+    it("does not re-scan a Vision result", async () => {
+      await detected("vision");
+      useOcr.getState().setScope(RECT);
+      await flush();
+      expect(detectText).not.toHaveBeenCalled();
+      expect(useOcr.getState().scope!.rescan).toBeUndefined();
+    });
+
+    it("discards the result when the scope was cleared meanwhile", async () => {
+      await detected();
+      let finish: (v: unknown) => void = () => {};
+      detectText.mockImplementationOnce(() => new Promise((r) => (finish = r)));
+      useOcr.getState().setScope(RECT);
+      useOcr.getState().clearScope();
+      finish(result(CROP));
+      await flush();
+      expect(useOcr.getState().scope).toBe(null);
+    });
+
+    it("runs one scan at a time and only the newest waiting box", async () => {
+      await detected();
+      let finish: (v: unknown) => void = () => {};
+      detectText.mockImplementationOnce(() => new Promise((r) => (finish = r)));
+      useOcr.getState().setScope(RECT);
+      useOcr.getState().setScope({ ...RECT, x: 860 }); // waits…
+      const last = { ...RECT, x: 870 };
+      useOcr.getState().setScope(last); // …and is replaced by this one
+      expect(detectText).toHaveBeenCalledTimes(1);
+      finish(result(CROP)); // stale: the scope is the last box now
+      await flush();
+      await flush();
+      expect(detectText).toHaveBeenCalledTimes(2);
+      expect(detectText.mock.calls[1][2]).toEqual({ ...PADDED, x: 820 });
+      expect(useOcr.getState().scope!.rect).toEqual(last);
+      expect(useOcr.getState().scope!.rescan).toBe("done");
+    });
+
+    it("waits for the re-scan before saying No text found", async () => {
+      await detected();
+      const empty = { x: 1500, y: 600, w: 300, h: 200 };
+      useOcr.getState().setScope(empty);
+      expect(toast).not.toHaveBeenCalled();
+      await flush();
+      expect(useOcr.getState().scope!.lines).toEqual([]);
+      expect(toast).toHaveBeenCalledWith("No text found");
+    });
+
+    it("an empty box the re-scan fills raises no toast", async () => {
+      await detected();
+      useOcr.getState().setScope({ x: 880, y: 1180, w: 300, h: 60 }); // only "Left two"
+      expect(scopeTexts()).toEqual([]);
+      await flush();
+      expect(scopeTexts()).toEqual(["Left two"]);
+      expect(toast).not.toHaveBeenCalled();
+    });
+
+    it("keeps the filtered lines when the re-scan fails", async () => {
+      await detected();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      detectText.mockRejectedValueOnce(new Error("boom"));
+      useOcr.getState().setScope(RECT);
+      await flush();
+      expect(scopeTexts()).toEqual(["Left one"]);
+      expect(useOcr.getState().scope!.rescan).toBe("done");
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
 });
