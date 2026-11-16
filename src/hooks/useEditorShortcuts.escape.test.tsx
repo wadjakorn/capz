@@ -5,6 +5,7 @@ import { useEditorShortcuts } from "./useEditorShortcuts";
 import { selection, useEditor, type RectAnnotation } from "@/stores/editor";
 import { useSettings } from "@/stores/settings";
 import { DEFAULT_CONFIG } from "@/lib/config";
+import { useOcr } from "@/stores/ocr";
 
 function rect(id: string): RectAnnotation {
   return { id, type: "rect", x: 10, y: 10, w: 10, h: 10, stroke: "#f00", strokeWidth: 2 };
@@ -71,5 +72,30 @@ describe("useEditorShortcuts — Esc ladder (CP-0069)", () => {
     el.focus();
     press("Escape", el);
     expect(state()).toEqual({ tool: "rect", selectedId: "a" });
+  });
+
+  describe("OCR scope (CP-0099)", () => {
+    const SCOPE = { rect: { x: 0, y: 0, w: 50, h: 50 }, lines: [] };
+    beforeEach(() => useOcr.setState({ mode: true, scope: SCOPE }));
+    afterEach(() => useOcr.getState().reset());
+
+    it("Esc clears an OCR scope first and does nothing else", () => {
+      const e = press("Escape");
+      expect(useOcr.getState().scope).toBe(null);
+      expect(useOcr.getState().mode).toBe(true);
+      expect(state()).toEqual({ tool: "rect", selectedId: "a" });
+      expect(e.defaultPrevented).toBe(true);
+      // The next press walks the rest of the ladder as before.
+      press("Escape");
+      expect(state()).toEqual({ tool: "select", selectedId: null });
+    });
+
+    it("does not clear the scope while typing", () => {
+      const el = document.createElement("input");
+      document.body.appendChild(el);
+      el.focus();
+      press("Escape", el);
+      expect(useOcr.getState().scope).toBe(SCOPE);
+    });
   });
 });

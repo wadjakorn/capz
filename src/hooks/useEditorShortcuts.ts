@@ -14,6 +14,7 @@ import { isTauriRuntime } from "@/lib/platform";
 import { duplicateSelected } from "@/lib/duplicate";
 import { stickyToolLabel } from "@/lib/stickyTools";
 import { useSettings } from "@/stores/settings";
+import { useOcr } from "@/stores/ocr";
 import { useWorkspaces } from "@/stores/workspaces";
 import { nudgeDelta } from "@/lib/nudge";
 import { currentPlatform } from "@/lib/shortcuts";
@@ -151,6 +152,11 @@ export function useEditorShortcuts() {
 
       if (key === "escape") {
         e.preventDefault();
+        // CP-0099: an OCR area scope goes first — back to the whole-image text.
+        if (useOcr.getState().scope) {
+          useOcr.getState().clearScope();
+          return;
+        }
         // Crop mode: Esc cancels the crop and returns to Select.
         if (useEditor.getState().tool === "crop") {
           useEditor.getState().setTool("select");
