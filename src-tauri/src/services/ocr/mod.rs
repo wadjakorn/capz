@@ -33,6 +33,9 @@ pub struct OcrResult {
     /// The languages requested of the engine, not necessarily those present in the image.
     pub languages_used: Vec<String>,
     pub thai_available: bool,
+    /// Engine that produced the result: "vision" or "openthai" (CP-0100). The
+    /// webview re-scans a scope box only with OpenThai.
+    pub engine: String,
 }
 
 /// Implemented per-platform. The pure orchestration in `run_detect` is tested
@@ -77,7 +80,11 @@ pub fn pick_languages(available: &[String]) -> (Vec<String>, bool) {
     (langs, thai)
 }
 
-pub fn run_detect<B: OcrBackend>(backend: &B, image_path: &str) -> anyhow::Result<OcrResult> {
+pub fn run_detect<B: OcrBackend>(
+    backend: &B,
+    image_path: &str,
+    engine: &str,
+) -> anyhow::Result<OcrResult> {
     let available = backend.available_languages();
     let (languages, thai_available) = pick_languages(&available);
     let (width, height, lines) = backend.recognize(image_path, &languages)?;
@@ -87,6 +94,7 @@ pub fn run_detect<B: OcrBackend>(backend: &B, image_path: &str) -> anyhow::Resul
         lines,
         languages_used: languages,
         thai_available,
+        engine: engine.to_string(),
     })
 }
 
@@ -154,11 +162,12 @@ mod tests {
     #[test]
     fn run_detect_reports_thai_flag_and_languages() {
         let backend = FakeBackend { langs: vec!["en-US".into(), "th-TH".into()] };
-        let r = run_detect(&backend, "ignored.png").unwrap();
+        let r = run_detect(&backend, "ignored.png", "fake").unwrap();
         assert_eq!(r.width, 100);
         assert_eq!(r.height, 50);
         assert!(r.thai_available);
         assert_eq!(r.languages_used, vec!["en-US".to_string(), "th-TH".to_string()]);
         assert_eq!(r.lines[0].text, "en-US,th-TH");
+        assert_eq!(r.engine, "fake");
     }
 }

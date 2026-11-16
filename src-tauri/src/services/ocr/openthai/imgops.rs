@@ -33,6 +33,18 @@ impl Img {
     }
 }
 
+/// Copy of the `w`×`h` rectangle whose top-left is `(x, y)`. The caller keeps
+/// it inside `src` (CP-0100 crops a scope box before detection).
+pub fn crop_rect(src: &Img, x: usize, y: usize, w: usize, h: usize) -> Img {
+    let mut out = Img::new(w, h, src.c);
+    let row_len = w * src.c;
+    for row in 0..h {
+        let s = ((y + row) * src.w + x) * src.c;
+        out.data[row * row_len..(row + 1) * row_len].copy_from_slice(&src.data[s..s + row_len]);
+    }
+    out
+}
+
 /// cv2.cvtColor(BGR2GRAY): Y = (R·4899 + G·9617 + B·1868 + 2^13) >> 14.
 pub fn gray(src: &Img) -> Img {
     let mut out = Img::new(src.w, src.h, 1);
