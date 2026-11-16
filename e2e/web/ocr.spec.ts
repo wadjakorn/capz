@@ -338,3 +338,51 @@ test.describe("OCR area scope (CP-0099)", () => {
     await expect(ocrScopeBox(page)).toBeVisible(); // the scope survives the trip
   });
 });
+
+/** CP-0100 — an OpenThai box is re-scanned; missed lines join the scope. */
+test.describe("OCR scope re-scan (CP-0100)", () => {
+  const BOX = { from: { x: 20, y: 80 }, to: { x: 360, y: 280 } };
+  const busy = (page: Page) => page.locator("[data-ocr-scope-busy]");
+
+  test("spinner, then the line the whole image missed appears and is selected", async ({ page }) => {
+    await setupTwoColOcr(page, { rescan: true });
+    await expect(ocrLayer(page)).not.toContainText("Left three");
+    await dragBox(page, BOX.from, BOX.to);
+    await expect(busy(page)).toBeVisible();
+    expect(await selectedText(page)).toBe("Left one\nLeft two"); // instant filter
+    await expect(ocrLayer(page)).toContainText("Left three");
+    await expect(busy(page)).toHaveCount(0);
+    expect(await selectedText(page)).toBe("Left one\nLeft two\nLeft three");
+    const calls = (await getInvokeCalls(page)).filter((c) => c.cmd === "ocr_detect");
+    expect(calls).toHaveLength(2);
+    // Padded box: pad = max(32, 10% of 340) = 34, clamped to the image.
+    // (screen → image px rounding: ±2 px).
+    const region = (calls[1].args as { region: Record<"x" | "y" | "w" | "h", number> }).region;
+    const want = { x: 0, y: 46, w: 394, h: 268 };
+    for (const k of ["x", "y", "w", "h"] as const) {
+      expect(Math.abs(region[k] - want[k])).toBeLessThanOrEqual(2);
+    }
+  });
+
+  test("a selection made during the re-scan is left alone", async ({ page }) => {
+    await setupTwoColOcr(page, { rescan: true });
+    await dragBox(page, BOX.from, BOX.to);
+    await expect(busy(page)).toBeVisible();
+    const w = await toScreen(page, { x: 70, y: 115 }); // the word "Left"
+    await page.mouse.dblclick(w.x, w.y);
+    expect(await selectedText(page)).toBe("Left");
+    await expect(ocrLayer(page)).toContainText("Left three");
+    expect(await selectedText(page)).toBe("Left");
+  });
+
+  test("Esc during the re-scan discards its result", async ({ page }) => {
+    await setupTwoColOcr(page, { rescan: true });
+    await dragBox(page, BOX.from, BOX.to);
+    await expect(busy(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(ocrScopeBox(page)).toHaveCount(0);
+    await page.waitForTimeout(1200);
+    await expect(ocrLayer(page)).toContainText("Right one");
+    await expect(ocrLayer(page)).not.toContainText("Left three");
+  });
+});

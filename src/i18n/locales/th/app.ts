@@ -138,6 +138,7 @@ export const app: Record<keyof typeof en, string> = {
   "app.ocr.detectedMany": "พบข้อความ {count} บรรทัด",
   "app.ocr.noText": "ไม่พบข้อความ",
   "app.ocr.scopeHint": "ลากกรอบเพื่อคัดลอกเฉพาะบางส่วน",
+  "app.ocr.scopeScanning": "กำลังอ่านบริเวณนี้อีกครั้ง…",
   "app.ocr.thaiUnavailable": "ระบบนี้อ่านข้อความภาษาไทยไม่ได้",
   "app.ocr.thaiUnavailableMac": "ถ้าต้องการอ่านภาษาไทย ให้เปลี่ยนตัวตรวจหาข้อความเป็น OpenThai ที่ ตั้งค่า → ตัวแก้ไข → ขั้นสูง",
   "app.ocr.failed": "ตรวจจับข้อความไม่สำเร็จ",

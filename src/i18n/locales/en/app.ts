@@ -149,6 +149,7 @@ export const app = {
   "app.ocr.detectedMany": "Detected {count} text lines",
   "app.ocr.noText": "No text found",
   "app.ocr.scopeHint": "Drag a box to copy only part of the text",
+  "app.ocr.scopeScanning": "Reading this area again…",
   "app.ocr.thaiUnavailable": "Thai text recognition isn't available on this system",
   "app.ocr.thaiUnavailableMac": "To read Thai, switch Text detection engine to OpenThai in Settings → Editor → Advanced.",
   "app.ocr.failed": "Text detection failed",
