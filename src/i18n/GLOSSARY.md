@@ -102,6 +102,7 @@ paths, backdrop preset names (Slate, Gingham, Bauhaus…), px / % units.
 | straighten / smoothing | ทำเส้นตรง / การปรับเส้นให้เรียบ |
 | label (pin) / numbering | ป้ายกำกับ / การนับเลข |
 | font / line height | แบบอักษร / ระยะบรรทัด |
+| outline (text) / shadow (text) | เส้นขอบ / เงา |
 | sidebar | แถบด้านข้าง |
 | stacking order (front / back) | ลำดับการซ้อน (หน้าสุด / หลังสุด) |
 | minimal / art (backdrop families) | มินิมอล / ศิลปะ |

@@ -18,8 +18,9 @@ import {
 } from "../PresetSlider";
 import { Group, ToggleIconButton, withBold, withDeco, withItalic } from "./kit";
 import { THAI_SANS_STACK } from "@/lib/config";
-import type { ColorCtx, NumCtx, TextStyleCtx } from "./types";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { ColorCtx, NumCtx, TextEffectsCtx, TextStyleCtx } from "./types";
+import { OUTLINE_WIDTH_MAX, OUTLINE_WIDTH_MIN } from "@/lib/textLayout";
+import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { useT } from "@/i18n/useT";
 import type { TKey } from "@/i18n/store";
 
@@ -193,6 +194,94 @@ export function TextPanel({
           ]}
         />
       )}
+
+      {tsc.effects && <TextEffectsSection fx={tsc.effects} />}
     </Group>
+  );
+}
+
+function ToggleChip({
+  on,
+  onClick,
+  title,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      title={title}
+      className={[
+        "rounded-md px-2.5 py-1 text-xs transition-colors",
+        on
+          ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+          : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Outline + drop shadow (CP-0106). Per-shape, so only for a selected text. */
+function TextEffectsSection({ fx }: { fx: TextEffectsCtx }) {
+  const { t } = useT();
+  const outlineOn = fx.outlineColor !== null;
+  return (
+    <>
+      <SectionLabel>{t("editor.text.outline")}</SectionLabel>
+      <div className="flex items-center justify-between gap-2">
+        <ToggleChip
+          on={outlineOn}
+          onClick={() => fx.setOutlineOn(!outlineOn)}
+          title={t("editor.text.outlineToggle")}
+        >
+          {outlineOn ? t("editor.text.outlineOn") : t("editor.text.outlineOff")}
+        </ToggleChip>
+        {fx.outlineColor !== null && (
+          <input
+            type="color"
+            value={fx.outlineColor}
+            title={t("editor.text.outlineColor")}
+            onChange={(e) => fx.setOutlineColor(e.target.value)}
+            className="h-6 w-9 cursor-pointer rounded border border-white/10 bg-white/[0.06] p-0.5"
+          />
+        )}
+      </div>
+      {outlineOn && (
+        <PresetSlider
+          label={t("editor.ctl.width")}
+          value={fx.outlineWidth}
+          min={OUTLINE_WIDTH_MIN}
+          max={OUTLINE_WIDTH_MAX}
+          step={1}
+          round
+          unit="px"
+          onChange={(v) => fx.setOutlineWidth(v)}
+          presets={[
+            { value: 2, node: <SizeGlyph px={8} />, title: "2 px" },
+            { value: 4, node: <SizeGlyph px={12} />, title: "4 px" },
+            { value: 8, node: <SizeGlyph px={16} />, title: "8 px" },
+          ]}
+        />
+      )}
+
+      <SectionLabel>{t("editor.text.shadow")}</SectionLabel>
+      <div className="flex items-center">
+        <ToggleChip
+          on={fx.shadow}
+          onClick={() => fx.setShadow(!fx.shadow)}
+          title={t("editor.text.shadowToggle")}
+        >
+          {fx.shadow ? t("editor.text.shadowOn") : t("editor.text.shadowOff")}
+        </ToggleChip>
+      </div>
+    </>
   );
 }
