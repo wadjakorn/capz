@@ -101,7 +101,12 @@ import { currentPlatform } from "@/lib/shortcuts";
 import { SCREEN_CHROME } from "@/lib/screenChrome";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
-import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
+import {
+  textBoxLayout,
+  textEditorOverlay,
+  textEffects,
+  textEffectsCss,
+} from "@/lib/textLayout";
 import { getPreloaded } from "@/lib/imagePreload";
 import { lastUsedPatchForAnnotation } from "@/lib/lastUsedPatch";
 import {
@@ -2416,6 +2421,7 @@ export function EditorStage({ src }: Props) {
                   letterSpacing: 0,
                   color: ta.fill,
                   caretColor: ta.fill,
+                  ...textEffectsCss(ta, scale),
                 }}
               />
             </div>
@@ -3219,6 +3225,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   });
   // Same layout the editing overlay uses (see textBoxLayout).
   const box = useMemo(() => textBoxLayout(a), [a]);
+  const effects = useMemo(() => textEffects(a), [a]);
   const {
     bg,
     padX,
@@ -3300,6 +3307,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         fontStyle={fontStyle}
         textDecoration={textDecoration}
         fontFamily={fontFamily}
+        {...effects}
       />
     </Group>
   );

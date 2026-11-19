@@ -75,6 +75,7 @@ import { isTauriRuntime } from "@/lib/platform";
 import { usePlatform } from "@/hooks/usePlatform";
 import { stickyToolLabel } from "@/lib/stickyTools";
 import { shortcutKey } from "@/lib/shortcutKey";
+import { DEFAULT_OUTLINE_COLOR, outlineWidthOf } from "@/lib/textLayout";
 
 // macOS-only: the system area capture mode delegates to `screencapture -i`,
 // which exists only on macOS. `currentPlatform` is prerender-safe (navigator is
@@ -209,6 +210,8 @@ export function Toolbar({
   // Remember the last non-null text background color so the ON/OFF toggle can
   // restore it without forcing the user to re-pick a color.
   const [lastBgColor, setLastBgColor] = useState("#ffffff");
+  // Same idea for the text outline (CP-0106): session memory only.
+  const [lastOutlineColor, setLastOutlineColor] = useState(DEFAULT_OUTLINE_COLOR);
   const colorInputRef = useRef<HTMLInputElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   // Present only in the tabbed sidebar (the editor window). The web build has
@@ -678,6 +681,22 @@ export function Toolbar({
           updateAnnotation(selected.id, { lineHeight: v });
           if (remember) patchLastUsed({ text: { lineHeight: v } });
           else void updateSettings("tools", { text: { ...baseText(), lineHeight: v } });
+        },
+        // Per-shape only — not written to settings (CP-0106 spec).
+        effects: {
+          outlineColor: selected.outlineColor ?? null,
+          outlineWidth: outlineWidthOf(selected),
+          shadow: !!selected.shadow,
+          setOutlineOn: (on) =>
+            updateAnnotation(selected.id, {
+              outlineColor: on ? lastOutlineColor : null,
+            }),
+          setOutlineColor: (v) => {
+            setLastOutlineColor(v);
+            updateAnnotation(selected.id, { outlineColor: v });
+          },
+          setOutlineWidth: (v) => updateAnnotation(selected.id, { outlineWidth: v }),
+          setShadow: (on) => updateAnnotation(selected.id, { shadow: on }),
         },
       };
     } else if (selected.type === "pin") {
