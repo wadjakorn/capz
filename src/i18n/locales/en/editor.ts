@@ -132,6 +132,8 @@ export const editor = {
   "editor.panel.borderColor": "Border color",
   "editor.panel.bordersLinked": "Borders linked — click to set separately",
   "editor.panel.bordersSeparate": "Borders separate — click to link",
+  "editor.panel.cantBoxToLine": "Can't turn a box into a line — draw a new one",
+  "editor.panel.cantLineToBox": "Can't turn a line into a box — draw a new one",
   "editor.panel.circle": "Circle",
   "editor.panel.colorDefault": "Default color for next element",
   "editor.panel.colorSelected": "Edit selected element color",

@@ -89,25 +89,32 @@ export function ToggleIconButton({
   title,
   Icon,
   ariaLabel,
+  disabled = false,
 }: {
   active: boolean;
   onClick: () => void;
   title: string;
   Icon: IconType;
   ariaLabel?: string;
+  /** Faded and inert. `aria-disabled` (not `disabled`) so the title tooltip
+   * still shows on hover in WebKit / WebView2 (CP-0102). */
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       title={title}
       aria-label={ariaLabel}
       aria-pressed={active}
+      aria-disabled={disabled || undefined}
       className={[
         "flex h-7 w-7 items-center justify-center rounded transition-colors",
-        active
-          ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-          : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
+        disabled
+          ? "cursor-not-allowed text-[var(--fg-2)] opacity-40"
+          : active
+            ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+            : "text-[var(--fg-2)] hover:bg-[var(--surface-raised)]",
       ].join(" ")}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -125,7 +132,9 @@ export function IconSegmented<V extends string>({
 }: {
   value: V;
   onChange: (v: V) => void;
-  options: { value: V; title: string; Icon: IconType }[];
+  /** `disabledTitle` replaces the tooltip of a disabled option; the option
+   * keeps `title` as its accessible name. */
+  options: { value: V; title: string; Icon: IconType; disabled?: boolean; disabledTitle?: string }[];
   title?: string;
   ariaLabel?: string;
 }) {
@@ -141,8 +150,10 @@ export function IconSegmented<V extends string>({
           key={o.value}
           active={value === o.value}
           onClick={() => onChange(o.value)}
-          title={o.title}
+          title={o.disabled ? (o.disabledTitle ?? o.title) : o.title}
+          ariaLabel={o.disabled ? o.title : undefined}
           Icon={o.Icon}
+          disabled={o.disabled}
         />
       ))}
     </div>

@@ -133,6 +133,8 @@ export const editor: Record<keyof typeof en, string> = {
   "editor.panel.borderColor": "สีเส้นขอบ",
   "editor.panel.bordersLinked": "เส้นขอบเชื่อมกันอยู่ — คลิกเพื่อตั้งค่าแยก",
   "editor.panel.bordersSeparate": "เส้นขอบแยกกันอยู่ — คลิกเพื่อเชื่อม",
+  "editor.panel.cantBoxToLine": "เปลี่ยนสี่เหลี่ยมหรือวงกลมเป็นเส้นไม่ได้ — วาดเส้นใหม่แทน",
+  "editor.panel.cantLineToBox": "เปลี่ยนเส้นเป็นสี่เหลี่ยมหรือวงกลมไม่ได้ — วาดรูปทรงใหม่แทน",
   "editor.panel.circle": "วงกลม",
   "editor.panel.colorDefault": "สีเริ่มต้นขององค์ประกอบถัดไป",
   "editor.panel.colorSelected": "แก้ไขสีขององค์ประกอบที่เลือก",
