@@ -62,7 +62,12 @@ export type PinLabelStyleCtx = {
   value: PinLabelStyle;
   onChange: (v: PinLabelStyle) => void;
 };
-export type RectShapeCtx = { value: RectShapeKind; onChange: (v: RectShapeKind) => void };
+export type RectShapeCtx = {
+  value: RectShapeKind;
+  onChange: (v: RectShapeKind) => void;
+  /** Shapes the selection cannot convert to (line ↔ box, CP-0102). */
+  disabled?: readonly RectShapeKind[];
+};
 export type StrokeStyleCtx = { value: StrokeStyle; onChange: (v: StrokeStyle) => void };
 export type PenModeCtx = { value: FreehandMode; onChange: (v: FreehandMode) => void };
 export type MagnifyShapeCtx = { value: MagnifyShape; onChange: (v: MagnifyShape) => void };

@@ -27,9 +27,36 @@ describe("ShapesPanel stroke style (CP-0076)", () => {
     render(<ShapesPanel {...base} rectShapeCtx={null} strokeStyleCtx={{ value: "solid", onChange }} />);
     fireEvent.click(screen.getByRole("button", { name: "Dotted" }));
     expect(onChange).toHaveBeenCalledWith("dotted");
-    // A selected shape hides the shape picker but keeps the style picker.
-    expect(screen.queryByRole("button", { name: "Line" })).toBeNull();
     expect(screen.getByRole("button", { name: "Dashed" })).toBeTruthy();
+  });
+});
+
+describe("ShapesPanel shape picker for a selection (CP-0102)", () => {
+  it("disables Line for a selected box, with a tooltip, and ignores its click", () => {
+    const onChange = vi.fn();
+    render(
+      <ShapesPanel {...base} selected strokeStyleCtx={null}
+        rectShapeCtx={{ value: "rect", onChange, disabled: ["line"] }} />,
+    );
+    const lineBtn = screen.getByRole("button", { name: "Line" });
+    expect(lineBtn.getAttribute("aria-disabled")).toBe("true");
+    expect(lineBtn.getAttribute("title")).toBe("Can't turn a box into a line — draw a new one");
+    fireEvent.click(lineBtn);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Circle" }));
+    expect(onChange).toHaveBeenCalledWith("ellipse");
+  });
+
+  it("disables Rectangle and Circle for a selected line", () => {
+    render(
+      <ShapesPanel {...base} selected strokeStyleCtx={null}
+        rectShapeCtx={{ value: "line", onChange: vi.fn(), disabled: ["rect", "ellipse"] }} />,
+    );
+    const circle = screen.getByRole("button", { name: "Circle" });
+    expect(circle.getAttribute("aria-disabled")).toBe("true");
+    expect(circle.getAttribute("title")).toBe("Can't turn a line into a box — draw a new one");
+    expect(screen.getByRole("button", { name: "Rectangle" }).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("button", { name: "Line" }).getAttribute("aria-pressed")).toBe("true");
   });
 });
 

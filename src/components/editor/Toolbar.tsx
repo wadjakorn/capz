@@ -52,6 +52,7 @@ import { OverflowMenu, type OverflowItem } from "./toolbar/OverflowMenu";
 import { ToolOptionsPanel } from "./toolbar/panels/ToolOptionsPanel";
 import { canDuplicate, duplicateSelected } from "@/lib/duplicate";
 import { sharedStyleKind } from "@/lib/multiSelect";
+import { selectedShapeKind, shapePickerForSelection } from "@/lib/shapePicker";
 import { GlobalToolsPanel } from "./toolbar/panels/GlobalToolsPanel";
 import type {
   ColorCtx,
@@ -313,15 +314,32 @@ export function Toolbar({
           else void updateSettings("tools", { [slot]: { strokeWidth: v } } as Partial<AppConfig["tools"]>);
         },
       };
+      // Shape picker for a selection (CP-0102). Rect and ellipse are the same
+      // annotation type and only differ in `shape`, so they switch in place;
+      // a line is a 2-point arrow and cannot become a box or back, so those
+      // options are shown disabled.
+      const picker = shapePickerForSelection(multi ? multiAnns : [selected]);
+      if (picker) {
+        const boxes = (multi ? multiAnns : [selected]).filter((a) => a.type === "rect");
+        rectShapeCtx = {
+          value: picker.value,
+          disabled: picker.disabled,
+          onChange: (v) => {
+            if (v === "line" || picker.disabled.includes(v)) return;
+            // Only boxes that change: re-clicking the active shape must not
+            // push an empty undo entry.
+            const boxIds = boxes.filter((a) => selectedShapeKind(a) !== v).map((a) => a.id);
+            if (boxIds.length > 1) updateMany(boxIds, { shape: v });
+            else if (boxIds.length) updateOne(boxIds[0], { shape: v });
+            if (remember) patchLastUsed({ rect: { shape: v } });
+            else void updateSettings("tools", { rect: { shape: v } } as Partial<AppConfig["tools"]>);
+          },
+        };
+      }
       if (selected.type === "rect") {
         const rectSel = selected;
-        const curShape = rectSel.shape ?? toolsCfg.rect.shape;
-        // Shape is add-only: it decides the annotation's *type* at draw time
-        // (line draws a 2-point segment, rect/ellipse draw a box — see
-        // EditorStage's pointer-down), so it cannot be re-picked afterwards.
-        // Switching it on an existing shape either did nothing (rect → line) or
-        // silently squared off an ellipse, so the picker is hidden while a
-        // shape is selected — pick the shape before drawing the next one.
+        // What is rendered: a box without `shape` draws as a rectangle.
+        const curShape = selectedShapeKind(rectSel) ?? "rect";
         strokeStyleCtx = {
           value: rectSel.strokeStyle ?? "solid",
           onChange: (v) => {

@@ -21,8 +21,9 @@ import type { DimLevel, RectShapeKind, StrokeStyle } from "@/stores/editor";
 import type { RefObject } from "react";
 import { useT } from "@/i18n/useT";
 
-/** Shapes tool (rect/ellipse/line): a shape picker (hidden while a shape is
- * selected), a solid/dashed/dotted line style, stroke color + width (1–20), and
+/** Shapes tool (rect/ellipse/line): a shape picker — for a selected shape it
+ * switches rect ↔ ellipse in place, with the line ↔ box options shown disabled
+ * (CP-0102) — a solid/dashed/dotted line style, stroke color + width (1–20), and
  * a corner radius (0–60) for the rectangle, and — for rect / ellipse — a
  * spotlight dim with three levels (CP-0095). */
 export function ShapesPanel({
@@ -45,6 +46,7 @@ export function ShapesPanel({
   selected: boolean;
 }) {
   const { t } = useT();
+  const off = (v: RectShapeKind) => !!rectShapeCtx?.disabled?.includes(v);
   return (
     <Group>
       {rectShapeCtx && <SectionLabel>{t("editor.panel.shape")}</SectionLabel>}
@@ -55,9 +57,27 @@ export function ShapesPanel({
           title={t("editor.panel.shape")}
           ariaLabel={t("editor.panel.shape")}
           options={[
-            { value: "rect", title: t("editor.panel.rectangle"), Icon: Square },
-            { value: "ellipse", title: t("editor.panel.circle"), Icon: CircleIcon },
-            { value: "line", title: t("editor.panel.line"), Icon: Minus },
+            {
+              value: "rect",
+              title: t("editor.panel.rectangle"),
+              Icon: Square,
+              disabled: off("rect"),
+              disabledTitle: t("editor.panel.cantLineToBox"),
+            },
+            {
+              value: "ellipse",
+              title: t("editor.panel.circle"),
+              Icon: CircleIcon,
+              disabled: off("ellipse"),
+              disabledTitle: t("editor.panel.cantLineToBox"),
+            },
+            {
+              value: "line",
+              title: t("editor.panel.line"),
+              Icon: Minus,
+              disabled: off("line"),
+              disabledTitle: t("editor.panel.cantBoxToLine"),
+            },
           ]}
         />
       )}
