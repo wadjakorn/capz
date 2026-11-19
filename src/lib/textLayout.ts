@@ -131,6 +131,80 @@ export function textBoxLayout(
   };
 }
 
+// ── Outline + shadow (CP-0106) ─────────────────────────────────────────────
+// Konva strokes centred on the glyph edge; drawing the fill after the stroke
+// hides the inner half, so `strokeWidth = 2 × outlineWidth` gives a visible
+// outline of exactly `outlineWidth` without eating into the glyph (Thai upper
+// vowels and tone marks stay legible). Round joins avoid miter spikes.
+
+export const OUTLINE_WIDTH_MIN = 1;
+export const OUTLINE_WIDTH_MAX = 8;
+export const DEFAULT_OUTLINE_WIDTH = 3;
+export const DEFAULT_OUTLINE_COLOR = "#000000";
+const SHADOW_OPACITY = 0.55;
+
+export function outlineWidthOf(a: TextAnnotation): number {
+  const w = a.outlineWidth ?? DEFAULT_OUTLINE_WIDTH;
+  return Math.min(OUTLINE_WIDTH_MAX, Math.max(OUTLINE_WIDTH_MIN, w));
+}
+
+/** Shadow preset scaled to the font so it reads the same at any size. */
+function shadowPreset(fontSize: number) {
+  return {
+    blur: Math.max(2, Math.round(fontSize * 0.12)),
+    offset: Math.max(1, Math.round(fontSize * 0.05)),
+  };
+}
+
+export type TextEffectProps = {
+  stroke?: string;
+  strokeWidth?: number;
+  fillAfterStrokeEnabled?: boolean;
+  lineJoin?: "round";
+  shadowColor?: string;
+  shadowOpacity?: number;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+};
+
+/** Konva `Text` props for the annotation's outline + shadow (empty if none). */
+export function textEffects(a: TextAnnotation): TextEffectProps {
+  const out: TextEffectProps = {};
+  if (a.outlineColor) {
+    out.stroke = a.outlineColor;
+    out.strokeWidth = outlineWidthOf(a) * 2;
+    out.fillAfterStrokeEnabled = true;
+    out.lineJoin = "round";
+  }
+  if (a.shadow) {
+    const p = shadowPreset(a.fontSize);
+    out.shadowColor = "#000000";
+    out.shadowOpacity = SHADOW_OPACITY;
+    out.shadowBlur = p.blur;
+    out.shadowOffsetX = p.offset;
+    out.shadowOffsetY = p.offset;
+  }
+  return out;
+}
+
+/** The same effects as CSS for the HTML editing overlay, at screen `scale`. */
+export function textEffectsCss(
+  a: TextAnnotation,
+  scale: number,
+): { WebkitTextStroke?: string; paintOrder?: string; textShadow?: string } {
+  const out: { WebkitTextStroke?: string; paintOrder?: string; textShadow?: string } = {};
+  if (a.outlineColor) {
+    out.WebkitTextStroke = `${outlineWidthOf(a) * 2 * scale}px ${a.outlineColor}`;
+    out.paintOrder = "stroke fill";
+  }
+  if (a.shadow) {
+    const p = shadowPreset(a.fontSize);
+    out.textShadow = `${p.offset * scale}px ${p.offset * scale}px ${p.blur * scale}px rgba(0, 0, 0, ${SHADOW_OPACITY})`;
+  }
+  return out;
+}
+
 // A textarea exactly as wide as its text scrolls by a pixel when the caret
 // sits at the end; widen it by this much and shift it so glyphs stay put.
 export const CARET_SLACK = 2;
