@@ -320,16 +320,17 @@ export function Toolbar({
       // options are shown disabled.
       const picker = shapePickerForSelection(multi ? multiAnns : [selected]);
       if (picker) {
-        const boxIds = (multi ? multiAnns : [selected])
-          .filter((a) => a.type === "rect")
-          .map((a) => a.id);
+        const boxes = (multi ? multiAnns : [selected]).filter((a) => a.type === "rect");
         rectShapeCtx = {
           value: picker.value,
           disabled: picker.disabled,
           onChange: (v) => {
-            if (v === "line" || picker.disabled.includes(v) || !boxIds.length) return;
+            if (v === "line" || picker.disabled.includes(v)) return;
+            // Only boxes that change: re-clicking the active shape must not
+            // push an empty undo entry.
+            const boxIds = boxes.filter((a) => selectedShapeKind(a) !== v).map((a) => a.id);
             if (boxIds.length > 1) updateMany(boxIds, { shape: v });
-            else updateOne(boxIds[0], { shape: v });
+            else if (boxIds.length) updateOne(boxIds[0], { shape: v });
             if (remember) patchLastUsed({ rect: { shape: v } });
             else void updateSettings("tools", { rect: { shape: v } } as Partial<AppConfig["tools"]>);
           },

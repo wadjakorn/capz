@@ -29,3 +29,18 @@ test("a selected rectangle switches to a circle in place, undoable", async ({ pa
   await expect.poll(async () => (await rectPositions(page)).length).toBe(1);
   await snap(page, "after-undo");
 });
+
+test("re-clicking the active shape adds no undo step", async ({ page }) => {
+  await loadImage(page);
+  await drawRect(page, { x: 60, y: 60 }, { x: 220, y: 180 });
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const box = (await page.locator("canvas").first().boundingBox())!;
+  await page.mouse.click(box.x + 60, box.y + 120);
+  await expect.poll(async () => (await rectPositions(page)).length).toBe(1);
+  const circle = page.getByRole("button", { name: "Circle", exact: true });
+  await circle.click();
+  await expect.poll(async () => (await rectPositions(page)).length).toBe(0);
+  await circle.click(); // already a circle: nothing to undo
+  await page.keyboard.press("Control+z");
+  await expect.poll(async () => (await rectPositions(page)).length).toBe(1);
+});
