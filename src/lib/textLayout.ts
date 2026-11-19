@@ -205,6 +205,17 @@ export function textEffectsCss(
   return out;
 }
 
+/** How far (image px) the outline + shadow paint past the glyph box — the
+ *  editing textarea grows by this so it doesn't clip them. */
+export function textEffectsBleed(a: TextAnnotation): number {
+  let m = a.outlineColor ? outlineWidthOf(a) : 0;
+  if (a.shadow) {
+    const p = shadowPreset(a.fontSize);
+    m += p.offset + p.blur;
+  }
+  return m;
+}
+
 // A textarea exactly as wide as its text scrolls by a pixel when the caret
 // sits at the end; widen it by this much and shift it so glyphs stay put.
 export const CARET_SLACK = 2;
