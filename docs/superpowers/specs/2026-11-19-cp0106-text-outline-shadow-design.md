@@ -34,7 +34,9 @@ text annotation is selected (see "Decided defaults").
   crisp edges.
 - **WYSIWYG while typing** (CP-0065): the editing textarea mirrors both effects with CSS:
   `-webkit-text-stroke: (2 × outlineWidth × scale)px <colour>`, `paint-order: stroke fill`,
-  and `text-shadow` with the same preset at screen scale.
+  and `text-shadow` with the same preset at screen scale. The textarea grows by the effects'
+  bleed (outline width + shadow offset + blur) on every side, with equal padding so the
+  glyphs stay put, so it doesn't clip the outline or shadow.
 - Works with the background-box option (outline/shadow draw over the box).
 - Undo: each toggle / colour / width change is one `updateAnnotation` = one history entry.
 - Workspaces, templates, copy/paste and duplicate keep the fields because they copy the
