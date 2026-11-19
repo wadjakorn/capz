@@ -6,6 +6,7 @@ import {
   textEditorOverlay,
   textEffects,
   textEffectsCss,
+  textEffectsBleed,
   type InkMeasure,
 } from "./textLayout";
 
@@ -156,5 +157,19 @@ describe("textEffectsCss (CP-0106)", () => {
     expect(textEffectsCss({ ...base, fontSize: 100, shadow: true }, 0.5)).toEqual({
       textShadow: "2.5px 2.5px 6px rgba(0, 0, 0, 0.55)",
     });
+  });
+});
+
+describe("textEffectsBleed (CP-0106)", () => {
+  it("is 0 without effects", () => {
+    expect(textEffectsBleed(base)).toBe(0);
+  });
+  it("covers the outline and the shadow's reach", () => {
+    expect(textEffectsBleed({ ...base, outlineColor: "#000", outlineWidth: 5 })).toBe(5);
+    // fontSize 100: offset 5 + blur 12.
+    expect(textEffectsBleed({ ...base, fontSize: 100, shadow: true })).toBe(17);
+    expect(
+      textEffectsBleed({ ...base, fontSize: 100, shadow: true, outlineColor: "#000", outlineWidth: 2 }),
+    ).toBe(19);
   });
 });
