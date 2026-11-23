@@ -101,7 +101,13 @@ import { currentPlatform } from "@/lib/shortcuts";
 import { SCREEN_CHROME } from "@/lib/screenChrome";
 import { isTauriRuntime } from "@/lib/platform";
 import { uid } from "@/lib/uid";
-import { textBoxLayout, textEditorOverlay } from "@/lib/textLayout";
+import {
+  textBoxLayout,
+  textEditorOverlay,
+  textEffects,
+  textEffectsBleed,
+  textEffectsCss,
+} from "@/lib/textLayout";
 import { getPreloaded } from "@/lib/imagePreload";
 import { lastUsedPatchForAnnotation } from "@/lib/lastUsedPatch";
 import {
@@ -2352,6 +2358,7 @@ export function EditorStage({ src }: Props) {
           const ta = draftTextAnnotation(textEditor, toolsCfg.text, existing);
           const layout = textBoxLayout(ta);
           const o = textEditorOverlay(layout, ta.fontSize, scale);
+          const bleed = textEffectsBleed(ta) * scale;
           return (
             <div
               data-testid="text-editor-box"
@@ -2392,12 +2399,15 @@ export function EditorStage({ src }: Props) {
                 }}
                 style={{
                   position: "absolute",
-                  left: o.text.left,
-                  top: o.text.top,
-                  width: o.text.width,
-                  height: o.text.height,
+                  // Grow by the outline/shadow bleed (padding keeps the glyphs
+                  // put) so the textarea doesn't clip them (CP-0106).
+                  left: o.text.left - bleed,
+                  top: o.text.top - bleed,
+                  width: o.text.width + bleed * 2,
+                  height: o.text.height + bleed * 2,
+                  boxSizing: "border-box",
                   margin: 0,
-                  padding: 0,
+                  padding: bleed,
                   border: "none",
                   outline: "none",
                   background: "transparent",
@@ -2416,6 +2426,7 @@ export function EditorStage({ src }: Props) {
                   letterSpacing: 0,
                   color: ta.fill,
                   caretColor: ta.fill,
+                  ...textEffectsCss(ta, scale),
                 }}
               />
             </div>
@@ -3219,6 +3230,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
   });
   // Same layout the editing overlay uses (see textBoxLayout).
   const box = useMemo(() => textBoxLayout(a), [a]);
+  const effects = useMemo(() => textEffects(a), [a]);
   const {
     bg,
     padX,
@@ -3300,6 +3312,7 @@ function TextShape({ a, ctx }: { a: TextAnnotation; ctx: ShapeCtx }) {
         fontStyle={fontStyle}
         textDecoration={textDecoration}
         fontFamily={fontFamily}
+        {...effects}
       />
     </Group>
   );

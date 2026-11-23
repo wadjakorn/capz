@@ -4,6 +4,9 @@ import {
   CARET_SLACK,
   textBoxLayout,
   textEditorOverlay,
+  textEffects,
+  textEffectsCss,
+  textEffectsBleed,
   type InkMeasure,
 } from "./textLayout";
 
@@ -98,5 +101,75 @@ describe("textEditorOverlay", () => {
     expect(c.text.left).toBe(10 - CARET_SLACK / 2);
     const r = textEditorOverlay({ ...layout, align: "right" }, 20, 1);
     expect(r.text.left).toBe(10 - CARET_SLACK);
+  });
+});
+
+describe("textEffects (CP-0106)", () => {
+  it("adds nothing to a plain annotation", () => {
+    expect(textEffects(base)).toEqual({});
+    expect(textEffects({ ...base, outlineColor: null, shadow: false })).toEqual({});
+  });
+
+  it("draws the outline behind the fill, twice the visible width", () => {
+    expect(textEffects({ ...base, outlineColor: "#000000", outlineWidth: 4 })).toEqual({
+      stroke: "#000000",
+      strokeWidth: 8,
+      fillAfterStrokeEnabled: true,
+      lineJoin: "round",
+    });
+  });
+
+  it("defaults the outline width to 3 and clamps it to 1..8", () => {
+    expect(textEffects({ ...base, outlineColor: "#111" }).strokeWidth).toBe(6);
+    expect(textEffects({ ...base, outlineColor: "#111", outlineWidth: 0 }).strokeWidth).toBe(2);
+    expect(textEffects({ ...base, outlineColor: "#111", outlineWidth: 20 }).strokeWidth).toBe(16);
+  });
+
+  it("scales the shadow preset with the font size", () => {
+    const small = textEffects({ ...base, fontSize: 16, shadow: true });
+    expect(small).toEqual({
+      shadowColor: "#000000",
+      shadowOpacity: 0.55,
+      shadowBlur: 2,
+      shadowOffsetX: 1,
+      shadowOffsetY: 1,
+    });
+    const big = textEffects({ ...base, fontSize: 100, shadow: true });
+    expect(big.shadowBlur).toBe(12);
+    expect(big.shadowOffsetX).toBe(5);
+    expect(big.shadowOffsetY).toBe(5);
+  });
+});
+
+describe("textEffectsCss (CP-0106)", () => {
+  it("is empty without effects", () => {
+    expect(textEffectsCss(base, 2)).toEqual({});
+  });
+
+  it("mirrors the outline at screen scale, stroke under the fill", () => {
+    expect(textEffectsCss({ ...base, outlineColor: "#ff0000", outlineWidth: 2 }, 1.5)).toEqual({
+      WebkitTextStroke: "6px #ff0000",
+      paintOrder: "stroke fill",
+    });
+  });
+
+  it("mirrors the shadow at screen scale", () => {
+    expect(textEffectsCss({ ...base, fontSize: 100, shadow: true }, 0.5)).toEqual({
+      textShadow: "2.5px 2.5px 6px rgba(0, 0, 0, 0.55)",
+    });
+  });
+});
+
+describe("textEffectsBleed (CP-0106)", () => {
+  it("is 0 without effects", () => {
+    expect(textEffectsBleed(base)).toBe(0);
+  });
+  it("covers the outline and the shadow's reach", () => {
+    expect(textEffectsBleed({ ...base, outlineColor: "#000", outlineWidth: 5 })).toBe(5);
+    // fontSize 100: offset 5 + blur 12.
+    expect(textEffectsBleed({ ...base, fontSize: 100, shadow: true })).toBe(17);
+    expect(
+      textEffectsBleed({ ...base, fontSize: 100, shadow: true, outlineColor: "#000", outlineWidth: 2 }),
+    ).toBe(19);
   });
 });

@@ -54,6 +54,21 @@ export type TextStyleCtx = {
   setBgPadding: (v: number) => void;
   setAlign: (v: TextAlign) => void;
   setLineHeight: (v: number) => void;
+  /** Outline + shadow (CP-0106). Per-shape only, so present only while a
+   *  text annotation is selected. */
+  effects?: TextEffectsCtx;
+};
+
+export type TextEffectsCtx = {
+  /** null = outline off. */
+  outlineColor: string | null;
+  outlineWidth: number;
+  shadow: boolean;
+  /** Turn the outline on (with the last colour picked) or off. */
+  setOutlineOn: (on: boolean) => void;
+  setOutlineColor: (v: string) => void;
+  setOutlineWidth: (v: number) => void;
+  setShadow: (on: boolean) => void;
 };
 
 export type PinShapeCtx = { value: PinShapeKind; onChange: (v: PinShapeKind) => void };

@@ -194,6 +194,12 @@ export type TextAnnotation = Base & {
   align?: TextAlign;
   /** Line-height multiplier (× fontSize). Absent = config default (~1.35). */
   lineHeight?: number;
+  /** Glyph outline colour (CP-0106). Absent/null = no outline. */
+  outlineColor?: string | null;
+  /** Visible outline thickness in image px, 1..8. Absent = 3. */
+  outlineWidth?: number;
+  /** Preset drop shadow under the glyphs (CP-0106). Absent = off. */
+  shadow?: boolean;
 };
 
 export type BlurAnnotation = Base & {
