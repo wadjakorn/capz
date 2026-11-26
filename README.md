@@ -19,21 +19,11 @@ brew tap wadjakorn/capz
 brew install --cask capz
 ```
 
-Cask strips the quarantine attribute automatically — no Gatekeeper prompt.
-
 ### macOS (manual `.dmg`)
 
-capz is **ad-hoc signed**, not notarized through the Apple Developer Program. On first launch macOS will block with *"capz cannot be opened because Apple cannot check it for malicious software"*.
+Download `capz_<version>_aarch64.dmg` (Apple Silicon) or `capz_<version>_x64.dmg` (Intel) from [Releases](https://github.com/wadjakorn/capz/releases), open it and drag capz into Applications.
 
-Unblock once after install:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/capz.app
-```
-
-Or via UI: **System Settings → Privacy & Security → "Open Anyway"** (scroll to the bottom of the Security section after the first blocked launch).
-
-The Homebrew cask path avoids this — prefer it unless you need a specific build.
+macOS builds are signed with an Apple **Developer ID** and **notarized** by Apple, so both install paths open with no Gatekeeper prompt and no `xattr` step. (Older releases were not notarized; update to the latest.) Signing runbook: [docs/SIGNING.md](docs/SIGNING.md).
 
 ### Windows (`.msi` / `.exe`)
 
@@ -84,7 +74,7 @@ Deploy: Cloudflare Pages Git integration builds `pnpm build` → `out/` on every
 
 Background updater polls `https://capz-api.banana3339.workers.dev/latest.json` — a thin Cloudflare Worker that proxies the signed manifest from `https://wadjakorn.github.io/capz/latest.json` (Ed25519 minisign, independent of OS code-signing) and counts the check; if the Worker is unreachable the app falls back to the GitHub Pages URL directly. Manual: Settings → App → Advanced → Check now. Worker source: [`worker/`](worker/README.md).
 
-Homebrew-installed users get auto-updates seamlessly. Manual-install macOS users may need to re-run the `xattr` command above after an update if Gatekeeper re-quarantines the replaced bundle.
+Updates install in place for both Homebrew and manual installs.
 
 ## Code signing policy
 

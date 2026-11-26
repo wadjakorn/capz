@@ -211,11 +211,8 @@ export const site = {
   "install.mac.brewDesc": "Homebrew picks the build that matches your chip (Apple Silicon or Intel).",
   "install.linux.title": "Linux · coming soon",
   "install.linux.desc": "A desktop app for Linux is on the way. Meanwhile the same editor runs in your browser, no install.",
-  "install.mac.step2": "If macOS blocks it, run these (either option)",
-  "install.mac.step2desc":
-    "capz doesn't have an Apple Developer cert (yearly fee) yet, so it's ad-hoc signed and Gatekeeper blocks first launch. The commands below unblock it — one time only.",
-  "install.mac.stillBlocked":
-    "Still blocked? macOS 26 (Tahoe) may show an Open Anyway button under Privacy & Security. Open with:",
+  "install.mac.notarized":
+    "Signed with an Apple Developer ID and notarized by Apple, so it opens straight away with no security warning.",
   "install.win.download": "Download installer",
   "install.win.desc": "Installer for Windows 10 and 11 (x64).",
   "install.win.sacTitle": "If Windows blocks it (Smart App Control)",

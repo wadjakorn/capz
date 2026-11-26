@@ -32,7 +32,7 @@ The same editor also runs in the browser at /paste with no install. CleanShot X 
 - **Output:** Save, Copy, or Save & Copy, as PNG, JPEG or WebP, with a filename template.
 - **Settings:** search and deep links; light/dark/system theme; auto-updater.
 - **Privacy:** nothing is sent unless the user opts in. The anonymous install id is opt-in and off by default.
-- **Builds:** ad-hoc/unsigned, so the macOS Gatekeeper steps and the Windows SmartScreen/Smart App Control guidance must stay on the page. macOS ships one .dmg per chip (Apple Silicon `aarch64`, Intel `x64`) on each GitHub release, and the Homebrew cask picks the right one. Every macOS install, by .dmg or brew, needs the xattr step on first launch. Windows 10/11 x64. Linux is planned and shown as "coming soon".
+- **Builds:** macOS is Developer ID signed and notarized by Apple, so the page has no Gatekeeper/xattr step. Windows is still unsigned, so the SmartScreen/Smart App Control guidance must stay on the page. macOS ships one .dmg per chip (Apple Silicon `aarch64`, Intel `x64`) on each GitHub release, and the Homebrew cask picks the right one. Windows 10/11 x64. Linux is planned and shown as "coming soon".
 - **Web build:** the /paste editor runs in the browser, including on phones with touch.
 - **Editor keys (v0.16–v0.17):** ⌘/Ctrl+D duplicates the selection, arrow keys nudge it 1px (Shift = 10px), undo/redo hints match the platform and Ctrl+Y redoes on Windows. Editor shortcuts work with the Thai (Kedmanee) keyboard layout active.
 - **Updates keep work (v0.17):** capz saves workspaces before installing an update and warns when something can't survive the relaunch.

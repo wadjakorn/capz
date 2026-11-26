@@ -21,15 +21,6 @@ cask "capz" do
 
   app "capz.app"
 
-  # Strip macOS quarantine xattr so unsigned/un-notarized build opens without
-  # the "Apple could not verify capz.app is free of malware" Gatekeeper prompt.
-  # Remove once the app is signed with a Developer ID + notarized.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/capz.app"],
-                   sudo: false
-  end
-
   zap trash: [
     "~/Library/Application Support/dev.baze.capz",
     "~/Library/Caches/dev.baze.capz",
