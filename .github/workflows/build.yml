@@ -35,7 +35,7 @@ jobs:
                 owner: context.repo.owner, repo: context.repo.repo,
                 tag_name: tag,
                 name: `capz v${version}`,
-                body: 'See assets below. Auto-update will pick this up on the next interval (default 24h) or via Settings → Updates → Check now.',
+                body: 'See assets below. macOS builds are signed with Developer ID and notarized by Apple. Auto-update will pick this up on the next interval (default 24h) or via Settings → Updates → Check now.',
                 draft: true,
                 prerelease: false,
               });
@@ -87,6 +87,45 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
+      # macOS notarization: Developer ID identity + App Store Connect API key.
+      # tauri-bundler notarizes + staples the .app on its own when APPLE_API_KEY
+      # (key id) / APPLE_API_ISSUER / APPLE_API_KEY_PATH are set, so they go to
+      # $GITHUB_ENV only when enabled — a set-but-empty var would make it try
+      # (and fail) to notarize. Tag builds refuse to ship un-notarized: the
+      # cask, README and site promise a Gatekeeper-clean install.
+      - name: Notarization setup (macOS)
+        id: notary
+        if: runner.os == 'macOS'
+        env:
+          SIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          API_KEY_P8: ${{ secrets.APPLE_API_KEY }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          if [[ "${SIGN_IDENTITY:-}" == Developer\ ID\ Application* && -n "${API_KEY_P8:-}" && -n "${API_KEY_ID:-}" && -n "${API_ISSUER:-}" ]]; then
+            KEY="$RUNNER_TEMP/AuthKey_capz.p8"
+            printf '%s\n' "$API_KEY_P8" > "$KEY"
+            {
+              echo "APPLE_API_KEY=$API_KEY_ID"
+              echo "APPLE_API_ISSUER=$API_ISSUER"
+              echo "APPLE_API_KEY_PATH=$KEY"
+            } >> "$GITHUB_ENV"
+            # Developer ID leaf certs chain through this intermediate; without
+            # it the identity is "not valid" and codesign fails.
+            curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" \
+              https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+            sudo security add-certificates -k /Library/Keychains/System.keychain \
+              "$RUNNER_TEMP/DeveloperIDG2CA.cer" || true
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "::error::Tag build without notarization. Needs APPLE_SIGNING_IDENTITY = Developer ID Application + APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER secrets (docs/SIGNING.md)."
+            exit 1
+          else
+            echo "::warning::Not notarizing (needs Developer ID identity + APPLE_API_KEY* secrets). macOS will block this build on first launch."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # On tag push: build, sign, upload to a draft GitHub Release, and
       # attach latest.json to the release (the update channel itself is
       # pointed at it only on publish — see publish-update-channel.yml).
@@ -98,12 +137,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS free self-signed code signing (NO Apple Developer Program, NO notarization).
-          # Gives every release a STABLE code identity so the Screen Recording (TCC)
-          # grant survives auto-updates instead of dying on every cdhash change.
-          # Windows runner ignores these (macOS-only bundler code path).
-          # Notarization is auto-skipped because APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
-          # are intentionally absent (see tauri-bundler macos/app.rs notarize_auth gate).
+          # macOS Developer ID code signing (Hardened Runtime is Tauri's default).
+          # A stable identity also keeps the Screen Recording (TCC) grant across
+          # auto-updates. Notarization env (APPLE_API_*) comes from $GITHUB_ENV,
+          # set by "Notarization setup" above. Windows ignores all of these.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -114,6 +151,29 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: --target ${{ matrix.target }}
+
+      # tauri-bundler notarizes the .app (stapled inside the dmg and the
+      # updater .app.tar.gz) but only signs the .dmg. Notarize + staple the dmg
+      # too, then replace the release asset tauri-action already uploaded.
+      # Stapling changes the dmg bytes: the cask sha256 is computed later, on
+      # publish, from the release asset, so it matches.
+      - name: Notarize .dmg (macOS)
+        if: steps.notary.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=(src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)
+          if [[ ${#DMGS[@]} -ne 1 ]]; then
+            echo "::error::expected one .dmg, found ${#DMGS[@]}"
+            exit 1
+          fi
+          xcrun stapler validate "src-tauri/target/${{ matrix.target }}/release/bundle/macos/capz.app"
+          scripts/notarize.sh "${DMGS[0]}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            gh release upload "$GITHUB_REF_NAME" "${DMGS[0]}" --clobber
+          fi
 
       # Always upload build artifacts on non-tag dispatch so they are
       # downloadable from the workflow run for quick smoke-testing.
