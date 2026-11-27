@@ -89,13 +89,7 @@ export function Install() {
                 <p>{t("install.mac.brewDesc")}</p>
               </div>
               <div className="step">
-                <h4><ThaiText>{t("install.mac.step2")}</ThaiText></h4>
-                <p>{t("install.mac.step2desc")}</p>
-                <CodeBlock command="sudo xattr -dr com.apple.quarantine /Applications/capz.app" copyLabel={copy} />
-                <CodeBlock command="sudo spctl --add /Applications/capz.app" copyLabel={copy} />
-                <CodeBlock command="open -a capz" copyLabel={copy} />
-                <p>{t("install.mac.stillBlocked")}</p>
-                <CodeBlock command="open /System/Library/PreferencePanes/Security.prefPane" copyLabel={copy} />
+                <p>{t("install.mac.notarized")}</p>
               </div>
             </div>
             <div className={`inst-col${tab === "windows" ? " on" : ""}`} id="install-windows" aria-labelledby="install-h-win">
