@@ -1,0 +1,47 @@
+{
+ "targets": {
+  "x86_64-unknown-linux-gnu": {
+   "added_zip_mb": 12.91,
+   "backend": "ort",
+   "by_backend": {
+    "ort": 12.91,
+    "tract": 12.15
+   },
+   "sizes": {
+    "models_zip": 3780290,
+    "none_raw": 455528,
+    "none_zip": 214448,
+    "ort_raw": 25338640,
+    "ort_zip": 9348260,
+    "tract_raw": 23916688,
+    "tract_zip": 8586689
+   }
+  },
+  "aarch64-apple-darwin": {
+   "added_zip_mb": 11.31,
+   "backend": "ort",
+   "by_backend": {
+    "ort": 11.31,
+    "tract": 10.48
+   },
+   "sizes": {
+    "none_raw": 407856,
+    "none_zip": 187626,
+    "ort_raw": 19829344,
+    "ort_zip": 7719292,
+    "tract_raw": 17791744,
+    "tract_zip": 6883984,
+    "models_zip": 3780290
+   }
+  },
+  "x86_64-pc-windows-msvc": {
+   "added_zip_mb": 9.24,
+   "backend": "ort",
+   "estimate": true,
+   "by_backend": {
+    "ort (load-dynamic, official DLL)": 9.24
+   },
+   "basis": "onnxruntime.dll 1.24.4 14.2 MB raw / 5.25 MB zip -9, signed by Microsoft Corporation (Authenticode); + crate code (Linux 'none' build) + models"
+  }
+ }
+}

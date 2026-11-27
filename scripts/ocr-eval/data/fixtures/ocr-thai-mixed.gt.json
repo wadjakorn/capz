@@ -1,0 +1,3 @@
+{"lines": ["ที่แก้จริง", "1. เทียบที่ตัวรูป ไม่ใช่ที่ object สุ่ม 8x8 จุด", "2. ไม่ล้างปกทันทีเมื่อ metadata ยังไม่มีรูป",
+           "tree) ตอนนี้รอ 1.2 วินาที \"เพลงนี้ไม่มีปก\"", "342 JVM tests ผ่านหมด, ลบ log ออกแล้ว"],
+ "notes": "LINES of scripts/make-ocr-fixture.py on feat/tesseract-windows-ocr (PR #84), empty lines dropped."}

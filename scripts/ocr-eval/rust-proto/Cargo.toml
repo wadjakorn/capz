@@ -1,0 +1,23 @@
+[package]
+name = "openthai-proto"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+image = { version = "0.25", default-features = false, features = ["png"] }
+imageproc = { version = "0.27.0", default-features = false }
+ort = { version = "2.0.0-rc.15", features = ["api-24", "copy-dylibs", "download-binaries", "std", "tls-rustls"], optional = true, default-features = false }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tract-onnx = { version = "0.23.10", optional = true }
+unicode-normalization = "0.1.26"
+
+[features]
+backend-ort = ["dep:ort"]
+backend-tract = ["dep:tract-onnx"]
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,677 @@
+{
+ "base": {
+  "runtime": {
+   "backend": "onnxruntime"
+  }
+ },
+ "best_config": {
+  "runtime": {
+   "backend": "onnxruntime"
+  },
+  "det": {
+   "v_pad": 0.15
+  },
+  "rec": {
+   "min_chars": 1
+  }
+ },
+ "evaluations": 43,
+ "history": [
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    }
+   },
+   "run_id": "20261115-173820-openthai-dev-65f373c3",
+   "cer_e2e": 0.03848110465116279,
+   "decision": "baseline"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "limit": 960
+    }
+   },
+   "run_id": "20261115-173933-openthai-dev-dbe3b598",
+   "cer_e2e": 0.037472747093023256,
+   "decision": "reject (-0.10 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "limit": 1600
+    }
+   },
+   "run_id": "20261115-174030-openthai-dev-47dbb723",
+   "cer_e2e": 0.03984375,
+   "decision": "reject (+0.14 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "limit": 1920
+    }
+   },
+   "run_id": "20261115-174202-openthai-dev-67022de7",
+   "cer_e2e": 0.04054324127906977,
+   "decision": "reject (+0.21 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "limit": 2560
+    }
+   },
+   "run_id": "20261115-174415-openthai-dev-af66d60a",
+   "cer_e2e": 0.04081577034883721,
+   "decision": "reject (+0.23 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "limit": 0
+    }
+   },
+   "run_id": "20261115-174719-openthai-dev-574c1c85",
+   "cer_e2e": 0.039371366279069765,
+   "decision": "reject (+0.09 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "pre": {
+     "scale": 1.5
+    }
+   },
+   "run_id": "20261115-174910-openthai-dev-550bf684",
+   "cer_e2e": 0.03702761627906977,
+   "decision": "reject (-0.15 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "pre": {
+     "scale": 2.0
+    }
+   },
+   "run_id": "20261115-175025-openthai-dev-bc479346",
+   "cer_e2e": 0.038508357558139535,
+   "decision": "reject (+0.00 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "rec": {
+     "color": "stretch"
+    }
+   },
+   "run_id": "20261115-175141-openthai-dev-bab442ec",
+   "cer_e2e": 0.037454578488372095,
+   "decision": "reject (-0.10 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "rec": {
+     "color": "gray_inv"
+    }
+   },
+   "run_id": "20261115-175252-openthai-dev-7527c554",
+   "cer_e2e": 0.04212390988372093,
+   "decision": "reject (+0.36 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "rec": {
+     "color": "gray"
+    }
+   },
+   "run_id": "20261115-175445-openthai-dev-27761f56",
+   "cer_e2e": 0.537109375,
+   "decision": "reject (+49.86 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    }
+   },
+   "run_id": "20261115-175625-openthai-dev-612df542",
+   "cer_e2e": 0.030704941860465115,
+   "decision": "ADOPT (\u22120.78 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.3
+    }
+   },
+   "run_id": "20261115-175737-openthai-dev-1d48e0a2",
+   "cer_e2e": 0.03754542151162791,
+   "decision": "reject (+0.68 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "box_thresh": 0.5
+    }
+   },
+   "run_id": "20261115-175916-openthai-dev-dfbb2872",
+   "cer_e2e": 0.03080486918604651,
+   "decision": "reject (+0.01 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "box_thresh": 0.6
+    }
+   },
+   "run_id": "20261115-180039-openthai-dev-dbc3628d",
+   "cer_e2e": 0.03452943313953488,
+   "decision": "reject (+0.38 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "unclip": 1.5
+    }
+   },
+   "run_id": "20261115-180149-openthai-dev-65b08817",
+   "cer_e2e": 0.032231104651162794,
+   "decision": "reject (+0.15 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "unclip": 1.7
+    }
+   },
+   "run_id": "20261115-180303-openthai-dev-0e1bcaac",
+   "cer_e2e": 0.03698219476744186,
+   "decision": "reject (+0.63 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "unclip": 2.0
+    }
+   },
+   "run_id": "20261115-180416-openthai-dev-13136be2",
+   "cer_e2e": 0.056785973837209305,
+   "decision": "reject (+2.61 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "thresh": 0.3
+    }
+   },
+   "run_id": "20261115-180549-openthai-dev-213d500b",
+   "cer_e2e": 0.03080486918604651,
+   "decision": "reject (+0.01 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "drop_below": 0.0
+    }
+   },
+   "run_id": "20261115-180707-openthai-dev-fbcc26d3",
+   "cer_e2e": 0.02917877906976744,
+   "decision": "reject (-0.15 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "drop_below": 0.5
+    }
+   },
+   "run_id": "20261115-180824-openthai-dev-79d1ab50",
+   "cer_e2e": 0.029124273255813952,
+   "decision": "reject (-0.16 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-181024-openthai-dev-ec4a1dd8",
+   "cer_e2e": 0.02845203488372093,
+   "decision": "ADOPT (\u22120.23 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "limit": 960
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-181155-openthai-dev-72ddb53a",
+   "cer_e2e": 0.0341297238372093,
+   "decision": "reject (+0.57 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "limit": 1600
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-181309-openthai-dev-85524505",
+   "cer_e2e": 0.029778343023255813,
+   "decision": "reject (+0.13 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "limit": 1920
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-181446-openthai-dev-8322506a",
+   "cer_e2e": 0.028997093023255816,
+   "decision": "reject (+0.05 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "limit": 2560
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-181718-openthai-dev-7c1dadad",
+   "cer_e2e": 0.029060683139534884,
+   "decision": "reject (+0.06 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "limit": 0
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-182036-openthai-dev-eb247863",
+   "cer_e2e": 0.029887354651162792,
+   "decision": "reject (+0.14 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1
+    },
+    "pre": {
+     "scale": 1.5
+    }
+   },
+   "run_id": "20261115-182234-openthai-dev-d052daa3",
+   "cer_e2e": 0.028243095930232557,
+   "decision": "reject (-0.02 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1
+    },
+    "pre": {
+     "scale": 2.0
+    }
+   },
+   "run_id": "20261115-182348-openthai-dev-3a46db9a",
+   "cer_e2e": 0.02845203488372093,
+   "decision": "reject (-0.00 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1,
+     "color": "stretch"
+    }
+   },
+   "run_id": "20261115-182504-openthai-dev-f88e53b3",
+   "cer_e2e": 0.02811591569767442,
+   "decision": "reject (-0.03 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1,
+     "color": "gray_inv"
+    }
+   },
+   "run_id": "20261115-182616-openthai-dev-00042d53",
+   "cer_e2e": 0.032839752906976744,
+   "decision": "reject (+0.44 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1,
+     "color": "gray"
+    }
+   },
+   "run_id": "20261115-182729-openthai-dev-4b9227cc",
+   "cer_e2e": 0.5335119912790698,
+   "decision": "reject (+50.51 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.0
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-182850-openthai-dev-1512ab03",
+   "cer_e2e": 0.036364462209302326,
+   "decision": "reject (+0.79 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.3
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183007-openthai-dev-2c1510d3",
+   "cer_e2e": 0.03532885174418605,
+   "decision": "reject (+0.69 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "box_thresh": 0.5
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183113-openthai-dev-cd6c84a9",
+   "cer_e2e": 0.028561046511627906,
+   "decision": "reject (+0.01 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "box_thresh": 0.6
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183225-openthai-dev-af72af45",
+   "cer_e2e": 0.03231286337209302,
+   "decision": "reject (+0.39 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "unclip": 1.5
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183337-openthai-dev-a4af5c11",
+   "cer_e2e": 0.029841933139534885,
+   "decision": "reject (+0.14 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "unclip": 1.7
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183447-openthai-dev-f050742c",
+   "cer_e2e": 0.034656613372093026,
+   "decision": "reject (+0.62 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "unclip": 2.0
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183616-openthai-dev-7f0b012f",
+   "cer_e2e": 0.05442405523255814,
+   "decision": "reject (+2.60 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15,
+     "thresh": 0.3
+    },
+    "rec": {
+     "min_chars": 1
+    }
+   },
+   "run_id": "20261115-183742-openthai-dev-22b563ab",
+   "cer_e2e": 0.028588299418604652,
+   "decision": "reject (+0.01 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1,
+     "drop_below": 0.0
+    }
+   },
+   "run_id": "20261115-183905-openthai-dev-8f812fe8",
+   "cer_e2e": 0.026934956395348836,
+   "decision": "reject (-0.15 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 1,
+     "drop_below": 0.5
+    }
+   },
+   "run_id": "20261115-184033-openthai-dev-01b12297",
+   "cer_e2e": 0.026853197674418603,
+   "decision": "reject (-0.16 pt)"
+  },
+  {
+   "config": {
+    "runtime": {
+     "backend": "onnxruntime"
+    },
+    "det": {
+     "v_pad": 0.15
+    },
+    "rec": {
+     "min_chars": 2
+    }
+   },
+   "run_id": "20261115-184213-openthai-dev-0cc8fe96",
+   "cer_e2e": 0.030704941860465115,
+   "decision": "reject (+0.23 pt)"
+  }
+ ]
+}
