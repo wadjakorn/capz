@@ -1,5 +1,8 @@
 # macOS Self-Signed Code Signing (free path)
 
+> **Superseded (2026-11-27):** releases are now Developer ID signed and
+> notarized — see [SIGNING.md](SIGNING.md). Kept for history.
+
 **Status: wired in (2026-06-25).** CI signs every macOS release with a stable
 self-signed identity. **$0, no Apple Developer Program, no notarization.**
 
