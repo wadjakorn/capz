@@ -1,8 +1,7 @@
 name: Update Homebrew Cask
 
 # Fires after a GitHub Release is published (not draft). Renders the cask from
-# packaging/homebrew-cask/capz.rb (the source of truth — it carries the
-# quarantine-stripping postflight), fills in version + SHA256 of the two macOS
+# packaging/homebrew-cask/capz.rb (the source of truth), fills in version + SHA256 of the two macOS
 # .dmg assets, and pushes Casks/capz.rb to the wadjakorn/homebrew-capz tap.
 #
 # Requires repo secret HOMEBREW_TAP_TOKEN: a fine-grained PAT with

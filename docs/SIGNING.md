@@ -116,12 +116,6 @@ so every user re-grants once after updating (the in-app stale-permission
 recovery flow covers it). Later releases keep the grant. Say so in that
 release's notes.
 
-## After the first notarized release is verified
-
-- Remove the cask `postflight xattr` block ([packaging/homebrew-cask/capz.rb](../packaging/homebrew-cask/capz.rb)).
-- Drop the Gatekeeper/xattr steps from README.md, the site install section
-  (`src/components/site/Install.tsx`, `install.mac.*` strings) and PRODUCT.md.
-
 ## Troubleshooting
 
 - **Notarization rejected:** `xcrun notarytool log <submission-id> --key ... --key-id ... --issuer ...`

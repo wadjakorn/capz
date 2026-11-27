@@ -212,11 +212,8 @@ export const site: Record<keyof typeof en, string> = {
   "install.mac.brewDesc": "Homebrew เลือกเวอร์ชันให้ตรงกับชิปของเครื่องเอง (Apple Silicon หรือ Intel)",
   "install.linux.title": "Linux ·\u200B เร็ว ๆ นี้",
   "install.linux.desc": "แอปเดสก์ท็อปสำหรับ Linux กำลังมา ระหว่างนี้ใช้ editor ตัวเดียวกันบนเว็บได้ ไม่ต้องติดตั้ง",
-  "install.mac.step2": "ถ้า macOS บล็อก\u200B ให้รันคำสั่งนี้ (ใช้ได้ทั้งสองทาง)",
-  "install.mac.step2desc":
-    "capz ยังไม่มี Apple Developer cert (ค่าธรรมเนียมรายปี) ถูก ad-hoc signed Gatekeeper จึงบล็อกตอนเปิดครั้งแรก คำสั่งข้างล่างคือวิธีเปิดใช้งาน — ทำครั้งเดียว",
-  "install.mac.stillBlocked":
-    "ถ้ายังเปิดไม่ได้ macOS 26 (Tahoe) จะมีปุ่ม Open Anyway ที่ Privacy & Security เปิดด้วย",
+  "install.mac.notarized":
+    "เซ็นด้วย Apple Developer ID และผ่านการตรวจ (notarize) จาก Apple แล้ว เปิดใช้ได้ทันที ไม่มีคำเตือนความปลอดภัย",
   "install.win.download": "ดาวน์โหลด Installer",
   "install.win.desc": "Installer สำหรับ Windows 10 และ 11 (x64)",
   "install.win.sacTitle": "ถ้า Windows บล็อก (Smart App Control)",

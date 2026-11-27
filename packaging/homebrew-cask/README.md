@@ -1,14 +1,12 @@
 # Homebrew Cask — capz
 
-Free-distribution path for capz on macOS without paying Apple's $99/yr Developer Program.
+Homebrew distribution for capz on macOS. Releases are Developer ID signed and notarized ([docs/SIGNING.md](../../docs/SIGNING.md)), so the cask is a plain `app` install with no quarantine workaround. CI renders and pushes it on every published release (`.github/workflows/update-cask.yml`).
 
 ## How it works
 
 1. CI (or local) runs `pnpm tauri build` → produces `capz_<version>_aarch64.dmg` + `capz_<version>_x64.dmg`.
 2. GitHub Release `v<version>` is published with both DMGs attached.
-3. This cask's `postflight` strips `com.apple.quarantine` so Gatekeeper does not block the unsigned bundle.
-
-This sidesteps the *"Apple could not verify 'capz.app' is free of malware"* prompt on Sequoia (macOS 15+) where right-click → Open no longer works.
+3. `update-cask.yml` fills in version + both SHA256s and pushes `Casks/capz.rb` to the tap.
 
 ## Releasing
 
@@ -53,13 +51,4 @@ Fork `Homebrew/homebrew-cask`, drop `capz.rb` under `Casks/c/capz.rb`, open PR. 
 - Stable download URL (GitHub release ✓)
 - 30-day project age + 75 stars OR `livecheck` passing
 - Bundle ID matches (`dev.baze.capz`)
-- No installer warnings — the `postflight xattr` block is allowed but flagged; expect a reviewer to ask why notarization is not used.
-
-Path A is the practical choice until Apple Developer Program is funded.
-
-## Removing this workaround
-
-Once Phase 15 (Packaging) ships with proper Developer ID signing + notarization:
-- Delete the `postflight` block.
-- Add `--staple` step to release script (`xcrun stapler staple capz.app`).
-- Bump version, ship — Gatekeeper accepts notarized bundles silently.
+- Signed + notarized app ✓
